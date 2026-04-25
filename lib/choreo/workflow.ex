@@ -219,7 +219,7 @@ defmodule Choreo.Workflow do
   """
   @spec add_swimlane(t(), String.t() | atom(), keyword()) :: t()
   def add_swimlane(%__MODULE__{} = workflow, name, opts \\ []) do
-    name = ensure_cluster_prefix(name)
+    name = Choreo.Internal.ensure_cluster_prefix(name)
     clusters = Map.put(workflow.clusters || %{}, name, Map.new(opts))
     %{workflow | clusters: clusters}
   end
@@ -327,7 +327,9 @@ defmodule Choreo.Workflow do
   end
 
   defp put_swimlane(data, nil), do: data
-  defp put_swimlane(data, swimlane), do: Map.put(data, :cluster, ensure_cluster_prefix(swimlane))
+
+  defp put_swimlane(data, swimlane),
+    do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(swimlane))
 
   defp default_weight(_graph, _to, :compensation), do: 0
   defp default_weight(_graph, _to, :retry), do: 0
@@ -347,9 +349,4 @@ defmodule Choreo.Workflow do
   defp edge_type_label(:failure), do: "failure"
   defp edge_type_label(:timeout), do: "timeout"
   defp edge_type_label(_), do: nil
-
-  defp ensure_cluster_prefix(name) do
-    name = to_string(name)
-    if String.starts_with?(name, "cluster_"), do: name, else: "cluster_#{name}"
-  end
 end

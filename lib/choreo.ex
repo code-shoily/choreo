@@ -216,7 +216,7 @@ defmodule Choreo do
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = system, name, opts \\ []) do
-    name = ensure_cluster_prefix(name)
+    name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
     clusters = Map.put(system.clusters, name, cluster)
     %{system | clusters: clusters}
@@ -231,14 +231,12 @@ defmodule Choreo do
       |> Map.put(:type, type)
       |> Map.put_new(:name, to_string(id))
 
-    data = if cluster, do: Map.put(data, :cluster, ensure_cluster_prefix(cluster)), else: data
+    data =
+      if cluster,
+        do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(cluster)),
+        else: data
 
     %{system | graph: Yog.add_node(graph, id, data)}
-  end
-
-  defp ensure_cluster_prefix(name) do
-    name = to_string(name)
-    if String.starts_with?(name, "cluster_"), do: name, else: "cluster_#{name}"
   end
 
   # ============================================================================

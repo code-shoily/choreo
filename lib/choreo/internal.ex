@@ -98,7 +98,8 @@ defmodule Choreo.Internal do
     end)
   end
 
-  defp ensure_cluster_prefix(name) do
+  @doc false
+  def ensure_cluster_prefix(name) do
     name = to_string(name)
     if String.starts_with?(name, "cluster_"), do: name, else: "cluster_#{name}"
   end

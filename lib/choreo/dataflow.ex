@@ -195,7 +195,7 @@ defmodule Choreo.Dataflow do
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = flow, name, opts \\ []) do
-    name = ensure_cluster_prefix(name)
+    name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
     clusters = Map.put(flow.clusters, name, cluster)
     %{flow | clusters: clusters}
@@ -343,13 +343,11 @@ defmodule Choreo.Dataflow do
       latency_ms: rest_opts[:latency_ms]
     }
 
-    data = if cluster, do: Map.put(data, :cluster, ensure_cluster_prefix(cluster)), else: data
+    data =
+      if cluster,
+        do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(cluster)),
+        else: data
 
     %{flow | graph: Yog.add_node(graph, id, data)}
-  end
-
-  defp ensure_cluster_prefix(name) do
-    name = to_string(name)
-    if String.starts_with?(name, "cluster_"), do: name, else: "cluster_#{name}"
   end
 end
