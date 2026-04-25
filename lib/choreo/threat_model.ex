@@ -243,7 +243,7 @@ defmodule Choreo.ThreatModel do
     from_boundary = boundary_of(model, from)
     to_boundary = boundary_of(model, to)
 
-    from_boundary != nil and to_boundary != nil and from_boundary != to_boundary
+    from_boundary != to_boundary
   end
 
   @doc """
