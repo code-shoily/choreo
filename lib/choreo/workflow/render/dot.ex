@@ -36,6 +36,21 @@ defmodule Choreo.Workflow.Render.DOT do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:start)
+      ...>   |> Choreo.Workflow.add_task(:process)
+      ...>   |> Choreo.Workflow.add_end(:end)
+      ...>   |> Choreo.Workflow.connect(:start, :process)
+      ...>   |> Choreo.Workflow.connect(:process, :end)
+      iex> dot = Choreo.Workflow.Render.DOT.to_dot(workflow)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "process")
+      true
   """
   @spec to_dot(Choreo.Workflow.t(), keyword()) :: String.t()
   def to_dot(%Choreo.Workflow{} = workflow, opts \\ []) do

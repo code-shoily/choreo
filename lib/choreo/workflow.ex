@@ -105,6 +105,16 @@ defmodule Choreo.Workflow do
   Creates a new empty workflow graph.
 
   Workflow graphs are always directed.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> Choreo.Workflow.nodes(workflow)
+      []
+      iex> Choreo.Workflow.starts(workflow)
+      []
+      iex> Choreo.Workflow.ends(workflow)
+      []
   """
   @spec new() :: t()
   def new do
@@ -121,6 +131,15 @@ defmodule Choreo.Workflow do
 
   @doc """
   Adds a start node (entry point).
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_start(workflow, :begin, label: "Start")
+      iex> Choreo.Workflow.starts(workflow)
+      [:begin]
+      iex> Yog.node(workflow.graph, :begin).node_type
+      :start
   """
   @spec add_start(t(), Yog.node_id(), keyword()) :: t()
   def add_start(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -129,6 +148,15 @@ defmodule Choreo.Workflow do
 
   @doc """
   Adds an end node (terminal).
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_end(workflow, :finish, label: "End")
+      iex> Choreo.Workflow.ends(workflow)
+      [:finish]
+      iex> Yog.node(workflow.graph, :finish).node_type
+      :end
   """
   @spec add_end(t(), Yog.node_id(), keyword()) :: t()
   def add_end(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -147,6 +175,17 @@ defmodule Choreo.Workflow do
     * `:handler` — handler name / reference
     * `:description` — tooltip text
     * `:swimlane` — swimlane group name
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_task(workflow, :process, timeout_ms: 5000, retry: 3)
+      iex> Choreo.Workflow.tasks(workflow)
+      [:process]
+      iex> Yog.node(workflow.graph, :process).timeout_ms
+      5000
+      iex> Yog.node(workflow.graph, :process).retry
+      3
   """
   @spec add_task(t(), Yog.node_id(), keyword()) :: t()
   def add_task(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -155,6 +194,13 @@ defmodule Choreo.Workflow do
 
   @doc """
   Adds a decision / gateway node for conditional branching.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_decision(workflow, :check)
+      iex> Yog.node(workflow.graph, :check).node_type
+      :decision
   """
   @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
   def add_decision(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -163,6 +209,13 @@ defmodule Choreo.Workflow do
 
   @doc """
   Adds a fork node that splits execution into parallel paths.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_fork(workflow, :split)
+      iex> Yog.node(workflow.graph, :split).node_type
+      :fork
   """
   @spec add_fork(t(), Yog.node_id(), keyword()) :: t()
   def add_fork(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -171,6 +224,13 @@ defmodule Choreo.Workflow do
 
   @doc """
   Adds a join node that merges parallel paths.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_join(workflow, :merge)
+      iex> Yog.node(workflow.graph, :merge).node_type
+      :join
   """
   @spec add_join(t(), Yog.node_id(), keyword()) :: t()
   def add_join(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -186,6 +246,15 @@ defmodule Choreo.Workflow do
     * `:label` — display label
     * `:handler` — handler name / reference
     * `:description` — tooltip text
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_compensation(workflow, :rollback, for: :process)
+      iex> Choreo.Workflow.compensations(workflow)
+      [:rollback]
+      iex> Yog.node(workflow.graph, :rollback).target_task
+      :process
   """
   @spec add_compensation(t(), Yog.node_id(), keyword()) :: t()
   def add_compensation(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -204,6 +273,13 @@ defmodule Choreo.Workflow do
 
   @doc """
   Adds an event node (trigger, timer, signal).
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = Choreo.Workflow.add_event(workflow, :timer)
+      iex> Yog.node(workflow.graph, :timer).node_type
+      :event
   """
   @spec add_event(t(), Yog.node_id(), keyword()) :: t()
   def add_event(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -223,6 +299,18 @@ defmodule Choreo.Workflow do
     * `:edge_type` — `:sequence` (default), `:compensation`, `:retry`, `:failure`, `:timeout`
     * `:weight` — edge weight for path calculations (defaults to target task timeout_ms)
     * `:label` — override edge label
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      iex> Choreo.Workflow.edges(workflow)
+      [{:a, :b, 1}]
+      iex> workflow.edge_meta[{:a, :b}].edge_type
+      :sequence
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = workflow, from, to, opts \\ []) do
@@ -256,6 +344,15 @@ defmodule Choreo.Workflow do
 
   Swimlanes are rendered as subgraph clusters. Nodes can be assigned to a
   swimlane via the `:swimlane` option in node builders.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_swimlane("backend", label: "Backend Services")
+      ...>   |> Choreo.Workflow.add_task(:api, swimlane: "backend")
+      iex> Yog.node(workflow.graph, :api)[:cluster]
+      "cluster_backend"
   """
   @spec add_swimlane(t(), String.t() | atom(), keyword()) :: t()
   def add_swimlane(%__MODULE__{} = workflow, name, opts \\ []) do
@@ -274,6 +371,21 @@ defmodule Choreo.Workflow do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:start)
+      ...>   |> Choreo.Workflow.add_task(:process)
+      ...>   |> Choreo.Workflow.add_end(:end)
+      ...>   |> Choreo.Workflow.connect(:start, :process)
+      ...>   |> Choreo.Workflow.connect(:process, :end)
+      iex> dot = Choreo.Workflow.to_dot(workflow)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "process")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = workflow, opts \\ []) do
@@ -286,6 +398,15 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns all node IDs in the workflow.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      iex> Enum.sort(Choreo.Workflow.nodes(workflow))
+      [:a, :b]
   """
   @spec nodes(t()) :: [Yog.node_id()]
   def nodes(%__MODULE__{graph: graph}) do
@@ -294,6 +415,16 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns all edges as `{from, to, weight}` tuples.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      iex> Choreo.Workflow.edges(workflow)
+      [{:a, :b, 1}]
   """
   @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def edges(%__MODULE__{graph: graph}) do
@@ -302,6 +433,16 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns all task node IDs.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_task(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.add_start(:s)
+      iex> Enum.sort(Choreo.Workflow.tasks(workflow))
+      [:a, :b]
   """
   @spec tasks(t()) :: [Yog.node_id()]
   def tasks(%__MODULE__{graph: graph}) do
@@ -312,6 +453,15 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns all start node IDs.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_start(:b)
+      iex> Enum.sort(Choreo.Workflow.starts(workflow))
+      [:a, :b]
   """
   @spec starts(t()) :: [Yog.node_id()]
   def starts(%__MODULE__{graph: graph}) do
@@ -322,6 +472,15 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns all end node IDs.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_end(:a)
+      ...>   |> Choreo.Workflow.add_end(:b)
+      iex> Enum.sort(Choreo.Workflow.ends(workflow))
+      [:a, :b]
   """
   @spec ends(t()) :: [Yog.node_id()]
   def ends(%__MODULE__{graph: graph}) do
@@ -332,6 +491,15 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns all compensation node IDs.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_compensation(:rollback, for: :task_a)
+      ...>   |> Choreo.Workflow.add_compensation(:undo, for: :task_b)
+      iex> Enum.sort(Choreo.Workflow.compensations(workflow))
+      [:rollback, :undo]
   """
   @spec compensations(t()) :: [Yog.node_id()]
   def compensations(%__MODULE__{graph: graph}) do
@@ -342,6 +510,13 @@ defmodule Choreo.Workflow do
 
   @doc """
   Returns the raw `Yog.Graph` struct underpinning the workflow.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> graph = Choreo.Workflow.to_graph(workflow)
+      iex> graph.kind
+      :directed
   """
   @spec to_graph(t()) :: Yog.graph()
   def to_graph(%__MODULE__{graph: graph}), do: graph

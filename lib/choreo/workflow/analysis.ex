@@ -21,8 +21,20 @@ defmodule Choreo.Workflow.Analysis do
   alias Yog.Traversal.Sort
 
   @doc """
-    Returns all task node IDs reachable from any start node.
-    This analysis answers the question: "Which tasks are reachable from any start node?"
+  Returns all task node IDs reachable from any start node.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.add_task(:c)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      iex> Enum.sort(Choreo.Workflow.Analysis.reachable_tasks(workflow))
+      [:a, :b]
+
+  This analysis answers the question: "Which tasks are reachable from any start node?"
   """
   @spec reachable_tasks(Workflow.t()) :: [Yog.node_id()]
   def reachable_tasks(%Workflow{} = workflow) do
@@ -37,8 +49,20 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns nodes that are not reachable from any start node.
-    This analysis answers the question: "Which tasks are not reachable from any start node?"
+  Returns nodes that are not reachable from any start node.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.add_task(:orphan)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      iex> Choreo.Workflow.Analysis.orphan_tasks(workflow)
+      [:orphan]
+
+  This analysis answers the question: "Which tasks are not reachable from any start node?"
   """
   @spec orphan_tasks(Workflow.t()) :: [Yog.node_id()]
   def orphan_tasks(%Workflow{} = workflow) do
@@ -54,8 +78,22 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns nodes that cannot reach any end node.
-    This analysis answers the question: "Which tasks can never reach an end node?"
+  Returns nodes that cannot reach any end node.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.add_task(:dead)
+      ...>   |> Choreo.Workflow.add_end(:finish)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      ...>   |> Choreo.Workflow.connect(:b, :finish)
+      iex> Choreo.Workflow.Analysis.dead_ends(workflow)
+      [:dead]
+
+  This analysis answers the question: "Which tasks can never reach an end node?"
   """
   @spec dead_ends(Workflow.t()) :: [Yog.node_id()]
   def dead_ends(%Workflow{} = workflow) do
@@ -72,11 +110,26 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Finds the longest weighted path from any start to any end.
+  Finds the longest weighted path from any start to any end.
 
-    Edge weights default to the target task's `:timeout_ms`. Returns
-    `{:ok, [id], total_weight}` or `:error` if cyclic or no start→end path.
-    This analysis answers the question: "What is the slowest end-to-end execution path?"
+  Edge weights default to the target task's `:timeout_ms`. Returns
+  `{:ok, [id], total_weight}` or `:error` if cyclic or no start→end path.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b, timeout_ms: 10)
+      ...>   |> Choreo.Workflow.add_task(:c, timeout_ms: 5)
+      ...>   |> Choreo.Workflow.add_end(:d)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      ...>   |> Choreo.Workflow.connect(:b, :c)
+      ...>   |> Choreo.Workflow.connect(:c, :d)
+      iex> Choreo.Workflow.Analysis.critical_path(workflow)
+      {:ok, [:a, :b, :c, :d], 16}
+
+  This analysis answers the question: "What is the slowest end-to-end execution path?"
   """
   @spec critical_path(Workflow.t()) :: {:ok, [Yog.node_id()], number()} | :error
   def critical_path(%Workflow{graph: graph} = workflow) do
@@ -106,11 +159,32 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns tasks grouped by topological level.
+  Returns tasks grouped by topological level.
 
-    Tasks at the same level have no dependencies on each other and can
-    theoretically run in parallel.
-    This analysis answers the question: "Which tasks can run in parallel?"
+  Tasks at the same level have no dependencies on each other and can
+  theoretically run in parallel.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:start)
+      ...>   |> Choreo.Workflow.add_fork(:split)
+      ...>   |> Choreo.Workflow.add_task(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.add_join(:merge)
+      ...>   |> Choreo.Workflow.add_end(:end)
+      ...>   |> Choreo.Workflow.connect(:start, :split)
+      ...>   |> Choreo.Workflow.connect(:split, :a)
+      ...>   |> Choreo.Workflow.connect(:split, :b)
+      ...>   |> Choreo.Workflow.connect(:a, :merge)
+      ...>   |> Choreo.Workflow.connect(:b, :merge)
+      ...>   |> Choreo.Workflow.connect(:merge, :end)
+      iex> groups = Choreo.Workflow.Analysis.parallelizable_tasks(workflow)
+      iex> Enum.any?(groups, fn g -> Enum.sort(g) == [:a, :b] end)
+      true
+
+  This analysis answers the question: "Which tasks can run in parallel?"
   """
   @spec parallelizable_tasks(Workflow.t()) :: [[Yog.node_id()]]
   def parallelizable_tasks(%Workflow{graph: graph}) do
@@ -133,8 +207,19 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns tasks that have at least one outgoing compensation edge.
-    This analysis answers the question: "Which tasks have compensation handlers?"
+  Returns tasks that have at least one outgoing compensation edge.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_task(:process)
+      ...>   |> Choreo.Workflow.add_compensation(:rollback)
+      ...>   |> Choreo.Workflow.connect(:process, :rollback, edge_type: :compensation)
+      iex> Choreo.Workflow.Analysis.failure_scenarios(workflow)
+      [:process]
+
+  This analysis answers the question: "Which tasks have compensation handlers?"
   """
   @spec failure_scenarios(Workflow.t()) :: [Yog.node_id()]
   def failure_scenarios(%Workflow{graph: graph, edge_meta: edge_meta}) do
@@ -151,18 +236,29 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns tasks that can fail but have no valid compensation path.
+  Returns tasks that can fail but have no valid compensation path.
 
-    A task "can fail" if it has an outgoing `:error` edge.
-    A valid compensation path is an unbroken chain of `:compensation` edges
-    leading to a `:start` or `:end` node.
+  A task "can fail" if it has an outgoing `:error` edge.
+  A valid compensation path is an unbroken chain of `:compensation` edges
+  leading to a `:start` or `:end` node.
 
-    ## Examples
+  ## Examples
 
-        Analysis.uncompensated_paths(workflow)
-        #=> [:process_payment]
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:start)
+      ...>   |> Choreo.Workflow.add_task(:process_payment)
+      ...>   |> Choreo.Workflow.add_compensation(:rollback_payment, for: :process_payment)
+      ...>   |> Choreo.Workflow.add_task(:dead_end_comp)
+      ...>   |> Choreo.Workflow.add_end(:done)
+      ...>   |> Choreo.Workflow.connect(:start, :process_payment)
+      ...>   |> Choreo.Workflow.connect(:process_payment, :done)
+      ...>   |> Choreo.Workflow.connect(:process_payment, :rollback_payment, edge_type: :error)
+      ...>   |> Choreo.Workflow.connect(:rollback_payment, :dead_end_comp, edge_type: :compensation)
+      iex> Choreo.Workflow.Analysis.uncompensated_paths(workflow)
+      [:process_payment]
 
-    This analysis answers the question: "Which tasks can fail without a valid compensation path?"
+  This analysis answers the question: "Which tasks can fail without a valid compensation path?"
   """
   @spec uncompensated_paths(Workflow.t()) :: [Yog.node_id()]
   def uncompensated_paths(%Workflow{graph: graph, edge_meta: edge_meta} = flow) do
@@ -206,8 +302,25 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns tasks that have retry configured but no compensation path.
-    This analysis answers the question: "Which retry-configured tasks lack compensations?"
+  Returns tasks that have retry configured but no compensation path.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:risky, retry: 3)
+      ...>   |> Choreo.Workflow.add_task(:safe, retry: 2)
+      ...>   |> Choreo.Workflow.add_compensation(:rollback, for: :safe)
+      ...>   |> Choreo.Workflow.add_end(:end)
+      ...>   |> Choreo.Workflow.connect(:a, :risky)
+      ...>   |> Choreo.Workflow.connect(:risky, :safe)
+      ...>   |> Choreo.Workflow.connect(:safe, :end)
+      ...>   |> Choreo.Workflow.connect(:safe, :rollback, edge_type: :compensation)
+      iex> Choreo.Workflow.Analysis.missing_compensations(workflow)
+      [:risky]
+
+  This analysis answers the question: "Which retry-configured tasks lack compensations?"
   """
   @spec missing_compensations(Workflow.t()) :: [Yog.node_id()]
   def missing_compensations(%Workflow{graph: graph, edge_meta: edge_meta}) do
@@ -233,14 +346,23 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Returns high-latency or high-retry task node IDs.
+  Returns high-latency or high-retry task node IDs.
 
-    ## Options
+  ## Options
 
-      * `:latency_threshold` — minimum `:timeout_ms` to qualify (default: `10_000`)
-      * `:retry_threshold` — minimum `:retry` count to qualify (default: `2`)
+    * `:latency_threshold` — minimum `:timeout_ms` to qualify (default: `10_000`)
+    * `:retry_threshold` — minimum `:retry` count to qualify (default: `2`)
 
-    This analysis answers the question: "Which tasks are high-latency or high-retry?"
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_task(:fast, timeout_ms: 100)
+      ...>   |> Choreo.Workflow.add_task(:slow, timeout_ms: 20_000)
+      iex> Choreo.Workflow.Analysis.bottlenecks(workflow, latency_threshold: 10_000)
+      [:slow]
+
+  This analysis answers the question: "Which tasks are high-latency or high-retry?"
   """
   @spec bottlenecks(Workflow.t(), keyword()) :: [Yog.node_id()]
   def bottlenecks(%Workflow{graph: graph}, opts \\ []) do
@@ -257,11 +379,31 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Simulates execution and returns estimated total latency per node.
+  Simulates execution and returns estimated total latency per node.
 
-    Assumes sequential execution along the critical path. Parallel paths
-    are counted by their longest branch.
-    This analysis answers the question: "What is the estimated latency for each task?"
+  Assumes sequential execution along the critical path. Parallel paths
+  are counted by their longest branch.
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b, timeout_ms: 5000)
+      ...>   |> Choreo.Workflow.add_task(:c, timeout_ms: 3000, retry: 2, retry_backoff_ms: 100)
+      ...>   |> Choreo.Workflow.add_end(:d)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      ...>   |> Choreo.Workflow.connect(:b, :c)
+      ...>   |> Choreo.Workflow.connect(:c, :d)
+      iex> result = Choreo.Workflow.Analysis.simulate(workflow)
+      iex> result[:b].task_latency
+      5000
+      iex> result[:c].task_latency
+      3000
+      iex> result[:c].retry_latency
+      200
+
+  This analysis answers the question: "What is the estimated latency for each task?"
   """
   @spec simulate(Workflow.t()) :: %{optional(Yog.node_id()) => map()}
   def simulate(%Workflow{graph: graph} = workflow) do
@@ -276,17 +418,38 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
-    Validates a workflow and returns a list of issues.
+  Validates a workflow and returns a list of issues.
 
-    Checks for:
-      * missing start / end nodes
-      * cycles
-      * orphan tasks
-      * dead-end tasks
-      * tasks with retries but no compensations
-      * unreachable compensation nodes
+  Checks for:
+    * missing start / end nodes
+    * cycles
+    * orphan tasks
+    * dead-end tasks
+    * tasks with retries but no compensations
+    * unreachable compensation nodes
 
-    This analysis answers the question: "Is the workflow structurally sound?"
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:a)
+      ...>   |> Choreo.Workflow.add_task(:b)
+      ...>   |> Choreo.Workflow.add_end(:c)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      ...>   |> Choreo.Workflow.connect(:b, :c)
+      iex> Choreo.Workflow.Analysis.validate(workflow)
+      []
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_task(:a)
+      ...>   |> Choreo.Workflow.add_end(:b)
+      ...>   |> Choreo.Workflow.connect(:a, :b)
+      iex> issues = Choreo.Workflow.Analysis.validate(workflow)
+      iex> {:error, "No start nodes"} in issues
+      true
+
+  This analysis answers the question: "Is the workflow structurally sound?"
   """
   @spec validate(Workflow.t()) :: [{:error | :warning, String.t()}]
   def validate(%Workflow{} = workflow) do

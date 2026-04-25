@@ -1,6 +1,9 @@
 defmodule Choreo.WorkflowTest do
   use ExUnit.Case
 
+  doctest Choreo.Workflow
+  doctest Choreo.Workflow.Render.DOT
+
   alias Choreo.Workflow
 
   describe "new/0" do
