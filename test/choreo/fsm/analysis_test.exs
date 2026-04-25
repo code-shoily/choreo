@@ -4,6 +4,8 @@ defmodule Choreo.FSM.AnalysisTest do
   alias Choreo.FSM
   alias Choreo.FSM.Analysis
 
+  doctest Choreo.FSM.Analysis
+
   describe "reachable_states/1" do
     test "returns states reachable from initial" do
       fsm =

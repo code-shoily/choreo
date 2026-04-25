@@ -34,15 +34,14 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_initial_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_state(:c)
-          |> Choreo.FSM.add_transition(:a, :b, label: "go")
-
-        Choreo.FSM.Analysis.reachable_states(fsm)
-        #=> [:a, :b]
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_state(:c)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "go")
+        iex> Enum.sort(Choreo.FSM.Analysis.reachable_states(fsm))
+        [:a, :b]
 
     This analysis answers the question: "Which states can I reach from the start?"
   """
@@ -67,15 +66,15 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_initial_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_final_state(:c)
-          |> Choreo.FSM.add_transition(:a, :b, label: "go")
-
-        Choreo.FSM.Analysis.dead_states(fsm)
-        #=> [:b]
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_final_state(:c)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "go")
+        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "ok")
+        iex> Choreo.FSM.Analysis.dead_states(fsm)
+        [:b]
 
     This analysis answers the question: "Which states are traps that can never accept?"
   """
@@ -101,16 +100,15 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_state(:c)
-          |> Choreo.FSM.add_transition(:a, :b, label: "x")
-          |> Choreo.FSM.add_transition(:a, :c, label: "x")
-
-        Choreo.FSM.Analysis.deterministic?(fsm)
-        #=> false
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_state(:c)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "x")
+        iex> Choreo.FSM.Analysis.deterministic?(fsm)
+        false
 
     This analysis answers the question: "Is this a deterministic finite automaton?"
   """
@@ -141,19 +139,17 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_initial_state(:idle)
-          |> Choreo.FSM.add_state(:running)
-          |> Choreo.FSM.add_final_state(:done)
-          |> Choreo.FSM.add_transition(:idle, :running, label: "start")
-          |> Choreo.FSM.add_transition(:running, :done, label: "finish")
-
-        Choreo.FSM.Analysis.accepts?(fsm, ["start", "finish"])
-        #=> true
-
-        Choreo.FSM.Analysis.accepts?(fsm, ["start"])
-        #=> false
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:idle)
+        ...>   |> Choreo.FSM.add_state(:running)
+        ...>   |> Choreo.FSM.add_final_state(:done)
+        ...>   |> Choreo.FSM.add_transition(:idle, :running, label: "start")
+        ...>   |> Choreo.FSM.add_transition(:running, :done, label: "finish")
+        iex> Choreo.FSM.Analysis.accepts?(fsm, ["start", "finish"])
+        true
+        iex> Choreo.FSM.Analysis.accepts?(fsm, ["start"])
+        false
 
     This analysis answers the question: "Does this input sequence lead to acceptance?"
   """
@@ -202,16 +198,15 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_initial_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_final_state(:c)
-          |> Choreo.FSM.add_transition(:a, :b, label: "x")
-          |> Choreo.FSM.add_transition(:b, :c, label: "y")
-
-        Choreo.FSM.Analysis.shortest_accepting_path(fsm)
-        #=> {:ok, ["x", "y"]}
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_final_state(:c)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:b, :c, label: "y")
+        iex> Choreo.FSM.Analysis.shortest_accepting_path(fsm)
+        {:ok, ["x", "y"]}
 
     This analysis answers the question: "What is the minimum input to reach an accepting state?"
   """
@@ -239,15 +234,14 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_initial_state(:a)
-          |> Choreo.FSM.add_final_state(:b)
-          |> Choreo.FSM.add_transition(:a, :b, label: "x")
-          |> Choreo.FSM.add_transition(:b, :b, label: "y")
-
-        Choreo.FSM.Analysis.accepted_strings(fsm, 2)
-        #=> [["x"], ["x", "y"]]
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:a)
+        ...>   |> Choreo.FSM.add_final_state(:b)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:b, :b, label: "y")
+        iex> Enum.sort(Choreo.FSM.Analysis.accepted_strings(fsm, 2))
+        [["x"], ["x", "y"]]
 
     This analysis answers the question: "What inputs are accepted up to length N?"
   """
@@ -278,17 +272,16 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_state(:c)
-          |> Choreo.FSM.add_transition(:a, :b, label: "x")
-          |> Choreo.FSM.add_transition(:b, :c, label: "y")
-          |> Choreo.FSM.add_transition(:c, :a, label: "x")
-
-        Choreo.FSM.Analysis.alphabet(fsm)
-        #=> MapSet<["x", "y"]>
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_state(:c)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:b, :c, label: "y")
+        ...>   |> Choreo.FSM.add_transition(:c, :a, label: "x")
+        iex> Choreo.FSM.Analysis.alphabet(fsm) |> MapSet.to_list() |> Enum.sort()
+        ["x", "y"]
 
     This analysis answers the question: "What are the distinct input symbols?"
   """
@@ -313,18 +306,16 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        # Complete: both states handle both symbols
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_transition(:a, :b, label: "x")
-          |> Choreo.FSM.add_transition(:a, :a, label: "y")
-          |> Choreo.FSM.add_transition(:b, :a, label: "x")
-          |> Choreo.FSM.add_transition(:b, :b, label: "y")
-
-        Choreo.FSM.Analysis.complete?(fsm)
-        #=> true
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:a, :a, label: "y")
+        ...>   |> Choreo.FSM.add_transition(:b, :a, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:b, :b, label: "y")
+        iex> Choreo.FSM.Analysis.complete?(fsm)
+        true
 
     This analysis answers the question: "Does every state handle every input symbol?"
   """
@@ -357,16 +348,15 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        fsm =
-          Choreo.FSM.new()
-          |> Choreo.FSM.add_state(:a)
-          |> Choreo.FSM.add_state(:b)
-          |> Choreo.FSM.add_state(:c)
-          |> Choreo.FSM.add_transition(:a, :b, label: "x")
-          |> Choreo.FSM.add_transition(:a, :c, label: "x")
-
-        Choreo.FSM.Analysis.nondeterministic_states(fsm)
-        #=> [{:a, "x"}]
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_state(:a)
+        ...>   |> Choreo.FSM.add_state(:b)
+        ...>   |> Choreo.FSM.add_state(:c)
+        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "x")
+        iex> Choreo.FSM.Analysis.nondeterministic_states(fsm)
+        [{:a, "x"}]
 
     This analysis answers the question: "Which states break determinism?"
   """
@@ -392,6 +382,25 @@ defmodule Choreo.FSM.Analysis do
   @doc """
     Converts an NFA to an equivalent complete DFA using the Subset Construction
     algorithm. Resolves incomplete alphabets by attaching a sink state (`:__trap__`).
+
+    ## Examples
+
+        iex> nfa =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:q0)
+        ...>   |> Choreo.FSM.add_state(:q1)
+        ...>   |> Choreo.FSM.add_state(:q2)
+        ...>   |> Choreo.FSM.add_final_state(:q2)
+        ...>   |> Choreo.FSM.add_transition(:q0, :q1, label: "a")
+        ...>   |> Choreo.FSM.add_transition(:q0, :q2, label: "a")
+        ...>   |> Choreo.FSM.add_transition(:q1, :q2, label: "b")
+        iex> dfa = Choreo.FSM.Analysis.to_dfa(nfa)
+        iex> Choreo.FSM.Analysis.deterministic?(dfa)
+        true
+        iex> Choreo.FSM.Analysis.accepts?(dfa, ["a"])
+        true
+        iex> Choreo.FSM.Analysis.accepts?(dfa, ["a", "b"])
+        true
   """
   @spec to_dfa(FSM.t()) :: FSM.t()
   def to_dfa(%FSM{} = fsm) do
@@ -501,9 +510,14 @@ defmodule Choreo.FSM.Analysis do
 
     ## Examples
 
-        issues = Choreo.FSM.Analysis.validate(fsm)
-        #=> [{:warning, "Unreachable states: [:orphan]"},
-        #=>  {:warning, "Dead states: [:trap]"}]
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:idle)
+        ...>   |> Choreo.FSM.add_final_state(:done)
+        ...>   |> Choreo.FSM.add_transition(:idle, :done, label: "go")
+        ...>   |> Choreo.FSM.add_transition(:done, :idle, label: "go")
+        iex> Choreo.FSM.Analysis.validate(fsm)
+        []
 
     This analysis answers the question: "Is the state machine structurally sound?"
   """

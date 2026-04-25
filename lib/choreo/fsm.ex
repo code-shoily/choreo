@@ -263,6 +263,12 @@ defmodule Choreo.FSM do
 
   @doc """
   Returns all state IDs in the FSM.
+
+  ## Examples
+
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_state(:a) |> Choreo.FSM.add_state(:b)
+      iex> Enum.sort(Choreo.FSM.states(fsm))
+      [:a, :b]
   """
   @spec states(t()) :: [Yog.node_id()]
   def states(%__MODULE__{graph: graph}) do
@@ -271,6 +277,16 @@ defmodule Choreo.FSM do
 
   @doc """
   Returns all transitions as `{from, to, label}` tuples.
+
+  ## Examples
+
+      iex> fsm =
+      ...>   Choreo.FSM.new()
+      ...>   |> Choreo.FSM.add_state(:a)
+      ...>   |> Choreo.FSM.add_state(:b)
+      ...>   |> Choreo.FSM.add_transition(:a, :b, label: "go")
+      iex> Choreo.FSM.transitions(fsm)
+      [{:a, :b, "go"}]
   """
   @spec transitions(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def transitions(%__MODULE__{graph: graph}) do
@@ -279,6 +295,12 @@ defmodule Choreo.FSM do
 
   @doc """
   Returns the set of initial state IDs.
+
+  ## Examples
+
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle)
+      iex> :idle in Choreo.FSM.initial_states(fsm)
+      true
   """
   @spec initial_states(t()) :: MapSet.t(Yog.node_id())
   def initial_states(%__MODULE__{meta: %{initial_states: set}}), do: set
@@ -286,6 +308,12 @@ defmodule Choreo.FSM do
 
   @doc """
   Returns all final state IDs.
+
+  ## Examples
+
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_final_state(:done)
+      iex> :done in Choreo.FSM.final_states(fsm)
+      true
   """
   @spec final_states(t()) :: [Yog.node_id()]
   def final_states(%__MODULE__{meta: %{final_states: set}}), do: MapSet.to_list(set)
@@ -303,7 +331,7 @@ defmodule Choreo.FSM do
 
       iex> fsm =
       ...>   Choreo.FSM.new()
-      ...>   |> Choreo.FSM.add_state(:a)
+      ...>   |> Choreo.FSM.add_initial_state(:a)
       ...>   |> Choreo.FSM.add_final_state(:b)
       iex> comp = Choreo.FSM.complement(fsm)
       iex> :a in Choreo.FSM.final_states(comp)
@@ -384,8 +412,12 @@ defmodule Choreo.FSM do
 
   ## Examples
 
-      dot = Choreo.FSM.to_dot(fsm)
-      dot = Choreo.FSM.to_dot(fsm, theme: :dark)
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_state(:a)
+      iex> dot = Choreo.FSM.to_dot(fsm)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "a")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = fsm, opts \\ []) do

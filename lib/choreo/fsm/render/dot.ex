@@ -29,8 +29,14 @@ defmodule Choreo.FSM.Render.DOT do
 
   ## Examples
 
-      dot = Choreo.FSM.Render.DOT.to_dot(fsm)
-      dot = Choreo.FSM.Render.DOT.to_dot(fsm, theme: :dark)
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_state(:a)
+      iex> dot = Choreo.FSM.Render.DOT.to_dot(fsm)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "rankdir=LR")
+      true
+      iex> String.contains?(dot, "a")
+      true
   """
   @spec to_dot(Choreo.FSM.t(), keyword()) :: String.t()
   def to_dot(%Choreo.FSM{} = fsm, opts \\ []) do

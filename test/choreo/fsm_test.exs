@@ -3,6 +3,9 @@ defmodule Choreo.FSMTest do
 
   alias Choreo.FSM
 
+  doctest Choreo.FSM
+  doctest Choreo.FSM.Render.DOT
+
   describe "creation" do
     test "new/0 creates a directed graph by default" do
       fsm = FSM.new()
