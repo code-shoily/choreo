@@ -101,6 +101,14 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Creates a new empty threat model.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> Choreo.ThreatModel.elements(model)
+      []
+      iex> Choreo.ThreatModel.flows(model)
+      []
   """
   @spec new() :: t()
   def new do
@@ -128,9 +136,12 @@ defmodule Choreo.ThreatModel do
 
   ## Examples
 
-      model =
-        Choreo.ThreatModel.new()
-        |> Choreo.ThreatModel.add_trust_boundary("dmz", label: "DMZ", level: 1)
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_trust_boundary(model, "dmz", label: "DMZ", level: 1)
+      iex> model.clusters["cluster_dmz"].label
+      "DMZ"
+      iex> model.clusters["cluster_dmz"].level
+      1
   """
   @spec add_trust_boundary(t(), String.t(), keyword()) :: t()
   def add_trust_boundary(%__MODULE__{} = model, name, opts \\ []) do
@@ -152,6 +163,17 @@ defmodule Choreo.ThreatModel do
     * `:label` — display label
     * `:description` — tooltip text
     * `:boundary` — trust boundary name
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_external_entity(model, :user, label: "User")
+      iex> Choreo.ThreatModel.elements(model)
+      [:user]
+      iex> Yog.node(model.graph, :user).element_type
+      :external_entity
+      iex> Yog.node(model.graph, :user).label
+      "User"
   """
   @spec add_external_entity(t(), Yog.node_id(), keyword()) :: t()
   def add_external_entity(model, id, opts \\ []) do
@@ -167,6 +189,17 @@ defmodule Choreo.ThreatModel do
     * `:description` — tooltip text
     * `:boundary` — trust boundary name
     * `:privilege` — privilege level (e.g., `:user`, `:admin`, `:system`)
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_process(model, :api, label: "API", privilege: :admin)
+      iex> Choreo.ThreatModel.elements(model)
+      [:api]
+      iex> Yog.node(model.graph, :api).element_type
+      :process
+      iex> Yog.node(model.graph, :api).privilege
+      :admin
   """
   @spec add_process(t(), Yog.node_id(), keyword()) :: t()
   def add_process(model, id, opts \\ []) do
@@ -182,6 +215,17 @@ defmodule Choreo.ThreatModel do
     * `:description` — tooltip text
     * `:boundary` — trust boundary name
     * `:sensitivity` — data sensitivity (`:public`, `:internal`, `:confidential`, `:restricted`)
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_data_store(model, :db, label: "Postgres", sensitivity: :confidential)
+      iex> Choreo.ThreatModel.elements(model)
+      [:db]
+      iex> Yog.node(model.graph, :db).element_type
+      :data_store
+      iex> Yog.node(model.graph, :db).sensitivity
+      :confidential
   """
   @spec add_data_store(t(), Yog.node_id(), keyword()) :: t()
   def add_data_store(model, id, opts \\ []) do
@@ -203,7 +247,17 @@ defmodule Choreo.ThreatModel do
 
   ## Examples
 
-      model = Choreo.ThreatModel.data_flow(model, :user, :api, label: "Login", encrypted: true)
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user)
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api, label: "request")
+      iex> Choreo.ThreatModel.flows(model)
+      [{:user, :api, "request"}]
+      iex> model.edge_meta[{:user, :api}].label
+      "request"
+      iex> model.edge_meta[{:user, :api}].encrypted
+      false
   """
   @spec data_flow(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def data_flow(%__MODULE__{} = model, from, to, opts \\ []) do
@@ -227,6 +281,15 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Returns all element IDs in the model.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user)
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      iex> Enum.sort(Choreo.ThreatModel.elements(model))
+      [:api, :user]
   """
   @spec elements(t()) :: [Yog.node_id()]
   def elements(%__MODULE__{graph: graph}) do
@@ -235,6 +298,16 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Returns all data flows as `{from, to, label}` tuples.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user)
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      iex> Choreo.ThreatModel.flows(model)
+      [{:user, :api, ""}]
   """
   @spec flows(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def flows(%__MODULE__{graph: graph}) do
@@ -243,6 +316,19 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Returns all elements of a given type.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user)
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      iex> Choreo.ThreatModel.elements_of_type(model, :external_entity)
+      [:user]
+      iex> Choreo.ThreatModel.elements_of_type(model, :process)
+      [:api]
+      iex> Choreo.ThreatModel.elements_of_type(model, :data_store)
+      []
   """
   @spec elements_of_type(t(), atom()) :: [Yog.node_id()]
   def elements_of_type(%__MODULE__{graph: graph}, type) do
@@ -253,6 +339,15 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Returns the trust boundary name for an element, or `nil`.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      iex> Choreo.ThreatModel.boundary_of(model, :api)
+      "cluster_app"
   """
   @spec boundary_of(t(), Yog.node_id()) :: String.t() | nil
   def boundary_of(%__MODULE__{graph: graph}, id) do
@@ -264,6 +359,15 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Returns the numeric trust level of an element's boundary, or `nil`.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("dmz", level: 1)
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "dmz")
+      iex> Choreo.ThreatModel.trust_level(model, :api)
+      1
   """
   @spec trust_level(t(), Yog.node_id()) :: integer() | nil
   def trust_level(%__MODULE__{clusters: clusters} = model, id) do
@@ -275,6 +379,22 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Checks whether a data flow crosses a trust boundary.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("internet", level: 0)
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, boundary: "internet")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      ...>   |> Choreo.ThreatModel.add_process(:worker, boundary: "app")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :worker)
+      iex> Choreo.ThreatModel.crosses_boundary?(model, :user, :api)
+      true
+      iex> Choreo.ThreatModel.crosses_boundary?(model, :api, :worker)
+      false
   """
   @spec crosses_boundary?(t(), Yog.node_id(), Yog.node_id()) :: boolean()
   def crosses_boundary?(%__MODULE__{} = model, from, to) do
@@ -286,6 +406,13 @@ defmodule Choreo.ThreatModel do
 
   @doc """
   Returns the raw `Yog.Graph` struct underpinning the model.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> graph = Choreo.ThreatModel.to_graph(model)
+      iex> graph.kind
+      :directed
   """
   @spec to_graph(t()) :: Yog.graph()
   def to_graph(%__MODULE__{graph: graph}), do: graph
@@ -300,6 +427,21 @@ defmodule Choreo.ThreatModel do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, label: "User")
+      ...>   |> Choreo.ThreatModel.add_process(:api, label: "API")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api, label: "HTTPS")
+      iex> dot = Choreo.ThreatModel.to_dot(model)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "User")
+      true
+      iex> String.contains?(dot, "API")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = model, opts \\ []) do

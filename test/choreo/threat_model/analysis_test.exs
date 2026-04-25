@@ -1,6 +1,8 @@
 defmodule Choreo.ThreatModel.AnalysisTest do
   use ExUnit.Case
 
+  doctest Choreo.ThreatModel.Analysis
+
   alias Choreo.ThreatModel
   alias Choreo.ThreatModel.Analysis
 

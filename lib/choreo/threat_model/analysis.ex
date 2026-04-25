@@ -35,25 +35,37 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Generates STRIDE threats for every element and data flow in the model.
+  Generates STRIDE threats for every element and data flow in the model.
 
-    Returns a list of threat structs:
+  Returns a list of threat structs:
 
-        %{
-          id: String.t(),
-          category: :spoofing | :tampering | :repudiation | :information_disclosure | :denial_of_service | :elevation_of_privilege,
-          target: Yog.node_id(),
-          description: String.t(),
-          severity: :low | :medium | :high | :critical,
-          mitigation: String.t()
-        }
+      %{
+        id: String.t(),
+        category: :spoofing | :tampering | :repudiation | :information_disclosure | :denial_of_service | :elevation_of_privilege,
+        target: Yog.node_id(),
+        description: String.t(),
+        severity: :low | :medium | :high | :critical,
+        mitigation: String.t()
+      }
 
-    ## Examples
+  ## Examples
 
-        threats = Choreo.ThreatModel.Analysis.stride_threats(model)
-        high = Enum.filter(threats, &(&1.severity == :high))
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("internet", level: 0)
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, boundary: "internet")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      iex> threats = Choreo.ThreatModel.Analysis.stride_threats(model)
+      iex> Enum.any?(threats, & &1.category == :spoofing)
+      true
+      iex> Enum.any?(threats, & &1.target == :user)
+      true
+      iex> Enum.any?(threats, & match?({:user, :api}, &1.target))
+      true
 
-    This analysis answers the question: "What threats exist in my architecture?"
+  This analysis answers the question: "What threats exist in my architecture?"
   """
   @spec stride_threats(ThreatModel.t(), keyword()) :: [
           %{
@@ -109,22 +121,26 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Summarises threats by STRIDE category and severity.
+  Summarises threats by STRIDE category and severity.
 
-    Returns a map of `%{category => %{severity => count}}` plus totals.
-    Useful for dashboards and executive reporting.
+  Returns a map of `%{category => %{severity => count}}` plus totals.
+  Useful for dashboards and executive reporting.
 
-    ## Examples
+  ## Examples
 
-        summary = Choreo.ThreatModel.Analysis.threat_summary(model)
-        summary.by_category[:spoofing]
-        #=> %{high: 2, medium: 1}
-        summary.by_severity[:critical]
-        #=> 3
-        summary.total
-        #=> 14
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      iex> summary = Choreo.ThreatModel.Analysis.threat_summary(model)
+      iex> summary.total > 0
+      true
+      iex> is_map(summary.by_category)
+      true
+      iex> is_map(summary.by_severity)
+      true
 
-    This analysis answers the question: "How are threats distributed by category and severity?"
+  This analysis answers the question: "How are threats distributed by category and severity?"
   """
   @spec threat_summary(ThreatModel.t()) :: %{
           by_category: %{atom() => %{atom() => non_neg_integer()}},
@@ -159,10 +175,26 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Returns all data flows that cross a trust boundary.
+  Returns all data flows that cross a trust boundary.
 
-    Each result is `{from, to, from_boundary, to_boundary}`.
-    This analysis answers the question: "Which data flows cross a trust boundary?"
+  Each result is `{from, to, from_boundary, to_boundary}`.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("internet", level: 0)
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, boundary: "internet")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      iex> flows = Choreo.ThreatModel.Analysis.cross_boundary_flows(model)
+      iex> length(flows)
+      1
+      iex> Enum.any?(flows, fn {from, to, _, _} -> from == :user and to == :api end)
+      true
+
+  This analysis answers the question: "Which data flows cross a trust boundary?"
   """
   @spec cross_boundary_flows(ThreatModel.t()) :: [
           {Yog.node_id(), Yog.node_id(), String.t() | nil, String.t() | nil}
@@ -177,12 +209,25 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Returns data stores that are reachable from an external entity
-    (directly or indirectly).
+  Returns data stores that are reachable from an external entity
+  (directly or indirectly).
 
-    These are high-value targets because they contain data at rest and
-    are exposed to untrusted input.
-    This analysis answers the question: "Which data stores are reachable from external entities?"
+  These are high-value targets because they contain data at rest and
+  are exposed to untrusted input.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user)
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.add_data_store(:db)
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :db)
+      iex> Choreo.ThreatModel.Analysis.exposed_data_stores(model)
+      [:db]
+
+  This analysis answers the question: "Which data stores are reachable from external entities?"
   """
   @spec exposed_data_stores(ThreatModel.t()) :: [Yog.node_id()]
   def exposed_data_stores(%ThreatModel{} = model) do
@@ -200,18 +245,26 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Returns all paths from external entities to data stores.
+  Returns all paths from external entities to data stores.
 
-    Each result is a list of node IDs representing a path from the
-    internet to data at rest. These are the attack vectors that an
-    adversary would follow.
+  Each result is a list of node IDs representing a path from the
+  internet to data at rest. These are the attack vectors that an
+  adversary would follow.
 
-    ## Examples
+  ## Examples
 
-        paths = Choreo.ThreatModel.Analysis.attack_paths(model)
-        #=> [[:user, :api, :db], [:user, :api, :cache]]
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user)
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.add_data_store(:db)
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :db)
+      iex> paths = Choreo.ThreatModel.Analysis.attack_paths(model)
+      iex> [:user, :api, :db] in paths
+      true
 
-    This analysis answers the question: "What are the attack vectors from outside to data at rest?"
+  This analysis answers the question: "What are the attack vectors from outside to data at rest?"
   """
   @spec attack_paths(ThreatModel.t()) :: [[Yog.node_id()]]
   def attack_paths(%ThreatModel{} = model) do
@@ -225,12 +278,23 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Returns processes that sit in low-trust boundaries but access
-    high-sensitivity data stores.
+  Returns processes that sit in low-trust boundaries but access
+  high-sensitivity data stores.
 
-    These are risky because compromised process code can leak or tamper
-    with sensitive data.
-    This analysis answers the question: "Which processes access sensitive data from low-trust zones?"
+  These are risky because compromised process code can leak or tamper
+  with sensitive data.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.add_data_store(:db, sensitivity: :confidential)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :db)
+      iex> Choreo.ThreatModel.Analysis.high_risk_processes(model)
+      [:api]
+
+  This analysis answers the question: "Which processes access sensitive data from low-trust zones?"
   """
   @spec high_risk_processes(ThreatModel.t()) :: [Yog.node_id()]
   def high_risk_processes(%ThreatModel{} = model) do
@@ -257,10 +321,23 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Returns unencrypted data flows that cross a trust boundary.
+  Returns unencrypted data flows that cross a trust boundary.
 
-    These are prime targets for interception and tampering.
-    This analysis answers the question: "Which cross-boundary flows are unencrypted?"
+  These are prime targets for interception and tampering.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("internet", level: 0)
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, boundary: "internet")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api)
+      iex> Choreo.ThreatModel.Analysis.unencrypted_boundary_flows(model)
+      [{:user, :api}]
+
+  This analysis answers the question: "Which cross-boundary flows are unencrypted?"
   """
   @spec unencrypted_boundary_flows(ThreatModel.t()) :: [{Yog.node_id(), Yog.node_id()}]
   def unencrypted_boundary_flows(%ThreatModel{} = model) do
@@ -274,15 +351,33 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
-    Validates a threat model and returns a list of issues.
+  Validates a threat model and returns a list of issues.
 
-    Checks for:
-      * elements not assigned to a trust boundary
-      * unencrypted cross-boundary flows
-      * processes without privilege level
-      * data stores without sensitivity classification
+  Checks for:
+    * elements not assigned to a trust boundary
+    * unencrypted cross-boundary flows
+    * processes without privilege level
+    * data stores without sensitivity classification
 
-    This analysis answers the question: "Is the threat model structurally sound?"
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app", privilege: :user)
+      ...>   |> Choreo.ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :internal)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :db, encrypted: true)
+      iex> Choreo.ThreatModel.Analysis.validate(model)
+      []
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      iex> issues = Choreo.ThreatModel.Analysis.validate(model)
+      iex> Enum.any?(issues, fn {_sev, msg} -> String.contains?(msg, "trust boundary") end)
+      true
+
+  This analysis answers the question: "Is the threat model structurally sound?"
   """
   @spec validate(ThreatModel.t()) :: [{:error | :warning, String.t()}]
   def validate(%ThreatModel{} = model) do

@@ -1,6 +1,10 @@
 defmodule Choreo.ThreatModelTest do
   use ExUnit.Case
 
+  doctest Choreo.ThreatModel
+  doctest Choreo.ThreatModel.Render.DOT
+  doctest Choreo.ThreatModel.Render.PlantUML
+
   alias Choreo.ThreatModel
 
   describe "new/0" do

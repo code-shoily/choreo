@@ -26,6 +26,21 @@ defmodule Choreo.ThreatModel.Render.DOT do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, label: "User")
+      ...>   |> Choreo.ThreatModel.add_process(:api, label: "API")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api, label: "HTTPS")
+      iex> dot = Choreo.ThreatModel.Render.DOT.to_dot(model)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "User")
+      true
+      iex> String.contains?(dot, "API")
+      true
   """
   @spec to_dot(Choreo.ThreatModel.t(), keyword()) :: String.t()
   def to_dot(%Choreo.ThreatModel{} = model, opts \\ []) do
