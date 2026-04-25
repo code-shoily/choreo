@@ -3,6 +3,11 @@ defmodule Choreo.DecisionTree.Analysis do
   Analysis functions for `Choreo.DecisionTree`.
 
   Provides path enumeration, evaluation, depth metrics, and pruning.
+
+  ## Further reading
+
+    * [Decision tree learning (Wikipedia)](https://en.wikipedia.org/wiki/Decision_tree_learning)
+    * [Decision Tree Pruning](https://en.wikipedia.org/wiki/Decision_tree_pruning)
   """
 
   alias Choreo.DecisionTree

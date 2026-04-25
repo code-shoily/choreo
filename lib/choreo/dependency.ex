@@ -22,6 +22,12 @@ defmodule Choreo.Dependency do
     * `:inherits` — inheritance / implementation
     * `:dev` — development-only dependency
 
+  ## Further reading
+
+    * [Dependency inversion principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle)
+    * [Circular dependency](https://en.wikipedia.org/wiki/Circular_dependency)
+    * [Coupling (computer programming)](https://en.wikipedia.org/wiki/Coupling_(computer_programming))
+
   ## Quick Start
 
       deps =

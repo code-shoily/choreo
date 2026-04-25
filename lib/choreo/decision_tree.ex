@@ -19,6 +19,12 @@ defmodule Choreo.DecisionTree do
     * `:decision` — internal node testing a feature / attribute
     * `:outcome` — terminal leaf with a class label or action
 
+  ## Further reading
+
+    * [Decision tree learning (Wikipedia)](https://en.wikipedia.org/wiki/Decision_tree_learning)
+    * [CART Algorithm](https://en.wikipedia.org/wiki/Predictive_analytics#Classification_and_regression_trees_(CART))
+    * [Random forest](https://en.wikipedia.org/wiki/Random_forest)
+
   ## Quick Start
 
       tree =

@@ -151,43 +151,53 @@ defmodule Choreo.Dependency.Render.DOT do
 
   defp node_attributes_fn(theme) do
     fn _id, data ->
-      case Map.get(data, :node_type, :module) do
-        :application ->
-          [
-            {:shape, :box3d},
-            {:fillcolor, dep_color(theme, :application)}
-          ]
+      base =
+        case Map.get(data, :node_type, :module) do
+          :application ->
+            [
+              {:shape, :box3d},
+              {:fillcolor, dep_color(theme, :application)}
+            ]
 
-        :library ->
-          [
-            {:shape, :cylinder},
-            {:fillcolor, dep_color(theme, :library)}
-          ]
+          :library ->
+            [
+              {:shape, :cylinder},
+              {:fillcolor, dep_color(theme, :library)}
+            ]
 
-        :module ->
-          [
-            {:shape, :box},
-            {:fillcolor, dep_color(theme, :module)}
-          ]
+          :module ->
+            [
+              {:shape, :box},
+              {:fillcolor, dep_color(theme, :module)}
+            ]
 
-        :interface ->
-          [
-            {:shape, :diamond},
-            {:fillcolor, dep_color(theme, :interface)}
-          ]
+          :interface ->
+            [
+              {:shape, :diamond},
+              {:fillcolor, dep_color(theme, :interface)}
+            ]
 
-        :test ->
-          [
-            {:shape, :note},
-            {:fillcolor, dep_color(theme, :test)}
-          ]
+          :test ->
+            [
+              {:shape, :note},
+              {:fillcolor, dep_color(theme, :test)}
+            ]
 
-        _ ->
-          [
-            {:shape, :box},
-            {:fillcolor, dep_color(theme, :module)}
-          ]
-      end
+          _ ->
+            [
+              {:shape, :box},
+              {:fillcolor, dep_color(theme, :module)}
+            ]
+        end
+
+      base =
+        if desc = data[:description] do
+          [{:tooltip, desc} | base]
+        else
+          base
+        end
+
+      base
     end
   end
 
@@ -213,7 +223,15 @@ defmodule Choreo.Dependency.Render.DOT do
           base
         end
 
-      base
+      if label = meta[:label] do
+        if label != "" do
+          [{:label, label} | base]
+        else
+          base
+        end
+      else
+        base
+      end
     end
   end
 
@@ -223,6 +241,5 @@ defmodule Choreo.Dependency.Render.DOT do
   defp dep_type_attrs(:dev), do: [{:style, :dashed}, {:color, "#9ca3af"}]
   defp dep_type_attrs(_), do: []
 
-  defp edge_label(weight) when is_binary(weight) and weight != "", do: weight
   defp edge_label(_), do: ""
 end

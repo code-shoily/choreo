@@ -9,6 +9,12 @@ defmodule Choreo.Dependency.Analysis do
     * Are we violating our layer architecture?
     * Which components are most coupled?
     * What is the deepest dependency chain?
+
+  ## Further reading
+
+    * [Dependency inversion principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle)
+    * [Circular dependency](https://en.wikipedia.org/wiki/Circular_dependency)
+    * [Software architecture](https://en.wikipedia.org/wiki/Software_architecture)
   """
 
   alias Choreo.Dependency

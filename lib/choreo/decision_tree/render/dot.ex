@@ -155,32 +155,39 @@ defmodule Choreo.DecisionTree.Render.DOT do
 
   defp node_attributes_fn(theme) do
     fn _id, data ->
-      case Map.get(data, :node_type, :decision) do
-        :root ->
-          [
-            {:shape, :diamond},
-            {:fillcolor, tree_color(theme, :root)},
-            {:penwidth, 2.0}
-          ]
+      base =
+        case Map.get(data, :node_type, :decision) do
+          :root ->
+            [
+              {:shape, :diamond},
+              {:fillcolor, tree_color(theme, :root)},
+              {:penwidth, 2.0}
+            ]
 
-        :decision ->
-          [
-            {:shape, :diamond},
-            {:fillcolor, tree_color(theme, :decision)}
-          ]
+          :decision ->
+            [
+              {:shape, :diamond},
+              {:fillcolor, tree_color(theme, :decision)}
+            ]
 
-        :outcome ->
-          [
-            {:shape, :box},
-            {:style, "rounded,filled"},
-            {:fillcolor, tree_color(theme, :outcome)}
-          ]
+          :outcome ->
+            [
+              {:shape, :box},
+              {:style, "rounded,filled"},
+              {:fillcolor, tree_color(theme, :outcome)}
+            ]
 
-        _ ->
-          [
-            {:shape, :ellipse},
-            {:fillcolor, tree_color(theme, :decision)}
-          ]
+          _ ->
+            [
+              {:shape, :ellipse},
+              {:fillcolor, tree_color(theme, :decision)}
+            ]
+        end
+
+      if desc = data[:description] do
+        [{:tooltip, desc} | base]
+      else
+        base
       end
     end
   end
@@ -211,7 +218,6 @@ defmodule Choreo.DecisionTree.Render.DOT do
     end
   end
 
-  defp edge_label(weight) when is_binary(weight) and weight != "", do: weight
   defp edge_label(_), do: ""
 
   defp safe_id(id) when is_atom(id), do: Atom.to_string(id)
