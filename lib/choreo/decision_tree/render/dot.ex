@@ -20,6 +20,23 @@ defmodule Choreo.DecisionTree.Render.DOT do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop, label: "Stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:go, label: "Go")
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> dot = Choreo.DecisionTree.Render.DOT.to_dot(tree)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "red")
+      true
+      iex> String.contains?(dot, "green")
+      true
   """
   @spec to_dot(Choreo.DecisionTree.t(), keyword()) :: String.t()
   def to_dot(%Choreo.DecisionTree{} = tree, opts \\ []) do

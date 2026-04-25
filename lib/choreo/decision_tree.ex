@@ -81,6 +81,14 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Creates a new empty decision tree.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> Choreo.DecisionTree.nodes(tree)
+      []
+      iex> Choreo.DecisionTree.root(tree)
+      nil
   """
   @spec new() :: t()
   def new do
@@ -105,6 +113,21 @@ defmodule Choreo.DecisionTree do
     * `:feature` — the attribute being tested (rendered as label)
     * `:label` — override display label
     * `:description` — tooltip text
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = Choreo.DecisionTree.set_root(tree, :weather, feature: "weather")
+      iex> Choreo.DecisionTree.root(tree)
+      :weather
+      iex> Yog.node(tree.graph, :weather).node_type
+      :root
+      iex> Yog.node(tree.graph, :weather).feature
+      "weather"
+
+      iex> tree = Choreo.DecisionTree.new() |> Choreo.DecisionTree.set_root(:a, feature: "x")
+      iex> Choreo.DecisionTree.set_root(tree, :b, feature: "y")
+      ** (ArgumentError) Tree already has a root
   """
   @spec set_root(t(), Yog.node_id(), keyword()) :: t()
   def set_root(tree, id, opts \\ [])
@@ -131,6 +154,15 @@ defmodule Choreo.DecisionTree do
     * `:feature` — the attribute being tested
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = Choreo.DecisionTree.add_decision(tree, :temp, feature: "temp")
+      iex> :temp in Choreo.DecisionTree.nodes(tree)
+      true
+      iex> Yog.node(tree.graph, :temp).node_type
+      :decision
   """
   @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
   def add_decision(%__MODULE__{} = tree, id, opts \\ []) do
@@ -147,6 +179,17 @@ defmodule Choreo.DecisionTree do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:probability` — optional probability / confidence score
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = Choreo.DecisionTree.add_outcome(tree, :play, label: "Play", class: "yes")
+      iex> :play in Choreo.DecisionTree.nodes(tree)
+      true
+      iex> Yog.node(tree.graph, :play).node_type
+      :outcome
+      iex> Yog.node(tree.graph, :play).class
+      "yes"
   """
   @spec add_outcome(t(), Yog.node_id(), keyword()) :: t()
   def add_outcome(%__MODULE__{} = tree, id, opts \\ []) do
@@ -170,13 +213,24 @@ defmodule Choreo.DecisionTree do
 
   ## Examples
 
-      tree =
-        DecisionTree.new()
-        |> DecisionTree.set_root(:weather, feature: "weather")
-        |> DecisionTree.add_outcome(:play, label: "Play")
-        |> DecisionTree.add_outcome(:stay, label: "Stay Home")
-        |> DecisionTree.branch(:weather, :play, "sunny")
-        |> DecisionTree.branch(:weather, :stay, "rainy")
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop)
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      iex> Yog.has_edge?(tree.graph, :color, :stop)
+      true
+      iex> Choreo.DecisionTree.condition(tree, :color, :stop)
+      "red"
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.add_outcome(:y)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "1")
+      iex> Choreo.DecisionTree.branch(tree, :y, :x, "2")
+      ** (ArgumentError) Node :x already has a parent
   """
   @spec branch(t(), Yog.node_id(), Yog.node_id(), String.t()) :: t()
   def branch(%__MODULE__{} = tree, parent, child, condition) do
@@ -208,12 +262,30 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns the root node id, or `nil` if not set.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> Choreo.DecisionTree.root(tree)
+      nil
+      iex> tree = Choreo.DecisionTree.set_root(tree, :a, feature: "a")
+      iex> Choreo.DecisionTree.root(tree)
+      :a
   """
   @spec root(t()) :: Yog.node_id() | nil
   def root(%__MODULE__{root: root}), do: root
 
   @doc """
   Returns all node IDs in the tree.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      iex> Enum.sort(Choreo.DecisionTree.nodes(tree))
+      [:a, :x]
   """
   @spec nodes(t()) :: [Yog.node_id()]
   def nodes(%__MODULE__{graph: graph}) do
@@ -222,6 +294,16 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns all branches as `{parent, child, condition}` tuples.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "yes")
+      iex> Choreo.DecisionTree.branches(tree)
+      [{:a, :x, "yes"}]
   """
   @spec branches(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def branches(%__MODULE__{graph: graph}) do
@@ -230,6 +312,20 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns all outcome (leaf) node IDs.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_decision(:b, feature: "b")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.add_outcome(:y)
+      ...>   |> Choreo.DecisionTree.branch(:a, :b, "1")
+      ...>   |> Choreo.DecisionTree.branch(:b, :x, "2")
+      ...>   |> Choreo.DecisionTree.branch(:b, :y, "3")
+      iex> Enum.sort(Choreo.DecisionTree.outcomes(tree))
+      [:x, :y]
   """
   @spec outcomes(t()) :: [Yog.node_id()]
   def outcomes(%__MODULE__{graph: graph}) do
@@ -240,6 +336,18 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns all decision (internal) node IDs.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_decision(:b, feature: "b")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.branch(:a, :b, "1")
+      ...>   |> Choreo.DecisionTree.branch(:b, :x, "2")
+      iex> Enum.sort(Choreo.DecisionTree.decisions(tree))
+      [:a, :b]
   """
   @spec decisions(t()) :: [Yog.node_id()]
   def decisions(%__MODULE__{graph: graph}) do
@@ -252,6 +360,18 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns the condition label on the branch from parent to child.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "yes")
+      iex> Choreo.DecisionTree.condition(tree, :a, :x)
+      "yes"
+      iex> Choreo.DecisionTree.condition(tree, :a, :missing)
+      nil
   """
   @spec condition(t(), Yog.node_id(), Yog.node_id()) :: String.t() | nil
   def condition(%__MODULE__{edge_meta: edge_meta}, parent, child) do
@@ -263,6 +383,13 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns the raw `Yog.Graph` struct underpinning the tree.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> graph = Choreo.DecisionTree.to_graph(tree)
+      iex> graph.kind
+      :directed
   """
   @spec to_graph(t()) :: Yog.graph()
   def to_graph(%__MODULE__{graph: graph}), do: graph
@@ -277,6 +404,23 @@ defmodule Choreo.DecisionTree do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop, label: "Stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:go, label: "Go")
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> dot = Choreo.DecisionTree.to_dot(tree)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "red")
+      true
+      iex> String.contains?(dot, "green")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = tree, opts \\ []) do

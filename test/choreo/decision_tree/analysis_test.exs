@@ -1,6 +1,8 @@
 defmodule Choreo.DecisionTree.AnalysisTest do
   use ExUnit.Case
 
+  doctest Choreo.DecisionTree.Analysis
+
   alias Choreo.DecisionTree
   alias Choreo.DecisionTree.Analysis
 

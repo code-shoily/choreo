@@ -1,6 +1,9 @@
 defmodule Choreo.DecisionTreeTest do
   use ExUnit.Case
 
+  doctest Choreo.DecisionTree
+  doctest Choreo.DecisionTree.Render.DOT
+
   alias Choreo.DecisionTree
 
   describe "new/0" do
