@@ -1,0 +1,244 @@
+# Choreo FSM: Comprehensive Walkthrough
+
+```elixir
+Mix.install([
+  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
+  {:kino_vizjs, "~> 0.8"}
+])
+```
+
+## Introduction
+
+`Choreo.FSM` is a finite-state machine builder that supports both **deterministic (DFA)** and **nondeterministic (NFA)** automata. You define states, transitions, and analyse reachability, acceptance, determinism, and more. Everything renders to DOT for visualisation.
+
+```elixir
+alias Choreo.FSM
+alias Choreo.FSM.Analysis
+
+fsm =
+  FSM.new()
+  |> FSM.add_initial_state(:idle)
+  |> FSM.add_state(:authenticating)
+  |> FSM.add_final_state(:logged_in)
+  |> FSM.add_transition(:idle, :authenticating, label: "submit_credentials")
+  |> FSM.add_transition(:authenticating, :logged_in, label: "success")
+
+Kino.VizJS.render(FSM.to_dot(fsm))
+```
+
+## State Types
+
+There are three ways to add states. Each stores type information in the FSM's `meta` field, so analysis and rendering always stay in sync.
+
+| Function | Purpose |
+|----------|---------|
+| `add_state/3` | Normal state. Optionally pass `type: :initial` or `type: :final`. |
+| `add_initial_state/3` | Entry point of the machine. Rendered with a black dot arrow. |
+| `add_final_state/3` | Accepting state. Rendered as a double circle. |
+
+You can also **remove** a special status without deleting the state:
+
+```elixir
+# Promote and demote
+fsm = FSM.new() |> FSM.add_state(:a, type: :initial)
+IO.inspect(:a in FSM.initial_states(fsm), label: "Is :a initial?")
+
+fsm = FSM.remove_initial_state(fsm, :a)
+IO.inspect(:a in FSM.initial_states(fsm), label: "Is :a initial after removal?")
+```
+
+### A state can be both initial and final
+
+This is useful for modelling "already accepted" start conditions (e.g. an empty string match).
+
+```elixir
+empty_match =
+  FSM.new()
+  |> FSM.add_initial_state(:q0)
+  |> FSM.add_final_state(:q0)
+  |> FSM.add_transition(:q0, :q0, label: "a")
+
+Kino.VizJS.render(FSM.to_dot(empty_match))
+```
+
+## Building Larger Graphs
+
+```elixir
+order_flow =
+  FSM.new()
+  |> FSM.add_initial_state(:cart_created)
+  |> FSM.add_state(:checkout)
+  |> FSM.add_state(:payment_pending)
+  |> FSM.add_state(:fraud_check)
+  |> FSM.add_final_state(:order_shipped)
+  |> FSM.add_final_state(:cancelled)
+  |> FSM.add_transition(:cart_created, :checkout, label: "proceed")
+  |> FSM.add_transition(:checkout, :payment_pending, label: "pay")
+  |> FSM.add_transition(:payment_pending, :fraud_check, label: "authorized")
+  |> FSM.add_transition(:fraud_check, :order_shipped, label: "passed")
+  |> FSM.add_transition(:payment_pending, :cancelled, label: "declined")
+
+Kino.VizJS.render(FSM.to_dot(order_flow))
+```
+
+## Determinism & NFA Support
+
+An FSM is **deterministic** when two conditions hold:
+
+1. Exactly **one** initial state.
+2. No state has two outgoing transitions with the **same label**.
+
+If either condition is violated, the FSM is an NFA. `Choreo.FSM` simulates NFAs using subset construction, so `accepts?/2` works for both.
+
+```elixir
+# Deterministic — single start, unique labels per state
+dfa =
+  FSM.new()
+  |> FSM.add_initial_state(:q0)
+  |> FSM.add_state(:q1)
+  |> FSM.add_final_state(:q2)
+  |> FSM.add_transition(:q0, :q1, label: "a")
+  |> FSM.add_transition(:q1, :q2, label: "b")
+
+Analysis.deterministic?(dfa)
+```
+
+```elixir
+# Nondeterministic — two initial states
+multi_start =
+  FSM.new()
+  |> FSM.add_initial_state(:a)
+  |> FSM.add_initial_state(:b)
+  |> FSM.add_final_state(:c)
+  |> FSM.add_transition(:a, :c, label: "x")
+
+Analysis.deterministic?(multi_start)
+```
+
+```elixir
+# Nondeterministic — duplicate label from one state
+nfa =
+  FSM.new()
+  |> FSM.add_initial_state(:q0)
+  |> FSM.add_state(:q1)
+  |> FSM.add_state(:q2)
+  |> FSM.add_final_state(:q2)
+  |> FSM.add_transition(:q0, :q1, label: "a")
+  |> FSM.add_transition(:q0, :q2, label: "a")
+  |> FSM.add_transition(:q1, :q2, label: "b")
+
+Analysis.deterministic?(nfa)
+Kino.VizJS.render(FSM.to_dot(nfa))
+```
+
+### NFA-to-DFA Conversion
+
+Use `Analysis.to_dfa/1` to apply the **subset construction** algorithm. The resulting DFA is complete: any missing transition is sent to a `:__trap__` sink state.
+
+```elixir
+dfa = Analysis.to_dfa(nfa)
+
+Analysis.deterministic?(dfa)
+Analysis.accepts?(dfa, ["a"])
+Analysis.accepts?(dfa, ["a", "b"])
+Kino.VizJS.render(FSM.to_dot(dfa))
+```
+
+## Analysis
+
+### Reachability & Dead States
+
+```elixir
+IO.inspect(Analysis.reachable_states(order_flow), label: "Reachable")
+IO.inspect(Analysis.dead_states(order_flow), label: "Dead (trap) states")
+```
+
+### Acceptance
+
+```elixir
+IO.inspect(Analysis.accepts?(order_flow, ["proceed", "pay", "authorized", "passed"]), label: "Accepts happy path")
+IO.inspect(Analysis.accepts?(order_flow, ["proceed", "pay", "declined"]), label: "Accepts cancelled path")
+IO.inspect(Analysis.accepts?(order_flow, ["proceed"]), label: "Rejects incomplete path")
+```
+
+### Path Finding
+
+```elixir
+IO.inspect(Analysis.shortest_accepting_path(order_flow), label: "Shortest accepting path")
+IO.inspect(Analysis.accepted_strings(order_flow, 3), label: "Accepted strings up to length 3")
+```
+
+### Alphabet & Completeness
+
+```elixir
+IO.inspect(Analysis.alphabet(order_flow), label: "Alphabet")
+IO.inspect(Analysis.complete?(order_flow), label: "Complete?")
+```
+
+### Validation
+
+`validate/1` returns a list of structural issues found in the FSM.
+
+```elixir
+bad_fsm =
+  FSM.new()
+  |> FSM.add_state(:orphan)
+  |> FSM.add_state(:trap)
+  |> FSM.add_initial_state(:a)
+  |> FSM.add_final_state(:c)
+  |> FSM.add_transition(:a, :c, label: "x")
+  |> FSM.add_transition(:a, :c, label: "x")
+
+Analysis.validate(bad_fsm)
+|> Enum.each(fn {severity, msg} ->
+  IO.puts("[#{severity}] #{msg}")
+end)
+```
+
+## Transforms
+
+### Complement
+
+Swap final and non-final states. If the input is nondeterministic, it is first converted to a DFA.
+
+```elixir
+comp = FSM.complement(dfa)
+
+IO.inspect(FSM.final_states(comp), label: "Final states in complement")
+Kino.VizJS.render(FSM.to_dot(comp))
+```
+
+### Prune
+
+Remove unreachable states and dead (trap) states, producing a smaller equivalent FSM.
+
+```elixir
+pruned = FSM.prune(bad_fsm)
+
+IO.inspect(FSM.states(pruned), label: "States after pruning")
+Kino.VizJS.render(FSM.to_dot(pruned))
+```
+
+## Theming
+
+Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
+
+```elixir
+dot_dark = FSM.to_dot(order_flow, theme: :dark)
+Kino.VizJS.render(dot_dark)
+```
+
+## Summary
+
+| Task | Function |
+|------|----------|
+| Build | `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
+| Demote | `remove_initial_state/2`, `remove_final_state/2` |
+| Determinism check | `Analysis.deterministic?/1` |
+| NFA→DFA | `Analysis.to_dfa/1` |
+| Acceptance | `Analysis.accepts?/2` |
+| Reachability | `Analysis.reachable_states/1`, `Analysis.dead_states/1` |
+| Paths | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2` |
+| Validation | `Analysis.validate/1` |
+| Transforms | `FSM.complement/1`, `FSM.prune/1` |
+| Render | `FSM.to_dot/2` |

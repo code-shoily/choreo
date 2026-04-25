@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `Choreo.FSM.Analysis.to_dfa/1` — converts NFA to equivalent complete DFA via subset construction. Automatically introduces a `:__trap__` sink state for incomplete alphabets.
+- `Choreo.FSM.remove_initial_state/2` — explicitly demotes a state from initial status without deleting the node.
+- `Choreo.FSM.remove_final_state/2` — explicitly demotes a state from final status without deleting the node.
+
+### Changed
+
+- **Breaking:** `Choreo.FSM` state typing moved from node `state_type` field to `meta` MapSets (`initial_states` and `final_states`). `add_state/3` with `type: :initial` or `type: :final` now populates these sets directly.
+- `Choreo.FSM.add_state/3` with `type: :normal` now explicitly clears a state from both `initial_states` and `final_states` in meta. Omitting the `:type` option (e.g. updating a label) preserves existing status.
+- `Choreo.FSM.Analysis.deterministic?/1` now enforces a **single initial state** in addition to unique outgoing transition labels, aligning with classical DFA definition.
+- `Choreo.FSM.complement/1` now converts nondeterministic input to a DFA first (via `to_dfa/1`) before complementing final states.
+
+### Fixed
+
+- `add_state/3 with type: :initial` now correctly registers the state in `meta.initial_states` so that `reachable_states/1`, `accepts?/2`, and rendering treat it as an entry point.
+- Fixed broken doctests in `Choreo.FSM.add_initial_state/2` and `Choreo.FSM.add_final_state/2` that still referenced the removed `state_type` node field.
+
 ## 0.5.0 — 2026-04-24
 
 ### Added
