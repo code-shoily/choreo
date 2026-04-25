@@ -140,6 +140,18 @@ defmodule Choreo.Workflow do
       [:begin]
       iex> Yog.node(workflow.graph, :begin).node_type
       :start
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      begin [label="Start", penwidth="2.0", fillcolor="#10b981", shape="circle"];
+    }
+  </div>
   """
   @spec add_start(t(), Yog.node_id(), keyword()) :: t()
   def add_start(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -157,6 +169,18 @@ defmodule Choreo.Workflow do
       [:finish]
       iex> Yog.node(workflow.graph, :finish).node_type
       :end
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      finish [label="End", penwidth="2.0", fillcolor="#ef4444", shape="doublecircle"];
+    }
+  </div>
   """
   @spec add_end(t(), Yog.node_id(), keyword()) :: t()
   def add_end(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -186,6 +210,18 @@ defmodule Choreo.Workflow do
       5000
       iex> Yog.node(workflow.graph, :process).retry
       3
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      process [label="process\n(5000ms)\nretry: 3", fillcolor="#3b82f6", shape="box3d"];
+    }
+  </div>
   """
   @spec add_task(t(), Yog.node_id(), keyword()) :: t()
   def add_task(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -201,6 +237,18 @@ defmodule Choreo.Workflow do
       iex> workflow = Choreo.Workflow.add_decision(workflow, :check)
       iex> Yog.node(workflow.graph, :check).node_type
       :decision
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      check [label="check", fillcolor="#8b5cf6", shape="diamond"];
+    }
+  </div>
   """
   @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
   def add_decision(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -255,6 +303,18 @@ defmodule Choreo.Workflow do
       [:rollback]
       iex> Yog.node(workflow.graph, :rollback).target_task
       :process
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      rollback [label="rollback", color="#ef4444", style="filled,dashed", fillcolor="#f87171", shape="note"];
+    }
+  </div>
   """
   @spec add_compensation(t(), Yog.node_id(), keyword()) :: t()
   def add_compensation(%__MODULE__{} = workflow, id, opts \\ []) do
@@ -311,6 +371,21 @@ defmodule Choreo.Workflow do
       [{:a, :b, 1}]
       iex> workflow.edge_meta[{:a, :b}].edge_type
       :sequence
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      a [label="a", penwidth="2.0", fillcolor="#10b981", shape="circle"];
+      b [label="b", fillcolor="#3b82f6", shape="box3d"];
+
+      a -> b [label="", style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+    }
+  </div>
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = workflow, from, to, opts \\ []) do
