@@ -79,6 +79,7 @@ defmodule Choreo.Render.DOT do
       ranksep: theme.graph_ranksep,
       bgcolor: theme.graph_bgcolor,
       edge_color: theme.edge_color,
+      edge_fontcolor: theme.edge_color,
       edge_fontname: theme.edge_fontname,
       edge_fontsize: theme.edge_fontsize,
       edge_penwidth: theme.edge_penwidth,
