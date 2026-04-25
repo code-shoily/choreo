@@ -19,22 +19,69 @@ defmodule Choreo.FSMTest do
     test "add_state/3 creates a normal state" do
       fsm = FSM.new() |> FSM.add_state(:idle, label: "Idle")
       data = Yog.node(fsm.graph, :idle)
-      assert data.state_type == :normal
       assert data.label == "Idle"
+      refute :idle in FSM.initial_states(fsm)
+      refute :idle in FSM.final_states(fsm)
     end
 
     test "add_initial_state/3 marks state as initial" do
       fsm = FSM.new() |> FSM.add_initial_state(:idle)
-      data = Yog.node(fsm.graph, :idle)
-      assert data.state_type == :initial
       assert :idle in FSM.initial_states(fsm)
     end
 
     test "add_final_state/3 marks state as final" do
       fsm = FSM.new() |> FSM.add_final_state(:done)
-      data = Yog.node(fsm.graph, :done)
-      assert data.state_type == :final
       assert :done in FSM.final_states(fsm)
+    end
+
+    test "add_state/3 with type: :initial" do
+      fsm = FSM.new() |> FSM.add_state(:idle, type: :initial)
+      assert :idle in FSM.initial_states(fsm)
+    end
+
+    test "add_state/3 with type: :final" do
+      fsm = FSM.new() |> FSM.add_state(:done, type: :final)
+      assert :done in FSM.final_states(fsm)
+    end
+
+    test "add_state/3 with type: :normal clears initial and final status" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a, type: :initial)
+        |> FSM.add_state(:a, type: :final)
+        |> FSM.add_state(:a, type: :normal)
+
+      refute :a in FSM.initial_states(fsm)
+      refute :a in FSM.final_states(fsm)
+    end
+
+    test "add_state/3 without type preserves existing initial/final status" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:a, label: "Updated")
+
+      assert :a in FSM.initial_states(fsm)
+    end
+
+    test "remove_initial_state/2 removes initial status" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.remove_initial_state(:a)
+
+      refute :a in FSM.initial_states(fsm)
+      assert :a in FSM.states(fsm)
+    end
+
+    test "remove_final_state/2 removes final status" do
+      fsm =
+        FSM.new()
+        |> FSM.add_final_state(:a)
+        |> FSM.remove_final_state(:a)
+
+      refute :a in FSM.final_states(fsm)
+      assert :a in FSM.states(fsm)
     end
 
     test "states/1 returns all state ids" do
@@ -144,7 +191,7 @@ defmodule Choreo.FSMTest do
     test "complement swaps final and normal states" do
       fsm =
         FSM.new()
-        |> FSM.add_state(:a)
+        |> FSM.add_initial_state(:a)
         |> FSM.add_final_state(:b)
 
       comp = FSM.complement(fsm)
@@ -186,6 +233,48 @@ defmodule Choreo.FSMTest do
 
       pruned = FSM.prune(fsm)
       refute :trap in FSM.states(pruned)
+    end
+
+    test "complement with initial and final state" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:a)
+        |> FSM.add_state(:b)
+
+      comp = FSM.complement(fsm)
+      assert :a in FSM.initial_states(comp)
+      refute :a in FSM.final_states(comp)
+      assert :b in FSM.final_states(comp)
+    end
+
+    test "prune preserves initial+final state" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:a)
+        |> FSM.add_state(:dead)
+        |> FSM.add_transition(:a, :a, label: "loop")
+
+      pruned = FSM.prune(fsm)
+      assert :a in FSM.states(pruned)
+      assert :a in FSM.initial_states(pruned)
+      assert :a in FSM.final_states(pruned)
+      refute :dead in FSM.states(pruned)
+    end
+
+    test "prune with multiple initial states" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_initial_state(:b)
+        |> FSM.add_final_state(:c)
+        |> FSM.add_transition(:a, :c, label: "go")
+
+      pruned = FSM.prune(fsm)
+      assert :a in FSM.initial_states(pruned)
+      refute :b in FSM.initial_states(pruned)
+      refute :b in FSM.states(pruned)
     end
   end
 end
