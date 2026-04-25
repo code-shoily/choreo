@@ -1,5 +1,11 @@
 # Choreo
 
+[![Hex Version](https://img.shields.io/hexpm/v/choreo.svg)](https://hex.pm/packages/choreo)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/choreo/)
+[![CI](https://github.com/code-shoily/choreo/actions/workflows/ci.yml/badge.svg)](https://github.com/code-shoily/choreo/actions)
+[![Coverage Status](https://coveralls.io/repos/github/code-shoily/choreo/badge.svg?branch=main)](https://coveralls.io/github/code-shoily/choreo?branch=main)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 > Domain-specific diagram builders and graph analyzers on top of [Yog](https://github.com/code-shoily/yog_ex).
 
 Choreo is a family of Elixir libraries that let you model, analyze, and render complex systems as graphs. Instead of drawing boxes and arrows by hand, you write code. Instead of static pictures, you get live analysis — reachability, cycles, bottlenecks, threat generation, and more.
