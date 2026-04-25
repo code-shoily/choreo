@@ -38,6 +38,7 @@ defmodule Choreo.DecisionTree.Render.DOT do
       |> Map.put(:node_fontsize, theme.node_fontsize)
       |> Map.put(:node_fontcolor, theme.node_fontcolor)
       |> Map.put(:edge_color, theme.edge_color)
+      |> Map.put(:edge_fontcolor, theme.edge_color)
       |> Map.put(:edge_fontname, theme.edge_fontname)
       |> Map.put(:edge_fontsize, theme.edge_fontsize)
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
@@ -45,7 +46,7 @@ defmodule Choreo.DecisionTree.Render.DOT do
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, &edge_label/1)
       |> Map.put(:node_attributes, node_attributes_fn(theme))
-      |> Map.put(:edge_attributes, edge_attributes_fn(tree))
+      |> Map.put(:edge_attributes, edge_attributes_fn(tree, theme))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
@@ -206,11 +207,11 @@ defmodule Choreo.DecisionTree.Render.DOT do
   # Edge styling
   # ============================================================================
 
-  defp edge_attributes_fn(tree) do
+  defp edge_attributes_fn(tree, theme) do
     fn from, to, _weight ->
       meta = Map.get(tree.edge_meta, {from, to}, %{})
 
-      base = [{:color, "#64748b"}]
+      base = [{:color, theme.edge_color}, {:fontcolor, theme.edge_color}]
 
       base = if label = meta[:label], do: [{:label, label} | base], else: base
 

@@ -1,0 +1,447 @@
+# Choreo DecisionTree: Comprehensive Walkthrough
+
+## Section
+
+```elixir
+Mix.install([
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.5.0"}
+])
+```
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+
+---
+
+## What is Choreo.DecisionTree?
+
+`Choreo.DecisionTree` models classification and choice trees where internal nodes are **decisions** (tests on features) and leaf nodes are **outcomes** (class labels or actions). Every path from root to leaf represents a complete decision chain.
+
+Unlike free-form graphs, decision trees enforce **structural invariants**:
+
+* **Exactly one root** — the starting decision node
+* **Single parent** — every non-root node has exactly one parent (no merging)
+* **No cycles** — branches always flow downward
+
+These invariants mean you can evaluate a tree deterministically: start at the root, read a feature value, follow the matching branch, repeat until you reach an outcome.
+
+### Node Types
+
+| Type       | Shape                        | Purpose                                    |
+| ---------- | ---------------------------- | ------------------------------------------ |
+| `root`     | 💎 diamond (double border) | Starting decision — exactly one per tree |
+| `decision` | 💎 diamond                 | Internal node testing a feature            |
+| `outcome`  | ⬭ rounded box              | Terminal leaf with class label or action   |
+
+```elixir
+alias Choreo.DecisionTree
+alias Choreo.DecisionTree.Analysis
+
+legend =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:root, feature: "Root")
+  |> DecisionTree.add_decision(:decision, feature: "Decision")
+  |> DecisionTree.add_outcome(:outcome, label: "Outcome", class: "class_a")
+
+Kino.VizJS.render(DecisionTree.to_dot(legend))
+```
+
+---
+
+## Example 1: Troubleshooting Guide
+
+A classic use case: your application's error page asks a series of questions and guides the user to a fix.
+
+```elixir
+troubleshooting =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:has_power, feature: "Device powers on?")
+  |> DecisionTree.add_decision(:has_network, feature: "Network connected?")
+  |> DecisionTree.add_decision(:has_internet, feature: "Internet reachable?")
+  |> DecisionTree.add_outcome(:check_cable, label: "Check power cable", class: "hardware")
+  |> DecisionTree.add_outcome(:check_wifi, label: "Check Wi-Fi settings", class: "network")
+  |> DecisionTree.add_outcome(:check_dns, label: "Check DNS config", class: "network")
+  |> DecisionTree.add_outcome(:all_good, label: "No issue detected", class: "ok")
+  |> DecisionTree.branch(:has_power, :has_network, "yes")
+  |> DecisionTree.branch(:has_power, :check_cable, "no")
+  |> DecisionTree.branch(:has_network, :has_internet, "yes")
+  |> DecisionTree.branch(:has_network, :check_wifi, "no")
+  |> DecisionTree.branch(:has_internet, :all_good, "yes")
+  |> DecisionTree.branch(:has_internet, :check_dns, "no")
+
+Kino.VizJS.render(DecisionTree.to_dot(troubleshooting))
+```
+
+### Evaluating a Decision
+
+Given feature values, walk the tree and return the path and outcome:
+
+```elixir
+# User says: device powers on, network connected, internet reachable
+Analysis.decide(troubleshooting, %{
+  "Device powers on?" => "yes",
+  "Network connected?" => "yes",
+  "Internet reachable?" => "yes"
+})
+```
+
+```elixir
+# User says: device doesn't power on
+Analysis.decide(troubleshooting, %{
+  "Device powers on?" => "no"
+})
+```
+
+### What if a feature is missing?
+
+```elixir
+# Missing "Network connected?" — decision cannot proceed
+Analysis.decide(troubleshooting, %{
+  "Device powers on?" => "yes"
+})
+```
+
+---
+
+## Example 2: ML-Style Classification Tree
+
+Model a simplified version of the classic Iris dataset decision tree. Features are petal length and width; outcomes are species labels.
+
+```elixir
+iris =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:petal_length, feature: "petal length (cm)")
+  |> DecisionTree.add_decision(:petal_width, feature: "petal width (cm)")
+  |> DecisionTree.add_outcome(:setosa,
+    label: "Iris-setosa",
+    class: "setosa",
+    probability: 0.98
+  )
+  |> DecisionTree.add_outcome(:versicolor,
+    label: "Iris-versicolor",
+    class: "versicolor",
+    probability: 0.94
+  )
+  |> DecisionTree.add_outcome(:virginica,
+    label: "Iris-virginica",
+    class: "virginica",
+    probability: 0.91
+  )
+  |> DecisionTree.branch(:petal_length, :setosa, "< 2.45")
+  |> DecisionTree.branch(:petal_length, :petal_width, ">= 2.45")
+  |> DecisionTree.branch(:petal_width, :versicolor, "< 1.75")
+  |> DecisionTree.branch(:petal_width, :virginica, ">= 1.75")
+
+Kino.VizJS.render(DecisionTree.to_dot(iris))
+```
+
+### Path Enumeration
+
+What are all possible root-to-leaf paths?
+
+```elixir
+Analysis.paths(iris)
+|> Enum.each(fn path ->
+  IO.puts(Enum.join(path, " → "))
+end)
+```
+
+### Paths with Conditions
+
+Get the full decision logic for each path:
+
+```elixir
+Analysis.paths_with_conditions(iris)
+|> Enum.each(fn {path, branches} ->
+  conditions = Enum.map(branches, fn {_p, _c, cond} -> cond end)
+  outcome = List.last(path)
+  IO.puts("#{outcome}: #{Enum.join(conditions, " AND ")}")
+end)
+```
+
+### Tree Metrics
+
+```elixir
+IO.puts("Depth: #{Analysis.depth(iris)}")
+IO.puts("Breadth (leaves): #{Analysis.breadth(iris)}")
+IO.inspect(Analysis.feature_importance(iris), label: "Feature importance")
+IO.inspect(Analysis.reachable_outcomes(iris), label: "Reachable outcomes")
+```
+
+Depth tells you the maximum number of decisions before classification. Breadth tells you how many distinct classes the tree can emit. Feature importance shows which attributes drive the most splits — useful for feature selection in ML pipelines.
+
+---
+
+## Example 3: Business Rules Engine
+
+Loan approval decisions based on income, credit score, and employment status. Some paths should never coexist — let's detect logical inconsistencies.
+
+```elixir
+loan =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:income, feature: "annual income")
+  |> DecisionTree.add_decision(:credit_score, feature: "credit score")
+  |> DecisionTree.add_decision(:employment, feature: "employment status")
+  |> DecisionTree.add_outcome(:approved_fast, label: "Fast Track Approved", class: "approved")
+  |> DecisionTree.add_outcome(:approved_standard, label: "Standard Approved", class: "approved")
+  |> DecisionTree.add_outcome(:rejected_risk, label: "Rejected — High Risk", class: "rejected")
+  |> DecisionTree.add_outcome(:rejected_income, label: "Rejected — Low Income", class: "rejected")
+  |> DecisionTree.add_outcome(:manual_review_credit, label: "Manual Review (Credit)", class: "pending")
+  |> DecisionTree.add_outcome(:manual_review_employment, label: "Manual Review (Employment)", class: "pending")
+  |> DecisionTree.branch(:income, :credit_score, ">= 50k")
+  |> DecisionTree.branch(:income, :rejected_income, "< 50k")
+  |> DecisionTree.branch(:credit_score, :employment, ">= 700")
+  |> DecisionTree.branch(:credit_score, :manual_review_credit, "600-699")
+  |> DecisionTree.branch(:credit_score, :rejected_risk, "< 600")
+  |> DecisionTree.branch(:employment, :approved_fast, "full-time")
+  |> DecisionTree.branch(:employment, :approved_standard, "part-time")
+  |> DecisionTree.branch(:employment, :manual_review_employment, "self-employed")
+
+Kino.VizJS.render(DecisionTree.to_dot(loan, theme: :dark))
+```
+
+### Inconsistent Path Detection
+
+A logically inconsistent path is one where the same feature is checked against mutually exclusive conditions along the path. For example, a path that requires both `income >= 50k` and `income < 50k` is impossible.
+
+```elixir
+Analysis.inconsistent_paths(loan)
+|> IO.inspect(label: "Inconsistent paths")
+```
+
+In this well-formed tree, there are no inconsistencies. But if someone accidentally branched `:income` twice with overlapping ranges, this analysis would catch it immediately.
+
+### Validation
+
+```elixir
+Analysis.validate(loan)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+---
+
+## Example 4: Configuration Selector
+
+Help a user pick the right AWS EC2 instance type based on workload characteristics. This tree is deeper and demonstrates how decision trees scale to many levels.
+
+```elixir
+ec2_selector =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:workload, feature: "workload type")
+  |> DecisionTree.add_decision(:memory, feature: "memory needs")
+  |> DecisionTree.add_decision(:gpu, feature: "needs GPU?")
+  |> DecisionTree.add_decision(:io, feature: "I/O intensity")
+  |> DecisionTree.add_decision(:budget, feature: "budget constraint")
+  |> DecisionTree.add_outcome(:t3_micro, label: "t3.micro", class: "general")
+  |> DecisionTree.add_outcome(:t3_large, label: "t3.large", class: "general")
+  |> DecisionTree.add_outcome(:m6i_xlarge, label: "m6i.xlarge", class: "general")
+  |> DecisionTree.add_outcome(:r6i_large, label: "r6i.large", class: "memory")
+  |> DecisionTree.add_outcome(:r6i_2xlarge, label: "r6i.2xlarge", class: "memory")
+  |> DecisionTree.add_outcome(:c6i_xlarge, label: "c6i.xlarge", class: "compute")
+  |> DecisionTree.add_outcome(:i4i_large, label: "i4i.large", class: "storage")
+  |> DecisionTree.add_outcome(:g5_xlarge, label: "g5.xlarge", class: "gpu")
+  |> DecisionTree.add_outcome(:inf2_xlarge, label: "inf2.xlarge", class: "ml")
+  # Workload branches
+  |> DecisionTree.branch(:workload, :memory, "database")
+  |> DecisionTree.branch(:workload, :gpu, "ml/training")
+  |> DecisionTree.branch(:workload, :io, "analytics")
+  |> DecisionTree.branch(:workload, :budget, "web server")
+  # Memory branches
+  |> DecisionTree.branch(:memory, :r6i_large, "< 64GB")
+  |> DecisionTree.branch(:memory, :r6i_2xlarge, ">= 64GB")
+  # GPU branches
+  |> DecisionTree.branch(:gpu, :g5_xlarge, "yes")
+  |> DecisionTree.branch(:gpu, :inf2_xlarge, "no")
+  # I/O branches
+  |> DecisionTree.branch(:io, :i4i_large, "high")
+  |> DecisionTree.branch(:io, :c6i_xlarge, "medium")
+  # Budget branches
+  |> DecisionTree.branch(:budget, :t3_micro, "tight")
+  |> DecisionTree.branch(:budget, :t3_large, "moderate")
+  |> DecisionTree.branch(:budget, :m6i_xlarge, "flexible")
+
+Kino.VizJS.render(DecisionTree.to_dot(ec2_selector))
+```
+
+### Interactive Evaluation
+
+```elixir
+# A database workload with high memory needs
+Analysis.decide(ec2_selector, %{
+  "workload type" => "database",
+  "memory needs" => ">= 64GB"
+})
+```
+
+```elixir
+# A web server on a tight budget
+Analysis.decide(ec2_selector, %{
+  "workload type" => "web server",
+  "budget constraint" => "tight"
+})
+```
+
+### Feature Importance in Configuration Trees
+
+```elixir
+Analysis.feature_importance(ec2_selector)
+|> Enum.sort_by(fn {_feature, count} -> count end, :desc)
+|> Enum.each(fn {feature, count} ->
+  IO.puts("#{feature}: #{count} split(s)")
+end)
+```
+
+In this tree, every feature appears exactly once — a balanced tree. In real-world datasets, skewed importance tells you which feature provides the most information gain.
+
+---
+
+## Example 5: Pruning Redundant Decisions
+
+Sometimes a decision doesn't actually change the outcome. If all branches under a decision lead to the same class, that decision is redundant and can be removed.
+
+```elixir
+redundant =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:color, feature: "color")
+  |> DecisionTree.add_decision(:size_red, feature: "size")
+  |> DecisionTree.add_decision(:size_green, feature: "size")
+  |> DecisionTree.add_outcome(:stop_1, label: "Stop", class: "stop")
+  |> DecisionTree.add_outcome(:stop_2, label: "Stop", class: "stop")
+  |> DecisionTree.add_outcome(:stop_3, label: "Stop", class: "stop")
+  |> DecisionTree.add_outcome(:stop_4, label: "Stop", class: "stop")
+  # Both colors lead to distinct size decisions, which always lead to Stop
+  |> DecisionTree.branch(:color, :size_red, "red")
+  |> DecisionTree.branch(:color, :size_green, "green")
+  |> DecisionTree.branch(:size_red, :stop_1, "small")
+  |> DecisionTree.branch(:size_red, :stop_2, "large")
+  |> DecisionTree.branch(:size_green, :stop_3, "small")
+  |> DecisionTree.branch(:size_green, :stop_4, "large")
+
+IO.puts("Before pruning:")
+Kino.VizJS.render(DecisionTree.to_dot(redundant))
+```
+
+```elixir
+pruned = Analysis.prune_redundant(redundant)
+
+IO.puts("After pruning:")
+IO.puts("Depth: #{Analysis.depth(pruned)} (was #{Analysis.depth(redundant)})")
+Kino.VizJS.render(DecisionTree.to_dot(pruned))
+```
+
+The `:color` and `:size` decisions were both redundant because every path ended at `Stop`. After pruning, the tree collapses to a single outcome node — the simplest possible representation.
+
+---
+
+## Example 6: Fixing a Broken Tree
+
+The builder enforces invariants at construction time, but let's see what validation catches when you bypass the builder (or load from an external source).
+
+```elixir
+# Simulate a malformed tree by building one with issues
+broken =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:weather, feature: "weather")
+  |> DecisionTree.add_decision(:wind, feature: "wind")
+  |> DecisionTree.add_outcome(:play, label: "Play")
+  |> DecisionTree.add_outcome(:stay, label: "Stay")
+  # Missing branch from root — decision node :wind has no parent
+  |> DecisionTree.branch(:weather, :play, "sunny")
+  |> DecisionTree.branch(:weather, :stay, "rainy")
+
+Analysis.validate(broken)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+The validator catches:
+
+* Decision nodes with no branches (orphan `:wind`)
+* Outcome nodes with outgoing branches (if any)
+* Duplicate conditions from the same parent
+
+### Tree Invariants at Build Time
+
+Even before validation, the builder raises on invariant violations:
+
+```elixir
+# Cannot add a second root
+try do
+  DecisionTree.new()
+  |> DecisionTree.set_root(:a, feature: "a")
+  |> DecisionTree.set_root(:b, feature: "b")
+rescue
+  e -> IO.puts("Error: #{e.message}")
+end
+```
+
+```elixir
+# Cannot create a cycle
+try do
+  DecisionTree.new()
+  |> DecisionTree.set_root(:a, feature: "a")
+  |> DecisionTree.add_decision(:b, feature: "b")
+  |> DecisionTree.branch(:a, :b, "yes")
+  |> DecisionTree.branch(:b, :a, "no")
+rescue
+  e -> IO.puts("Error: #{e.message}")
+end
+```
+
+```elixir
+# Cannot give a node two parents
+try do
+  DecisionTree.new()
+  |> DecisionTree.set_root(:a, feature: "a")
+  |> DecisionTree.add_decision(:b, feature: "b")
+  |> DecisionTree.add_outcome(:c, label: "C")
+  |> DecisionTree.branch(:a, :c, "yes")
+  |> DecisionTree.branch(:b, :c, "no")
+rescue
+  e -> IO.puts("Error: #{e.message}")
+end
+```
+
+---
+
+## Advanced: Custom Theming
+
+```elixir
+brand_theme =
+  Choreo.Theme.custom(
+    colors: %{
+      root: "#8b5cf6",
+      decision: "#3b82f6",
+      outcome: "#10b981"
+    },
+    node_fontcolor: "white",
+    edge_color: "#94a3b8",
+    graph_bgcolor: "#0f172a"
+  )
+
+Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme))
+```
+
+---
+
+## Summary
+
+| Question                                | Function                           |
+| --------------------------------------- | ---------------------------------- |
+| "Given features, what's the outcome?"   | `Analysis.decide/2`                |
+| "What are all possible paths?"          | `Analysis.paths/1`                 |
+| "What conditions lead to each outcome?" | `Analysis.paths_with_conditions/1` |
+| "How deep is the tree?"                 | `Analysis.depth/1`                 |
+| "How many outcomes?"                    | `Analysis.breadth/1`               |
+| "Which features matter most?"           | `Analysis.feature_importance/1`    |
+| "Are there impossible paths?"           | `Analysis.inconsistent_paths/1`    |
+| "Can I simplify the tree?"              | `Analysis.prune_redundant/1`       |
+| "Is the tree structurally valid?"       | `Analysis.validate/1`              |
+| "Render to DOT"                         | `DecisionTree.to_dot/2`            |
+
+Decision trees as code mean your business rules, troubleshooting guides, and ML models are version-controlled, diffable, and automatically validated. Every branch addition is checked for cycles, duplicate conditions, and logical inconsistencies — before it ever reaches production.
