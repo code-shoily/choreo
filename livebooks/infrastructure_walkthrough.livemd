@@ -1,0 +1,465 @@
+# Choreo Infrastructure: Comprehensive Walkthrough
+
+## Section
+
+```elixir
+Mix.install([
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.5.0"}
+])
+```
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+
+---
+
+## What is Choreo?
+
+`Choreo` (the top-level module) models **infrastructure architecture** — databases, caches, services, networks, queues, storage, and the connections between them. Unlike drawing tools where boxes are just pictures, Choreo diagrams are **analysable graphs**. You can compute minimum spanning trees for cost optimisation, find single points of failure for resilience planning, and rank services by centrality to identify critical bottlenecks.
+
+### Node Types
+
+| Type            | Shape                    | Purpose                            |
+| --------------- | ------------------------ | ---------------------------------- |
+| `database`      | 🛢️ cylinder         | Postgres, MySQL, MongoDB, DynamoDB |
+| `cache`         | 💎 diamond             | Redis, Memcached                   |
+| `service`       | 📦 box3d               | API Gateway, worker, microservice  |
+| `network`       | ☁️ cloud             | VPC, subnet, CDN, firewall         |
+| `user`          | 👤 box (double border) | Person, device, external service   |
+| `load_balancer` | ▽ invhouse             | Nginx, HAProxy, ALB, Cloudflare    |
+| `queue`         | 🗂️ folder           | Kafka, RabbitMQ, SQS, Pub/Sub      |
+| `storage`       | 📁 folder              | S3, NFS, block storage             |
+| `generic`       | ⬛ box                  | Anything else                      |
+
+```elixir
+alias Choreo
+alias Choreo.Analysis
+
+legend =
+  Choreo.new()
+  |> Choreo.add_database(:db, name: "Database")
+  |> Choreo.add_cache(:cache, name: "Cache")
+  |> Choreo.add_service(:svc, name: "Service")
+  |> Choreo.add_network(:net, name: "Network")
+  |> Choreo.add_user(:user, name: "User")
+  |> Choreo.add_load_balancer(:lb, name: "Load Balancer")
+  |> Choreo.add_queue(:queue, name: "Queue")
+  |> Choreo.add_storage(:storage, name: "Storage")
+
+Kino.VizJS.render(Choreo.to_dot(legend))
+```
+
+---
+
+## Example 1: Classic Three-Tier Web Application
+
+The simplest useful architecture: users hit a load balancer, which distributes to app servers, which talk to a database and cache.
+
+```elixir
+three_tier =
+  Choreo.new()
+  |> Choreo.add_user(:user, name: "End User", kind: :person)
+  |> Choreo.add_load_balancer(:alb, name: "ALB", kind: :alb)
+  |> Choreo.add_service(:web, name: "Web Servers", kind: :web)
+  |> Choreo.add_service(:api, name: "API Service", kind: :api)
+  |> Choreo.add_database(:postgres, name: "Postgres", kind: :postgres)
+  |> Choreo.add_cache(:redis, name: "Redis", kind: :redis)
+  |> Choreo.add_storage(:s3, name: "S3 Bucket", kind: :s3)
+  |> Choreo.connect(:user, :alb, cost: 1, protocol: :https)
+  |> Choreo.connect(:alb, :web, cost: 1, protocol: :http)
+  |> Choreo.connect(:alb, :api, cost: 1, protocol: :http)
+  |> Choreo.connect(:web, :api, cost: 2, protocol: :http)
+  |> Choreo.connect(:api, :postgres, cost: 5, protocol: :tcp)
+  |> Choreo.connect(:api, :redis, cost: 2, protocol: :tcp)
+  |> Choreo.connect(:web, :s3, cost: 3, protocol: :https)
+
+Kino.VizJS.render(Choreo.to_dot(three_tier))
+```
+
+### Basic Queries
+
+```elixir
+IO.inspect(Choreo.nodes(three_tier) |> Map.keys(), label: "All nodes")
+IO.inspect(Choreo.edges(three_tier), label: "All edges")
+IO.inspect(Analysis.isolated_nodes(three_tier), label: "Isolated nodes")
+```
+
+### Shortest Path
+
+What's the cheapest route from the user to the database?
+
+```elixir
+case Analysis.shortest_path(three_tier, :user, :postgres) do
+  {:ok, path} ->
+    IO.puts("Path: #{Enum.join(path.nodes, " → ")}")
+    IO.puts("Cost: #{path.weight}")
+
+  :error ->
+    IO.puts("No path found")
+end
+```
+
+---
+
+## Example 2: Multi-Region Architecture with Nested Clusters
+
+Real systems span availability zones and regions. Choreo's cluster system supports nesting — a region contains AZs, which contain services.
+
+```elixir
+multi_region =
+  Choreo.new()
+  # Top-level clusters
+  |> Choreo.add_cluster("global", label: "Global Infrastructure", fillcolor: "#f8fafc")
+  |> Choreo.add_cluster("us_east", label: "US-East Region", parent: "global", fillcolor: "#dbeafe")
+  |> Choreo.add_cluster("us_west", label: "US-West Region", parent: "global", fillcolor: "#dcfce7")
+  |> Choreo.add_cluster("ue1a", label: "AZ-1a", parent: "us_east", fillcolor: "#eff6ff")
+  |> Choreo.add_cluster("ue1b", label: "AZ-1b", parent: "us_east", fillcolor: "#eff6ff")
+  |> Choreo.add_cluster("uw2a", label: "AZ-2a", parent: "us_west", fillcolor: "#f0fdf4")
+  # Users and DNS (global)
+  |> Choreo.add_user(:end_user, name: "End User", cluster: "global")
+  |> Choreo.add_network(:route53, name: "Route 53", kind: :dns, cluster: "global")
+  |> Choreo.add_network(:cloudfront, name: "CloudFront", kind: :cdn, cluster: "global")
+  # US-East AZ-1a
+  |> Choreo.add_load_balancer(:alb_east_a, name: "ALB East A", cluster: "ue1a")
+  |> Choreo.add_service(:api_east_a, name: "API East A", cluster: "ue1a")
+  |> Choreo.add_database(:postgres_east_a, name: "Postgres Primary", kind: :postgres, cluster: "ue1a")
+  |> Choreo.add_cache(:redis_east_a, name: "Redis East A", cluster: "ue1a")
+  # US-East AZ-1b
+  |> Choreo.add_load_balancer(:alb_east_b, name: "ALB East B", cluster: "ue1b")
+  |> Choreo.add_service(:api_east_b, name: "API East B", cluster: "ue1b")
+  |> Choreo.add_database(:postgres_east_b, name: "Postgres Replica", kind: :postgres, cluster: "ue1b")
+  |> Choreo.add_cache(:redis_east_b, name: "Redis East B", cluster: "ue1b")
+  # US-West AZ-2a
+  |> Choreo.add_load_balancer(:alb_west_a, name: "ALB West A", cluster: "uw2a")
+  |> Choreo.add_service(:api_west_a, name: "API West A", cluster: "uw2a")
+  |> Choreo.add_database(:postgres_west_a, name: "Postgres Replica", kind: :postgres, cluster: "uw2a")
+  |> Choreo.add_cache(:redis_west_a, name: "Redis West A", cluster: "uw2a")
+  # Cross-region replication queue
+  |> Choreo.add_queue(:kafka, name: "Kafka Replication", cluster: "global")
+  # Connections
+  |> Choreo.connect(:end_user, :route53, cost: 1)
+  |> Choreo.connect(:route53, :cloudfront, cost: 1)
+  |> Choreo.connect(:cloudfront, :alb_east_a, cost: 2)
+  |> Choreo.connect(:cloudfront, :alb_east_b, cost: 2)
+  |> Choreo.connect(:cloudfront, :alb_west_a, cost: 5)
+  |> Choreo.connect(:alb_east_a, :api_east_a, cost: 1)
+  |> Choreo.connect(:alb_east_b, :api_east_b, cost: 1)
+  |> Choreo.connect(:alb_west_a, :api_west_a, cost: 1)
+  |> Choreo.connect(:api_east_a, :postgres_east_a, cost: 2)
+  |> Choreo.connect(:api_east_a, :redis_east_a, cost: 1)
+  |> Choreo.connect(:api_east_b, :postgres_east_b, cost: 2)
+  |> Choreo.connect(:api_east_b, :redis_east_b, cost: 1)
+  |> Choreo.connect(:api_west_a, :postgres_west_a, cost: 2)
+  |> Choreo.connect(:api_west_a, :redis_west_a, cost: 1)
+  |> Choreo.connect(:postgres_east_a, :kafka, cost: 3)
+  |> Choreo.connect(:kafka, :postgres_east_b, cost: 3)
+  |> Choreo.connect(:kafka, :postgres_west_a, cost: 8)
+
+Kino.VizJS.render(Choreo.to_dot(multi_region, theme: :dark))
+```
+
+### Centrality Analysis
+
+Which services are the most critical connectors?
+
+```elixir
+Analysis.centrality(multi_region, measure: :betweenness, limit: 5)
+|> Enum.each(fn {id, score} ->
+  IO.puts("#{id}: #{:erlang.float_to_binary(score, decimals: 3)}")
+end)
+```
+
+### Impact Analysis
+
+What breaks if the primary Postgres goes down?
+
+```elixir
+Analysis.impact_analysis(multi_region, :postgres_east_a)
+|> IO.inspect(label: "Affected by postgres_east_a failure")
+```
+
+---
+
+## Example 3: Cost Optimisation with Minimum Spanning Tree
+
+Given a set of services and the cost of connecting them, what's the cheapest way to ensure every service can reach every other service?
+
+```elixir
+cost_optimisation =
+  Choreo.new(directed: false)
+  |> Choreo.add_service(:hq, name: "HQ Office")
+  |> Choreo.add_service(:branch_a, name: "Branch A")
+  |> Choreo.add_service(:branch_b, name: "Branch B")
+  |> Choreo.add_service(:datacenter, name: "Data Center")
+  |> Choreo.add_service(:cloud, name: "Cloud VPC")
+  |> Choreo.connect(:hq, :branch_a, cost: 50, label: "MPLS")
+  |> Choreo.connect(:hq, :branch_b, cost: 80, label: "MPLS")
+  |> Choreo.connect(:hq, :datacenter, cost: 20, label: "Fiber")
+  |> Choreo.connect(:hq, :cloud, cost: 30, label: "VPN")
+  |> Choreo.connect(:branch_a, :branch_b, cost: 120, label: "MPLS")
+  |> Choreo.connect(:branch_a, :datacenter, cost: 70, label: "VPN")
+  |> Choreo.connect(:branch_b, :cloud, cost: 90, label: "VPN")
+  |> Choreo.connect(:datacenter, :cloud, cost: 10, label: "Direct Connect")
+
+Kino.VizJS.render(Choreo.to_dot(cost_optimisation))
+```
+
+### Minimum Spanning Tree
+
+```elixir
+{:ok, mst} = Analysis.mst(cost_optimisation, algorithm: :kruskal)
+
+IO.puts("MST total cost: #{mst.total_weight}")
+IO.puts("Edges in MST:")
+Enum.each(mst.edges, fn %{from: u, to: v, weight: weight} ->
+  IO.puts("  #{u} — #{v} (#{weight})")
+end)
+```
+
+Try Prim's and Borůvka's algorithms too:
+
+```elixir
+{:ok, mst_kruskal} = Analysis.mst(cost_optimisation, algorithm: :kruskal)
+{:ok, mst_prim} = Analysis.mst(cost_optimisation, algorithm: :prim)
+{:ok, mst_boruvka} = Analysis.mst(cost_optimisation, algorithm: :boruvka)
+
+IO.puts("Kruskal: #{mst_kruskal.total_weight}, Prim: #{mst_prim.total_weight}, Boruvka: #{mst_boruvka.total_weight}")
+```
+
+All three should yield the same total cost — only the order of edge selection differs.
+
+---
+
+## Example 4: Resilience Planning — Single Points of Failure
+
+A resilient architecture has no single component whose failure partitions the system. Let's find the weak points.
+
+```elixir
+resilience =
+  Choreo.new()
+  |> Choreo.add_user(:user, name: "User")
+  |> Choreo.add_load_balancer(:lb, name: "Load Balancer")
+  |> Choreo.add_service(:api, name: "API")
+  |> Choreo.add_service(:auth, name: "Auth")
+  |> Choreo.add_service(:orders, name: "Orders")
+  |> Choreo.add_database(:postgres, name: "Postgres")
+  |> Choreo.add_database(:redis, name: "Redis")
+  |> Choreo.add_queue(:kafka, name: "Kafka")
+  |> Choreo.connect(:user, :lb)
+  |> Choreo.connect(:lb, :api)
+  |> Choreo.connect(:api, :auth)
+  |> Choreo.connect(:api, :orders)
+  |> Choreo.connect(:auth, :postgres)
+  |> Choreo.connect(:orders, :postgres)
+  |> Choreo.connect(:orders, :redis)
+  |> Choreo.connect(:orders, :kafka)
+
+Kino.VizJS.render(Choreo.to_dot(resilience))
+```
+
+### Single Points of Failure
+
+```elixir
+spof = Analysis.single_points_of_failure(resilience)
+
+IO.inspect(spof.nodes, label: "Articulation points (SPOF nodes)")
+IO.inspect(spof.edges, label: "Bridge edges (SPOF links)")
+```
+
+The load balancer and API service are likely articulation points — if either fails, the user is cut off from everything downstream. The bridge edge from `orders` to `kafka` is also critical: it's the only path to the queue.
+
+### Validation
+
+```elixir
+Analysis.validate(resilience)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+---
+
+## Example 5: Data Flow Pipeline with Topological Sort
+
+A data pipeline has a natural execution order: ingest → clean → transform → store → serve. Topological sort gives you that order.
+
+```elixir
+pipeline =
+  Choreo.new()
+  |> Choreo.add_service(:ingest, name: "Ingestion")
+  |> Choreo.add_service(:validate, name: "Validation")
+  |> Choreo.add_service(:clean, name: "Cleaning")
+  |> Choreo.add_service(:enrich, name: "Enrichment")
+  |> Choreo.add_service(:aggregate, name: "Aggregation")
+  |> Choreo.add_service(:index, name: "Indexing")
+  |> Choreo.add_database(:warehouse, name: "Data Warehouse")
+  |> Choreo.add_service(:serve, name: "Query API")
+  |> Choreo.add_dataflow(:ingest, :validate)
+  |> Choreo.add_dataflow(:validate, :clean)
+  |> Choreo.add_dataflow(:clean, :enrich)
+  |> Choreo.add_dataflow(:enrich, :aggregate)
+  |> Choreo.add_dataflow(:aggregate, :index)
+  |> Choreo.add_dataflow(:index, :warehouse)
+  |> Choreo.add_dataflow(:warehouse, :serve)
+
+Kino.VizJS.render(Choreo.to_dot(pipeline))
+```
+
+### Topological Sort
+
+```elixir
+case Analysis.topological_sort(pipeline) do
+  {:ok, order} ->
+    IO.puts("Execution order: #{Enum.join(order, " → ")}")
+
+  {:error, reason} ->
+    IO.puts("Cannot sort: #{reason}")
+end
+```
+
+### Cycle Detection
+
+```elixir
+IO.puts("Is cyclic? #{Analysis.cyclic?(pipeline)}")
+IO.puts("Is DAG? #{Analysis.dag?(pipeline)}")
+```
+
+### Strongly Connected Components
+
+```elixir
+Analysis.strongly_connected_components(pipeline)
+|> Enum.each(fn component ->
+  if length(component) > 1 do
+    IO.puts("Mutually dependent: #{Enum.join(component, ", ")}")
+  end
+end)
+```
+
+Each component with only one node is independent. Components with multiple nodes form feedback loops.
+
+---
+
+## Example 6: Fixing a Broken Architecture
+
+Start with a design that has structural issues and use analysis to diagnose.
+
+```elixir
+broken =
+  Choreo.new()
+  |> Choreo.add_service(:api, name: "API")
+  |> Choreo.add_service(:auth, name: "Auth")
+  |> Choreo.add_database(:db, name: "Database")
+  |> Choreo.add_service(:orphan, name: "Orphan Service")
+  |> Choreo.connect(:api, :auth)
+  |> Choreo.connect(:auth, :db)
+  |> Choreo.connect(:db, :api)
+
+Kino.VizJS.render(Choreo.to_dot(broken))
+```
+
+### Diagnosis
+
+```elixir
+Analysis.validate(broken)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+The validator catches:
+
+* Isolated nodes (`orphan`)
+* Cycles (`api → auth → db → api`)
+* Single points of failure (all nodes in this chain)
+
+### The Fix
+
+Break the cycle by introducing a queue for async communication:
+
+```elixir
+fixed =
+  Choreo.new()
+  |> Choreo.add_service(:api, name: "API")
+  |> Choreo.add_service(:auth, name: "Auth")
+  |> Choreo.add_database(:db, name: "Database")
+  |> Choreo.add_queue(:event_bus, name: "Event Bus")
+  |> Choreo.connect(:api, :auth)
+  |> Choreo.connect(:auth, :db)
+  |> Choreo.connect(:db, :event_bus)
+  |> Choreo.connect(:event_bus, :api)
+
+IO.puts("After fixing:")
+Analysis.validate(fixed) |> IO.inspect()
+Kino.VizJS.render(Choreo.to_dot(fixed))
+```
+
+Wait — that's still a cycle! Let's check:
+
+```elixir
+Analysis.cyclic?(fixed)
+```
+
+The queue doesn't break the cycle because the edge direction still forms a loop. To truly break it, we need to remove one edge or change the architecture so `api` no longer needs to wait for `db`:
+
+```elixir
+really_fixed =
+  Choreo.new()
+  |> Choreo.add_service(:api, name: "API")
+  |> Choreo.add_service(:auth, name: "Auth")
+  |> Choreo.add_database(:db, name: "Database")
+  |> Choreo.add_queue(:event_bus, name: "Event Bus")
+  |> Choreo.connect(:api, :auth)
+  |> Choreo.connect(:auth, :db)
+  # db writes events to bus, but api reads from bus asynchronously
+  # no direct cycle
+
+Analysis.validate(really_fixed) |> IO.inspect()
+Kino.VizJS.render(Choreo.to_dot(really_fixed))
+```
+
+---
+
+## Advanced: Custom Theming
+
+```elixir
+brand_theme =
+  Choreo.Theme.custom(
+    colors: %{
+      database: "#10b981",
+      cache: "#f59e0b",
+      service: "#3b82f6",
+      network: "#8b5cf6",
+      user: "#64748b",
+      load_balancer: "#ec4899",
+      queue: "#06b6d4",
+      storage: "#84cc16"
+    },
+    node_fontcolor: "white",
+    edge_color: "#94a3b8",
+    graph_bgcolor: "#0f172a"
+  )
+
+Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme))
+```
+
+---
+
+## Summary
+
+| Question                                         | Function                                   |
+| ------------------------------------------------ | ------------------------------------------ |
+| "What's the cheapest way to connect everything?" | `Analysis.mst/2`                           |
+| "In what order should I deploy?"                 | `Analysis.topological_sort/1`              |
+| "Does my architecture have cycles?"              | `Analysis.cyclic?/1` / `Analysis.dag?/1`   |
+| "Which services are mutually dependent?"         | `Analysis.strongly_connected_components/1` |
+| "What breaks if X goes down?"                    | `Analysis.impact_analysis/2`               |
+| "What's the cheapest path from A to B?"          | `Analysis.shortest_path/4`                 |
+| "Which services are critical connectors?"        | `Analysis.centrality/2`                    |
+| "Which nodes have no connections?"               | `Analysis.isolated_nodes/1`                |
+| "Where are my single points of failure?"         | `Analysis.single_points_of_failure/1`      |
+| "Is my architecture sound?"                      | `Analysis.validate/1`                      |
+| "Render to DOT"                                  | `Choreo.to_dot/2`                          |
+
+Infrastructure diagrams as code mean your architecture is version-controlled, reviewable, and automatically analysed for cost, resilience, and correctness. Every time you add a service or connection, you can immediately see the impact on deployment order, network cost, and fault tolerance — before you provision a single resource.
