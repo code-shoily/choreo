@@ -32,6 +32,27 @@ defmodule Choreo.FSM do
 
       dot = Choreo.FSM.to_dot(fsm)
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      running [label="Running", fillcolor="#e2e8f0"];
+      idle [label="Idle", fontcolor="white", fillcolor="#10b981"];
+      done [label="Done", penwidth="2.0", fillcolor="#e2e8f0", shape="doublecircle"];
+
+      running -> idle [label="pause"];
+      running -> done [label="finish"];
+      idle -> running [label="start"];
+
+      __start_idle [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];
+      __start_idle -> idle;
+    }
+  </div>
+
   ## Themes
 
   Use `:default`, `:dark`, or a custom `Choreo.Theme` struct:

@@ -46,6 +46,25 @@ defmodule Choreo.DecisionTree do
       #=> {:ok, [:color, :red_stop], "Stop"}
 
       dot = Choreo.DecisionTree.to_dot(tree)
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.7, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      color [label="color", penwidth="2.0", fillcolor="#8b5cf6", shape="diamond"];
+      red_stop [label="Stop", fillcolor="#10b981", style="rounded,filled", shape="box"];
+      green_go [label="Go", fillcolor="#10b981", style="rounded,filled", shape="box"];
+
+      color -> red_stop [fontcolor="#64748b", color="#64748b", label="red"];
+      color -> green_go [fontcolor="#64748b", color="#64748b", label="green"];
+
+      { rank=same; green_go; red_stop; }
+    }
+  </div>
   """
 
   @type t :: %__MODULE__{

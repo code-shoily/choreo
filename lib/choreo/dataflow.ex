@@ -45,6 +45,27 @@ defmodule Choreo.Dataflow do
 
       dot = Choreo.Dataflow.to_dot(pipeline)
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      parse [label="JSON Parser", fillcolor="#3b82f6", shape="box3d"];
+      aggregate [label="Window Agg", fillcolor="#3b82f6", shape="box3d"];
+      sensor [label="IoT Sensor", fillcolor="#10b981", shape="house"];
+      kafka [label="Kafka Topic", fillcolor="#f59e0b", shape="cylinder"];
+      db [label="TimescaleDB", fillcolor="#f43f5e", shape="invhouse"];
+
+      parse -> kafka [style="solid", penwidth="1.0", color="#64748b", label="event"];
+      aggregate -> db [style="solid", penwidth="1.0", color="#64748b", label="metrics"];
+      sensor -> parse [style="solid", penwidth="1.0", color="#64748b", label="raw bytes"];
+      kafka -> aggregate [style="solid", penwidth="1.0", color="#64748b", label="event"];
+    }
+  </div>
+
   ## Analysis
 
       # Detect feedback loops (usually a bug in dataflow)

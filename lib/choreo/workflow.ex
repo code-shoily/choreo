@@ -47,6 +47,33 @@ defmodule Choreo.Workflow do
 
       dot = Choreo.Workflow.to_dot(workflow)
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      done [label="done", penwidth="2.0", fillcolor="#ef4444", shape="doublecircle"];
+      order_received [label="order_received", penwidth="2.0", fillcolor="#10b981", shape="circle"];
+      charge_card [label="charge_card\n(5000ms)\nretry: 3", fillcolor="#3b82f6", shape="box3d"];
+      reserve_inventory [label="reserve_inventory\n(3000ms)", fillcolor="#3b82f6", shape="box3d"];
+      sufficient_stock [label="sufficient_stock", fillcolor="#8b5cf6", shape="diamond"];
+      pack_items [label="pack_items\n(10000ms)", fillcolor="#3b82f6", shape="box3d"];
+      ship_order [label="ship_order\n(5000ms)", fillcolor="#3b82f6", shape="box3d"];
+      refund_payment [label="refund_payment", color="#ef4444", style="filled,dashed", fillcolor="#f87171", shape="note"];
+
+      order_received -> charge_card [label="", style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+      charge_card -> reserve_inventory [label="", style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+      reserve_inventory -> sufficient_stock [label="", style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+      sufficient_stock -> pack_items [style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b", label="yes"];
+      sufficient_stock -> refund_payment [style="dashed", penwidth="1.5", fontcolor="#ef4444", color="#ef4444", label="no"];
+      pack_items -> ship_order [label="", style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+      ship_order -> done [label="", style="solid", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+    }
+  </div>
+
   ## Analysis
 
       # Longest-latency path through the workflow

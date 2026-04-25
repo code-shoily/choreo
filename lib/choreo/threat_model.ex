@@ -47,6 +47,44 @@ defmodule Choreo.ThreatModel do
 
       threats = Choreo.ThreatModel.Analysis.stride_threats(model)
       dot = Choreo.ThreatModel.to_dot(model)
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      user [label="User", penwidth="2.0", fillcolor="#64748b", shape="box"];
+      api [label="API Gateway", fillcolor="#3b82f6", shape="circle"];
+      postgres [label="Postgres", fillcolor="#f59e0b", shape="cylinder"];
+
+      subgraph cluster_app {
+        label="Application";
+        style=dashed;
+        fillcolor="#f8fafc";
+        color="#ef4444";
+        api;
+      }
+      subgraph cluster_db {
+        label="Database Zone";
+        style=dashed;
+        fillcolor="#f8fafc";
+        color="#ef4444";
+        postgres;
+      }
+      subgraph cluster_internet {
+        label="Internet";
+        style=dashed;
+        fillcolor="#f8fafc";
+        color="#ef4444";
+        user;
+      }
+      user -> api [label="HTTPS request", style="dashed", penwidth="2.0", fontcolor="#ef4444", color="#ef4444"];
+      api -> postgres [label="SQL query", style="dashed", penwidth="2.0", fontcolor="#ef4444", color="#ef4444"];
+    }
+  </div>
   """
 
   @type t :: %__MODULE__{

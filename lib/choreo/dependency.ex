@@ -47,6 +47,23 @@ defmodule Choreo.Dependency do
 
       dot = Choreo.Dependency.to_dot(deps)
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      auth [label="Auth Module", fillcolor="#10b981", shape="box"];
+      api [label="API Gateway", fillcolor="#3b82f6", shape="box3d"];
+      phoenix [label="Phoenix", fillcolor="#f59e0b", shape="cylinder"];
+
+      api -> auth [style="dotted", label="calls"];
+      api -> phoenix [label="uses"];
+    }
+  </div>
+
   ## Analysis
 
       # Find circular dependencies
