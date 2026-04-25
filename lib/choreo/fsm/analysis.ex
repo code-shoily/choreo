@@ -115,16 +115,21 @@ defmodule Choreo.FSM.Analysis do
     This analysis answers the question: "Is this a deterministic finite automaton?"
   """
   @spec deterministic?(FSM.t()) :: boolean()
-  def deterministic?(%FSM{graph: graph}) do
-    graph.nodes
-    |> Map.keys()
-    |> Enum.all?(fn id ->
-      labels =
-        Yog.successors(graph, id)
-        |> Enum.map(fn {_to, label} -> label end)
+  def deterministic?(%FSM{graph: graph} = fsm) do
+    has_one_initial = MapSet.size(FSM.initial_states(fsm)) == 1
 
-      length(labels) == length(Enum.uniq(labels))
-    end)
+    unique_transitions =
+      graph.nodes
+      |> Map.keys()
+      |> Enum.all?(fn id ->
+        labels =
+          Yog.successors(graph, id)
+          |> Enum.map(fn {_to, label} -> label end)
+
+        length(labels) == length(Enum.uniq(labels))
+      end)
+
+    has_one_initial and unique_transitions
   end
 
   @doc """
@@ -382,6 +387,98 @@ defmodule Choreo.FSM.Analysis do
 
       Enum.map(duplicates, fn label -> {id, label} end)
     end)
+  end
+
+  @doc """
+    Converts an NFA to an equivalent complete DFA using the Subset Construction
+    algorithm. Resolves incomplete alphabets by attaching a sink state (`:__trap__`).
+  """
+  @spec to_dfa(FSM.t()) :: FSM.t()
+  def to_dfa(%FSM{} = fsm) do
+    sigma = alphabet(fsm)
+    nfa_initial = FSM.initial_states(fsm)
+    nfa_finals = FSM.final_states(fsm) |> MapSet.new()
+
+    if MapSet.size(nfa_initial) == 0 do
+      FSM.new()
+    else
+      mappings = %{nfa_initial => :s0}
+      dfa = FSM.new()
+
+      dfa =
+        if MapSet.disjoint?(nfa_initial, nfa_finals) do
+          FSM.add_initial_state(dfa, :s0)
+        else
+          FSM.add_initial_state(dfa, :s0)
+          |> FSM.add_final_state(:s0)
+        end
+
+      build_dfa(fsm, [{nfa_initial, :s0}], mappings, 1, dfa, sigma, nfa_finals)
+    end
+  end
+
+  defp build_dfa(_fsm, [], _mappings, _next_idx, dfa, _sigma, _nfa_finals), do: dfa
+
+  defp build_dfa(
+         fsm,
+         [{current_set, current_id} | rest],
+         mappings,
+         next_idx,
+         dfa,
+         sigma,
+         nfa_finals
+       ) do
+    {new_rest, new_mappings, new_idx, new_dfa} =
+      Enum.reduce(sigma, {rest, mappings, next_idx, dfa}, fn symbol, {r, m, idx, d} ->
+        next_set =
+          current_set
+          |> Enum.flat_map(fn state ->
+            fsm.graph
+            |> Yog.successors(state)
+            |> Enum.filter(fn {_to, label} -> label == symbol end)
+            |> Enum.map(fn {to, _label} -> to end)
+          end)
+          |> MapSet.new()
+
+        if MapSet.size(next_set) == 0 do
+          d =
+            if Map.has_key?(m, :__trap__) do
+              d
+            else
+              FSM.add_state(d, :__trap__)
+            end
+
+          d =
+            Enum.reduce(sigma, d, fn sym, acc ->
+              FSM.add_transition(acc, :__trap__, :__trap__, label: sym)
+            end)
+
+          d = FSM.add_transition(d, current_id, :__trap__, label: symbol)
+          {r, Map.put(m, :__trap__, :__trap__), idx, d}
+        else
+          case Map.fetch(m, next_set) do
+            {:ok, target_id} ->
+              d = FSM.add_transition(d, current_id, target_id, label: symbol)
+              {r, m, idx, d}
+
+            :error ->
+              target_id = String.to_atom("s#{idx}")
+
+              d =
+                if MapSet.disjoint?(next_set, nfa_finals) do
+                  FSM.add_state(d, target_id)
+                else
+                  FSM.add_final_state(d, target_id)
+                end
+
+              d = FSM.add_transition(d, current_id, target_id, label: symbol)
+
+              {[{next_set, target_id} | r], Map.put(m, next_set, target_id), idx + 1, d}
+          end
+        end
+      end)
+
+    build_dfa(fsm, new_rest, new_mappings, new_idx, new_dfa, sigma, nfa_finals)
   end
 
   # ============================================================================
