@@ -32,6 +32,23 @@ defmodule Choreo do
 
       # Topological sort for data-flow ordering
       {:ok, order} = Choreo.Analysis.topological_sort(system)
+
+  ## Diagram
+
+  <div class="graphviz">
+      digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      cache [label="Redis", style="filled", fontcolor="white", fillcolor="#f59e0b", shape="octagon"];
+      api [label="API Gateway", style="filled", fontcolor="white", fillcolor="#10b981", shape="box3d"];
+      db [label="Postgres", style="filled", fontcolor="white", fillcolor="#3b82f6", shape="cylinder"];
+
+      api -> cache [label="5", penwidth="1.0", color="#64748b"];
+      api -> db [label="10", penwidth="1.0", color="#64748b", headport="n"];
+    }
+  </div>
   """
 
   alias __MODULE__
@@ -84,9 +101,17 @@ defmodule Choreo do
     * `:name` - display name (defaults to the node id)
     * `:description` - tooltip / annotation text
 
-  ## Examples
+  ## Diagram
 
-      iex> Choreo.new() |> Choreo.add_database(:db, kind: :postgres)
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+      db [label="db", style="filled", fontcolor="white", fillcolor="#14b8a6", shape="tab"];
+    }
+  </div>
+
   """
   @spec add_database(t(), Yog.node_id(), keyword()) :: t()
   def add_database(system, id, opts \\ []) do
@@ -95,6 +120,17 @@ defmodule Choreo do
 
   @doc """
   Adds a cache node to the system.
+
+  ## Diagram
+
+  <div class="graphviz">
+      digraph G {
+        graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+        node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+        edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+        cache [label="Redis", style="filled", fontcolor="white", fillcolor="#f59e0b", shape="octagon"];
+      }
+  </div>
 
   ## Options
 
@@ -110,6 +146,17 @@ defmodule Choreo do
   @doc """
   Adds a service / application node to the system.
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+      auth [label="auth", style="filled", fontcolor="white", fillcolor="#10b981", shape="box3d"];
+    }
+  </div>
+
   ## Options
 
     * `:kind` - `:api`, `:worker`, `:web`, `:microservice`, etc.
@@ -123,6 +170,18 @@ defmodule Choreo do
 
   @doc """
   Adds a network / infrastructure boundary node.
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      cloudflare [label="cloudflare", style="filled", fontcolor="white", fillcolor="#6366f1", shape="cloud"];
+    }
+  </div>
 
   ## Options
 
@@ -138,6 +197,17 @@ defmodule Choreo do
   @doc """
   Adds a user / external actor node to the system.
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+      user [label="user", style="filled", fontcolor="white", fillcolor="#ef4444", shape="doublecircle"];
+    }
+  </div>
+
   ## Options
 
     * `:kind` - `:person`, `:device`, `:external_service`, etc.
@@ -151,6 +221,17 @@ defmodule Choreo do
 
   @doc """
   Adds a load-balancer node to the system.
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+      lb [label="lb", style="filled", fontcolor="white", fillcolor="#8b5cf6", shape="hexagon"];
+    }
+  </div>
 
   ## Options
 
@@ -166,6 +247,18 @@ defmodule Choreo do
   @doc """
   Adds a queue / messaging node to the system.
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      queue [label="queue", style="filled", fontcolor="white", fillcolor="#ec4899", shape="component"];
+    }
+  </div>
+
   ## Options
 
     * `:kind` - `:kafka`, `:rabbitmq`, `:sqs`, `:pubsub`, etc.
@@ -179,6 +272,17 @@ defmodule Choreo do
 
   @doc """
   Adds a storage / blob node to the system.
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+      storage [label="storage", style="filled", fontcolor="white", fillcolor="#6366f1", shape="box"];
+    }
+  </div>
 
   ## Options
 
@@ -252,16 +356,27 @@ defmodule Choreo do
   @doc """
   Connects two nodes with a weighted edge.
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      a [label="a", style="filled", fontcolor="white", fillcolor="#10b981", shape="box3d"];
+      b [label="b", style="filled", fontcolor="white", fillcolor="#10b981", shape="box3d"];
+
+      a -> b [label="5", penwidth="1.0", color="#64748b"];
+
+    }
+  </div>
+
   ## Options
 
     * `:cost` - numeric weight used by MST and other algorithms (default: `1`)
     * `:label` - display label for the edge
     * `:protocol` - `:http`, `:https`, `:grpc`, `:tcp`, etc.
-
-  ## Examples
-
-      iex> system = Choreo.new()
-      iex> system = Choreo.connect(system, :a, :b, cost: 5, label: "HTTPS")
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = system, from, to, opts \\ []) do
