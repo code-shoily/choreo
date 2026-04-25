@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
   {:kino_vizjs, "~> 0.8"}
 ])
 ```
@@ -30,11 +30,11 @@ Kino.VizJS.render(FSM.to_dot(fsm))
 
 There are three ways to add states. Each stores type information in the FSM's `meta` field, so analysis and rendering always stay in sync.
 
-| Function | Purpose |
-|----------|---------|
-| `add_state/3` | Normal state. Optionally pass `type: :initial` or `type: :final`. |
-| `add_initial_state/3` | Entry point of the machine. Rendered with a black dot arrow. |
-| `add_final_state/3` | Accepting state. Rendered as a double circle. |
+| Function              | Purpose                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| `add_state/3`         | Normal state. Optionally pass `type: :initial` or `type: :final`. |
+| `add_initial_state/3` | Entry point of the machine. Rendered with a black dot arrow.      |
+| `add_final_state/3`   | Accepting state. Rendered as a double circle.                     |
 
 You can also **remove** a special status without deleting the state:
 
@@ -224,21 +224,21 @@ Kino.VizJS.render(FSM.to_dot(pruned))
 Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
 
 ```elixir
-dot_dark = FSM.to_dot(order_flow, theme: :dark)
+dot_dark = FSM.to_dot(order_flow, theme: :presentation)
 Kino.VizJS.render(dot_dark)
 ```
 
 ## Summary
 
-| Task | Function |
-|------|----------|
-| Build | `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
-| Demote | `remove_initial_state/2`, `remove_final_state/2` |
-| Determinism check | `Analysis.deterministic?/1` |
-| NFA→DFA | `Analysis.to_dfa/1` |
-| Acceptance | `Analysis.accepts?/2` |
-| Reachability | `Analysis.reachable_states/1`, `Analysis.dead_states/1` |
-| Paths | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2` |
-| Validation | `Analysis.validate/1` |
-| Transforms | `FSM.complement/1`, `FSM.prune/1` |
-| Render | `FSM.to_dot/2` |
+| Task              | Function                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| Build             | `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
+| Demote            | `remove_initial_state/2`, `remove_final_state/2`                                           |
+| Determinism check | `Analysis.deterministic?/1`                                                                |
+| NFA→DFA         | `Analysis.to_dfa/1`                                                                        |
+| Acceptance        | `Analysis.accepts?/2`                                                                      |
+| Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`                                    |
+| Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                        |
+| Validation        | `Analysis.validate/1`                                                                      |
+| Transforms        | `FSM.complement/1`, `FSM.prune/1`                                                          |
+| Render            | `FSM.to_dot/2`                                                                             |
