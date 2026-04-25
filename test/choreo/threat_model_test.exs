@@ -46,6 +46,27 @@ defmodule Choreo.ThreatModelTest do
       assert Yog.node(model.graph, :db).element_type == :data_store
       assert Yog.node(model.graph, :db).sensitivity == :confidential
     end
+
+    test "merges arbitrary options into process data" do
+      model =
+        ThreatModel.new() |> ThreatModel.add_process(:api, compliance: :gdpr, owner: "team-a")
+
+      data = Yog.node(model.graph, :api)
+      assert data.compliance == :gdpr
+      assert data.owner == "team-a"
+    end
+
+    test "merges arbitrary options into data store data" do
+      model = ThreatModel.new() |> ThreatModel.add_data_store(:db, retention: "90d")
+      data = Yog.node(model.graph, :db)
+      assert data.retention == "90d"
+    end
+
+    test "merges arbitrary options into external entity data" do
+      model = ThreatModel.new() |> ThreatModel.add_external_entity(:user, region: "eu")
+      data = Yog.node(model.graph, :user)
+      assert data.region == "eu"
+    end
   end
 
   describe "data_flow/4" do

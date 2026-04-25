@@ -25,6 +25,15 @@ defmodule Choreo.ThreatModel.Analysis do
 
   alias Choreo.ThreatModel
 
+  defmodule Rule do
+    @moduledoc """
+    Extensible callback protocols for defining organizational custom threat metrics.
+    """
+    @callback threats_for_element(ThreatModel.t(), Yog.node_id(), map()) :: [map()]
+    @callback threats_for_flow(ThreatModel.t(), Yog.node_id(), Yog.node_id()) :: [map()]
+    @optional_callbacks threats_for_element: 3, threats_for_flow: 3
+  end
+
   @doc """
     Generates STRIDE threats for every element and data flow in the model.
 
@@ -46,28 +55,52 @@ defmodule Choreo.ThreatModel.Analysis do
 
     This analysis answers the question: "What threats exist in my architecture?"
   """
-  @spec stride_threats(ThreatModel.t()) :: [
+  @spec stride_threats(ThreatModel.t(), keyword()) :: [
           %{
             id: String.t(),
             category: atom(),
-            target: Yog.node_id(),
+            target: Yog.node_id() | {Yog.node_id(), Yog.node_id()},
             description: String.t(),
             severity: :low | :medium | :high | :critical,
             mitigation: String.t()
           }
         ]
-  def stride_threats(%ThreatModel{} = model) do
+  def stride_threats(%ThreatModel{} = model, opts \\ []) do
+    custom_rules = Keyword.get(opts, :rules, [])
+
     element_threats =
       model.graph.nodes
       |> Enum.flat_map(fn {id, data} ->
-        threats_for_element(model, id, data)
+        base = threats_for_element(model, id, data)
+
+        custom =
+          Enum.flat_map(custom_rules, fn rule ->
+            if function_exported?(rule, :threats_for_element, 3) do
+              rule.threats_for_element(model, id, data)
+            else
+              []
+            end
+          end)
+
+        base ++ custom
       end)
 
     flow_threats =
       model
       |> ThreatModel.flows()
       |> Enum.flat_map(fn {from, to, _label} ->
-        threats_for_flow(model, from, to)
+        base = threats_for_flow(model, from, to)
+
+        custom =
+          Enum.flat_map(custom_rules, fn rule ->
+            if function_exported?(rule, :threats_for_flow, 3) do
+              rule.threats_for_flow(model, from, to)
+            else
+              []
+            end
+          end)
+
+        base ++ custom
       end)
 
     (element_threats ++ flow_threats)

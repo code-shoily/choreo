@@ -29,7 +29,7 @@ defmodule Choreo.ThreatModel.AnalysisTest do
     |> ThreatModel.data_flow(:user, :api, encrypted: true)
   end
 
-  describe "stride_threats/1" do
+  describe "stride_threats/2" do
     test "generates threats for external entity" do
       threats = Analysis.stride_threats(simple_model())
 
@@ -259,7 +259,78 @@ defmodule Choreo.ThreatModel.AnalysisTest do
     end
   end
 
-  describe "stride_threats/1 — data store EoP" do
+  describe "stride_threats/2 — custom rules" do
+    defmodule CustomRule do
+      @behaviour Analysis.Rule
+
+      @impl true
+      def threats_for_element(_model, id, _data) do
+        [
+          %{
+            id: "CUSTOM-#{id}",
+            category: :custom_threat,
+            target: id,
+            description: "Custom threat for #{id}",
+            severity: :medium,
+            mitigation: "Review custom policy"
+          }
+        ]
+      end
+
+      @impl true
+      def threats_for_flow(_model, from, to) do
+        [
+          %{
+            id: "CUSTOM-FLOW-#{from}-#{to}",
+            category: :custom_flow_threat,
+            target: {from, to},
+            description: "Custom flow threat",
+            severity: :low,
+            mitigation: "Inspect pipeline"
+          }
+        ]
+      end
+    end
+
+    test "includes custom element threats via :rules" do
+      threats = Analysis.stride_threats(simple_model(), rules: [CustomRule])
+      custom = Enum.filter(threats, &(&1.category == :custom_threat))
+
+      assert length(custom) == 3
+      assert Enum.any?(custom, &(&1.target == :user))
+      assert Enum.any?(custom, &(&1.target == :api))
+      assert Enum.any?(custom, &(&1.target == :postgres))
+    end
+
+    test "includes custom flow threats via :rules" do
+      threats = Analysis.stride_threats(simple_model(), rules: [CustomRule])
+      custom = Enum.filter(threats, &(&1.category == :custom_flow_threat))
+
+      assert length(custom) == 2
+      assert Enum.any?(custom, &(&1.target == {:user, :api}))
+      assert Enum.any?(custom, &(&1.target == {:api, :postgres}))
+    end
+
+    test "works without custom rules" do
+      threats = Analysis.stride_threats(simple_model())
+      refute Enum.any?(threats, &(&1.category == :custom_threat))
+    end
+
+    test "ignores rules missing optional callbacks" do
+      defmodule PartialRule do
+        @behaviour Analysis.Rule
+        @impl true
+        def threats_for_element(_, _, _), do: []
+        # threats_for_flow is intentionally omitted
+      end
+
+      # Should not crash even though PartialRule lacks threats_for_flow
+      threats = Analysis.stride_threats(simple_model(), rules: [PartialRule])
+      assert is_list(threats)
+    end
+  end
+
+  describe "stride_threats/2 — data store EoP" do
     test "generates elevation_of_privilege for data stores" do
       threats = Analysis.stride_threats(simple_model())
 

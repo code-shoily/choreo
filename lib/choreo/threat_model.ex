@@ -284,6 +284,9 @@ defmodule Choreo.ThreatModel do
       sensitivity: rest_opts[:sensitivity]
     }
 
+    # Merge arbitrary remaining options
+    data = Map.merge(Map.new(rest_opts), data)
+
     data =
       if boundary,
         do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(boundary)),

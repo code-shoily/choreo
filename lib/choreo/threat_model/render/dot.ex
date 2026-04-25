@@ -45,6 +45,7 @@ defmodule Choreo.ThreatModel.Render.DOT do
       |> Map.put(:node_fontsize, theme.node_fontsize)
       |> Map.put(:node_fontcolor, theme.node_fontcolor)
       |> Map.put(:edge_color, theme.edge_color)
+      |> Map.put(:edge_fontcolor, theme.edge_color)
       |> Map.put(:edge_fontname, theme.edge_fontname)
       |> Map.put(:edge_fontsize, theme.edge_fontsize)
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
@@ -196,13 +197,13 @@ defmodule Choreo.ThreatModel.Render.DOT do
       base =
         cond do
           not encrypted and crosses ->
-            [{:color, "#ef4444"}, {:penwidth, 2.0}, {:style, "dashed"}]
+            [{:color, "#ef4444"}, {:fontcolor, "#ef4444"}, {:penwidth, 2.0}, {:style, "dashed"}]
 
           crosses ->
-            [{:color, "#f59e0b"}, {:penwidth, 1.5}]
+            [{:color, "#f59e0b"}, {:fontcolor, "#f59e0b"}, {:penwidth, 1.5}]
 
           true ->
-            [{:color, "#64748b"}, {:penwidth, 1.0}]
+            [{:color, "#64748b"}, {:fontcolor, "#64748b"}, {:penwidth, 1.0}]
         end
 
       base = if proto = meta[:protocol], do: [{:label, to_string(proto)} | base], else: base
