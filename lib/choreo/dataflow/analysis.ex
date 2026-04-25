@@ -1,0 +1,364 @@
+defmodule Choreo.Dataflow.Analysis do
+  @moduledoc """
+  Analysis functions for `Choreo.Dataflow` pipelines.
+
+  Provides algorithms that answer practical questions about a dataflow:
+
+    * Is there a cycle? (feedback loop detection)
+    * What is the execution order? (topological sort)
+    * Which stages have no upstream source? (orphans)
+    * Which stages never reach a sink? (dead ends)
+    * Where are the bottlenecks? (high fan-in / fan-out)
+    * What is the critical path? (longest source→sink chain)
+    * Where does back-pressure build up? (throughput simulation)
+  """
+
+  alias Choreo.Dataflow
+
+  @doc """
+  Returns all source node IDs in the dataflow.
+  """
+  @spec sources(Dataflow.t()) :: [Yog.node_id()]
+  def sources(%Dataflow{} = flow) do
+    Dataflow.nodes_of_type(flow, :source)
+  end
+
+  @doc """
+  Returns all sink node IDs in the dataflow.
+  """
+  @spec sinks(Dataflow.t()) :: [Yog.node_id()]
+  def sinks(%Dataflow{} = flow) do
+    Dataflow.nodes_of_type(flow, :sink)
+  end
+
+  @doc """
+  Checks whether the dataflow contains a directed cycle.
+  """
+  @spec cyclic?(Dataflow.t()) :: boolean()
+  def cyclic?(%Dataflow{graph: graph}) do
+    Yog.cyclic?(graph)
+  end
+
+  @doc """
+  Returns a topological ordering of all stages.
+  """
+  @spec topological_sort(Dataflow.t()) :: {:ok, [Yog.node_id()]} | {:error, :contains_cycle}
+  def topological_sort(%Dataflow{graph: graph}) do
+    Yog.Traversal.Sort.topological_sort(graph)
+  end
+
+  @doc """
+  Returns nodes that are not reachable from any source.
+  """
+  @spec orphan_nodes(Dataflow.t()) :: [Yog.node_id()]
+  def orphan_nodes(%Dataflow{} = flow) do
+    source_ids = sources(flow)
+
+    if source_ids == [] do
+      Dataflow.nodes(flow)
+    else
+      reachable = Choreo.Internal.bfs_reachable(flow.graph, source_ids)
+      all = Dataflow.nodes(flow) |> MapSet.new()
+      MapSet.difference(all, reachable) |> MapSet.to_list()
+    end
+  end
+
+  @doc """
+  Returns nodes that cannot reach any sink.
+  """
+  @spec dead_ends(Dataflow.t()) :: [Yog.node_id()]
+  def dead_ends(%Dataflow{} = flow) do
+    sink_ids = sinks(flow)
+
+    if sink_ids == [] do
+      Dataflow.nodes(flow)
+    else
+      transposed = Yog.transpose(flow.graph)
+      can_reach_sink = Choreo.Internal.bfs_reachable(transposed, sink_ids)
+      all = Dataflow.nodes(flow) |> MapSet.new()
+      MapSet.difference(all, can_reach_sink) |> MapSet.to_list()
+    end
+  end
+
+  @doc """
+  Returns nodes with high combined fan-in and fan-out.
+
+  ## Options
+
+    * `:threshold` — minimum `in_degree + out_degree` to qualify (default: `3`)
+  """
+  @spec bottlenecks(Dataflow.t(), keyword()) :: [Yog.node_id()]
+  def bottlenecks(%Dataflow{graph: graph}, opts \\ []) do
+    threshold = Keyword.get(opts, :threshold, 3)
+
+    graph.nodes
+    |> Enum.filter(fn {id, _data} ->
+      in_deg = Yog.in_degree(graph, id)
+      out_deg = Yog.out_degree(graph, id)
+      in_deg + out_deg >= threshold
+    end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Finds the longest weighted path from any source to any sink.
+
+  This is the **critical path** for latency: the chain of stages that
+  determines the minimum end-to-end latency of the pipeline.
+
+  Returns `{:ok, [id], total_weight}` or `:error` if the graph is cyclic
+  or has no source→sink path.
+
+  Edge weights default to `1` unless overridden with `connect/4` option
+  `:weight`. You can also encode per-node latency by setting `:weight`
+  on outgoing edges.
+
+  ## Examples
+
+      pipeline =
+        Choreo.Dataflow.new()
+        |> Choreo.Dataflow.add_source(:a)
+        |> Choreo.Dataflow.add_transform(:b)
+        |> Choreo.Dataflow.add_transform(:c)
+        |> Choreo.Dataflow.add_sink(:d)
+        |> Choreo.Dataflow.connect(:a, :b, weight: 10)
+        |> Choreo.Dataflow.connect(:b, :c, weight: 5)
+        |> Choreo.Dataflow.connect(:c, :d, weight: 2)
+
+      Choreo.Dataflow.Analysis.longest_path(pipeline)
+      #=> {:ok, [:a, :b, :c, :d], 17}
+  """
+  @spec longest_path(Dataflow.t()) :: {:ok, [Yog.node_id()], number()} | :error
+  def longest_path(%Dataflow{graph: graph} = flow) do
+    case topological_sort(flow) do
+      {:ok, order} ->
+        source_set = sources(flow) |> MapSet.new()
+        sink_set = sinks(flow) |> MapSet.new()
+        dp = compute_dp(graph, order, source_set)
+        find_best_sink_path(dp, sink_set)
+
+      {:error, :contains_cycle} ->
+        :error
+    end
+  end
+
+  @doc """
+  Simulates throughput propagation through the pipeline.
+
+  Each source is assigned a `:rate` (events/sec). Each non-source stage
+  receives the **sum** of all incoming rates. The result is a map of
+  `node_id => %{in_rate: float, out_rate: float, latency_ms: number}`.
+
+  Sources use their own `:rate`; transforms/buffers/merges sum inputs;
+  sinks consume without producing.
+
+  ## Examples
+
+      pipeline =
+        Choreo.Dataflow.new()
+        |> Choreo.Dataflow.add_source(:a, rate: 100)
+        |> Choreo.Dataflow.add_source(:b, rate: 200)
+        |> Choreo.Dataflow.add_merge(:m)
+        |> Choreo.Dataflow.add_sink(:c)
+        |> Choreo.Dataflow.connect(:a, :m)
+        |> Choreo.Dataflow.connect(:b, :m)
+        |> Choreo.Dataflow.connect(:m, :c)
+
+      Choreo.Dataflow.Analysis.simulate(pipeline)
+      #=> %{a: %{in_rate: 0, out_rate: 100}, b: %{in_rate: 0, out_rate: 200},
+      #=>   m: %{in_rate: 300, out_rate: 300}, c: %{in_rate: 300, out_rate: 0}}
+  """
+  @spec simulate(Dataflow.t()) :: %{
+          optional(Yog.node_id()) => %{in_rate: number, out_rate: number, latency_ms: number}
+        }
+  def simulate(%Dataflow{graph: graph} = flow) do
+    case topological_sort(flow) do
+      {:ok, order} ->
+        do_simulate(graph, order, %{})
+
+      {:error, :contains_cycle} ->
+        %{}
+    end
+  end
+
+  @doc """
+  Returns nodes where simulated input rate exceeds a threshold.
+
+  In practice these are the stages that will experience back-pressure
+  first if they cannot process fast enough.
+
+  ## Options
+
+    * `:threshold` — minimum in_rate to be considered a backpressure point
+      (default: `0`, meaning any node with inbound flow)
+
+  ## Examples
+
+      Choreo.Dataflow.Analysis.backpressure_points(pipeline)
+      #=> [:merge_hub, :heavy_transform]
+  """
+  @spec backpressure_points(Dataflow.t(), keyword()) :: [Yog.node_id()]
+  def backpressure_points(%Dataflow{} = flow, opts \\ []) do
+    threshold = Keyword.get(opts, :threshold, 0)
+    results = simulate(flow)
+
+    results
+    |> Enum.filter(fn {_id, stats} -> stats.in_rate > threshold end)
+    |> Enum.map(fn {id, _stats} -> id end)
+  end
+
+  @doc """
+  Returns edges filtered by path type.
+
+  ## Examples
+
+      Choreo.Dataflow.Analysis.edges_of_type(flow, :error)
+      #=> [{:parse, :dlq, "error"}]
+  """
+  @spec edges_of_type(Dataflow.t(), atom()) :: [{Yog.node_id(), Yog.node_id(), String.t()}]
+  def edges_of_type(%Dataflow{graph: graph, edge_meta: edge_meta}, path_type) do
+    graph
+    |> Yog.all_edges()
+    |> Enum.filter(fn {from, to, _weight} ->
+      meta = Map.get(edge_meta, {from, to}, %{})
+      meta[:path_type] == path_type
+    end)
+  end
+
+  @doc """
+  Validates a dataflow pipeline and returns a list of issues.
+
+  Checks for cycles, orphan nodes, dead ends, missing sources, and missing sinks.
+  """
+  @spec validate(Dataflow.t()) :: [{:error | :warning, String.t()}]
+  def validate(%Dataflow{} = flow) do
+    []
+    |> check_sources(flow)
+    |> check_sinks(flow)
+    |> check_cycles(flow)
+    |> check_orphans(flow)
+    |> check_dead_ends(flow)
+  end
+
+  # ============================================================================
+  # Private helpers
+  # ============================================================================
+
+  defp compute_dp(graph, order, source_set) do
+    Enum.reduce(order, %{}, fn id, acc ->
+      if MapSet.member?(source_set, id) do
+        Map.put(acc, id, {0, nil})
+      else
+        best = Choreo.Internal.best_predecessor(graph, id, acc)
+        if best, do: Map.put(acc, id, best), else: acc
+      end
+    end)
+  end
+
+  defp find_best_sink_path(dp, sink_set) do
+    best_sink =
+      Enum.reduce(sink_set, nil, fn id, best ->
+        case Map.fetch(dp, id) do
+          {:ok, {dist, _}} ->
+            if is_nil(best) or dist > elem(best, 0) do
+              {dist, id}
+            else
+              best
+            end
+
+          :error ->
+            best
+        end
+      end)
+
+    if best_sink do
+      {total, sink_id} = best_sink
+      path = reconstruct_path(dp, sink_id, [sink_id])
+      {:ok, path, total}
+    else
+      :error
+    end
+  end
+
+  defp reconstruct_path(_dp, nil, acc), do: acc
+
+  defp reconstruct_path(dp, id, acc) do
+    case Map.fetch(dp, id) do
+      {:ok, {_dist, nil}} -> acc
+      {:ok, {_dist, prev}} -> reconstruct_path(dp, prev, [prev | acc])
+      :error -> acc
+    end
+  end
+
+  defp do_simulate(_graph, [], acc), do: acc
+
+  defp do_simulate(graph, [id | rest], acc) do
+    data = Yog.node(graph, id) || %{}
+    node_type = data[:node_type]
+
+    in_rate =
+      if node_type == :source do
+        0
+      else
+        graph
+        |> Yog.predecessors(id)
+        |> Enum.reduce(0, fn {pred, _weight}, sum ->
+          pred_stats = Map.get(acc, pred, %{out_rate: 0})
+          sum + pred_stats.out_rate
+        end)
+      end
+
+    out_rate =
+      cond do
+        node_type == :source -> data[:rate] || 0
+        node_type == :sink -> 0
+        true -> in_rate
+      end
+
+    latency_ms = data[:latency_ms] || 0
+
+    do_simulate(
+      graph,
+      rest,
+      Map.put(acc, id, %{in_rate: in_rate, out_rate: out_rate, latency_ms: latency_ms})
+    )
+  end
+
+  defp check_sources(acc, flow) do
+    if sources(flow) == [] do
+      [{:error, "No source nodes"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_sinks(acc, flow) do
+    if sinks(flow) == [] do
+      [{:error, "No sink nodes"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_cycles(acc, flow) do
+    if cyclic?(flow) do
+      [{:error, "Cycle detected in dataflow"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_orphans(acc, flow) do
+    case orphan_nodes(flow) do
+      [] -> acc
+      nodes -> [{:warning, "Orphan nodes: #{inspect(nodes)}"} | acc]
+    end
+  end
+
+  defp check_dead_ends(acc, flow) do
+    case dead_ends(flow) do
+      [] -> acc
+      nodes -> [{:warning, "Dead-end nodes: #{inspect(nodes)}"} | acc]
+    end
+  end
+end

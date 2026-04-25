@@ -1,0 +1,383 @@
+defmodule Choreo.DecisionTree.Analysis do
+  @moduledoc """
+  Analysis functions for `Choreo.DecisionTree`.
+
+  Provides path enumeration, evaluation, depth metrics, and pruning.
+  """
+
+  alias Choreo.DecisionTree
+
+  @doc """
+  Evaluates the decision tree against a map of feature values.
+
+  Walks from the root, at each decision node reading the corresponding
+  feature value and following the branch whose condition matches.
+
+  Returns `{:ok, path, outcome_label}` or `{:error, reason}`.
+
+  ## Examples
+
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:color, feature: "color")
+        |> DecisionTree.add_outcome(:stop, label: "Stop")
+        |> DecisionTree.add_outcome(:go, label: "Go")
+        |> DecisionTree.branch!(:color, :stop, "red")
+        |> DecisionTree.branch!(:color, :go, "green")
+
+      Analysis.decide(tree, %{"color" => "red"})
+      #=> {:ok, [:color, :stop], "Stop"}
+
+      Analysis.decide(tree, %{"color" => "blue"})
+      #=> {:error, "No branch for 'blue' from node :color"}
+  """
+  @spec decide(DecisionTree.t(), %{String.t() => String.t()}) ::
+          {:ok, [Yog.node_id()], String.t()} | {:error, String.t()}
+  def decide(%DecisionTree{root: nil}, _features) do
+    {:error, "Tree has no root"}
+  end
+
+  def decide(%DecisionTree{} = tree, features) do
+    do_decide(tree, tree.root, features, [tree.root])
+  end
+
+  @doc """
+  Enumerates all root-to-leaf paths.
+
+  Each path is a list of node IDs from root to outcome.
+
+  ## Examples
+
+      Analysis.paths(tree)
+      #=> [[:color, :stop], [:color, :go]]
+  """
+  @spec paths(DecisionTree.t()) :: [[Yog.node_id()]]
+  def paths(%DecisionTree{root: nil}), do: []
+
+  def paths(%DecisionTree{} = tree) do
+    do_paths(tree, tree.root, [tree.root], [])
+  end
+
+  @doc """
+  Returns all root-to-leaf paths with their branch conditions.
+
+  Each result is `{path, [{parent, child, condition}]}`.
+
+  ## Examples
+
+      Analysis.paths_with_conditions(tree)
+      #=> [
+      #=>   {[:color, :stop], [{:color, :stop, "red"}]},
+      #=>   {[:color, :go], [{:color, :go, "green"}]}
+      #=> ]
+  """
+  @spec paths_with_conditions(DecisionTree.t()) :: [
+          {[Yog.node_id()], [{Yog.node_id(), Yog.node_id(), String.t()}]}
+        ]
+  def paths_with_conditions(%DecisionTree{root: nil}), do: []
+
+  def paths_with_conditions(%DecisionTree{} = tree) do
+    do_paths_with_conditions(tree, tree.root, [tree.root], [], [])
+  end
+
+  @doc """
+  Returns the maximum depth of the tree (number of edges from root
+  to deepest leaf).
+
+  A single-node tree has depth 0.
+  """
+  @spec depth(DecisionTree.t()) :: non_neg_integer()
+  def depth(%DecisionTree{root: nil}), do: 0
+
+  def depth(%DecisionTree{} = tree) do
+    do_depth(tree, tree.root, 0)
+  end
+
+  @doc """
+  Returns the number of leaf / outcome nodes.
+  """
+  @spec breadth(DecisionTree.t()) :: non_neg_integer()
+  def breadth(%DecisionTree{} = tree) do
+    length(DecisionTree.outcomes(tree))
+  end
+
+  @doc """
+  Returns a map of feature frequencies across all decision nodes.
+
+  Useful for understanding which features drive the most splits.
+
+  ## Examples
+
+      Analysis.feature_importance(tree)
+      #=> %{"color" => 1, "size" => 2}
+  """
+  @spec feature_importance(DecisionTree.t()) :: %{String.t() => non_neg_integer()}
+  def feature_importance(%DecisionTree{graph: graph}) do
+    graph.nodes
+    |> Enum.filter(fn {_id, data} -> data[:node_type] in [:root, :decision] end)
+    |> Enum.group_by(fn {_id, data} -> data[:feature] end)
+    |> Enum.reject(fn {feature, _nodes} -> is_nil(feature) end)
+    |> Enum.map(fn {feature, nodes} -> {feature, length(nodes)} end)
+    |> Map.new()
+  end
+
+  @doc """
+  Prunes redundant decision nodes.
+
+  A decision is redundant when **all** of its descendant leaves share
+  the same class label. The decision node is replaced by an outcome
+  node with that label.
+
+  Returns a new tree.
+  """
+  @spec prune_redundant(DecisionTree.t()) :: DecisionTree.t()
+  def prune_redundant(%DecisionTree{root: nil} = tree), do: tree
+
+  def prune_redundant(%DecisionTree{} = tree) do
+    {new_tree, _changed?} = prune_node(tree, tree.root)
+    new_tree
+  end
+
+  @doc """
+  Validates tree completeness.
+
+  Checks for:
+    * missing root
+    * decision nodes with no branches
+    * outcome nodes with branches (should be leaves)
+    * duplicate conditions from the same parent
+
+  Returns a list of `{severity, message}` tuples.
+  """
+  @spec validate(DecisionTree.t()) :: [{:error | :warning, String.t()}]
+  def validate(%DecisionTree{} = tree) do
+    []
+    |> check_root(tree)
+    |> check_leaf_branches(tree)
+    |> check_empty_decisions(tree)
+    |> check_duplicate_conditions(tree)
+  end
+
+  # ============================================================================
+  # Private helpers — decide
+  # ============================================================================
+
+  defp do_decide(_tree, nil, _features, path) do
+    {:error, "Reached nil node along path #{inspect(path)}"}
+  end
+
+  defp do_decide(tree, current, features, path) do
+    data = Yog.node(tree.graph, current)
+
+    if data[:node_type] == :outcome do
+      {:ok, Enum.reverse(path), data[:label] || to_string(current)}
+    else
+      feature = data[:feature]
+      value = if feature, do: Map.get(features, feature), else: nil
+
+      if is_nil(value) do
+        {:error, "Feature '#{feature}' not provided for node #{inspect(current)}"}
+      else
+        case find_branch(tree, current, value) do
+          {:ok, child} ->
+            do_decide(tree, child, features, [child | path])
+
+          :error ->
+            {:error, "No branch for '#{value}' from node #{inspect(current)}"}
+        end
+      end
+    end
+  end
+
+  defp find_branch(tree, parent, value) do
+    tree.graph
+    |> Yog.successors(parent)
+    |> Enum.find(fn {_to, condition} -> condition == value end)
+    |> case do
+      {child, _condition} -> {:ok, child}
+      nil -> :error
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — paths
+  # ============================================================================
+
+  defp do_paths(tree, current, path, acc) do
+    children = Yog.successor_ids(tree.graph, current)
+
+    if children == [] do
+      [Enum.reverse(path) | acc]
+    else
+      Enum.reduce(children, acc, fn child, acc ->
+        do_paths(tree, child, [child | path], acc)
+      end)
+    end
+  end
+
+  defp do_paths_with_conditions(tree, current, path, branches, acc) do
+    children = Yog.successors(tree.graph, current)
+
+    if children == [] do
+      [{Enum.reverse(path), Enum.reverse(branches)} | acc]
+    else
+      Enum.reduce(children, acc, fn {child, condition}, acc ->
+        do_paths_with_conditions(
+          tree,
+          child,
+          [child | path],
+          [{current, child, condition} | branches],
+          acc
+        )
+      end)
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — depth
+  # ============================================================================
+
+  defp do_depth(tree, current, depth) do
+    children = Yog.successor_ids(tree.graph, current)
+
+    if children == [] do
+      depth
+    else
+      children
+      |> Enum.map(fn child -> do_depth(tree, child, depth + 1) end)
+      |> Enum.max()
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — prune
+  # ============================================================================
+
+  defp prune_node(tree, id) do
+    children = Yog.successor_ids(tree.graph, id)
+
+    if children == [] do
+      # Leaf — nothing to prune
+      {tree, false}
+    else
+      # Prune children first (post-order)
+      {tree, changed?} =
+        Enum.reduce(children, {tree, false}, fn child, {tree, changed?} ->
+          {tree, child_changed?} = prune_node(tree, child)
+          {tree, changed? or child_changed?}
+        end)
+
+      # After pruning children, check if all current children are identical outcomes
+      current_children = Yog.successor_ids(tree.graph, id)
+
+      case uniform_outcome(tree, current_children) do
+        {:ok, class, label} ->
+          # Replace this decision with an outcome
+          new_tree = replace_with_outcome(tree, id, class, label)
+          {new_tree, true}
+
+        :error ->
+          {tree, changed?}
+      end
+    end
+  end
+
+  defp uniform_outcome(_tree, []), do: :error
+
+  defp uniform_outcome(tree, children) do
+    classes =
+      children
+      |> Enum.map(fn child ->
+        data = Yog.node(tree.graph, child)
+        {data[:class], data[:label]}
+      end)
+
+    first = hd(classes)
+
+    if first != {nil, nil} and Enum.all?(classes, &(&1 == first)) do
+      {class, label} = first
+      {:ok, class, label}
+    else
+      :error
+    end
+  end
+
+  defp replace_with_outcome(tree, id, class, label) do
+    # Remove all outgoing edges
+    children = Yog.successor_ids(tree.graph, id)
+    graph = Enum.reduce(children, tree.graph, &Yog.remove_edge(&2, id, &1))
+
+    # Update node data
+    old_data = Yog.node(graph, id)
+
+    new_data =
+      old_data
+      |> Map.put(:node_type, :outcome)
+      |> Map.put(:class, class)
+      |> Map.put(:label, label || old_data[:label])
+
+    graph = Yog.update_node(graph, id, old_data, fn _ -> new_data end)
+    %{tree | graph: graph}
+  end
+
+  # ============================================================================
+  # Private helpers — validation
+  # ============================================================================
+
+  defp check_root(acc, tree) do
+    if is_nil(tree.root) do
+      [{:error, "Tree has no root"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_leaf_branches(acc, tree) do
+    outcomes = DecisionTree.outcomes(tree)
+
+    violations =
+      outcomes
+      |> Enum.filter(fn id -> Yog.out_degree(tree.graph, id) > 0 end)
+      |> Enum.map(fn id ->
+        {:error, "Outcome node #{inspect(id)} has outgoing branches"}
+      end)
+
+    violations ++ acc
+  end
+
+  defp check_empty_decisions(acc, tree) do
+    decisions = DecisionTree.decisions(tree)
+
+    violations =
+      decisions
+      |> Enum.filter(fn id -> Yog.out_degree(tree.graph, id) == 0 end)
+      |> Enum.map(fn id ->
+        {:error, "Decision node #{inspect(id)} has no branches"}
+      end)
+
+    violations ++ acc
+  end
+
+  defp check_duplicate_conditions(acc, tree) do
+    violations =
+      tree.graph.nodes
+      |> Enum.flat_map(fn {id, _data} ->
+        conditions =
+          tree.graph
+          |> Yog.successors(id)
+          |> Enum.map(fn {_to, cond} -> cond end)
+
+        duplicates =
+          conditions
+          |> Enum.group_by(& &1)
+          |> Enum.filter(fn {_cond, list} -> length(list) > 1 end)
+          |> Enum.map(fn {cond, _list} -> cond end)
+
+        Enum.map(duplicates, fn cond ->
+          {:warning, "Duplicate condition '#{cond}' from node #{inspect(id)}"}
+        end)
+      end)
+
+    violations ++ acc
+  end
+end

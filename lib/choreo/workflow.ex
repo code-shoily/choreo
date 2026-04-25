@@ -1,0 +1,355 @@
+defmodule Choreo.Workflow do
+  @moduledoc """
+  Workflow / task orchestration diagram builder on top of Yog.
+
+  `Choreo.Workflow` models automated task orchestration where nodes are
+  process steps and edges are execution dependencies. It supports:
+
+    * **Tasks** — automated steps with timeout and retry config
+    * **Decisions** — conditional branching
+    * **Fork / Join** — parallel execution paths
+    * **Compensations** — Saga-pattern rollback handlers
+    * **Events** — triggers, timers, signals
+    * **Swimlanes** — group tasks by team, service, or domain
+
+  ## Quick Start
+
+      workflow =
+        Choreo.Workflow.new()
+        |> Choreo.Workflow.add_start(:order_received)
+        |> Choreo.Workflow.add_task(:charge_card, timeout_ms: 5000, retry: 3)
+        |> Choreo.Workflow.add_task(:reserve_inventory, timeout_ms: 3000)
+        |> Choreo.Workflow.add_decision(:sufficient_stock)
+        |> Choreo.Workflow.add_task(:pack_items, timeout_ms: 10_000)
+        |> Choreo.Workflow.add_task(:ship_order, timeout_ms: 5000)
+        |> Choreo.Workflow.add_compensation(:refund_payment, for: :charge_card)
+        |> Choreo.Workflow.add_end(:done)
+        |> Choreo.Workflow.connect(:order_received, :charge_card)
+        |> Choreo.Workflow.connect(:charge_card, :reserve_inventory)
+        |> Choreo.Workflow.connect(:reserve_inventory, :sufficient_stock)
+        |> Choreo.Workflow.connect(:sufficient_stock, :pack_items, condition: "yes")
+        |> Choreo.Workflow.connect(:sufficient_stock, :refund_payment, condition: "no", edge_type: :compensation)
+        |> Choreo.Workflow.connect(:pack_items, :ship_order)
+        |> Choreo.Workflow.connect(:ship_order, :done)
+
+      dot = Choreo.Workflow.to_dot(workflow)
+
+  ## Analysis
+
+      # Longest-latency path through the workflow
+      {:ok, path, latency} = Choreo.Workflow.Analysis.critical_path(workflow)
+
+      # Tasks that can run in parallel
+      Choreo.Workflow.Analysis.parallelizable_tasks(workflow)
+
+      # Tasks with missing compensations
+      Choreo.Workflow.Analysis.missing_compensations(workflow)
+
+      # Validation
+      Choreo.Workflow.Analysis.validate(workflow)
+  """
+
+  @type t :: %__MODULE__{
+          graph: Yog.graph(),
+          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          clusters: %{String.t() => map()}
+        }
+
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}
+
+  # ============================================================================
+  # Creation
+  # ============================================================================
+
+  @doc """
+  Creates a new empty workflow graph.
+
+  Workflow graphs are always directed.
+  """
+  @spec new() :: t()
+  def new do
+    %__MODULE__{
+      graph: Yog.directed(),
+      edge_meta: %{},
+      clusters: %{}
+    }
+  end
+
+  # ============================================================================
+  # Node builders
+  # ============================================================================
+
+  @doc """
+  Adds a start node (entry point).
+  """
+  @spec add_start(t(), Yog.node_id(), keyword()) :: t()
+  def add_start(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :start, opts)
+  end
+
+  @doc """
+  Adds an end node (terminal).
+  """
+  @spec add_end(t(), Yog.node_id(), keyword()) :: t()
+  def add_end(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :end, opts)
+  end
+
+  @doc """
+  Adds an automated task node.
+
+  ## Options
+
+    * `:timeout_ms` — maximum time allowed for the task (default: `5000`)
+    * `:retry` — number of retry attempts on failure (default: `0`)
+    * `:retry_backoff_ms` — backoff between retries in milliseconds
+    * `:label` — display label
+    * `:handler` — handler name / reference
+    * `:description` — tooltip text
+    * `:swimlane` — swimlane group name
+  """
+  @spec add_task(t(), Yog.node_id(), keyword()) :: t()
+  def add_task(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :task, opts)
+  end
+
+  @doc """
+  Adds a decision / gateway node for conditional branching.
+  """
+  @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
+  def add_decision(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :decision, opts)
+  end
+
+  @doc """
+  Adds a fork node that splits execution into parallel paths.
+  """
+  @spec add_fork(t(), Yog.node_id(), keyword()) :: t()
+  def add_fork(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :fork, opts)
+  end
+
+  @doc """
+  Adds a join node that merges parallel paths.
+  """
+  @spec add_join(t(), Yog.node_id(), keyword()) :: t()
+  def add_join(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :join, opts)
+  end
+
+  @doc """
+  Adds a compensation / rollback node (Saga pattern).
+
+  ## Options
+
+    * `:for` — the task id this compensation rolls back
+    * `:label` — display label
+    * `:handler` — handler name / reference
+    * `:description` — tooltip text
+  """
+  @spec add_compensation(t(), Yog.node_id(), keyword()) :: t()
+  def add_compensation(%__MODULE__{} = workflow, id, opts \\ []) do
+    data = %{
+      type: :workflow_node,
+      node_type: :compensation,
+      label: Keyword.get(opts, :label, to_string(id)),
+      target_task: opts[:for],
+      handler: opts[:handler],
+      description: opts[:description]
+    }
+
+    data = put_swimlane(data, opts[:swimlane])
+    %{workflow | graph: Yog.add_node(workflow.graph, id, data)}
+  end
+
+  @doc """
+  Adds an event node (trigger, timer, signal).
+  """
+  @spec add_event(t(), Yog.node_id(), keyword()) :: t()
+  def add_event(%__MODULE__{} = workflow, id, opts \\ []) do
+    add_typed_node(workflow, id, :event, opts)
+  end
+
+  # ============================================================================
+  # Edge builder
+  # ============================================================================
+
+  @doc """
+  Connects two workflow nodes with an execution dependency.
+
+  ## Options
+
+    * `:condition` — branch condition label (shown on decision edges)
+    * `:edge_type` — `:sequence` (default), `:compensation`, `:retry`, `:failure`, `:timeout`
+    * `:weight` — edge weight for path calculations (defaults to target task timeout_ms)
+    * `:label` — override edge label
+  """
+  @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
+  def connect(%__MODULE__{} = workflow, from, to, opts \\ []) do
+    edge_type = Keyword.get(opts, :edge_type, :sequence)
+    condition = opts[:condition]
+
+    weight =
+      opts[:weight] || default_weight(workflow.graph, to, edge_type)
+
+    label = opts[:label] || condition || edge_type_label(edge_type)
+
+    meta = %{
+      label: label,
+      condition: condition,
+      edge_type: edge_type,
+      weight: weight
+    }
+
+    edge_meta = Map.put(workflow.edge_meta, {from, to}, meta)
+    graph = Yog.add_edge_ensure(workflow.graph, from, to, weight)
+
+    %{workflow | graph: graph, edge_meta: edge_meta}
+  end
+
+  # ============================================================================
+  # Swimlanes
+  # ============================================================================
+
+  @doc """
+  Adds a swimlane grouping.
+
+  Swimlanes are rendered as subgraph clusters. Nodes can be assigned to a
+  swimlane via the `:swimlane` option in node builders.
+  """
+  @spec add_swimlane(t(), String.t() | atom(), keyword()) :: t()
+  def add_swimlane(%__MODULE__{} = workflow, name, opts \\ []) do
+    name = ensure_cluster_prefix(name)
+    clusters = Map.put(workflow.clusters || %{}, name, Map.new(opts))
+    %{workflow | clusters: clusters}
+  end
+
+  # ============================================================================
+  # Rendering
+  # ============================================================================
+
+  @doc """
+  Renders the workflow to DOT format.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+  """
+  @spec to_dot(t(), keyword()) :: String.t()
+  def to_dot(%__MODULE__{} = workflow, opts \\ []) do
+    Choreo.Workflow.Render.DOT.to_dot(workflow, opts)
+  end
+
+  # ============================================================================
+  # Queries
+  # ============================================================================
+
+  @doc """
+  Returns all node IDs in the workflow.
+  """
+  @spec nodes(t()) :: [Yog.node_id()]
+  def nodes(%__MODULE__{graph: graph}) do
+    Map.keys(graph.nodes)
+  end
+
+  @doc """
+  Returns all edges as `{from, to, weight}` tuples.
+  """
+  @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
+  def edges(%__MODULE__{graph: graph}) do
+    Yog.all_edges(graph)
+  end
+
+  @doc """
+  Returns all task node IDs.
+  """
+  @spec tasks(t()) :: [Yog.node_id()]
+  def tasks(%__MODULE__{graph: graph}) do
+    graph.nodes
+    |> Enum.filter(fn {_id, data} -> data[:node_type] == :task end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Returns all start node IDs.
+  """
+  @spec starts(t()) :: [Yog.node_id()]
+  def starts(%__MODULE__{graph: graph}) do
+    graph.nodes
+    |> Enum.filter(fn {_id, data} -> data[:node_type] == :start end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Returns all end node IDs.
+  """
+  @spec ends(t()) :: [Yog.node_id()]
+  def ends(%__MODULE__{graph: graph}) do
+    graph.nodes
+    |> Enum.filter(fn {_id, data} -> data[:node_type] == :end end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Returns all compensation node IDs.
+  """
+  @spec compensations(t()) :: [Yog.node_id()]
+  def compensations(%__MODULE__{graph: graph}) do
+    graph.nodes
+    |> Enum.filter(fn {_id, data} -> data[:node_type] == :compensation end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Returns the raw `Yog.Graph` struct underpinning the workflow.
+  """
+  @spec to_graph(t()) :: Yog.graph()
+  def to_graph(%__MODULE__{graph: graph}), do: graph
+
+  # ============================================================================
+  # Private helpers
+  # ============================================================================
+
+  defp add_typed_node(%__MODULE__{graph: graph} = workflow, id, type, opts) do
+    data = %{
+      type: :workflow_node,
+      node_type: type,
+      label: Keyword.get(opts, :label, to_string(id)),
+      timeout_ms: opts[:timeout_ms],
+      retry: opts[:retry],
+      retry_backoff_ms: opts[:retry_backoff_ms],
+      handler: opts[:handler],
+      description: opts[:description]
+    }
+
+    data = put_swimlane(data, opts[:swimlane])
+    %{workflow | graph: Yog.add_node(graph, id, data)}
+  end
+
+  defp put_swimlane(data, nil), do: data
+  defp put_swimlane(data, swimlane), do: Map.put(data, :cluster, ensure_cluster_prefix(swimlane))
+
+  defp default_weight(_graph, _to, :compensation), do: 0
+  defp default_weight(_graph, _to, :retry), do: 0
+  defp default_weight(_graph, _to, :failure), do: 0
+  defp default_weight(_graph, _to, :timeout), do: 0
+
+  defp default_weight(graph, to, _edge_type) do
+    case Yog.node(graph, to) do
+      %{timeout_ms: ms} when is_number(ms) and ms > 0 -> ms
+      _ -> 1
+    end
+  end
+
+  defp edge_type_label(:sequence), do: nil
+  defp edge_type_label(:compensation), do: "compensate"
+  defp edge_type_label(:retry), do: "retry"
+  defp edge_type_label(:failure), do: "failure"
+  defp edge_type_label(:timeout), do: "timeout"
+  defp edge_type_label(_), do: nil
+
+  defp ensure_cluster_prefix(name) do
+    name = to_string(name)
+    if String.starts_with?(name, "cluster_"), do: name, else: "cluster_#{name}"
+  end
+end
