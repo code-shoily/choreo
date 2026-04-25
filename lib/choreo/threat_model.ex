@@ -174,6 +174,18 @@ defmodule Choreo.ThreatModel do
       :external_entity
       iex> Yog.node(model.graph, :user).label
       "User"
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      user [label="User", penwidth="2.0", fillcolor="#64748b", shape="box"];
+    }
+  </div>
   """
   @spec add_external_entity(t(), Yog.node_id(), keyword()) :: t()
   def add_external_entity(model, id, opts \\ []) do
@@ -200,6 +212,18 @@ defmodule Choreo.ThreatModel do
       :process
       iex> Yog.node(model.graph, :api).privilege
       :admin
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      api [label="API\n(admin)", fillcolor="#3b82f6", shape="circle"];
+    }
+  </div>
   """
   @spec add_process(t(), Yog.node_id(), keyword()) :: t()
   def add_process(model, id, opts \\ []) do
@@ -226,6 +250,18 @@ defmodule Choreo.ThreatModel do
       :data_store
       iex> Yog.node(model.graph, :db).sensitivity
       :confidential
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      db [label="Postgres\n[confidential]", fillcolor="#f59e0b", shape="cylinder"];
+    }
+  </div>
   """
   @spec add_data_store(t(), Yog.node_id(), keyword()) :: t()
   def add_data_store(model, id, opts \\ []) do
@@ -258,6 +294,21 @@ defmodule Choreo.ThreatModel do
       "request"
       iex> model.edge_meta[{:user, :api}].encrypted
       false
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      user [label="user", penwidth="2.0", fillcolor="#64748b", shape="box"];
+      api [label="api", fillcolor="#3b82f6", shape="circle"];
+
+      user -> api [label="request", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+    }
+  </div>
   """
   @spec data_flow(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def data_flow(%__MODULE__{} = model, from, to, opts \\ []) do
@@ -395,6 +446,38 @@ defmodule Choreo.ThreatModel do
       true
       iex> Choreo.ThreatModel.crosses_boundary?(model, :api, :worker)
       false
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      user [label="user", penwidth="2.0", fillcolor="#64748b", shape="box"];
+      worker [label="worker", fillcolor="#3b82f6", shape="circle"];
+      api [label="api", fillcolor="#3b82f6", shape="circle"];
+
+      subgraph cluster_app {
+        label="cluster_app";
+        style=dashed;
+        fillcolor="#f8fafc";
+        color="#ef4444";
+        worker;
+        api;
+      }
+      subgraph cluster_internet {
+        label="cluster_internet";
+        style=dashed;
+        fillcolor="#f8fafc";
+        color="#ef4444";
+        user;
+      }
+      user -> api [label="", style="dashed", penwidth="2.0", fontcolor="#ef4444", color="#ef4444"];
+      api -> worker [label="", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+    }
+  </div>
   """
   @spec crosses_boundary?(t(), Yog.node_id(), Yog.node_id()) :: boolean()
   def crosses_boundary?(%__MODULE__{} = model, from, to) do
