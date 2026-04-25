@@ -377,7 +377,7 @@ defmodule Choreo.ThreatModel.Analysis do
   defp check_missing_boundaries(acc, model) do
     unassigned =
       model.graph.nodes
-      |> Enum.filter(fn {_id, data} -> is_nil(data[:boundary]) end)
+      |> Enum.filter(fn {_id, data} -> is_nil(data[:cluster]) end)
       |> Enum.map(fn {id, _data} -> id end)
 
     if unassigned == [] do

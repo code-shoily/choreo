@@ -38,10 +38,10 @@ defmodule Choreo.ThreatModel do
   @type t :: %__MODULE__{
           graph: Yog.graph(),
           edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
-          boundaries: %{String.t() => map()}
+          clusters: %{String.t() => map()}
         }
 
-  defstruct graph: nil, edge_meta: %{}, boundaries: %{}
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
   # ============================================================================
   # Creation
@@ -55,7 +55,7 @@ defmodule Choreo.ThreatModel do
     %__MODULE__{
       graph: Yog.directed(),
       edge_meta: %{},
-      boundaries: %{}
+      clusters: %{}
     }
   end
 
@@ -82,10 +82,10 @@ defmodule Choreo.ThreatModel do
   """
   @spec add_trust_boundary(t(), String.t(), keyword()) :: t()
   def add_trust_boundary(%__MODULE__{} = model, name, opts \\ []) do
-    name = ensure_boundary_prefix(name)
+    name = Choreo.Internal.ensure_cluster_prefix(name)
     boundary = Map.new(opts)
-    boundaries = Map.put(model.boundaries, name, boundary)
-    %{model | boundaries: boundaries}
+    clusters = Map.put(model.clusters, name, boundary)
+    %{model | clusters: clusters}
   end
 
   # ============================================================================
@@ -205,7 +205,7 @@ defmodule Choreo.ThreatModel do
   @spec boundary_of(t(), Yog.node_id()) :: String.t() | nil
   def boundary_of(%__MODULE__{graph: graph}, id) do
     case Map.fetch(graph.nodes, id) do
-      {:ok, data} -> data[:boundary]
+      {:ok, data} -> data[:cluster]
       :error -> nil
     end
   end
@@ -214,10 +214,10 @@ defmodule Choreo.ThreatModel do
   Returns the numeric trust level of an element's boundary, or `nil`.
   """
   @spec trust_level(t(), Yog.node_id()) :: integer() | nil
-  def trust_level(%__MODULE__{boundaries: boundaries} = model, id) do
+  def trust_level(%__MODULE__{clusters: clusters} = model, id) do
     case boundary_of(model, id) do
       nil -> nil
-      name -> boundaries[name][:level]
+      name -> clusters[name][:level]
     end
   end
 
@@ -271,13 +271,11 @@ defmodule Choreo.ThreatModel do
       sensitivity: rest_opts[:sensitivity]
     }
 
-    data = if boundary, do: Map.put(data, :boundary, ensure_boundary_prefix(boundary)), else: data
+    data =
+      if boundary,
+        do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(boundary)),
+        else: data
 
     %{model | graph: Yog.add_node(graph, id, data)}
-  end
-
-  defp ensure_boundary_prefix(name) do
-    name = to_string(name)
-    if String.starts_with?(name, "boundary_"), do: name, else: "boundary_#{name}"
   end
 end

@@ -25,7 +25,7 @@ defmodule Choreo.ThreatModel.Render.DOT do
   @spec to_dot(Choreo.ThreatModel.t(), keyword()) :: String.t()
   def to_dot(%Choreo.ThreatModel{} = model, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
-    subgraphs = build_boundary_subgraphs(model, theme)
+    subgraphs = Choreo.Internal.build_cluster_subgraphs(model, theme)
 
     base_opts =
       Yog.Render.DOT.default_options()
@@ -115,38 +115,6 @@ defmodule Choreo.ThreatModel.Render.DOT do
 
   defp theme_graph_overrides(%Theme{graph_bgcolor: nil}), do: %{}
   defp theme_graph_overrides(%Theme{graph_bgcolor: bg}), do: %{bgcolor: bg}
-
-  # ============================================================================
-  # Boundary / subgraph builders
-  # ============================================================================
-
-  defp build_boundary_subgraphs(model, theme) do
-    boundaries = model.boundaries
-
-    if map_size(boundaries) == 0 do
-      []
-    else
-      nodes_by_boundary =
-        model.graph.nodes
-        |> Enum.group_by(fn {_id, data} -> data[:boundary] end)
-        |> Map.delete(nil)
-
-      Enum.map(Map.keys(boundaries), fn name ->
-        boundary = Map.get(boundaries, name, %{})
-
-        %{
-          name: name,
-          label: boundary[:label] || name,
-          node_ids: nodes_by_boundary |> Map.get(name, []) |> Enum.map(fn {id, _data} -> id end),
-          style: boundary[:style] || theme.cluster_style,
-          fillcolor: boundary[:fillcolor] || theme.cluster_fillcolor,
-          color: boundary[:color] || theme.cluster_color,
-          penwidth: 2.0,
-          subgraphs: nil
-        }
-      end)
-    end
-  end
 
   # ============================================================================
   # Node styling

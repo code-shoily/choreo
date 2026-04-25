@@ -63,7 +63,7 @@ defmodule Choreo.Internal do
 
     children = Enum.map(children_names, &build_cluster(&1, clusters, nodes_by_cluster, theme))
 
-    %{
+    base = %{
       name: name,
       label: cluster[:label] || name,
       node_ids: nodes_by_cluster |> Map.get(name, []) |> Enum.map(fn {id, _data} -> id end),
@@ -72,6 +72,15 @@ defmodule Choreo.Internal do
       color: cluster[:color] || theme.cluster_color,
       subgraphs: if(children == [], do: nil, else: children)
     }
+
+    # Pass through any extra cluster attributes (e.g. penwidth from threat boundaries)
+    overrides =
+      cluster
+      |> Map.drop([:label, :parent])
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    Map.merge(base, overrides)
   end
 
   @doc """

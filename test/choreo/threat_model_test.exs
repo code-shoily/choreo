@@ -14,12 +14,12 @@ defmodule Choreo.ThreatModelTest do
   describe "add_trust_boundary/3" do
     test "adds a boundary with prefix" do
       model = ThreatModel.new() |> ThreatModel.add_trust_boundary("internet", label: "Internet")
-      assert model.boundaries["boundary_internet"].label == "Internet"
+      assert model.clusters["cluster_internet"].label == "Internet"
     end
 
-    test "preserves existing prefix" do
-      model = ThreatModel.new() |> ThreatModel.add_trust_boundary("boundary_internal")
-      assert Map.has_key?(model.boundaries, "boundary_internal")
+    test "preserves existing cluster_ prefix" do
+      model = ThreatModel.new() |> ThreatModel.add_trust_boundary("cluster_internal")
+      assert Map.has_key?(model.clusters, "cluster_internal")
     end
   end
 
@@ -79,7 +79,7 @@ defmodule Choreo.ThreatModelTest do
         |> ThreatModel.add_trust_boundary("app")
         |> ThreatModel.add_process(:api, boundary: "app")
 
-      assert ThreatModel.boundary_of(model, :api) == "boundary_app"
+      assert ThreatModel.boundary_of(model, :api) == "cluster_app"
     end
 
     test "trust_level/2 returns numeric level" do
@@ -120,7 +120,7 @@ defmodule Choreo.ThreatModelTest do
       assert String.contains?(dot, "digraph")
       assert String.contains?(dot, "User")
       assert String.contains?(dot, "API")
-      assert String.contains?(dot, "boundary_internet")
+      assert String.contains?(dot, "cluster_internet")
     end
 
     test "renders unencrypted cross-boundary flow in red" do
