@@ -1,0 +1,22 @@
+#!/bin/sh
+
+echo "Running pre-commit checks..."
+
+# Run format check
+echo "Running mix format..."
+mix format --check-formatted
+if [ $? -ne 0 ]; then
+  echo "Code formatting failed! Please run 'mix format'"
+  exit 1
+fi
+
+# Run credo
+echo "Running mix credo..."
+mix credo --strict
+if [ $? -ne 0 ]; then
+ echo "Credo checks failed!"
+ exit 1
+fi
+
+echo "All pre-commit checks passed! ✨"
+exit 0

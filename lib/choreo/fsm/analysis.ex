@@ -30,22 +30,22 @@ defmodule Choreo.FSM.Analysis do
   alias Choreo.FSM
 
   @doc """
-  Returns all states reachable from any initial state.
+    Returns all states reachable from any initial state.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_initial_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_state(:c)
-        |> Choreo.FSM.add_transition(:a, :b, label: "go")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_initial_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_state(:c)
+          |> Choreo.FSM.add_transition(:a, :b, label: "go")
 
-      Choreo.FSM.Analysis.reachable_states(fsm)
-      #=> [:a, :b]
+        Choreo.FSM.Analysis.reachable_states(fsm)
+        #=> [:a, :b]
 
-  This analysis answers the question: "Which states can I reach from the start?"
-"""
+    This analysis answers the question: "Which states can I reach from the start?"
+  """
   @spec reachable_states(FSM.t()) :: [Yog.node_id()]
   def reachable_states(%FSM{} = fsm) do
     initials = FSM.initial_states(fsm) |> MapSet.to_list()
@@ -59,26 +59,26 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Returns states that have no path to any final state.
+    Returns states that have no path to any final state.
 
-  A "dead state" (or trap state) is one from which an accepting state
-  can never be reached. If the FSM has no final states, every state is
-  considered dead.
+    A "dead state" (or trap state) is one from which an accepting state
+    can never be reached. If the FSM has no final states, every state is
+    considered dead.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_initial_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_final_state(:c)
-        |> Choreo.FSM.add_transition(:a, :b, label: "go")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_initial_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_final_state(:c)
+          |> Choreo.FSM.add_transition(:a, :b, label: "go")
 
-      Choreo.FSM.Analysis.dead_states(fsm)
-      #=> [:b]
+        Choreo.FSM.Analysis.dead_states(fsm)
+        #=> [:b]
 
-  This analysis answers the question: "Which states are traps that can never accept?"
-"""
+    This analysis answers the question: "Which states are traps that can never accept?"
+  """
   @spec dead_states(FSM.t()) :: [Yog.node_id()]
   def dead_states(%FSM{} = fsm) do
     finals = FSM.final_states(fsm)
@@ -94,26 +94,26 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Checks whether the FSM is deterministic.
+    Checks whether the FSM is deterministic.
 
-  An FSM is deterministic when no state has two outgoing transitions
-  with the same label. (Epsilon transitions are not supported.)
+    An FSM is deterministic when no state has two outgoing transitions
+    with the same label. (Epsilon transitions are not supported.)
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_state(:c)
-        |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        |> Choreo.FSM.add_transition(:a, :c, label: "x")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_state(:c)
+          |> Choreo.FSM.add_transition(:a, :b, label: "x")
+          |> Choreo.FSM.add_transition(:a, :c, label: "x")
 
-      Choreo.FSM.Analysis.deterministic?(fsm)
-      #=> false
+        Choreo.FSM.Analysis.deterministic?(fsm)
+        #=> false
 
-  This analysis answers the question: "Is this a deterministic finite automaton?"
-"""
+    This analysis answers the question: "Is this a deterministic finite automaton?"
+  """
   @spec deterministic?(FSM.t()) :: boolean()
   def deterministic?(%FSM{graph: graph}) do
     graph.nodes
@@ -128,30 +128,30 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Simulates the FSM on a sequence of input symbols.
+    Simulates the FSM on a sequence of input symbols.
 
-  Returns `true` if at least one path from an initial state leads to a
-  final state after consuming all inputs. This works for both DFAs and
-  NFAs.
+    Returns `true` if at least one path from an initial state leads to a
+    final state after consuming all inputs. This works for both DFAs and
+    NFAs.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_initial_state(:idle)
-        |> Choreo.FSM.add_state(:running)
-        |> Choreo.FSM.add_final_state(:done)
-        |> Choreo.FSM.add_transition(:idle, :running, label: "start")
-        |> Choreo.FSM.add_transition(:running, :done, label: "finish")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_initial_state(:idle)
+          |> Choreo.FSM.add_state(:running)
+          |> Choreo.FSM.add_final_state(:done)
+          |> Choreo.FSM.add_transition(:idle, :running, label: "start")
+          |> Choreo.FSM.add_transition(:running, :done, label: "finish")
 
-      Choreo.FSM.Analysis.accepts?(fsm, ["start", "finish"])
-      #=> true
+        Choreo.FSM.Analysis.accepts?(fsm, ["start", "finish"])
+        #=> true
 
-      Choreo.FSM.Analysis.accepts?(fsm, ["start"])
-      #=> false
+        Choreo.FSM.Analysis.accepts?(fsm, ["start"])
+        #=> false
 
-  This analysis answers the question: "Does this input sequence lead to acceptance?"
-"""
+    This analysis answers the question: "Does this input sequence lead to acceptance?"
+  """
   @spec accepts?(FSM.t(), [String.t()]) :: boolean()
   def accepts?(%FSM{} = fsm, inputs) do
     initial = FSM.initial_states(fsm) |> MapSet.new()
@@ -190,26 +190,26 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Finds the shortest sequence of transition labels that leads from an
-  initial state to a final state.
+    Finds the shortest sequence of transition labels that leads from an
+    initial state to a final state.
 
-  Returns `{:ok, [String.t()]}` or `:error` if no accepting path exists.
+    Returns `{:ok, [String.t()]}` or `:error` if no accepting path exists.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_initial_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_final_state(:c)
-        |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        |> Choreo.FSM.add_transition(:b, :c, label: "y")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_initial_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_final_state(:c)
+          |> Choreo.FSM.add_transition(:a, :b, label: "x")
+          |> Choreo.FSM.add_transition(:b, :c, label: "y")
 
-      Choreo.FSM.Analysis.shortest_accepting_path(fsm)
-      #=> {:ok, ["x", "y"]}
+        Choreo.FSM.Analysis.shortest_accepting_path(fsm)
+        #=> {:ok, ["x", "y"]}
 
-  This analysis answers the question: "What is the minimum input to reach an accepting state?"
-"""
+    This analysis answers the question: "What is the minimum input to reach an accepting state?"
+  """
   @spec shortest_accepting_path(FSM.t()) :: {:ok, [String.t()]} | :error
   def shortest_accepting_path(%FSM{} = fsm) do
     initials = FSM.initial_states(fsm) |> MapSet.to_list()
@@ -224,28 +224,28 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Enumerates all accepted input strings up to a maximum length.
+    Enumerates all accepted input strings up to a maximum length.
 
-  This performs a breadth-first expansion of the state space and collects
-  every path that ends in a final state. The result is deduplicated.
+    This performs a breadth-first expansion of the state space and collects
+    every path that ends in a final state. The result is deduplicated.
 
-  **Warning:** Cyclic FSMs can produce exponentially many paths; keep
-  `max_length` small.
+    **Warning:** Cyclic FSMs can produce exponentially many paths; keep
+    `max_length` small.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_initial_state(:a)
-        |> Choreo.FSM.add_final_state(:b)
-        |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        |> Choreo.FSM.add_transition(:b, :b, label: "y")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_initial_state(:a)
+          |> Choreo.FSM.add_final_state(:b)
+          |> Choreo.FSM.add_transition(:a, :b, label: "x")
+          |> Choreo.FSM.add_transition(:b, :b, label: "y")
 
-      Choreo.FSM.Analysis.accepted_strings(fsm, 2)
-      #=> [["x"], ["x", "y"]]
+        Choreo.FSM.Analysis.accepted_strings(fsm, 2)
+        #=> [["x"], ["x", "y"]]
 
-  This analysis answers the question: "What inputs are accepted up to length N?"
-"""
+    This analysis answers the question: "What inputs are accepted up to length N?"
+  """
   @spec accepted_strings(FSM.t(), non_neg_integer()) :: [[String.t()]]
   def accepted_strings(%FSM{} = fsm, max_length) when max_length >= 0 do
     initials = FSM.initial_states(fsm) |> MapSet.to_list()
@@ -266,27 +266,27 @@ defmodule Choreo.FSM.Analysis do
   # ============================================================================
 
   @doc """
-  Returns the set of distinct input symbols (the alphabet) of the FSM.
+    Returns the set of distinct input symbols (the alphabet) of the FSM.
 
-  The alphabet is derived from all transition labels. Empty-string labels
-  are excluded.
+    The alphabet is derived from all transition labels. Empty-string labels
+    are excluded.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_state(:c)
-        |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        |> Choreo.FSM.add_transition(:b, :c, label: "y")
-        |> Choreo.FSM.add_transition(:c, :a, label: "x")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_state(:c)
+          |> Choreo.FSM.add_transition(:a, :b, label: "x")
+          |> Choreo.FSM.add_transition(:b, :c, label: "y")
+          |> Choreo.FSM.add_transition(:c, :a, label: "x")
 
-      Choreo.FSM.Analysis.alphabet(fsm)
-      #=> MapSet<["x", "y"]>
+        Choreo.FSM.Analysis.alphabet(fsm)
+        #=> MapSet<["x", "y"]>
 
-  This analysis answers the question: "What are the distinct input symbols?"
-"""
+    This analysis answers the question: "What are the distinct input symbols?"
+  """
   @spec alphabet(FSM.t()) :: MapSet.t(String.t())
   def alphabet(%FSM{graph: graph}) do
     graph.nodes
@@ -300,29 +300,29 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Checks whether the FSM is complete (total).
+    Checks whether the FSM is complete (total).
 
-  A complete FSM has a transition from every state for every symbol in
-  the alphabet. Incomplete FSMs implicitly reject inputs that have no
-  matching transition.
+    A complete FSM has a transition from every state for every symbol in
+    the alphabet. Incomplete FSMs implicitly reject inputs that have no
+    matching transition.
 
-  ## Examples
+    ## Examples
 
-      # Complete: both states handle both symbols
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        |> Choreo.FSM.add_transition(:a, :a, label: "y")
-        |> Choreo.FSM.add_transition(:b, :a, label: "x")
-        |> Choreo.FSM.add_transition(:b, :b, label: "y")
+        # Complete: both states handle both symbols
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_transition(:a, :b, label: "x")
+          |> Choreo.FSM.add_transition(:a, :a, label: "y")
+          |> Choreo.FSM.add_transition(:b, :a, label: "x")
+          |> Choreo.FSM.add_transition(:b, :b, label: "y")
 
-      Choreo.FSM.Analysis.complete?(fsm)
-      #=> true
+        Choreo.FSM.Analysis.complete?(fsm)
+        #=> true
 
-  This analysis answers the question: "Does every state handle every input symbol?"
-"""
+    This analysis answers the question: "Does every state handle every input symbol?"
+  """
   @spec complete?(FSM.t()) :: boolean()
   def complete?(%FSM{graph: graph} = fsm) do
     sigma = alphabet(fsm)
@@ -344,27 +344,27 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-  Returns states that have nondeterministic transitions.
+    Returns states that have nondeterministic transitions.
 
-  A state is nondeterministic if it has two or more outgoing transitions
-  with the same label. Returns a list of `{state_id, duplicate_label}`
-  tuples.
+    A state is nondeterministic if it has two or more outgoing transitions
+    with the same label. Returns a list of `{state_id, duplicate_label}`
+    tuples.
 
-  ## Examples
+    ## Examples
 
-      fsm =
-        Choreo.FSM.new()
-        |> Choreo.FSM.add_state(:a)
-        |> Choreo.FSM.add_state(:b)
-        |> Choreo.FSM.add_state(:c)
-        |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        |> Choreo.FSM.add_transition(:a, :c, label: "x")
+        fsm =
+          Choreo.FSM.new()
+          |> Choreo.FSM.add_state(:a)
+          |> Choreo.FSM.add_state(:b)
+          |> Choreo.FSM.add_state(:c)
+          |> Choreo.FSM.add_transition(:a, :b, label: "x")
+          |> Choreo.FSM.add_transition(:a, :c, label: "x")
 
-      Choreo.FSM.Analysis.nondeterministic_states(fsm)
-      #=> [{:a, "x"}]
+        Choreo.FSM.Analysis.nondeterministic_states(fsm)
+        #=> [{:a, "x"}]
 
-  This analysis answers the question: "Which states break determinism?"
-"""
+    This analysis answers the question: "Which states break determinism?"
+  """
   @spec nondeterministic_states(FSM.t()) :: [{Yog.node_id(), String.t()}]
   def nondeterministic_states(%FSM{graph: graph}) do
     graph.nodes
@@ -389,27 +389,27 @@ defmodule Choreo.FSM.Analysis do
   # ============================================================================
 
   @doc """
-  Validates the FSM and returns a list of issues.
+    Validates the FSM and returns a list of issues.
 
-  Checks for:
+    Checks for:
 
-    * no initial states defined
-    * no final states defined
-    * unreachable states
-    * dead (trap) states
-    * nondeterministic transitions
-    * incomplete alphabet coverage
+      * no initial states defined
+      * no final states defined
+      * unreachable states
+      * dead (trap) states
+      * nondeterministic transitions
+      * incomplete alphabet coverage
 
-  Returns a list of `{severity, message}` tuples.
+    Returns a list of `{severity, message}` tuples.
 
-  ## Examples
+    ## Examples
 
-      issues = Choreo.FSM.Analysis.validate(fsm)
-      #=> [{:warning, "Unreachable states: [:orphan]"},
-      #=>  {:warning, "Dead states: [:trap]"}]
+        issues = Choreo.FSM.Analysis.validate(fsm)
+        #=> [{:warning, "Unreachable states: [:orphan]"},
+        #=>  {:warning, "Dead states: [:trap]"}]
 
-  This analysis answers the question: "Is the state machine structurally sound?"
-"""
+    This analysis answers the question: "Is the state machine structurally sound?"
+  """
   @spec validate(FSM.t()) :: [{:error | :warning, String.t()}]
   def validate(%FSM{} = fsm) do
     []

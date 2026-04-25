@@ -13,31 +13,31 @@ defmodule Choreo.DecisionTree.Analysis do
   alias Choreo.DecisionTree
 
   @doc """
-  Evaluates the decision tree against a map of feature values.
+    Evaluates the decision tree against a map of feature values.
 
-  Walks from the root, at each decision node reading the corresponding
-  feature value and following the branch whose condition matches.
+    Walks from the root, at each decision node reading the corresponding
+    feature value and following the branch whose condition matches.
 
-  Returns `{:ok, path, outcome_label}` or `{:error, reason}`.
+    Returns `{:ok, path, outcome_label}` or `{:error, reason}`.
 
-  ## Examples
+    ## Examples
 
-      tree =
-        DecisionTree.new()
-        |> DecisionTree.set_root(:color, feature: "color")
-        |> DecisionTree.add_outcome(:stop, label: "Stop")
-        |> DecisionTree.add_outcome(:go, label: "Go")
-        |> DecisionTree.branch!(:color, :stop, "red")
-        |> DecisionTree.branch!(:color, :go, "green")
+        tree =
+          DecisionTree.new()
+          |> DecisionTree.set_root(:color, feature: "color")
+          |> DecisionTree.add_outcome(:stop, label: "Stop")
+          |> DecisionTree.add_outcome(:go, label: "Go")
+          |> DecisionTree.branch!(:color, :stop, "red")
+          |> DecisionTree.branch!(:color, :go, "green")
 
-      Analysis.decide(tree, %{"color" => "red"})
-      #=> {:ok, [:color, :stop], "Stop"}
+        Analysis.decide(tree, %{"color" => "red"})
+        #=> {:ok, [:color, :stop], "Stop"}
 
-      Analysis.decide(tree, %{"color" => "blue"})
-      #=> {:error, "No branch for 'blue' from node :color"}
+        Analysis.decide(tree, %{"color" => "blue"})
+        #=> {:error, "No branch for 'blue' from node :color"}
 
-  This analysis answers the question: "Given feature values, what outcome does the tree predict?"
-"""
+    This analysis answers the question: "Given feature values, what outcome does the tree predict?"
+  """
   @spec decide(DecisionTree.t(), %{String.t() => String.t()}) ::
           {:ok, [Yog.node_id()], String.t()} | {:error, String.t()}
   def decide(%DecisionTree{root: nil}, _features) do
@@ -49,17 +49,17 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Enumerates all root-to-leaf paths.
+    Enumerates all root-to-leaf paths.
 
-  Each path is a list of node IDs from root to outcome.
+    Each path is a list of node IDs from root to outcome.
 
-  ## Examples
+    ## Examples
 
-      Analysis.paths(tree)
-      #=> [[:color, :stop], [:color, :go]]
+        Analysis.paths(tree)
+        #=> [[:color, :stop], [:color, :go]]
 
-  This analysis answers the question: "What are all possible root-to-leaf paths?"
-"""
+    This analysis answers the question: "What are all possible root-to-leaf paths?"
+  """
   @spec paths(DecisionTree.t()) :: [[Yog.node_id()]]
   def paths(%DecisionTree{root: nil}), do: []
 
@@ -68,20 +68,20 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Returns all root-to-leaf paths with their branch conditions.
+    Returns all root-to-leaf paths with their branch conditions.
 
-  Each result is `{path, [{parent, child, condition}]}`.
+    Each result is `{path, [{parent, child, condition}]}`.
 
-  ## Examples
+    ## Examples
 
-      Analysis.paths_with_conditions(tree)
-      #=> [
-      #=>   {[:color, :stop], [{:color, :stop, "red"}]},
-      #=>   {[:color, :go], [{:color, :go, "green"}]}
-      #=> ]
+        Analysis.paths_with_conditions(tree)
+        #=> [
+        #=>   {[:color, :stop], [{:color, :stop, "red"}]},
+        #=>   {[:color, :go], [{:color, :go, "green"}]}
+        #=> ]
 
-  This analysis answers the question: "What are all paths with their branch conditions?"
-"""
+    This analysis answers the question: "What are all paths with their branch conditions?"
+  """
   @spec paths_with_conditions(DecisionTree.t()) :: [
           {[Yog.node_id()], [{Yog.node_id(), Yog.node_id(), String.t()}]}
         ]
@@ -92,12 +92,12 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Returns the maximum depth of the tree (number of edges from root
-  to deepest leaf).
+    Returns the maximum depth of the tree (number of edges from root
+    to deepest leaf).
 
-  A single-node tree has depth 0.
-  This analysis answers the question: "How deep is the tree?"
-"""
+    A single-node tree has depth 0.
+    This analysis answers the question: "How deep is the tree?"
+  """
   @spec depth(DecisionTree.t()) :: non_neg_integer()
   def depth(%DecisionTree{root: nil}), do: 0
 
@@ -106,26 +106,26 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Returns the number of leaf / outcome nodes.
-  This analysis answers the question: "How many leaf outcomes exist?"
-"""
+    Returns the number of leaf / outcome nodes.
+    This analysis answers the question: "How many leaf outcomes exist?"
+  """
   @spec breadth(DecisionTree.t()) :: non_neg_integer()
   def breadth(%DecisionTree{} = tree) do
     length(DecisionTree.outcomes(tree))
   end
 
   @doc """
-  Returns a map of feature frequencies across all decision nodes.
+    Returns a map of feature frequencies across all decision nodes.
 
-  Useful for understanding which features drive the most splits.
+    Useful for understanding which features drive the most splits.
 
-  ## Examples
+    ## Examples
 
-      Analysis.feature_importance(tree)
-      #=> %{"color" => 1, "size" => 2}
+        Analysis.feature_importance(tree)
+        #=> %{"color" => 1, "size" => 2}
 
-  This analysis answers the question: "Which features drive the most splits?"
-"""
+    This analysis answers the question: "Which features drive the most splits?"
+  """
   @spec feature_importance(DecisionTree.t()) :: %{String.t() => non_neg_integer()}
   def feature_importance(%DecisionTree{graph: graph}) do
     graph.nodes
@@ -137,17 +137,17 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Returns the unique set of all possible outcome classes the tree can produce.
+    Returns the unique set of all possible outcome classes the tree can produce.
 
-  Only considers outcomes that are actually reachable from the root.
+    Only considers outcomes that are actually reachable from the root.
 
-  ## Examples
+    ## Examples
 
-      Analysis.reachable_outcomes(tree)
-      #=> ["Stop", "Go"]
+        Analysis.reachable_outcomes(tree)
+        #=> ["Stop", "Go"]
 
-  This analysis answers the question: "What are all possible outcome classes?"
-"""
+    This analysis answers the question: "What are all possible outcome classes?"
+  """
   @spec reachable_outcomes(DecisionTree.t()) :: [String.t()]
   def reachable_outcomes(%DecisionTree{root: nil}), do: []
 
@@ -163,18 +163,18 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Finds logically impossible paths where a feature is checked against
-  mutually exclusive conditions.
+    Finds logically impossible paths where a feature is checked against
+    mutually exclusive conditions.
 
-  Returns a list of tuples `{path, [features_with_conflicts]}`.
+    Returns a list of tuples `{path, [features_with_conflicts]}`.
 
-  ## Examples
+    ## Examples
 
-      Analysis.inconsistent_paths(tree)
-      #=> [{[:color, :color, :stop], ["color"]}]
+        Analysis.inconsistent_paths(tree)
+        #=> [{[:color, :color, :stop], ["color"]}]
 
-  This analysis answers the question: "Are there logically impossible paths?"
-"""
+    This analysis answers the question: "Are there logically impossible paths?"
+  """
   @spec inconsistent_paths(DecisionTree.t()) :: [{[Yog.node_id()], [String.t()]}]
   def inconsistent_paths(%DecisionTree{} = tree) do
     paths = paths_with_conditions(tree)
@@ -206,15 +206,15 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Prunes redundant decision nodes.
+    Prunes redundant decision nodes.
 
-  A decision is redundant when **all** of its descendant leaves share
-  the same class label. The decision node is replaced by an outcome
-  node with that label.
+    A decision is redundant when **all** of its descendant leaves share
+    the same class label. The decision node is replaced by an outcome
+    node with that label.
 
-  Returns a new tree.
-  This analysis answers the question: "Which decision nodes can be simplified?"
-"""
+    Returns a new tree.
+    This analysis answers the question: "Which decision nodes can be simplified?"
+  """
   @spec prune_redundant(DecisionTree.t()) :: DecisionTree.t()
   def prune_redundant(%DecisionTree{root: nil} = tree), do: tree
 
@@ -224,17 +224,17 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Validates tree completeness.
+    Validates tree completeness.
 
-  Checks for:
-    * missing root
-    * decision nodes with no branches
-    * outcome nodes with branches (should be leaves)
-    * duplicate conditions from the same parent
+    Checks for:
+      * missing root
+      * decision nodes with no branches
+      * outcome nodes with branches (should be leaves)
+      * duplicate conditions from the same parent
 
-  Returns a list of `{severity, message}` tuples.
-  This analysis answers the question: "Is the tree structurally valid?"
-"""
+    Returns a list of `{severity, message}` tuples.
+    This analysis answers the question: "Is the tree structurally valid?"
+  """
   @spec validate(DecisionTree.t()) :: [{:error | :warning, String.t()}]
   def validate(%DecisionTree{} = tree) do
     []
