@@ -1,6 +1,8 @@
 defmodule Choreo.Dataflow.AnalysisTest do
   use ExUnit.Case
 
+  doctest Choreo.Dataflow.Analysis
+
   alias Choreo.Dataflow
   alias Choreo.Dataflow.Analysis
 

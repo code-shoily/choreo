@@ -103,6 +103,14 @@ defmodule Choreo.Dataflow do
   Creates a new empty dataflow graph.
 
   Dataflow graphs are always directed.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> Choreo.Dataflow.nodes(flow)
+      []
+      iex> Choreo.Dataflow.edges(flow)
+      []
   """
   @spec new() :: t()
   def new do
@@ -126,6 +134,17 @@ defmodule Choreo.Dataflow do
     * `:description` — tooltip text
     * `:rate` — throughput in events/sec (used by simulation)
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_source(flow, :sensor, label: "IoT Sensor")
+      iex> Choreo.Dataflow.nodes(flow)
+      [:sensor]
+      iex> Yog.node(flow.graph, :sensor).node_type
+      :source
+      iex> Yog.node(flow.graph, :sensor).label
+      "IoT Sensor"
   """
   @spec add_source(t(), Yog.node_id(), keyword()) :: t()
   def add_source(flow, id, opts \\ []) do
@@ -140,6 +159,15 @@ defmodule Choreo.Dataflow do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_sink(flow, :db, label: "TimescaleDB")
+      iex> Choreo.Dataflow.nodes(flow)
+      [:db]
+      iex> Yog.node(flow.graph, :db).node_type
+      :sink
   """
   @spec add_sink(t(), Yog.node_id(), keyword()) :: t()
   def add_sink(flow, id, opts \\ []) do
@@ -155,6 +183,15 @@ defmodule Choreo.Dataflow do
     * `:description` — tooltip text
     * `:latency_ms` — processing latency in milliseconds (used by simulation)
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_transform(flow, :parse, label: "JSON Parser")
+      iex> Choreo.Dataflow.nodes(flow)
+      [:parse]
+      iex> Yog.node(flow.graph, :parse).node_type
+      :transform
   """
   @spec add_transform(t(), Yog.node_id(), keyword()) :: t()
   def add_transform(flow, id, opts \\ []) do
@@ -171,6 +208,17 @@ defmodule Choreo.Dataflow do
     * `:capacity` — annotated capacity (visual only)
     * `:latency_ms` — buffering latency in milliseconds (used by simulation)
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_buffer(flow, :kafka, label: "Kafka Topic", capacity: 1000)
+      iex> Choreo.Dataflow.nodes(flow)
+      [:kafka]
+      iex> Yog.node(flow.graph, :kafka).node_type
+      :buffer
+      iex> Yog.node(flow.graph, :kafka).capacity
+      1000
   """
   @spec add_buffer(t(), Yog.node_id(), keyword()) :: t()
   def add_buffer(flow, id, opts \\ []) do
@@ -185,6 +233,15 @@ defmodule Choreo.Dataflow do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_conditional(flow, :valid, label: "If valid")
+      iex> Choreo.Dataflow.nodes(flow)
+      [:valid]
+      iex> Yog.node(flow.graph, :valid).node_type
+      :conditional
   """
   @spec add_conditional(t(), Yog.node_id(), keyword()) :: t()
   def add_conditional(flow, id, opts \\ []) do
@@ -199,6 +256,15 @@ defmodule Choreo.Dataflow do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_merge(flow, :join, label: "Join")
+      iex> Choreo.Dataflow.nodes(flow)
+      [:join]
+      iex> Yog.node(flow.graph, :join).node_type
+      :merge
   """
   @spec add_merge(t(), Yog.node_id(), keyword()) :: t()
   def add_merge(flow, id, opts \\ []) do
@@ -222,10 +288,10 @@ defmodule Choreo.Dataflow do
 
   ## Examples
 
-      pipeline =
-        Choreo.Dataflow.new()
-        |> Choreo.Dataflow.add_cluster("ingest", label: "Ingestion", fillcolor: "#ecfdf5")
-        |> Choreo.Dataflow.add_source(:sensor, cluster: "ingest")
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_cluster(flow, "ingest", label: "Ingestion")
+      iex> flow.clusters["cluster_ingest"].label
+      "Ingestion"
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = flow, name, opts \\ []) do
@@ -252,7 +318,17 @@ defmodule Choreo.Dataflow do
 
   ## Examples
 
-      flow = Choreo.Dataflow.connect(flow, :parse, :kafka, data_type: "Event")
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      ...>   |> Choreo.Dataflow.connect(:a, :b, data_type: "event")
+      iex> Choreo.Dataflow.edges(flow)
+      [{:a, :b, 1}]
+      iex> flow.edge_meta[{:a, :b}].label
+      "event"
+      iex> flow.edge_meta[{:a, :b}].path_type
+      :normal
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = flow, from, to, opts \\ []) do
@@ -277,6 +353,16 @@ defmodule Choreo.Dataflow do
   Adds an error-path edge between two stages.
 
   Error paths are rendered in red with a dashed style.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_transform(:a)
+      ...>   |> Choreo.Dataflow.add_sink(:b)
+      ...>   |> Choreo.Dataflow.add_error_path(:a, :b)
+      iex> flow.edge_meta[{:a, :b}].path_type
+      :error
   """
   @spec add_error_path(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_error_path(%__MODULE__{} = flow, from, to, opts \\ []) do
@@ -287,6 +373,16 @@ defmodule Choreo.Dataflow do
   Adds a retry-path edge between two stages.
 
   Retry paths are rendered in orange with a dotted style.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_transform(:a)
+      ...>   |> Choreo.Dataflow.add_sink(:b)
+      ...>   |> Choreo.Dataflow.add_retry_path(:a, :b)
+      iex> flow.edge_meta[{:a, :b}].path_type
+      :retry
   """
   @spec add_retry_path(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_retry_path(%__MODULE__{} = flow, from, to, opts \\ []) do
@@ -297,6 +393,16 @@ defmodule Choreo.Dataflow do
   Adds a dead-letter-path edge between two stages.
 
   Dead-letter paths are rendered in grey with a dashed style.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_transform(:a)
+      ...>   |> Choreo.Dataflow.add_sink(:b)
+      ...>   |> Choreo.Dataflow.add_dead_letter_path(:a, :b)
+      iex> flow.edge_meta[{:a, :b}].path_type
+      :dead_letter
   """
   @spec add_dead_letter_path(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_dead_letter_path(%__MODULE__{} = flow, from, to, opts \\ []) do
@@ -309,6 +415,15 @@ defmodule Choreo.Dataflow do
 
   @doc """
   Returns all node IDs in the dataflow.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      iex> Enum.sort(Choreo.Dataflow.nodes(flow))
+      [:a, :b]
   """
   @spec nodes(t()) :: [Yog.node_id()]
   def nodes(%__MODULE__{graph: graph}) do
@@ -317,6 +432,16 @@ defmodule Choreo.Dataflow do
 
   @doc """
   Returns all edges as `{from, to, weight}` tuples.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      ...>   |> Choreo.Dataflow.connect(:a, :b)
+      iex> Choreo.Dataflow.edges(flow)
+      [{:a, :b, 1}]
   """
   @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def edges(%__MODULE__{graph: graph}) do
@@ -328,8 +453,17 @@ defmodule Choreo.Dataflow do
 
   ## Examples
 
-      Choreo.Dataflow.nodes_of_type(flow, :source)
-      #=> [:sensor, :webhook]
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_source(:b)
+      ...>   |> Choreo.Dataflow.add_sink(:c)
+      iex> Enum.sort(Choreo.Dataflow.nodes_of_type(flow, :source))
+      [:a, :b]
+      iex> Choreo.Dataflow.nodes_of_type(flow, :sink)
+      [:c]
+      iex> Choreo.Dataflow.nodes_of_type(flow, :transform)
+      []
   """
   @spec nodes_of_type(t(), atom()) :: [Yog.node_id()]
   def nodes_of_type(%__MODULE__{graph: graph}, type) do
@@ -340,6 +474,13 @@ defmodule Choreo.Dataflow do
 
   @doc """
   Returns the raw `Yog.Graph` struct underpinning the dataflow.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> graph = Choreo.Dataflow.to_graph(flow)
+      iex> graph.kind
+      :directed
   """
   @spec to_graph(t()) :: Yog.graph()
   def to_graph(%__MODULE__{graph: graph}), do: graph
@@ -354,6 +495,23 @@ defmodule Choreo.Dataflow do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:in, label: "Input")
+      ...>   |> Choreo.Dataflow.add_transform(:proc, label: "Process")
+      ...>   |> Choreo.Dataflow.add_sink(:out, label: "Output")
+      ...>   |> Choreo.Dataflow.connect(:in, :proc, data_type: "raw")
+      ...>   |> Choreo.Dataflow.connect(:proc, :out, data_type: "result")
+      iex> dot = Choreo.Dataflow.to_dot(flow)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "Input")
+      true
+      iex> String.contains?(dot, "Output")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = flow, opts \\ []) do

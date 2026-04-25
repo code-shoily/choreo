@@ -1,6 +1,9 @@
 defmodule Choreo.DataflowTest do
   use ExUnit.Case
 
+  doctest Choreo.Dataflow
+  doctest Choreo.Dataflow.Render.DOT
+
   alias Choreo.Dataflow
 
   describe "new/0" do

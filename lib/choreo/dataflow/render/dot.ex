@@ -34,6 +34,23 @@ defmodule Choreo.Dataflow.Render.DOT do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:in, label: "Input")
+      ...>   |> Choreo.Dataflow.add_transform(:proc, label: "Process")
+      ...>   |> Choreo.Dataflow.add_sink(:out, label: "Output")
+      ...>   |> Choreo.Dataflow.connect(:in, :proc, data_type: "raw")
+      ...>   |> Choreo.Dataflow.connect(:proc, :out, data_type: "result")
+      iex> dot = Choreo.Dataflow.Render.DOT.to_dot(flow)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "Input")
+      true
+      iex> String.contains?(dot, "Output")
+      true
   """
   @spec to_dot(Choreo.Dataflow.t(), keyword()) :: String.t()
   def to_dot(%Choreo.Dataflow{} = flow, opts \\ []) do
