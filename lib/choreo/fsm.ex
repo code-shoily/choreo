@@ -46,6 +46,8 @@ defmodule Choreo.FSM do
 
   defstruct graph: nil, meta: %{}
 
+  alias Choreo.FSM.Analysis
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -69,7 +71,7 @@ defmodule Choreo.FSM do
 
     %__MODULE__{
       graph: Yog.new(kind),
-      meta: %{initial_states: MapSet.new()}
+      meta: %{initial_states: MapSet.new(), final_states: MapSet.new()}
     }
   end
 
@@ -95,11 +97,29 @@ defmodule Choreo.FSM do
   def add_state(%__MODULE__{} = fsm, id, opts \\ []) do
     data = %{
       type: :state,
-      state_type: Keyword.get(opts, :type, :normal),
       label: Keyword.get(opts, :label, to_string(id))
     }
 
-    %{fsm | graph: Yog.add_node(fsm.graph, id, data)}
+    fsm = %{fsm | graph: Yog.add_node(fsm.graph, id, data)}
+
+    case Keyword.get(opts, :type) do
+      :initial ->
+        put_in(fsm.meta.initial_states, MapSet.put(fsm.meta.initial_states, id))
+
+      :final ->
+        put_in(fsm.meta.final_states, MapSet.put(fsm.meta.final_states, id))
+
+      :normal ->
+        fsm
+        |> put_in(
+          [Access.key!(:meta), :initial_states],
+          MapSet.delete(fsm.meta.initial_states, id)
+        )
+        |> put_in([Access.key!(:meta), :final_states], MapSet.delete(fsm.meta.final_states, id))
+
+      nil ->
+        fsm
+    end
   end
 
   @doc """
@@ -115,13 +135,13 @@ defmodule Choreo.FSM do
   ## Examples
 
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle)
-      iex> Yog.node(fsm.graph, :idle).state_type
-      :initial
+      iex> :idle in Choreo.FSM.initial_states(fsm)
+      true
   """
   @spec add_initial_state(t(), Yog.node_id(), keyword()) :: t()
   def add_initial_state(%__MODULE__{} = fsm, id, opts \\ []) do
     fsm
-    |> add_state(id, Keyword.put(opts, :type, :initial))
+    |> add_state(id, opts)
     |> put_in([Access.key!(:meta), :initial_states], MapSet.put(fsm.meta.initial_states, id))
   end
 
@@ -137,12 +157,42 @@ defmodule Choreo.FSM do
   ## Examples
 
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_final_state(:done)
-      iex> Yog.node(fsm.graph, :done).state_type
-      :final
+      iex> :done in Choreo.FSM.final_states(fsm)
+      true
   """
   @spec add_final_state(t(), Yog.node_id(), keyword()) :: t()
   def add_final_state(%__MODULE__{} = fsm, id, opts \\ []) do
-    add_state(fsm, id, Keyword.put(opts, :type, :final))
+    fsm
+    |> add_state(id, opts)
+    |> put_in([Access.key!(:meta), :final_states], MapSet.put(fsm.meta.final_states, id))
+  end
+
+  @doc """
+  Removes a state from the set of initial states.
+
+  ## Examples
+
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle) |> Choreo.FSM.remove_initial_state(:idle)
+      iex> :idle in Choreo.FSM.initial_states(fsm)
+      false
+  """
+  @spec remove_initial_state(t(), Yog.node_id()) :: t()
+  def remove_initial_state(%__MODULE__{} = fsm, id) do
+    put_in(fsm.meta.initial_states, MapSet.delete(fsm.meta.initial_states, id))
+  end
+
+  @doc """
+  Removes a state from the set of final states.
+
+  ## Examples
+
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_final_state(:done) |> Choreo.FSM.remove_final_state(:done)
+      iex> :done in Choreo.FSM.final_states(fsm)
+      false
+  """
+  @spec remove_final_state(t(), Yog.node_id()) :: t()
+  def remove_final_state(%__MODULE__{} = fsm, id) do
+    put_in(fsm.meta.final_states, MapSet.delete(fsm.meta.final_states, id))
   end
 
   # ============================================================================
@@ -217,11 +267,8 @@ defmodule Choreo.FSM do
   Returns all final state IDs.
   """
   @spec final_states(t()) :: [Yog.node_id()]
-  def final_states(%__MODULE__{graph: graph}) do
-    graph.nodes
-    |> Enum.filter(fn {_id, data} -> data.state_type == :final end)
-    |> Enum.map(fn {id, _data} -> id end)
-  end
+  def final_states(%__MODULE__{meta: %{final_states: set}}), do: MapSet.to_list(set)
+  def final_states(%__MODULE__{}), do: []
 
   # ============================================================================
   # Transforms
@@ -244,22 +291,21 @@ defmodule Choreo.FSM do
       false
   """
   @spec complement(t()) :: t()
-  def complement(%__MODULE__{graph: graph} = fsm) do
-    new_nodes =
-      graph.nodes
-      |> Enum.map(fn {id, data} ->
-        new_type =
-          case data.state_type do
-            :final -> :normal
-            :normal -> :final
-            :initial -> :initial
-          end
+  def complement(%__MODULE__{} = fsm) do
+    if Analysis.deterministic?(fsm) do
+      all_states = states(fsm) |> MapSet.new()
+      old_finals = final_states(fsm) |> MapSet.new()
+      new_finals = MapSet.difference(all_states, old_finals)
 
-        {id, %{data | state_type: new_type}}
-      end)
-      |> Map.new()
+      put_in(fsm.meta.final_states, new_finals)
+    else
+      dfa = Analysis.to_dfa(fsm)
+      all_states = states(dfa) |> MapSet.new()
+      old_finals = final_states(dfa) |> MapSet.new()
+      new_finals = MapSet.difference(all_states, old_finals)
 
-    %{fsm | graph: %{graph | nodes: new_nodes}}
+      put_in(dfa.meta.final_states, new_finals)
+    end
   end
 
   @doc """
@@ -287,8 +333,8 @@ defmodule Choreo.FSM do
   """
   @spec prune(t()) :: t()
   def prune(%__MODULE__{} = fsm) do
-    reachable = Choreo.FSM.Analysis.reachable_states(fsm) |> MapSet.new()
-    dead = Choreo.FSM.Analysis.dead_states(fsm) |> MapSet.new()
+    reachable = Analysis.reachable_states(fsm) |> MapSet.new()
+    dead = Analysis.dead_states(fsm) |> MapSet.new()
     all = states(fsm) |> MapSet.new()
 
     to_remove = MapSet.union(dead, MapSet.difference(all, reachable))
@@ -297,7 +343,8 @@ defmodule Choreo.FSM do
 
     new_meta = %{
       fsm.meta
-      | initial_states: MapSet.difference(fsm.meta.initial_states, to_remove)
+      | initial_states: MapSet.difference(fsm.meta.initial_states, to_remove),
+        final_states: MapSet.difference(fsm.meta.final_states, to_remove)
     }
 
     %__MODULE__{fsm | graph: new_graph, meta: new_meta}
