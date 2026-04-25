@@ -113,6 +113,18 @@ defmodule Choreo.FSM do
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_state(:idle, label: "Idle")
       iex> Yog.node(fsm.graph, :idle).label
       "Idle"
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      idle [label="Idle", fillcolor="#e2e8f0"];
+    }
+  </div>
   """
   @spec add_state(t(), Yog.node_id(), keyword()) :: t()
   def add_state(%__MODULE__{} = fsm, id, opts \\ []) do
@@ -158,6 +170,21 @@ defmodule Choreo.FSM do
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle)
       iex> :idle in Choreo.FSM.initial_states(fsm)
       true
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      idle [label="idle", fontcolor="white", fillcolor="#10b981"];
+
+      __start_idle [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];
+      __start_idle -> idle;
+    }
+  </div>
   """
   @spec add_initial_state(t(), Yog.node_id(), keyword()) :: t()
   def add_initial_state(%__MODULE__{} = fsm, id, opts \\ []) do
@@ -180,6 +207,18 @@ defmodule Choreo.FSM do
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_final_state(:done)
       iex> :done in Choreo.FSM.final_states(fsm)
       true
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      done [label="done", penwidth="2.0", fillcolor="#e2e8f0", shape="doublecircle"];
+    }
+  </div>
   """
   @spec add_final_state(t(), Yog.node_id(), keyword()) :: t()
   def add_final_state(%__MODULE__{} = fsm, id, opts \\ []) do
@@ -237,6 +276,21 @@ defmodule Choreo.FSM do
       ...>   |> Choreo.FSM.add_transition(:a, :b, label: "go")
       iex> Yog.has_edge?(fsm.graph, :a, :b)
       true
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      b [label="b", fillcolor="#e2e8f0"];
+      a [label="a", fillcolor="#e2e8f0"];
+
+      a -> b [label="go"];
+    }
+  </div>
   """
   @spec add_transition(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_transition(%__MODULE__{} = fsm, from, to, opts \\ []) do
@@ -338,6 +392,22 @@ defmodule Choreo.FSM do
       true
       iex> :b in Choreo.FSM.final_states(comp)
       false
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      b [label="b", fillcolor="#e2e8f0"];
+      a [label="a", penwidth="2.0", fontcolor="white", fillcolor="#10b981", shape="doublecircle"];
+
+      __start_a [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];
+      __start_a -> a;
+    }
+  </div>
   """
   @spec complement(t()) :: t()
   def complement(%__MODULE__{} = fsm) do
@@ -379,6 +449,24 @@ defmodule Choreo.FSM do
       false
       iex> :trap in Choreo.FSM.states(pruned)
       false
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=circle, style=filled, fillcolor="#e2e8f0", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [arrowhead=normal, color="#475569", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      c [label="c", penwidth="2.0", fillcolor="#e2e8f0", shape="doublecircle"];
+      a [label="a", fontcolor="white", fillcolor="#10b981"];
+
+      a -> c [label="go"];
+
+      __start_a [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];
+      __start_a -> a;
+    }
+  </div>
   """
   @spec prune(t()) :: t()
   def prune(%__MODULE__{} = fsm) do
