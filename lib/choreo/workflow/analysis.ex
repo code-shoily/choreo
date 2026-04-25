@@ -77,8 +77,17 @@ defmodule Choreo.Workflow.Analysis do
         {:ok, order} ->
           start_set = Workflow.starts(workflow) |> MapSet.new()
           end_set = Workflow.ends(workflow) |> MapSet.new()
-          dp = compute_dp(graph, order, start_set)
-          find_best_end_path(dp, end_set)
+          dp = Choreo.Internal.compute_dp(graph, order, start_set)
+
+          case Choreo.Internal.find_best_end_path(dp, end_set) do
+            nil ->
+              :error
+
+            {_dist, end_id} ->
+              path = Choreo.Internal.reconstruct_path(dp, end_id)
+              total = elem(Map.fetch!(dp, end_id), 0)
+              {:ok, path, total}
+          end
 
         {:error, :contains_cycle} ->
           :error
@@ -221,53 +230,6 @@ defmodule Choreo.Workflow.Analysis do
   # ============================================================================
   # Private helpers — critical path
   # ============================================================================
-
-  defp compute_dp(graph, order, start_set) do
-    Enum.reduce(order, %{}, fn id, acc ->
-      if MapSet.member?(start_set, id) do
-        Map.put(acc, id, {0, nil})
-      else
-        best = Choreo.Internal.best_predecessor(graph, id, acc)
-        if best, do: Map.put(acc, id, best), else: acc
-      end
-    end)
-  end
-
-  defp find_best_end_path(dp, end_set) do
-    best =
-      Enum.reduce(end_set, nil, fn id, current_best ->
-        case Map.fetch(dp, id) do
-          {:ok, {dist, _}} ->
-            if is_nil(current_best) or dist > elem(current_best, 0) do
-              {dist, id}
-            else
-              current_best
-            end
-
-          :error ->
-            current_best
-        end
-      end)
-
-    if best do
-      {_dist, end_id} = best
-      path = reconstruct_path(dp, end_id, [end_id])
-      total = elem(Map.fetch!(dp, end_id), 0)
-      {:ok, path, total}
-    else
-      :error
-    end
-  end
-
-  defp reconstruct_path(_dp, nil, acc), do: acc
-
-  defp reconstruct_path(dp, id, acc) do
-    case Map.fetch(dp, id) do
-      {:ok, {_dist, nil}} -> acc
-      {:ok, {_dist, prev}} -> reconstruct_path(dp, prev, [prev | acc])
-      :error -> acc
-    end
-  end
 
   # ============================================================================
   # Private helpers — levels

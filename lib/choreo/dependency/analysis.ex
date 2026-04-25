@@ -218,8 +218,17 @@ defmodule Choreo.Dependency.Analysis do
     else
       case Yog.Traversal.Sort.topological_sort(graph) do
         {:ok, order} ->
-          dp = compute_dp(graph, order)
-          find_best_end_path(dp)
+          dp = Choreo.Internal.compute_dp(graph, order)
+
+          case Choreo.Internal.find_best_end_path(dp) do
+            nil ->
+              :error
+
+            {_dist, end_id} ->
+              path = Choreo.Internal.reconstruct_path(dp, end_id)
+              total = elem(Map.fetch!(dp, end_id), 0)
+              {:ok, path, total}
+          end
 
         {:error, :contains_cycle} ->
           :error
@@ -247,33 +256,6 @@ defmodule Choreo.Dependency.Analysis do
   # Private helpers
   # ============================================================================
 
-  defp compute_dp(graph, order) do
-    Enum.reduce(order, %{}, fn id, acc ->
-      best = Choreo.Internal.best_predecessor(graph, id, acc)
-      Map.put(acc, id, best || {0, nil})
-    end)
-  end
-
-  defp find_best_end_path(dp) do
-    best =
-      Enum.reduce(dp, nil, fn {id, {dist, _}}, current_best ->
-        if is_nil(current_best) or dist > elem(current_best, 0) do
-          {dist, id}
-        else
-          current_best
-        end
-      end)
-
-    if best do
-      {_dist, end_id} = best
-      path = reconstruct_path(dp, end_id, [end_id])
-      total = elem(Map.fetch!(dp, end_id), 0)
-      {:ok, path, total}
-    else
-      :error
-    end
-  end
-
   defp find_cycle(_graph, _start, _current, _visited, path) when length(path) > 50 do
     # Safety guard against runaway DFS
     nil
@@ -297,16 +279,6 @@ defmodule Choreo.Dependency.Analysis do
       Enum.find_value(unvisited, fn next ->
         find_cycle(graph, start, next, MapSet.put(visited, next), [next | path])
       end)
-    end
-  end
-
-  defp reconstruct_path(_dp, nil, acc), do: acc
-
-  defp reconstruct_path(dp, id, acc) do
-    case Map.fetch(dp, id) do
-      {:ok, {_dist, nil}} -> acc
-      {:ok, {_dist, prev}} -> reconstruct_path(dp, prev, [prev | acc])
-      :error -> acc
     end
   end
 

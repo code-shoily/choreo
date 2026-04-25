@@ -103,4 +103,82 @@ defmodule Choreo.Internal do
     name = to_string(name)
     if String.starts_with?(name, "cluster_"), do: name, else: "cluster_#{name}"
   end
+
+  @doc """
+  Computes a longest-path DP table over a topologically sorted order.
+
+  `seed_set` controls which nodes are treated as path origins:
+    * `nil` — every node is a potential origin (unreachable nodes get `{0, nil}`)
+    * `MapSet.t()` — only nodes in the set are origins; unreachable nodes are omitted
+  """
+  @spec compute_dp(Yog.graph(), [Yog.node_id()], MapSet.t(Yog.node_id()) | nil) :: %{
+          optional(Yog.node_id()) => {number(), Yog.node_id() | nil}
+        }
+  def compute_dp(graph, order, seed_set \\ nil) do
+    Enum.reduce(order, %{}, fn id, acc ->
+      if seed_set && MapSet.member?(seed_set, id) do
+        Map.put(acc, id, {0, nil})
+      else
+        best = best_predecessor(graph, id, acc)
+
+        cond do
+          best -> Map.put(acc, id, best)
+          is_nil(seed_set) -> Map.put(acc, id, {0, nil})
+          true -> acc
+        end
+      end
+    end)
+  end
+
+  @doc """
+  Finds the DP entry with the maximum distance.
+
+  `candidate_set` restricts the search to specific nodes (e.g. sinks or ends).
+  If `nil`, all entries in `dp` are considered.
+  """
+  @spec find_best_end_path(map(), MapSet.t(Yog.node_id()) | nil) ::
+          {number(), Yog.node_id()} | nil
+  def find_best_end_path(dp, candidate_set \\ nil) do
+    if candidate_set do
+      Enum.reduce(candidate_set, nil, fn id, current_best ->
+        case Map.fetch(dp, id) do
+          {:ok, {dist, _}} ->
+            if is_nil(current_best) or dist > elem(current_best, 0) do
+              {dist, id}
+            else
+              current_best
+            end
+
+          :error ->
+            current_best
+        end
+      end)
+    else
+      Enum.reduce(dp, nil, fn {id, {dist, _}}, current_best ->
+        if is_nil(current_best) or dist > elem(current_best, 0) do
+          {dist, id}
+        else
+          current_best
+        end
+      end)
+    end
+  end
+
+  @doc """
+  Reconstructs a path from `end_id` back to an origin by following DP predecessors.
+  """
+  @spec reconstruct_path(map(), Yog.node_id()) :: [Yog.node_id()]
+  def reconstruct_path(dp, end_id) do
+    do_reconstruct(dp, end_id, [end_id])
+  end
+
+  defp do_reconstruct(_dp, nil, acc), do: acc
+
+  defp do_reconstruct(dp, id, acc) do
+    case Map.fetch(dp, id) do
+      {:ok, {_dist, nil}} -> acc
+      {:ok, {_dist, prev}} -> do_reconstruct(dp, prev, [prev | acc])
+      :error -> acc
+    end
+  end
 end

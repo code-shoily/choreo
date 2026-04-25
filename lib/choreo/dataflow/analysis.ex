@@ -134,8 +134,17 @@ defmodule Choreo.Dataflow.Analysis do
       {:ok, order} ->
         source_set = sources(flow) |> MapSet.new()
         sink_set = sinks(flow) |> MapSet.new()
-        dp = compute_dp(graph, order, source_set)
-        find_best_sink_path(dp, sink_set)
+        dp = Choreo.Internal.compute_dp(graph, order, source_set)
+
+        case Choreo.Internal.find_best_end_path(dp, sink_set) do
+          nil ->
+            :error
+
+          {_dist, sink_id} ->
+            path = Choreo.Internal.reconstruct_path(dp, sink_id)
+            total = elem(Map.fetch!(dp, sink_id), 0)
+            {:ok, path, total}
+        end
 
       {:error, :contains_cycle} ->
         :error
@@ -243,52 +252,6 @@ defmodule Choreo.Dataflow.Analysis do
   # ============================================================================
   # Private helpers
   # ============================================================================
-
-  defp compute_dp(graph, order, source_set) do
-    Enum.reduce(order, %{}, fn id, acc ->
-      if MapSet.member?(source_set, id) do
-        Map.put(acc, id, {0, nil})
-      else
-        best = Choreo.Internal.best_predecessor(graph, id, acc)
-        if best, do: Map.put(acc, id, best), else: acc
-      end
-    end)
-  end
-
-  defp find_best_sink_path(dp, sink_set) do
-    best_sink =
-      Enum.reduce(sink_set, nil, fn id, best ->
-        case Map.fetch(dp, id) do
-          {:ok, {dist, _}} ->
-            if is_nil(best) or dist > elem(best, 0) do
-              {dist, id}
-            else
-              best
-            end
-
-          :error ->
-            best
-        end
-      end)
-
-    if best_sink do
-      {total, sink_id} = best_sink
-      path = reconstruct_path(dp, sink_id, [sink_id])
-      {:ok, path, total}
-    else
-      :error
-    end
-  end
-
-  defp reconstruct_path(_dp, nil, acc), do: acc
-
-  defp reconstruct_path(dp, id, acc) do
-    case Map.fetch(dp, id) do
-      {:ok, {_dist, nil}} -> acc
-      {:ok, {_dist, prev}} -> reconstruct_path(dp, prev, [prev | acc])
-      :error -> acc
-    end
-  end
 
   defp do_simulate(_graph, [], acc), do: acc
 
