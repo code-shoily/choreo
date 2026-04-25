@@ -18,6 +18,13 @@ defmodule Choreo.ThreatModel do
   Data flows that cross a boundary are automatically flagged for
   elevated scrutiny.
 
+  ## Further reading
+
+    * [STRIDE Model (Microsoft)](https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats)
+    * [Threat Modeling: Designing for Security (Shostack)](https://shostack.org/books/threat-modeling-book)
+    * [OWASP Threat Modeling Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html)
+    * [Data Flow Diagrams for Threat Modeling](https://learn.microsoft.com/en-us/training/modules/tm-create-a-threat-model-using-foundational-data-flow-diagram-elements/)
+
   ## Quick Start
 
       model =
@@ -248,7 +255,6 @@ defmodule Choreo.ThreatModel do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
-    * `:show_threats` — annotate edges with STRIDE threats (default: `false`)
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = model, opts \\ []) do

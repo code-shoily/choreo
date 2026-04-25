@@ -4,6 +4,23 @@ defmodule Choreo.ThreatModel.Analysis do
 
   Automatically generates threats based on element types, data-flow
   topology, and trust-boundary crossings.
+
+  ## STRIDE categories
+
+  | Category | Targets | Question |
+  |----------|---------|----------|
+  | **S**poofing | External entities, processes | Can someone impersonate this? |
+  | **T**ampering | Processes, data stores, flows | Can data be modified? |
+  | **R**epudiation | External entities, processes | Can actions be denied? |
+  | **I**nformation Disclosure | Processes, data stores, flows | Can data leak? |
+  | **D**enial of Service | Processes, data stores, flows | Can this be overwhelmed? |
+  | **E**levation of Privilege | Processes, data stores | Can an attacker gain access? |
+
+  ## Further reading
+
+    * [STRIDE Model (Microsoft)](https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats)
+    * [STRIDE-per-Element](https://shostack.org/resources/stride-per-element)
+    * [OWASP Threat Modeling](https://owasp.org/www-community/Threat_Modeling)
   """
 
   alias Choreo.ThreatModel
@@ -57,6 +74,54 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
+  Summarises threats by STRIDE category and severity.
+
+  Returns a map of `%{category => %{severity => count}}` plus totals.
+  Useful for dashboards and executive reporting.
+
+  ## Examples
+
+      summary = Choreo.ThreatModel.Analysis.threat_summary(model)
+      summary.by_category[:spoofing]
+      #=> %{high: 2, medium: 1}
+      summary.by_severity[:critical]
+      #=> 3
+      summary.total
+      #=> 14
+  """
+  @spec threat_summary(ThreatModel.t()) :: %{
+          by_category: %{atom() => %{atom() => non_neg_integer()}},
+          by_severity: %{atom() => non_neg_integer()},
+          total: non_neg_integer()
+        }
+  def threat_summary(%ThreatModel{} = model) do
+    threats = stride_threats(model)
+
+    by_category =
+      threats
+      |> Enum.group_by(& &1.category)
+      |> Enum.into(%{}, fn {cat, items} ->
+        severity_counts =
+          items
+          |> Enum.group_by(& &1.severity)
+          |> Enum.into(%{}, fn {sev, list} -> {sev, length(list)} end)
+
+        {cat, severity_counts}
+      end)
+
+    by_severity =
+      threats
+      |> Enum.group_by(& &1.severity)
+      |> Enum.into(%{}, fn {sev, items} -> {sev, length(items)} end)
+
+    %{
+      by_category: by_category,
+      by_severity: by_severity,
+      total: length(threats)
+    }
+  end
+
+  @doc """
   Returns all data flows that cross a trust boundary.
 
   Each result is `{from, to, from_boundary, to_boundary}`.
@@ -93,6 +158,29 @@ defmodule Choreo.ThreatModel.Analysis do
     model
     |> ThreatModel.elements_of_type(:data_store)
     |> Enum.filter(&MapSet.member?(reachable, &1))
+  end
+
+  @doc """
+  Returns all paths from external entities to data stores.
+
+  Each result is a list of node IDs representing a path from the
+  internet to data at rest. These are the attack vectors that an
+  adversary would follow.
+
+  ## Examples
+
+      paths = Choreo.ThreatModel.Analysis.attack_paths(model)
+      #=> [[:user, :api, :db], [:user, :api, :cache]]
+  """
+  @spec attack_paths(ThreatModel.t()) :: [[Yog.node_id()]]
+  def attack_paths(%ThreatModel{} = model) do
+    externals = ThreatModel.elements_of_type(model, :external_entity)
+    stores = ThreatModel.elements_of_type(model, :data_store) |> MapSet.new()
+
+    externals
+    |> Enum.flat_map(fn ext ->
+      dfs_all_paths(model.graph, ext, stores, [ext], MapSet.new([ext]))
+    end)
   end
 
   @doc """
@@ -294,6 +382,13 @@ defmodule Choreo.ThreatModel.Analysis do
         description: "#{id} may become unavailable",
         severity: :medium,
         mitigation: "Backups, replication, DDoS protection"
+      },
+      %{
+        category: :elevation_of_privilege,
+        target: id,
+        description: "An attacker with read access to #{id} may escalate to write access",
+        severity: base_severity,
+        mitigation: "Separate read/write ACLs, role-based access, audit access patterns"
       }
     ]
   end
@@ -367,8 +462,31 @@ defmodule Choreo.ThreatModel.Analysis do
   defp lower_severity(threat), do: threat
 
   # ============================================================================
-  # Private helpers — reachability
+  # Private helpers — path enumeration
   # ============================================================================
+
+  defp dfs_all_paths(graph, current, targets, path, visited) do
+    if MapSet.member?(targets, current) and length(path) > 1 do
+      [Enum.reverse(path)]
+    else
+      successors = Yog.successors(graph, current)
+
+      successors
+      |> Enum.flat_map(fn {neighbor, _weight} ->
+        if MapSet.member?(visited, neighbor) do
+          []
+        else
+          dfs_all_paths(
+            graph,
+            neighbor,
+            targets,
+            [neighbor | path],
+            MapSet.put(visited, neighbor)
+          )
+        end
+      end)
+    end
+  end
 
   # ============================================================================
   # Private helpers — validation

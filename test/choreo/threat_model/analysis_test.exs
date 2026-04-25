@@ -199,4 +199,91 @@ defmodule Choreo.ThreatModel.AnalysisTest do
       assert {:warning, "Data stores without sensitivity: [:db]"} in issues
     end
   end
+
+  describe "attack_paths/1" do
+    test "finds paths from external entities to data stores" do
+      paths = Analysis.attack_paths(simple_model())
+
+      assert paths != []
+      assert [:user, :api, :postgres] in paths
+    end
+
+    test "returns empty when no data stores are reachable" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.data_flow(:user, :api)
+
+      assert Analysis.attack_paths(model) == []
+    end
+
+    test "returns empty when no external entities exist" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:api, :db)
+
+      assert Analysis.attack_paths(model) == []
+    end
+  end
+
+  describe "threat_summary/1" do
+    test "returns summary with by_category, by_severity, and total" do
+      summary = Analysis.threat_summary(simple_model())
+
+      assert is_map(summary.by_category)
+      assert is_map(summary.by_severity)
+      assert is_integer(summary.total)
+      assert summary.total > 0
+    end
+
+    test "total matches actual threat count" do
+      model = simple_model()
+      threats = Analysis.stride_threats(model)
+      summary = Analysis.threat_summary(model)
+
+      assert summary.total == length(threats)
+    end
+
+    test "by_category sums match total" do
+      summary = Analysis.threat_summary(simple_model())
+
+      category_total =
+        summary.by_category
+        |> Enum.flat_map(fn {_cat, sevs} -> Map.values(sevs) end)
+        |> Enum.sum()
+
+      assert category_total == summary.total
+    end
+  end
+
+  describe "stride_threats/1 — data store EoP" do
+    test "generates elevation_of_privilege for data stores" do
+      threats = Analysis.stride_threats(simple_model())
+
+      db_threats =
+        threats
+        |> Enum.filter(&(&1.target == :postgres))
+        |> Enum.map(& &1.category)
+
+      assert :elevation_of_privilege in db_threats
+    end
+
+    test "EoP severity scales with sensitivity" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 3)
+        |> ThreatModel.add_data_store(:secret, boundary: "app", sensitivity: :restricted)
+
+      threats = Analysis.stride_threats(model)
+
+      eop =
+        threats
+        |> Enum.find(&(&1.target == :secret and &1.category == :elevation_of_privilege))
+
+      assert eop.severity == :critical
+    end
+  end
 end

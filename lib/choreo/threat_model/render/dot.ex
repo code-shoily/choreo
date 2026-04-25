@@ -4,12 +4,17 @@ defmodule Choreo.ThreatModel.Render.DOT do
 
   Produces security-oriented visualisation:
 
-    * **External entities** — rectangles with double border
+    * **External entities** — rectangles with thick border
     * **Processes** — circles
     * **Data stores** — cylinders
     * **Trust boundaries** — thick red dashed rectangles
     * **Cross-boundary flows** — highlighted edges
     * **Unencrypted flows** — red dashed edges
+
+  ## Further reading
+
+    * [DOT Language Reference](https://graphviz.org/doc/info/lang.html)
+    * [Microsoft Threat Modeling Tool DFD Shapes](https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-getting-started)
   """
 
   alias Choreo.Theme
@@ -122,31 +127,38 @@ defmodule Choreo.ThreatModel.Render.DOT do
 
   defp node_attributes_fn(theme) do
     fn _id, data ->
-      case Map.get(data, :element_type, :process) do
-        :external_entity ->
-          [
-            {:shape, :box},
-            {:fillcolor, threat_color(theme, :external_entity)},
-            {:penwidth, 2.0}
-          ]
+      base =
+        case Map.get(data, :element_type, :process) do
+          :external_entity ->
+            [
+              {:shape, :box},
+              {:fillcolor, threat_color(theme, :external_entity)},
+              {:penwidth, 2.0}
+            ]
 
-        :process ->
-          [
-            {:shape, :circle},
-            {:fillcolor, threat_color(theme, :process)}
-          ]
+          :process ->
+            [
+              {:shape, :circle},
+              {:fillcolor, threat_color(theme, :process)}
+            ]
 
-        :data_store ->
-          [
-            {:shape, :cylinder},
-            {:fillcolor, threat_color(theme, :data_store)}
-          ]
+          :data_store ->
+            [
+              {:shape, :cylinder},
+              {:fillcolor, threat_color(theme, :data_store)}
+            ]
 
-        _ ->
-          [
-            {:shape, :box},
-            {:fillcolor, threat_color(theme, :process)}
-          ]
+          _ ->
+            [
+              {:shape, :box},
+              {:fillcolor, threat_color(theme, :process)}
+            ]
+        end
+
+      if desc = data[:description] do
+        [{:tooltip, desc} | base]
+      else
+        base
       end
     end
   end
