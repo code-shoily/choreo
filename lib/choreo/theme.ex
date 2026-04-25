@@ -116,12 +116,28 @@ defmodule Choreo.Theme do
 
   @doc """
   Returns the default shape palette.
+
+  ## Examples
+
+      iex> shapes = Choreo.Theme.default_shapes()
+      iex> shapes[:database]
+      :cylinder
+      iex> shapes[:service]
+      :box3d
   """
   @spec default_shapes() :: %{atom() => Yog.Render.DOT.node_shape()}
   def default_shapes, do: @default_shapes
 
   @doc """
   Returns the default colour palette.
+
+  ## Examples
+
+      iex> colors = Choreo.Theme.default_colors()
+      iex> colors[:database]
+      "#3b82f6"
+      iex> colors[:service]
+      "#10b981"
   """
   @spec default_colors() :: %{atom() => String.t()}
   def default_colors, do: @default_colors
@@ -147,12 +163,28 @@ defmodule Choreo.Theme do
 
   @doc """
   The default theme — type-coloured nodes, top-down layout.
+
+  ## Examples
+
+      iex> theme = Choreo.Theme.default()
+      iex> theme.name
+      :default
+      iex> theme.graph_rankdir
+      :tb
   """
   @spec default() :: t()
   def default, do: struct!(__MODULE__, name: :default)
 
   @doc """
   Dark theme — dark background, neon accents.
+
+  ## Examples
+
+      iex> theme = Choreo.Theme.dark()
+      iex> theme.name
+      :dark
+      iex> theme.graph_bgcolor
+      "#0f172a"
   """
   @spec dark() :: t()
   def dark do
@@ -167,6 +199,16 @@ defmodule Choreo.Theme do
 
   @doc """
   Minimal theme — monochrome wireframe, thin edges, no fills.
+
+  ## Examples
+
+      iex> theme = Choreo.Theme.minimal()
+      iex> theme.name
+      :minimal
+      iex> theme.colors[:database]
+      "#ffffff"
+      iex> theme.shapes[:service]
+      :box
   """
   @spec minimal() :: t()
   def minimal do
@@ -202,6 +244,14 @@ defmodule Choreo.Theme do
 
   @doc """
   Resolves the effective shape for a node type, falling back to defaults.
+
+  ## Examples
+
+      iex> theme = Choreo.Theme.custom(shapes: %{database: :box})
+      iex> Choreo.Theme.shape(theme, :database)
+      :box
+      iex> Choreo.Theme.shape(theme, :service)
+      :box3d
   """
   @spec shape(t(), atom()) :: Yog.Render.DOT.node_shape()
   def shape(%Theme{shapes: shapes}, type) do
@@ -210,6 +260,14 @@ defmodule Choreo.Theme do
 
   @doc """
   Resolves the effective colour for a node type, falling back to defaults.
+
+  ## Examples
+
+      iex> theme = Choreo.Theme.custom(colors: %{database: "#ff0000"})
+      iex> Choreo.Theme.color(theme, :database)
+      "#ff0000"
+      iex> Choreo.Theme.color(theme, :service)
+      "#10b981"
   """
   @spec color(t(), atom()) :: String.t()
   def color(%Theme{colors: colors}, type) do

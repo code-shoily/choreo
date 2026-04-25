@@ -3,6 +3,14 @@ defmodule Choreo.Internal do
 
   @doc """
   Breadth-first search returning a MapSet of all reachable node IDs from seeds.
+
+  ## Examples
+
+      iex> graph = Yog.new(:directed) |> Yog.add_node(:a, %{}) |> Yog.add_node(:b, %{}) |> Yog.add_node(:c, %{})
+      ...> graph = Yog.add_edge_ensure(graph, :a, :b, 1)
+      ...> graph = Yog.add_edge_ensure(graph, :b, :c, 1)
+      iex> Choreo.Internal.bfs_reachable(graph, [:a]) |> MapSet.to_list() |> Enum.sort()
+      [:a, :b, :c]
   """
   @spec bfs_reachable(Yog.graph(), [Yog.node_id()]) :: MapSet.t(Yog.node_id())
   def bfs_reachable(graph, seeds) do
@@ -85,6 +93,15 @@ defmodule Choreo.Internal do
 
   @doc """
   Finds the best predecessor for a node in a DP longest-path computation.
+
+  ## Examples
+
+      iex> graph = Yog.new(:directed) |> Yog.add_node(:a, %{}) |> Yog.add_node(:b, %{}) |> Yog.add_node(:c, %{})
+      ...> graph = Yog.add_edge_ensure(graph, :a, :b, 5)
+      ...> graph = Yog.add_edge_ensure(graph, :a, :c, 10)
+      iex> acc = %{a: {0, nil}, b: {5, :a}, c: {10, :a}}
+      iex> Choreo.Internal.best_predecessor(graph, :b, acc)
+      {5, :a}
   """
   @spec best_predecessor(Yog.graph(), Yog.node_id(), map()) :: {number(), Yog.node_id()} | nil
   def best_predecessor(graph, id, acc) do
@@ -119,6 +136,13 @@ defmodule Choreo.Internal do
   `seed_set` controls which nodes are treated as path origins:
     * `nil` — every node is a potential origin (unreachable nodes get `{0, nil}`)
     * `MapSet.t()` — only nodes in the set are origins; unreachable nodes are omitted
+
+  ## Examples
+
+      iex> graph = Yog.new(:directed) |> Yog.add_node(:a, %{}) |> Yog.add_node(:b, %{})
+      ...> graph = Yog.add_edge_ensure(graph, :a, :b, 5)
+      iex> Choreo.Internal.compute_dp(graph, [:a, :b], nil)
+      %{a: {0, nil}, b: {5, :a}}
   """
   @spec compute_dp(Yog.graph(), [Yog.node_id()], MapSet.t(Yog.node_id()) | nil) :: %{
           optional(Yog.node_id()) => {number(), Yog.node_id() | nil}
@@ -144,6 +168,14 @@ defmodule Choreo.Internal do
 
   `candidate_set` restricts the search to specific nodes (e.g. sinks or ends).
   If `nil`, all entries in `dp` are considered.
+
+  ## Examples
+
+      iex> dp = %{a: {0, nil}, b: {5, :a}, c: {10, :a}}
+      iex> Choreo.Internal.find_best_end_path(dp)
+      {10, :c}
+      iex> Choreo.Internal.find_best_end_path(dp, MapSet.new([:a, :b]))
+      {5, :b}
   """
   @spec find_best_end_path(map(), MapSet.t(Yog.node_id()) | nil) ::
           {number(), Yog.node_id()} | nil
@@ -175,6 +207,12 @@ defmodule Choreo.Internal do
 
   @doc """
   Reconstructs a path from `end_id` back to an origin by following DP predecessors.
+
+  ## Examples
+
+      iex> dp = %{a: {0, nil}, b: {5, :a}, c: {10, :b}}
+      iex> Choreo.Internal.reconstruct_path(dp, :c)
+      [:a, :b, :c]
   """
   @spec reconstruct_path(map(), Yog.node_id()) :: [Yog.node_id()]
   def reconstruct_path(dp, end_id) do

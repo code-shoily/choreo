@@ -4,6 +4,8 @@ defmodule ChoreoTest do
   alias Choreo
 
   doctest Choreo
+  doctest Choreo.Theme
+  doctest Choreo.Analysis
 
   describe "creation" do
     test "new/0 creates a directed system by default" do

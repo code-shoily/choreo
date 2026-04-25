@@ -51,16 +51,17 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        system =
-          Choreo.new(directed: false)
-          |> Choreo.add_database(:db)
-          |> Choreo.add_service(:api)
-          |> Choreo.add_cache(:cache)
-          |> Choreo.connect(:api, :db, cost: 10)
-          |> Choreo.connect(:api, :cache, cost: 5)
-          |> Choreo.connect(:db, :cache, cost: 20)
-
-        {:ok, mst} = Choreo.Analysis.mst(system)
+        iex> system =
+        ...>   Choreo.new(directed: false)
+        ...>   |> Choreo.add_database(:db)
+        ...>   |> Choreo.add_service(:api)
+        ...>   |> Choreo.add_cache(:cache)
+        ...>   |> Choreo.connect(:api, :db, cost: 10)
+        ...>   |> Choreo.connect(:api, :cache, cost: 5)
+        ...>   |> Choreo.connect(:db, :cache, cost: 20)
+        iex> {:ok, mst} = Choreo.Analysis.mst(system)
+        iex> mst.total_weight
+        15
 
     This analysis answers the question: "What is the cheapest way to connect all services?"
   """
@@ -94,16 +95,16 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        system =
-          Choreo.new()
-          |> Choreo.add_service(:ingest)
-          |> Choreo.add_service(:transform)
-          |> Choreo.add_service(:store)
-          |> Choreo.add_dataflow(:ingest, :transform)
-          |> Choreo.add_dataflow(:transform, :store)
-
-        {:ok, order} = Choreo.Analysis.topological_sort(system)
-        # order => [:ingest, :transform, :store]
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:ingest)
+        ...>   |> Choreo.add_service(:transform)
+        ...>   |> Choreo.add_service(:store)
+        ...>   |> Choreo.add_dataflow(:ingest, :transform)
+        ...>   |> Choreo.add_dataflow(:transform, :store)
+        iex> {:ok, order} = Choreo.Analysis.topological_sort(system)
+        iex> order
+        [:ingest, :transform, :store]
 
     This analysis answers the question: "In what order should I deploy or initialise services?"
   """
@@ -170,17 +171,18 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        system =
-          Choreo.new()
-          |> Choreo.add_service(:api)
-          |> Choreo.add_service(:auth)
-          |> Choreo.add_database(:db)
-          |> Choreo.connect(:api, :auth)
-          |> Choreo.connect(:auth, :db)
-
-        result = Choreo.Analysis.single_points_of_failure(system)
-        result.nodes  #=> [:auth]
-        result.edges  #=> [{:api, :auth}, {:auth, :db}]
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:api)
+        ...>   |> Choreo.add_service(:auth)
+        ...>   |> Choreo.add_database(:db)
+        ...>   |> Choreo.connect(:api, :auth)
+        ...>   |> Choreo.connect(:auth, :db)
+        iex> result = Choreo.Analysis.single_points_of_failure(system)
+        iex> result.nodes
+        [:auth]
+        iex> result.edges
+        [{:api, :auth}, {:auth, :db}]
 
     This analysis answers the question: "Which services or links would take down the whole system if they failed?"
   """
@@ -210,16 +212,15 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        system =
-          Choreo.new()
-          |> Choreo.add_service(:api)
-          |> Choreo.add_service(:auth)
-          |> Choreo.add_database(:db)
-          |> Choreo.connect(:api, :auth)
-          |> Choreo.connect(:auth, :db)
-
-        Choreo.Analysis.impact_analysis(system, :db)
-        #=> [:auth, :api]
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:api)
+        ...>   |> Choreo.add_service(:auth)
+        ...>   |> Choreo.add_database(:db)
+        ...>   |> Choreo.connect(:api, :auth)
+        ...>   |> Choreo.connect(:auth, :db)
+        iex> Choreo.Analysis.impact_analysis(system, :db) |> Enum.sort()
+        [:api, :auth]
 
     This analysis answers the question: "What breaks if this service goes down?"
   """
@@ -254,10 +255,18 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        # Shortest by cost (default)
-        {:ok, path} = Choreo.Analysis.shortest_path(system, :api, :db)
-        path.nodes   #=> [:api, :auth, :db]
-        path.weight  #=> 15
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:api)
+        ...>   |> Choreo.add_service(:auth)
+        ...>   |> Choreo.add_database(:db)
+        ...>   |> Choreo.connect(:api, :auth, cost: 5)
+        ...>   |> Choreo.connect(:auth, :db, cost: 10)
+        iex> {:ok, path} = Choreo.Analysis.shortest_path(system, :api, :db)
+        iex> path.nodes
+        [:api, :auth, :db]
+        iex> path.weight
+        15
 
     This analysis answers the question: "What is the fastest or cheapest route between two services?"
   """
@@ -295,12 +304,16 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        # Most connected services
-        Choreo.Analysis.centrality(system)
-        #=> [{:api, 1.0}, {:auth, 0.67}, {:db, 0.33}]
-
-        # Top 3 bottleneck/bridge services
-        Choreo.Analysis.centrality(system, measure: :betweenness, limit: 3)
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:api)
+        ...>   |> Choreo.add_service(:auth)
+        ...>   |> Choreo.add_database(:db)
+        ...>   |> Choreo.connect(:api, :auth)
+        ...>   |> Choreo.connect(:auth, :db)
+        iex> [{top_node, _score} | _rest] = Choreo.Analysis.centrality(system)
+        iex> top_node
+        :auth
 
     This analysis answers the question: "Which services are the most critical connectors?"
   """
@@ -347,8 +360,13 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        Choreo.Analysis.isolated_nodes(system)
-        #=> [:orphan_service]
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:connected)
+        ...>   |> Choreo.add_service(:orphan)
+        ...>   |> Choreo.connect(:connected, :connected)
+        iex> Choreo.Analysis.isolated_nodes(system)
+        [:orphan]
 
     This analysis answers the question: "Which services have no connections at all?"
   """
@@ -379,12 +397,16 @@ defmodule Choreo.Analysis do
 
     ## Examples
 
-        Choreo.Analysis.validate(system)
-        #=> [
-        #=>   {:warning, "Isolated nodes: [:orphan]"},
-        #=>   {:warning, "Single points of failure: [:auth]"},
-        #=>   {:warning, "Bridge edges: [{:auth, :db}]"}
-        #=> ]
+        iex> system =
+        ...>   Choreo.new()
+        ...>   |> Choreo.add_service(:api)
+        ...>   |> Choreo.add_service(:auth)
+        ...>   |> Choreo.add_database(:db)
+        ...>   |> Choreo.connect(:api, :auth)
+        ...>   |> Choreo.connect(:auth, :db)
+        iex> [{_severity, msg} | _rest] = Choreo.Analysis.validate(system)
+        iex> String.contains?(msg, "Bridge edges")
+        true
 
     This analysis answers the question: "Is my architecture structurally sound?"
   """
