@@ -127,6 +127,71 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
+  Returns the unique set of all possible outcome classes the tree can produce.
+
+  Only considers outcomes that are actually reachable from the root.
+
+  ## Examples
+
+      Analysis.reachable_outcomes(tree)
+      #=> ["Stop", "Go"]
+  """
+  @spec reachable_outcomes(DecisionTree.t()) :: [String.t()]
+  def reachable_outcomes(%DecisionTree{root: nil}), do: []
+
+  def reachable_outcomes(%DecisionTree{} = tree) do
+    reachable = Choreo.Internal.bfs_reachable(tree.graph, [tree.root])
+
+    tree.graph.nodes
+    |> Enum.filter(fn {id, data} ->
+      data[:node_type] == :outcome and MapSet.member?(reachable, id)
+    end)
+    |> Enum.map(fn {_id, data} -> to_string(data[:class] || data[:label]) end)
+    |> Enum.uniq()
+  end
+
+  @doc """
+  Finds logically impossible paths where a feature is checked against
+  mutually exclusive conditions.
+
+  Returns a list of tuples `{path, [features_with_conflicts]}`.
+
+  ## Examples
+
+      Analysis.inconsistent_paths(tree)
+      #=> [{[:color, :color, :stop], ["color"]}]
+  """
+  @spec inconsistent_paths(DecisionTree.t()) :: [{[Yog.node_id()], [String.t()]}]
+  def inconsistent_paths(%DecisionTree{} = tree) do
+    paths = paths_with_conditions(tree)
+
+    paths
+    |> Enum.flat_map(fn {path_nodes, branches} ->
+      checks =
+        branches
+        |> Enum.map(fn {parent, _child, condition} ->
+          data = Yog.node(tree.graph, parent)
+          {data[:feature], condition}
+        end)
+        |> Enum.reject(fn {f, _c} -> is_nil(f) end)
+
+      inconsistencies =
+        checks
+        |> Enum.group_by(fn {f, _c} -> f end, fn {_f, c} -> c end)
+        |> Enum.filter(fn {_f, conditions} ->
+          length(Enum.uniq(conditions)) > 1
+        end)
+        |> Enum.map(fn {f, _conditions} -> to_string(f) end)
+
+      if inconsistencies == [] do
+        []
+      else
+        [{path_nodes, inconsistencies}]
+      end
+    end)
+  end
+
+  @doc """
   Prunes redundant decision nodes.
 
   A decision is redundant when **all** of its descendant leaves share

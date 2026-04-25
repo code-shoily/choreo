@@ -166,6 +166,60 @@ defmodule Choreo.DecisionTree.AnalysisTest do
     end
   end
 
+  describe "reachable_outcomes/1" do
+    test "returns all outcome classes for reachable outcomes" do
+      tree = traffic_light_tree()
+      outcomes = Analysis.reachable_outcomes(tree)
+      assert length(outcomes) == 3
+      assert "stop" in outcomes
+      assert "go" in outcomes
+      assert "slow" in outcomes
+    end
+
+    test "returns unique classes only" do
+      tree = nested_tree()
+      outcomes = Analysis.reachable_outcomes(tree)
+      assert length(outcomes) == 2
+      assert "yes" in outcomes
+      assert "no" in outcomes
+    end
+
+    test "returns empty for tree with no root" do
+      assert Analysis.reachable_outcomes(DecisionTree.new()) == []
+    end
+  end
+
+  describe "inconsistent_paths/1" do
+    test "returns empty for consistent tree" do
+      assert Analysis.inconsistent_paths(traffic_light_tree()) == []
+      assert Analysis.inconsistent_paths(nested_tree()) == []
+    end
+
+    test "finds paths with contradictory feature checks" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:color, feature: "color")
+        |> DecisionTree.add_decision(:shade, feature: "color")
+        |> DecisionTree.add_outcome(:stop, label: "Stop")
+        |> DecisionTree.add_outcome(:go1, label: "Go")
+        |> DecisionTree.add_outcome(:go2, label: "Go")
+        |> DecisionTree.branch(:color, :shade, "red")
+        |> DecisionTree.branch(:color, :go1, "green")
+        |> DecisionTree.branch(:shade, :stop, "dark")
+        |> DecisionTree.branch(:shade, :go2, "light")
+
+      inconsistencies = Analysis.inconsistent_paths(tree)
+      assert length(inconsistencies) == 2
+
+      paths = Enum.map(inconsistencies, &elem(&1, 0))
+      assert [:color, :shade, :stop] in paths
+      assert [:color, :shade, :go2] in paths
+
+      features = Enum.flat_map(inconsistencies, &elem(&1, 1))
+      assert "color" in features
+    end
+  end
+
   describe "validate/1" do
     test "returns empty for valid tree" do
       assert Analysis.validate(traffic_light_tree()) == []

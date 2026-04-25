@@ -158,6 +158,57 @@ defmodule Choreo.Dataflow.Analysis do
   end
 
   @doc """
+  Identifies nodes that lack explicit error handling paths.
+
+  Checks all `:transform` and `:sink` nodes. Returns a list of node IDs that do
+  not have any outgoing edge configured with `path_type: :error` or
+  `path_type: :dead_letter`.
+
+  ## Examples
+
+      Analysis.unhandled_errors(flow)
+      #=> [:parse, :save]
+  """
+  @spec unhandled_errors(Dataflow.t()) :: [Yog.node_id()]
+  def unhandled_errors(%Dataflow{} = flow) do
+    flow.graph.nodes
+    |> Enum.filter(fn {id, data} ->
+      is_target = data[:node_type] in [:transform, :sink]
+
+      has_handler =
+        Enum.any?(Yog.successor_ids(flow.graph, id), fn to ->
+          meta = Map.get(flow.edge_meta, {id, to}, %{})
+          meta[:path_type] in [:error, :dead_letter]
+        end)
+
+      is_target and not has_handler
+    end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Identifies nodes where the simulated incoming data rate exceeds capacity.
+
+  Reuses the `simulate/2` logic to calculate steady-state incoming rates,
+  and compares them against the `:capacity` attribute of each node.
+
+  Returns a list of node IDs where `in_rate > capacity`.
+  """
+  @spec capacity_bottlenecks(Dataflow.t()) :: [Yog.node_id()]
+  def capacity_bottlenecks(%Dataflow{} = flow) do
+    simulated = simulate(flow)
+
+    flow.graph.nodes
+    |> Enum.filter(fn {id, data} ->
+      capacity = data[:capacity]
+      stats = Map.get(simulated, id, %{in_rate: 0})
+
+      capacity != nil and stats.in_rate > capacity
+    end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
   Simulates throughput propagation through the pipeline.
 
   Each source is assigned a `:rate` (events/sec). Each non-source stage

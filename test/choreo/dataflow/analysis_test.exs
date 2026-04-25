@@ -236,6 +236,65 @@ defmodule Choreo.Dataflow.AnalysisTest do
     end
   end
 
+  describe "unhandled_errors/1" do
+    test "finds nodes without error or dlq paths" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:a)
+        |> Dataflow.add_transform(:b)
+        |> Dataflow.add_transform(:c)
+        |> Dataflow.add_sink(:d)
+        |> Dataflow.connect(:a, :b)
+        |> Dataflow.connect(:b, :c)
+        |> Dataflow.connect(:c, :d)
+        |> Dataflow.add_error_path(:b, :d)
+
+      errors = Analysis.unhandled_errors(flow)
+
+      # :a is a source, doesn't need error path
+      # :b has an error path, so it shouldn't be here
+      # :c is a transform with no error path
+      # :d is a sink with no error path
+      assert :c in errors
+      assert :d in errors
+      refute :a in errors
+      refute :b in errors
+    end
+  end
+
+  describe "capacity_bottlenecks/1" do
+    test "finds nodes where simulated in_rate > capacity" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:a, rate: 100)
+        |> Dataflow.add_transform(:b, capacity: 50)
+        |> Dataflow.add_transform(:c, capacity: 150)
+        |> Dataflow.add_sink(:d)
+        |> Dataflow.connect(:a, :b)
+        |> Dataflow.connect(:b, :c)
+        |> Dataflow.connect(:c, :d)
+
+      bottlenecks = Analysis.capacity_bottlenecks(flow)
+
+      # a is source
+      # b gets 100 in_rate, capacity is 50 -> bottleneck
+      # c gets 100 in_rate, capacity is 150 -> not bottleneck
+      # d has no capacity defined -> not bottleneck
+
+      assert bottlenecks == [:b]
+    end
+
+    test "returns empty when no capacities exceeded" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:a, rate: 10)
+        |> Dataflow.add_transform(:b, capacity: 50)
+        |> Dataflow.connect(:a, :b)
+
+      assert Analysis.capacity_bottlenecks(flow) == []
+    end
+  end
+
   describe "simulate/1" do
     test "propagates source rates through pipeline" do
       flow =

@@ -121,6 +121,41 @@ defmodule Choreo.Workflow.AnalysisTest do
     end
   end
 
+  describe "uncompensated_paths/1" do
+    test "returns tasks that can fail without reaching terminal compensation" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:start)
+        |> Workflow.add_task(:process_payment)
+        |> Workflow.add_compensation(:rollback_payment, for: :process_payment)
+        |> Workflow.add_task(:dead_end_comp)
+        |> Workflow.add_end(:done)
+        |> Workflow.connect(:start, :process_payment)
+        |> Workflow.connect(:process_payment, :done)
+        |> Workflow.connect(:process_payment, :rollback_payment, edge_type: :error)
+        |> Workflow.connect(:rollback_payment, :dead_end_comp, edge_type: :compensation)
+
+      # dead_end_comp doesn't go to :done or :start, so process_payment is uncompensated
+
+      assert Analysis.uncompensated_paths(workflow) == [:process_payment]
+    end
+
+    test "returns empty when compensation reaches end" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:start)
+        |> Workflow.add_task(:process_payment)
+        |> Workflow.add_compensation(:rollback_payment, for: :process_payment)
+        |> Workflow.add_end(:done)
+        |> Workflow.connect(:start, :process_payment)
+        |> Workflow.connect(:process_payment, :done)
+        |> Workflow.connect(:process_payment, :rollback_payment, edge_type: :error)
+        |> Workflow.connect(:rollback_payment, :done, edge_type: :compensation)
+
+      assert Analysis.uncompensated_paths(workflow) == []
+    end
+  end
+
   describe "missing_compensations/1" do
     test "returns tasks with retry but no compensation" do
       workflow =

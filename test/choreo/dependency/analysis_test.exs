@@ -130,6 +130,79 @@ defmodule Choreo.Dependency.AnalysisTest do
     end
   end
 
+  describe "transitive_reduction/1" do
+    test "finds redundant edge" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.add_module(:c)
+        |> Dependency.depends_on(:a, :b)
+        |> Dependency.depends_on(:b, :c)
+        |> Dependency.depends_on(:a, :c)
+
+      reductions = Analysis.transitive_reduction(deps)
+      assert reductions == [{:a, :c}]
+    end
+
+    test "returns empty when no redundant edges" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.add_module(:c)
+        |> Dependency.depends_on(:a, :b)
+        |> Dependency.depends_on(:b, :c)
+
+      assert Analysis.transitive_reduction(deps) == []
+    end
+  end
+
+  describe "instability/1" do
+    test "calculates correct instability scores" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:stable)
+        |> Dependency.add_module(:unstable)
+        |> Dependency.add_module(:mixed)
+        |> Dependency.depends_on(:unstable, :stable)
+        |> Dependency.depends_on(:unstable, :mixed)
+        |> Dependency.depends_on(:mixed, :stable)
+
+      scores = Analysis.instability(deps)
+
+      # stable has 2 incoming, 0 outgoing -> 0 / (2 + 0) = 0.0
+      assert scores.stable == 0.0
+
+      # unstable has 0 incoming, 2 outgoing -> 2 / (0 + 2) = 1.0
+      assert scores.unstable == 1.0
+
+      # mixed has 1 incoming, 1 outgoing -> 1 / (1 + 1) = 0.5
+      assert scores.mixed == 0.5
+    end
+  end
+
+  describe "isolated_subsystems/1" do
+    test "finds isolated groups" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a1)
+        |> Dependency.add_module(:a2)
+        |> Dependency.depends_on(:a1, :a2)
+        |> Dependency.add_module(:b1)
+        |> Dependency.add_module(:b2)
+        |> Dependency.depends_on(:b1, :b2)
+        |> Dependency.add_module(:orphan)
+
+      subsystems = Analysis.isolated_subsystems(deps)
+
+      assert length(subsystems) == 3
+      assert Enum.any?(subsystems, fn group -> Enum.sort(group) == [:a1, :a2] end)
+      assert Enum.any?(subsystems, fn group -> Enum.sort(group) == [:b1, :b2] end)
+      assert Enum.any?(subsystems, fn group -> group == [:orphan] end)
+    end
+  end
+
   describe "centrality/1" do
     test "ranks by in-degree + out-degree" do
       deps =

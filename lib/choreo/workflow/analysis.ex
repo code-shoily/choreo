@@ -145,6 +145,59 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   @doc """
+  Returns tasks that can fail but have no valid compensation path.
+
+  A task "can fail" if it has an outgoing `:error` edge.
+  A valid compensation path is an unbroken chain of `:compensation` edges
+  leading to a `:start` or `:end` node.
+
+  ## Examples
+
+      Analysis.uncompensated_paths(workflow)
+      #=> [:process_payment]
+  """
+  @spec uncompensated_paths(Workflow.t()) :: [Yog.node_id()]
+  def uncompensated_paths(%Workflow{graph: graph, edge_meta: edge_meta} = flow) do
+    can_fail =
+      graph.nodes
+      |> Enum.filter(fn {id, _data} ->
+        outgoing = Yog.successor_ids(graph, id)
+
+        Enum.any?(outgoing, fn succ ->
+          meta = Map.get(edge_meta, {id, succ}, %{})
+          meta[:edge_type] == :error
+        end)
+      end)
+      |> Enum.map(fn {id, _data} -> id end)
+
+    comp_graph =
+      Yog.Transform.filter_edges(graph, fn src, dst, _weight ->
+        meta = Map.get(edge_meta, {src, dst}, %{})
+        meta[:edge_type] == :compensation
+      end)
+
+    terminals = Workflow.starts(flow) ++ Workflow.ends(flow)
+
+    can_fail
+    |> Enum.reject(fn id ->
+      # From the failed node, find all error handlers
+      error_targets =
+        graph
+        |> Yog.successor_ids(id)
+        |> Enum.filter(fn succ ->
+          meta = Map.get(edge_meta, {id, succ}, %{})
+          meta[:edge_type] == :error
+        end)
+
+      # Check if EVERY error handler can reach a terminal node via compensation edges
+      Enum.all?(error_targets, fn target ->
+        reachable = Choreo.Internal.bfs_reachable(comp_graph, [target])
+        Enum.any?(terminals, fn t -> MapSet.member?(reachable, t) end)
+      end)
+    end)
+  end
+
+  @doc """
   Returns tasks that have retry configured but no compensation path.
   """
   @spec missing_compensations(Workflow.t()) :: [Yog.node_id()]

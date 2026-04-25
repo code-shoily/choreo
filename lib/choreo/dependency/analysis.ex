@@ -197,6 +197,95 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
+  Identifies redundant explicit dependencies.
+
+  If A depends on B, B depends on C, and A depends on C, the direct
+  edge A -> C is often redundant. This returns a list of `{from, to}`
+  tuples representing these redundant edges.
+
+  ## Examples
+
+      deps =
+        Choreo.Dependency.new()
+        |> Choreo.Dependency.add_module(:a)
+        |> Choreo.Dependency.add_module(:b)
+        |> Choreo.Dependency.add_module(:c)
+        |> Choreo.Dependency.depends_on(:a, :b)
+        |> Choreo.Dependency.depends_on(:b, :c)
+        |> Choreo.Dependency.depends_on(:a, :c) # Redundant
+
+      Choreo.Dependency.Analysis.transitive_reduction(deps)
+      #=> [{:a, :c}]
+  """
+  @spec transitive_reduction(Dependency.t()) :: [{Yog.node_id(), Yog.node_id()}]
+  def transitive_reduction(%Dependency{graph: graph}) do
+    edges = Yog.all_edges(graph)
+
+    Enum.reduce(edges, [], fn {u, v, _weight}, redundant ->
+      # If we remove the direct edge u -> v, can we still reach v from u?
+      # We check this by seeing if v is reachable from any OTHER successor of u.
+      other_successors =
+        graph
+        |> Yog.successor_ids(u)
+        |> List.delete(v)
+
+      if other_successors == [] do
+        redundant
+      else
+        reachable = Choreo.Internal.bfs_reachable(graph, other_successors)
+
+        if MapSet.member?(reachable, v) do
+          [{u, v} | redundant]
+        else
+          redundant
+        end
+      end
+    end)
+  end
+
+  @doc """
+  Calculates the Instability metric for each component.
+
+  Formula: `Efferent Coupling / (Afferent + Efferent Coupling)`
+  Returns a map of `node_id => instability_score`.
+  A score of 0.0 means the component is maximally stable.
+  A score of 1.0 means the component is maximally unstable.
+
+  ## Examples
+
+      Choreo.Dependency.Analysis.instability(deps)
+      #=> %{a: 1.0, b: 0.5, c: 0.0}
+  """
+  @spec instability(Dependency.t()) :: %{Yog.node_id() => float()}
+  def instability(%Dependency{graph: graph}) do
+    graph.nodes
+    |> Enum.map(fn {id, _data} ->
+      ce = Yog.out_degree(graph, id)
+      ca = Yog.in_degree(graph, id)
+
+      score =
+        if ca + ce == 0 do
+          0.0
+        else
+          ce / (ca + ce)
+        end
+
+      {id, score}
+    end)
+    |> Map.new()
+  end
+
+  @doc """
+  Identifies completely isolated subsystems (weakly connected components).
+
+  Returns a list of components, where each component is a list of node IDs.
+  """
+  @spec isolated_subsystems(Dependency.t()) :: [[Yog.node_id()]]
+  def isolated_subsystems(%Dependency{graph: graph}) do
+    Yog.Connectivity.weakly_connected_components(graph)
+  end
+
+  @doc """
   Finds the longest dependency chain in the graph.
 
   This measures the maximum depth of the dependency tree — useful for
