@@ -468,11 +468,11 @@ All modules ship with comprehensive ExUnit test suites:
 - [x] Decision trees (`Choreo.DecisionTree`)
 - [x] STRIDE threat modeling (`Choreo.ThreatModel`)
 - [x] Task orchestration workflows (`Choreo.Workflow`)
-- [ ] LiveView interactive diagram editor
-- [ ] Export to Mermaid / SVG / PNG
-- [ ] Diff / merge for diagram versions
 - [ ] Schema validation for dataflow edges
-- [ ] GenStage / Broadway code generation from dataflow
+- [ ] Custom theme presets and per-node style overrides
+- [ ] Deeper analysis: centrality metrics, graph colouring, cut vertices
+- [ ] Cross-module composition (e.g. embed a Dataflow inside a Choreo cluster)
+- [ ] Validation framework across all modules
 
 ---
 
