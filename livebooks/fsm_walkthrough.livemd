@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, "~> 0.6"},
   {:kino_vizjs, "~> 0.8"}
 ])
 ```
