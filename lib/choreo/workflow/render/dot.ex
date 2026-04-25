@@ -55,6 +55,7 @@ defmodule Choreo.Workflow.Render.DOT do
       |> Map.put(:node_fontsize, theme.node_fontsize)
       |> Map.put(:node_fontcolor, theme.node_fontcolor)
       |> Map.put(:edge_color, theme.edge_color)
+      |> Map.put(:edge_fontcolor, theme.edge_color)
       |> Map.put(:edge_fontname, theme.edge_fontname)
       |> Map.put(:edge_fontsize, theme.edge_fontsize)
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
@@ -250,23 +251,23 @@ defmodule Choreo.Workflow.Render.DOT do
   end
 
   defp edge_type_attrs(:compensation) do
-    [{:color, "#ef4444"}, {:penwidth, 1.5}, {:style, "dashed"}]
+    [{:color, "#ef4444"}, {:fontcolor, "#ef4444"}, {:penwidth, 1.5}, {:style, "dashed"}]
   end
 
   defp edge_type_attrs(:retry) do
-    [{:color, "#f97316"}, {:penwidth, 1.5}, {:style, "dotted"}]
+    [{:color, "#f97316"}, {:fontcolor, "#f97316"}, {:penwidth, 1.5}, {:style, "dotted"}]
   end
 
   defp edge_type_attrs(:failure) do
-    [{:color, "#9ca3af"}, {:penwidth, 1.2}, {:style, "dashed"}]
+    [{:color, "#9ca3af"}, {:fontcolor, "#9ca3af"}, {:penwidth, 1.2}, {:style, "dashed"}]
   end
 
   defp edge_type_attrs(:timeout) do
-    [{:color, "#eab308"}, {:penwidth, 1.2}, {:style, "dashed"}]
+    [{:color, "#eab308"}, {:fontcolor, "#eab308"}, {:penwidth, 1.2}, {:style, "dashed"}]
   end
 
   defp edge_type_attrs(_) do
-    [{:color, "#64748b"}, {:penwidth, 1.0}, {:style, "solid"}]
+    [{:color, "#64748b"}, {:fontcolor, "#64748b"}, {:penwidth, 1.0}, {:style, "solid"}]
   end
 
   defp edge_label(_), do: ""
