@@ -55,7 +55,7 @@ defmodule Choreo.FSM.Render.DOT do
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, fn _id, data -> data[:label] || "" end)
       |> Map.put(:edge_label, fn weight -> weight || "" end)
-      |> Map.put(:node_attributes, node_attributes_fn(theme))
+      |> Map.put(:node_attributes, node_attributes_fn(theme, fsm))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
@@ -132,23 +132,34 @@ defmodule Choreo.FSM.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(theme) do
-    fn _id, data ->
-      case Map.get(data, :state_type, :normal) do
-        :initial ->
+  defp node_attributes_fn(theme, fsm) do
+    fn id, _data ->
+      is_initial = id in FSM.initial_states(fsm)
+      is_final = id in FSM.final_states(fsm)
+
+      cond do
+        is_initial and is_final ->
+          [
+            {:shape, :doublecircle},
+            {:fillcolor, fsm_color(theme, :initial)},
+            {:fontcolor, "white"},
+            {:penwidth, 2.0}
+          ]
+
+        is_initial ->
           [
             {:fillcolor, fsm_color(theme, :initial)},
             {:fontcolor, "white"}
           ]
 
-        :final ->
+        is_final ->
           [
             {:shape, :doublecircle},
             {:fillcolor, fsm_color(theme, :final)},
             {:penwidth, 2.0}
           ]
 
-        _ ->
+        true ->
           [
             {:fillcolor, fsm_color(theme, :normal)}
           ]
