@@ -19,6 +19,11 @@ defmodule Choreo.Dataflow.Render.DOT do
 
   Layout is left-to-right by default so data flows from left to right.
   Clusters are rendered as bounded rectangles with optional fill colours.
+
+  ## Further reading
+
+    * [Dataflow Programming (Wikipedia)](https://en.wikipedia.org/wiki/Dataflow_programming)
+    * [Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/)
   """
 
   alias Choreo.Theme
@@ -136,48 +141,55 @@ defmodule Choreo.Dataflow.Render.DOT do
 
   defp node_attributes_fn(theme) do
     fn _id, data ->
-      case Map.get(data, :node_type, :transform) do
-        :source ->
-          [
-            {:shape, :house},
-            {:fillcolor, df_color(theme, :source)}
-          ]
+      base =
+        case Map.get(data, :node_type, :transform) do
+          :source ->
+            [
+              {:shape, :house},
+              {:fillcolor, df_color(theme, :source)}
+            ]
 
-        :sink ->
-          [
-            {:shape, :invhouse},
-            {:fillcolor, df_color(theme, :sink)}
-          ]
+          :sink ->
+            [
+              {:shape, :invhouse},
+              {:fillcolor, df_color(theme, :sink)}
+            ]
 
-        :transform ->
-          [
-            {:shape, :box3d},
-            {:fillcolor, df_color(theme, :transform)}
-          ]
+          :transform ->
+            [
+              {:shape, :box3d},
+              {:fillcolor, df_color(theme, :transform)}
+            ]
 
-        :buffer ->
-          [
-            {:shape, :cylinder},
-            {:fillcolor, df_color(theme, :buffer)}
-          ]
+          :buffer ->
+            [
+              {:shape, :cylinder},
+              {:fillcolor, df_color(theme, :buffer)}
+            ]
 
-        :conditional ->
-          [
-            {:shape, :diamond},
-            {:fillcolor, df_color(theme, :conditional)}
-          ]
+          :conditional ->
+            [
+              {:shape, :diamond},
+              {:fillcolor, df_color(theme, :conditional)}
+            ]
 
-        :merge ->
-          [
-            {:shape, :trapezium},
-            {:fillcolor, df_color(theme, :merge)}
-          ]
+          :merge ->
+            [
+              {:shape, :trapezium},
+              {:fillcolor, df_color(theme, :merge)}
+            ]
 
-        _ ->
-          [
-            {:shape, :box},
-            {:fillcolor, df_color(theme, :transform)}
-          ]
+          _ ->
+            [
+              {:shape, :box},
+              {:fillcolor, df_color(theme, :transform)}
+            ]
+        end
+
+      if desc = data[:description] do
+        [{:tooltip, desc} | base]
+      else
+        base
       end
     end
   end
@@ -209,9 +221,22 @@ defmodule Choreo.Dataflow.Render.DOT do
 
       base = path_type_attrs(meta[:path_type] || :normal)
 
-      base = if rate = meta[:rate], do: [{:label, "#{rate}"} | base], else: base
+      label = meta[:label]
+      rate = meta[:rate]
 
-      base
+      display_label =
+        case {label, rate} do
+          {nil, nil} -> nil
+          {label, nil} -> label
+          {nil, rate} -> "#{rate} evt/s"
+          {label, rate} -> "#{label}\\n#{rate} evt/s"
+        end
+
+      if display_label do
+        [{:label, display_label} | base]
+      else
+        base
+      end
     end
   end
 
@@ -231,6 +256,5 @@ defmodule Choreo.Dataflow.Render.DOT do
     [{:color, "#64748b"}, {:penwidth, 1.0}, {:style, "solid"}]
   end
 
-  defp edge_label(weight) when is_binary(weight) and weight != "", do: weight
   defp edge_label(_), do: ""
 end

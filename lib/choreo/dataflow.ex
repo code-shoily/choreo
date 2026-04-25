@@ -16,6 +16,12 @@ defmodule Choreo.Dataflow do
     * `:conditional` — branch / split based on a predicate
     * `:merge` — join multiple streams into one
 
+  ## Further reading
+
+    * [Dataflow Programming (Wikipedia)](https://en.wikipedia.org/wiki/Dataflow_programming)
+    * [Streaming Systems (O'Reilly)](https://www.oreilly.com/library/view/streaming-systems/9781491983867/)
+    * [Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/)
+
   ## Quick Start
 
       pipeline =

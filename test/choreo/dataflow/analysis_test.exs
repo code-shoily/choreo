@@ -94,14 +94,14 @@ defmodule Choreo.Dataflow.AnalysisTest do
       assert Analysis.orphan_nodes(flow) == [:c]
     end
 
-    test "returns all nodes when no sources" do
+    test "returns empty list when no sources" do
       flow =
         Dataflow.new()
         |> Dataflow.add_transform(:a)
         |> Dataflow.add_transform(:b)
         |> Dataflow.connect(:a, :b)
 
-      assert Enum.sort(Analysis.orphan_nodes(flow)) == [:a, :b]
+      assert Analysis.orphan_nodes(flow) == []
     end
 
     test "empty when all reachable from source" do

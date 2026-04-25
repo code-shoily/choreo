@@ -11,6 +11,12 @@ defmodule Choreo.Dataflow.Analysis do
     * Where are the bottlenecks? (high fan-in / fan-out)
     * What is the critical path? (longest source→sink chain)
     * Where does back-pressure build up? (throughput simulation)
+
+  ## Further reading
+
+    * [Dataflow Programming (Wikipedia)](https://en.wikipedia.org/wiki/Dataflow_programming)
+    * [Streaming Systems (O'Reilly)](https://www.oreilly.com/library/view/streaming-systems/9781491983867/)
+    * [Enterprise Integration Patterns](https://www.enterpriseintegrationpatterns.com/)
   """
 
   alias Choreo.Dataflow
@@ -55,7 +61,7 @@ defmodule Choreo.Dataflow.Analysis do
     source_ids = sources(flow)
 
     if source_ids == [] do
-      Dataflow.nodes(flow)
+      []
     else
       reachable = Choreo.Internal.bfs_reachable(flow.graph, source_ids)
       all = Dataflow.nodes(flow) |> MapSet.new()

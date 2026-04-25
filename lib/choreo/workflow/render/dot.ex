@@ -21,6 +21,11 @@ defmodule Choreo.Workflow.Render.DOT do
     * **Timeout** — dashdot
 
   Swimlanes are rendered as subgraph clusters with optional fill colours.
+
+  ## Further reading
+
+    * [BPMN 2.0 Specification](https://www.omg.org/spec/BPMN/2.0/)
+    * [Workflow Patterns Initiative](http://www.workflowpatterns.com/)
   """
 
   alias Choreo.Theme
@@ -142,64 +147,71 @@ defmodule Choreo.Workflow.Render.DOT do
 
   defp node_attributes_fn(theme) do
     fn _id, data ->
-      case Map.get(data, :node_type, :task) do
-        :start ->
-          [
-            {:shape, :circle},
-            {:fillcolor, wf_color(theme, :start)},
-            {:penwidth, 2.0}
-          ]
+      base =
+        case Map.get(data, :node_type, :task) do
+          :start ->
+            [
+              {:shape, :circle},
+              {:fillcolor, wf_color(theme, :start)},
+              {:penwidth, 2.0}
+            ]
 
-        :end ->
-          [
-            {:shape, :doublecircle},
-            {:fillcolor, wf_color(theme, :end)},
-            {:penwidth, 2.0}
-          ]
+          :end ->
+            [
+              {:shape, :doublecircle},
+              {:fillcolor, wf_color(theme, :end)},
+              {:penwidth, 2.0}
+            ]
 
-        :task ->
-          [
-            {:shape, :box3d},
-            {:fillcolor, wf_color(theme, :task)}
-          ]
+          :task ->
+            [
+              {:shape, :box3d},
+              {:fillcolor, wf_color(theme, :task)}
+            ]
 
-        :decision ->
-          [
-            {:shape, :diamond},
-            {:fillcolor, wf_color(theme, :decision)}
-          ]
+          :decision ->
+            [
+              {:shape, :diamond},
+              {:fillcolor, wf_color(theme, :decision)}
+            ]
 
-        :fork ->
-          [
-            {:shape, :invhouse},
-            {:fillcolor, wf_color(theme, :fork)}
-          ]
+          :fork ->
+            [
+              {:shape, :invhouse},
+              {:fillcolor, wf_color(theme, :fork)}
+            ]
 
-        :join ->
-          [
-            {:shape, :house},
-            {:fillcolor, wf_color(theme, :join)}
-          ]
+          :join ->
+            [
+              {:shape, :house},
+              {:fillcolor, wf_color(theme, :join)}
+            ]
 
-        :compensation ->
-          [
-            {:shape, :note},
-            {:fillcolor, wf_color(theme, :compensation)},
-            {:style, "filled,dashed"},
-            {:color, "#ef4444"}
-          ]
+          :compensation ->
+            [
+              {:shape, :note},
+              {:fillcolor, wf_color(theme, :compensation)},
+              {:style, "filled,dashed"},
+              {:color, "#ef4444"}
+            ]
 
-        :event ->
-          [
-            {:shape, :cloud},
-            {:fillcolor, wf_color(theme, :event)}
-          ]
+          :event ->
+            [
+              {:shape, :cloud},
+              {:fillcolor, wf_color(theme, :event)}
+            ]
 
-        _ ->
-          [
-            {:shape, :box},
-            {:fillcolor, wf_color(theme, :task)}
-          ]
+          _ ->
+            [
+              {:shape, :box},
+              {:fillcolor, wf_color(theme, :task)}
+            ]
+        end
+
+      if desc = data[:description] do
+        [{:tooltip, desc} | base]
+      else
+        base
       end
     end
   end
@@ -257,6 +269,5 @@ defmodule Choreo.Workflow.Render.DOT do
     [{:color, "#64748b"}, {:penwidth, 1.0}, {:style, "solid"}]
   end
 
-  defp edge_label(weight) when is_number(weight), do: to_string(weight)
   defp edge_label(_), do: ""
 end

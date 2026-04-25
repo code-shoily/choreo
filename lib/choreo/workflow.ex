@@ -12,6 +12,12 @@ defmodule Choreo.Workflow do
     * **Events** — triggers, timers, signals
     * **Swimlanes** — group tasks by team, service, or domain
 
+  ## Further reading
+
+    * [Saga Pattern (Microsoft)](https://learn.microsoft.com/en-us/azure/architecture/reference-architectures/saga/saga)
+    * [BPMN 2.0 Specification](https://www.omg.org/spec/BPMN/2.0/)
+    * [Workflow Patterns Initiative](http://www.workflowpatterns.com/)
+
   ## Quick Start
 
       workflow =

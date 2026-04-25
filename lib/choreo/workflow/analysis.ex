@@ -9,6 +9,12 @@ defmodule Choreo.Workflow.Analysis do
     * What breaks if a task fails? (failure scenarios)
     * Which tasks lack compensations?
     * Where are the bottlenecks? (high latency / high retry)
+
+  ## Further reading
+
+    * [Saga Pattern (Microsoft)](https://learn.microsoft.com/en-us/azure/architecture/reference-architectures/saga/saga)
+    * [BPMN 2.0 Specification](https://www.omg.org/spec/BPMN/2.0/)
+    * [Workflow Patterns Initiative](http://www.workflowpatterns.com/)
   """
 
   alias Choreo.Workflow
@@ -37,7 +43,7 @@ defmodule Choreo.Workflow.Analysis do
     start_ids = Workflow.starts(workflow)
 
     if start_ids == [] do
-      Workflow.nodes(workflow)
+      []
     else
       reachable = Choreo.Internal.bfs_reachable(workflow.graph, start_ids)
       all = Workflow.nodes(workflow) |> MapSet.new()
@@ -229,8 +235,6 @@ defmodule Choreo.Workflow.Analysis do
 
   # ============================================================================
   # Private helpers — critical path
-  # ============================================================================
-
   # ============================================================================
   # Private helpers — levels
   # ============================================================================
