@@ -74,8 +74,14 @@ defmodule Choreo do
 
   ## Examples
 
-      iex> Choreo.new()
-      iex> Choreo.new(directed: false)
+      iex> system = Choreo.new()
+      iex> map_size(system.edge_meta)
+      0
+      iex> map_size(system.clusters)
+      0
+      iex> system = Choreo.new(directed: false)
+      iex> Yog.type(system.graph)
+      :undirected
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -101,6 +107,16 @@ defmodule Choreo do
     * `:name` - display name (defaults to the node id)
     * `:description` - tooltip / annotation text
 
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_database(:db, kind: :postgres)
+      iex> Choreo.nodes(system)[:db].type
+      :database
+      iex> Choreo.nodes(system)[:db].kind
+      :postgres
+      iex> Choreo.nodes(system)[:db].name
+      "db"
+
   ## Diagram
 
   <div class="graphviz">
@@ -108,10 +124,9 @@ defmodule Choreo do
       graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
       node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
       edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
-      db [label="db", style="filled", fontcolor="white", fillcolor="#14b8a6", shape="tab"];
+      db [label="db", style="filled", fontcolor="white", fillcolor="#3b82f6", shape="cylinder"];
     }
   </div>
-
   """
   @spec add_database(t(), Yog.node_id(), keyword()) :: t()
   def add_database(system, id, opts \\ []) do
@@ -121,22 +136,28 @@ defmodule Choreo do
   @doc """
   Adds a cache node to the system.
 
-  ## Diagram
-
-  <div class="graphviz">
-      digraph G {
-        graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
-        node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
-        edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
-        cache [label="Redis", style="filled", fontcolor="white", fillcolor="#f59e0b", shape="octagon"];
-      }
-  </div>
-
   ## Options
 
     * `:kind` - `:redis`, `:memcached`, etc.
     * `:name` - display name
     * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_cache(:cache, kind: :redis)
+      iex> Choreo.nodes(system)[:cache].type
+      :cache
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+      cache [label="Redis", style="filled", fontcolor="white", fillcolor="#f59e0b", shape="octagon"];
+    }
+  </div>
   """
   @spec add_cache(t(), Yog.node_id(), keyword()) :: t()
   def add_cache(system, id, opts \\ []) do
@@ -145,6 +166,20 @@ defmodule Choreo do
 
   @doc """
   Adds a service / application node to the system.
+
+  ## Options
+
+    * `:kind` - `:api`, `:worker`, `:web`, `:microservice`, etc.
+    * `:name` - display name
+    * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:api, name: "Gateway")
+      iex> Choreo.nodes(system)[:api].type
+      :service
+      iex> Choreo.nodes(system)[:api].name
+      "Gateway"
 
   ## Diagram
 
@@ -156,12 +191,6 @@ defmodule Choreo do
       auth [label="auth", style="filled", fontcolor="white", fillcolor="#10b981", shape="box3d"];
     }
   </div>
-
-  ## Options
-
-    * `:kind` - `:api`, `:worker`, `:web`, `:microservice`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
   """
   @spec add_service(t(), Yog.node_id(), keyword()) :: t()
   def add_service(system, id, opts \\ []) do
@@ -170,6 +199,18 @@ defmodule Choreo do
 
   @doc """
   Adds a network / infrastructure boundary node.
+
+  ## Options
+
+    * `:kind` - `:vpc`, `:subnet`, `:cdn`, `:dns`, `:firewall`, etc.
+    * `:name` - display name
+    * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_network(:vpc)
+      iex> Choreo.nodes(system)[:vpc].type
+      :network
 
   ## Diagram
 
@@ -182,12 +223,6 @@ defmodule Choreo do
       cloudflare [label="cloudflare", style="filled", fontcolor="white", fillcolor="#6366f1", shape="cloud"];
     }
   </div>
-
-  ## Options
-
-    * `:kind` - `:vpc`, `:subnet`, `:cdn`, `:dns`, `:firewall`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
   """
   @spec add_network(t(), Yog.node_id(), keyword()) :: t()
   def add_network(system, id, opts \\ []) do
@@ -196,6 +231,18 @@ defmodule Choreo do
 
   @doc """
   Adds a user / external actor node to the system.
+
+  ## Options
+
+    * `:kind` - `:person`, `:device`, `:external_service`, etc.
+    * `:name` - display name
+    * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_user(:client)
+      iex> Choreo.nodes(system)[:client].type
+      :user
 
   ## Diagram
 
@@ -207,12 +254,6 @@ defmodule Choreo do
       user [label="user", style="filled", fontcolor="white", fillcolor="#ef4444", shape="doublecircle"];
     }
   </div>
-
-  ## Options
-
-    * `:kind` - `:person`, `:device`, `:external_service`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
   """
   @spec add_user(t(), Yog.node_id(), keyword()) :: t()
   def add_user(system, id, opts \\ []) do
@@ -221,6 +262,18 @@ defmodule Choreo do
 
   @doc """
   Adds a load-balancer node to the system.
+
+  ## Options
+
+    * `:kind` - `:nginx`, `:haproxy`, `:alb`, `:cloudflare`, etc.
+    * `:name` - display name
+    * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_load_balancer(:lb)
+      iex> Choreo.nodes(system)[:lb].type
+      :load_balancer
 
   ## Diagram
 
@@ -232,12 +285,6 @@ defmodule Choreo do
       lb [label="lb", style="filled", fontcolor="white", fillcolor="#8b5cf6", shape="hexagon"];
     }
   </div>
-
-  ## Options
-
-    * `:kind` - `:nginx`, `:haproxy`, `:alb`, `:cloudflare`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
   """
   @spec add_load_balancer(t(), Yog.node_id(), keyword()) :: t()
   def add_load_balancer(system, id, opts \\ []) do
@@ -246,6 +293,18 @@ defmodule Choreo do
 
   @doc """
   Adds a queue / messaging node to the system.
+
+  ## Options
+
+    * `:kind` - `:kafka`, `:rabbitmq`, `:sqs`, `:pubsub`, etc.
+    * `:name` - display name
+    * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_queue(:q, kind: :kafka)
+      iex> Choreo.nodes(system)[:q].type
+      :queue
 
   ## Diagram
 
@@ -258,12 +317,6 @@ defmodule Choreo do
       queue [label="queue", style="filled", fontcolor="white", fillcolor="#ec4899", shape="component"];
     }
   </div>
-
-  ## Options
-
-    * `:kind` - `:kafka`, `:rabbitmq`, `:sqs`, `:pubsub`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
   """
   @spec add_queue(t(), Yog.node_id(), keyword()) :: t()
   def add_queue(system, id, opts \\ []) do
@@ -273,6 +326,18 @@ defmodule Choreo do
   @doc """
   Adds a storage / blob node to the system.
 
+  ## Options
+
+    * `:kind` - `:s3`, `:nfs`, `:block`, `:glacier`, etc.
+    * `:name` - display name
+    * `:description` - tooltip / annotation text
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_storage(:s3)
+      iex> Choreo.nodes(system)[:s3].type
+      :storage
+
   ## Diagram
 
   <div class="graphviz">
@@ -280,15 +345,9 @@ defmodule Choreo do
       graph [rankdir=TB, splines=spline, nodesep=0.6, ranksep=1.2];
       node [shape=ellipse, style=filled, fillcolor="lightblue", fontname="Helvetica", fontsize=12, fontcolor="white"];
       edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
-      storage [label="storage", style="filled", fontcolor="white", fillcolor="#6366f1", shape="box"];
+      storage [label="storage", style="filled", fontcolor="white", fillcolor="#14b8a6", shape="tab"];
     }
   </div>
-
-  ## Options
-
-    * `:kind` - `:s3`, `:nfs`, `:block`, `:glacier`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
   """
   @spec add_storage(t(), Yog.node_id(), keyword()) :: t()
   def add_storage(system, id, opts \\ []) do
@@ -299,6 +358,14 @@ defmodule Choreo do
   Adds a generic node to the system.
 
   Use this when none of the typed builders fit.
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_node(:misc, name: "Custom")
+      iex> Choreo.nodes(system)[:misc].type
+      :generic
+      iex> Choreo.nodes(system)[:misc].name
+      "Custom"
   """
   @spec add_node(t(), Yog.node_id(), keyword()) :: t()
   def add_node(system, id, opts \\ []) do
@@ -318,11 +385,9 @@ defmodule Choreo do
 
   ## Examples
 
-      system =
-        Choreo.new()
-        |> Choreo.add_cluster("vpc", label: "VPC", fillcolor: "lightgrey")
-        |> Choreo.add_cluster("az1", label: "AZ-1", parent: "vpc")
-        |> Choreo.add_service(:api, cluster: "az1")
+      iex> system = Choreo.new() |> Choreo.add_cluster("vpc", label: "VPC")
+      iex> Map.keys(Choreo.clusters(system))
+      ["cluster_vpc"]
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = system, name, opts \\ []) do
@@ -356,6 +421,18 @@ defmodule Choreo do
   @doc """
   Connects two nodes with a weighted edge.
 
+  ## Options
+
+    * `:cost` - numeric weight used by MST and other algorithms (default: `1`)
+    * `:label` - display label for the edge
+    * `:protocol` - `:http`, `:https`, `:grpc`, `:tcp`, etc.
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b, cost: 5)
+      iex> Choreo.edges(system)
+      [{:a, :b, 5}]
+
   ## Diagram
 
   <div class="graphviz">
@@ -368,15 +445,8 @@ defmodule Choreo do
       b [label="b", style="filled", fontcolor="white", fillcolor="#10b981", shape="box3d"];
 
       a -> b [label="5", penwidth="1.0", color="#64748b"];
-
     }
   </div>
-
-  ## Options
-
-    * `:cost` - numeric weight used by MST and other algorithms (default: `1`)
-    * `:label` - display label for the edge
-    * `:protocol` - `:http`, `:https`, `:grpc`, `:tcp`, etc.
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = system, from, to, opts \\ []) do
@@ -398,6 +468,14 @@ defmodule Choreo do
 
   This is semantically identical to `connect/4` but renders with a
   different default style (dashed, data-flow colour).
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.add_dataflow(:a, :b)
+      iex> Choreo.edges(system)
+      [{:a, :b, 1}]
+      iex> get_in(system.edge_meta, [{:a, :b}, :type])
+      :dataflow
   """
   @spec add_dataflow(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_dataflow(%__MODULE__{} = system, from, to, opts \\ []) do
@@ -411,6 +489,12 @@ defmodule Choreo do
 
   @doc """
   Returns all nodes in the system as a map of `id => data`.
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:api)
+      iex> Map.keys(Choreo.nodes(system))
+      [:api]
   """
   @spec nodes(t()) :: %{Yog.node_id() => map()}
   def nodes(%__MODULE__{graph: graph}) do
@@ -419,6 +503,12 @@ defmodule Choreo do
 
   @doc """
   Returns all edges in the system as a list of `{from, to, cost}` tuples.
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b)
+      iex> Choreo.edges(system)
+      [{:a, :b, 1}]
   """
   @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def edges(%__MODULE__{graph: graph}) do
@@ -429,6 +519,12 @@ defmodule Choreo do
   Returns the raw `Yog.Graph` struct underpinning the system.
 
   Useful when you want to drop down to the raw Yog API.
+
+  ## Examples
+
+      iex> system = Choreo.new()
+      iex> Choreo.to_graph(system) == system.graph
+      true
   """
   @spec to_graph(t()) :: Yog.graph()
   def to_graph(%__MODULE__{graph: graph}), do: graph
@@ -447,8 +543,12 @@ defmodule Choreo do
 
   ## Examples
 
+      iex> system = Choreo.new() |> Choreo.add_service(:api)
       iex> dot = Choreo.to_dot(system)
-      iex> dot = Choreo.to_dot(system, theme: :dark)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "api")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = system, opts \\ []) do
@@ -457,6 +557,12 @@ defmodule Choreo do
 
   @doc """
   Returns all cluster definitions in the system.
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_cluster("vpc", label: "VPC")
+      iex> Choreo.clusters(system)
+      %{"cluster_vpc" => %{label: "VPC"}}
   """
   @spec clusters(t()) :: %{String.t() => map()}
   def clusters(%__MODULE__{clusters: clusters}), do: clusters

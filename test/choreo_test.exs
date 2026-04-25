@@ -3,6 +3,8 @@ defmodule ChoreoTest do
 
   alias Choreo
 
+  doctest Choreo
+
   describe "creation" do
     test "new/0 creates a directed system by default" do
       system = Choreo.new()
