@@ -6,6 +6,12 @@ defmodule Choreo.FSM do
   state-machine diagrams. It supports normal states, initial states, and
   final (accepting) states.
 
+  ## Further reading
+
+    * [Finite-state machine (Wikipedia)](https://en.wikipedia.org/wiki/Finite-state_machine)
+    * [Automata Theory (Sipser)](https://math.mit.edu/~sipser/book.html)
+    * [UML State Machine Diagrams](https://www.uml-diagrams.org/state-machine-diagrams.html)
+
   ## Quick Start
 
       fsm =

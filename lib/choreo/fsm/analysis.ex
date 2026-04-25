@@ -3,7 +3,28 @@ defmodule Choreo.FSM.Analysis do
   Analysis functions for `Choreo.FSM` state machines.
 
   Provides reachability, dead-state detection, determinism checks,
-  and input-string acceptance simulation.
+  completeness verification, and input-string acceptance simulation.
+
+  ## Function overview
+
+  | Function | Question |
+  |----------|----------|
+  | `reachable_states/1` | Which states can I reach from the start? |
+  | `dead_states/1` | Which states are traps (can never accept)? |
+  | `deterministic?/1` | Is this a DFA? |
+  | `nondeterministic_states/1` | Which states break determinism? |
+  | `alphabet/1` | What are the distinct input symbols? |
+  | `complete?/1` | Does every state handle every input? |
+  | `accepts?/2` | Does input X lead to acceptance? |
+  | `shortest_accepting_path/1` | What’s the minimum input to accept? |
+  | `accepted_strings/2` | What inputs are accepted up to length N? |
+  | `validate/1` | Are there structural issues? |
+
+  ## Further reading
+
+    * [Finite-state machine (Wikipedia)](https://en.wikipedia.org/wiki/Finite-state_machine)
+    * [DFA vs NFA (Sipser, Ch. 1)](https://math.mit.edu/~sipser/book.html)
+    * [Hopcroft’s Algorithm for DFA Minimization](https://en.wikipedia.org/wiki/DFA_minimization)
   """
 
   alias Choreo.FSM
@@ -229,7 +250,213 @@ defmodule Choreo.FSM.Analysis do
   end
 
   # ============================================================================
-  # Private helpers
+  # Alphabet and completeness
+  # ============================================================================
+
+  @doc """
+  Returns the set of distinct input symbols (the alphabet) of the FSM.
+
+  The alphabet is derived from all transition labels. Empty-string labels
+  are excluded.
+
+  ## Examples
+
+      fsm =
+        Choreo.FSM.new()
+        |> Choreo.FSM.add_state(:a)
+        |> Choreo.FSM.add_state(:b)
+        |> Choreo.FSM.add_state(:c)
+        |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        |> Choreo.FSM.add_transition(:b, :c, label: "y")
+        |> Choreo.FSM.add_transition(:c, :a, label: "x")
+
+      Choreo.FSM.Analysis.alphabet(fsm)
+      #=> MapSet<["x", "y"]>
+  """
+  @spec alphabet(FSM.t()) :: MapSet.t(String.t())
+  def alphabet(%FSM{graph: graph}) do
+    graph.nodes
+    |> Map.keys()
+    |> Enum.flat_map(fn id ->
+      Yog.successors(graph, id)
+      |> Enum.map(fn {_to, label} -> label end)
+    end)
+    |> Enum.reject(&(&1 == "" or is_nil(&1)))
+    |> MapSet.new()
+  end
+
+  @doc """
+  Checks whether the FSM is complete (total).
+
+  A complete FSM has a transition from every state for every symbol in
+  the alphabet. Incomplete FSMs implicitly reject inputs that have no
+  matching transition.
+
+  ## Examples
+
+      # Complete: both states handle both symbols
+      fsm =
+        Choreo.FSM.new()
+        |> Choreo.FSM.add_state(:a)
+        |> Choreo.FSM.add_state(:b)
+        |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        |> Choreo.FSM.add_transition(:a, :a, label: "y")
+        |> Choreo.FSM.add_transition(:b, :a, label: "x")
+        |> Choreo.FSM.add_transition(:b, :b, label: "y")
+
+      Choreo.FSM.Analysis.complete?(fsm)
+      #=> true
+  """
+  @spec complete?(FSM.t()) :: boolean()
+  def complete?(%FSM{graph: graph} = fsm) do
+    sigma = alphabet(fsm)
+
+    if MapSet.size(sigma) == 0 do
+      true
+    else
+      graph.nodes
+      |> Map.keys()
+      |> Enum.all?(fn id ->
+        labels =
+          Yog.successors(graph, id)
+          |> Enum.map(fn {_to, label} -> label end)
+          |> MapSet.new()
+
+        MapSet.subset?(sigma, labels)
+      end)
+    end
+  end
+
+  @doc """
+  Returns states that have nondeterministic transitions.
+
+  A state is nondeterministic if it has two or more outgoing transitions
+  with the same label. Returns a list of `{state_id, duplicate_label}`
+  tuples.
+
+  ## Examples
+
+      fsm =
+        Choreo.FSM.new()
+        |> Choreo.FSM.add_state(:a)
+        |> Choreo.FSM.add_state(:b)
+        |> Choreo.FSM.add_state(:c)
+        |> Choreo.FSM.add_transition(:a, :b, label: "x")
+        |> Choreo.FSM.add_transition(:a, :c, label: "x")
+
+      Choreo.FSM.Analysis.nondeterministic_states(fsm)
+      #=> [{:a, "x"}]
+  """
+  @spec nondeterministic_states(FSM.t()) :: [{Yog.node_id(), String.t()}]
+  def nondeterministic_states(%FSM{graph: graph}) do
+    graph.nodes
+    |> Map.keys()
+    |> Enum.flat_map(fn id ->
+      labels =
+        Yog.successors(graph, id)
+        |> Enum.map(fn {_to, label} -> label end)
+
+      duplicates =
+        labels
+        |> Enum.frequencies()
+        |> Enum.filter(fn {_label, count} -> count > 1 end)
+        |> Enum.map(fn {label, _count} -> label end)
+
+      Enum.map(duplicates, fn label -> {id, label} end)
+    end)
+  end
+
+  # ============================================================================
+  # Validation
+  # ============================================================================
+
+  @doc """
+  Validates the FSM and returns a list of issues.
+
+  Checks for:
+
+    * no initial states defined
+    * no final states defined
+    * unreachable states
+    * dead (trap) states
+    * nondeterministic transitions
+    * incomplete alphabet coverage
+
+  Returns a list of `{severity, message}` tuples.
+
+  ## Examples
+
+      issues = Choreo.FSM.Analysis.validate(fsm)
+      #=> [{:warning, "Unreachable states: [:orphan]"},
+      #=>  {:warning, "Dead states: [:trap]"}]
+  """
+  @spec validate(FSM.t()) :: [{:error | :warning, String.t()}]
+  def validate(%FSM{} = fsm) do
+    []
+    |> check_no_initial(fsm)
+    |> check_no_final(fsm)
+    |> check_unreachable(fsm)
+    |> check_dead(fsm)
+    |> check_nondeterminism(fsm)
+    |> check_completeness(fsm)
+  end
+
+  # ============================================================================
+  # Private helpers — validation
+  # ============================================================================
+
+  defp check_no_initial(acc, fsm) do
+    if MapSet.size(FSM.initial_states(fsm)) == 0 and FSM.states(fsm) != [] do
+      [{:error, "No initial states defined"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_no_final(acc, fsm) do
+    if FSM.final_states(fsm) == [] and FSM.states(fsm) != [] do
+      [{:warning, "No final states defined"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_unreachable(acc, fsm) do
+    all = FSM.states(fsm) |> MapSet.new()
+    reachable = reachable_states(fsm) |> MapSet.new()
+    unreachable = MapSet.difference(all, reachable)
+
+    if MapSet.size(unreachable) > 0 do
+      [{:warning, "Unreachable states: #{inspect(MapSet.to_list(unreachable))}"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_dead(acc, fsm) do
+    case dead_states(fsm) do
+      [] -> acc
+      dead -> [{:warning, "Dead states: #{inspect(dead)}"} | acc]
+    end
+  end
+
+  defp check_nondeterminism(acc, fsm) do
+    case nondeterministic_states(fsm) do
+      [] -> acc
+      nd -> [{:warning, "Nondeterministic transitions: #{inspect(nd)}"} | acc]
+    end
+  end
+
+  defp check_completeness(acc, fsm) do
+    if not complete?(fsm) and MapSet.size(alphabet(fsm)) > 0 do
+      [{:warning, "FSM is incomplete — not all states handle every input symbol"} | acc]
+    else
+      acc
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — BFS
   # ============================================================================
 
   defp bfs_path(_fsm, [], _visited), do: :error
