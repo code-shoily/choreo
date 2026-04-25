@@ -145,6 +145,18 @@ defmodule Choreo.Dataflow do
       :source
       iex> Yog.node(flow.graph, :sensor).label
       "IoT Sensor"
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      sensor [label="IoT Sensor", fillcolor="#10b981", shape="house"];
+    }
+  </div>
   """
   @spec add_source(t(), Yog.node_id(), keyword()) :: t()
   def add_source(flow, id, opts \\ []) do
@@ -168,6 +180,18 @@ defmodule Choreo.Dataflow do
       [:db]
       iex> Yog.node(flow.graph, :db).node_type
       :sink
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      db [label="TimescaleDB", fillcolor="#f43f5e", shape="invhouse"];
+    }
+  </div>
   """
   @spec add_sink(t(), Yog.node_id(), keyword()) :: t()
   def add_sink(flow, id, opts \\ []) do
@@ -192,6 +216,18 @@ defmodule Choreo.Dataflow do
       [:parse]
       iex> Yog.node(flow.graph, :parse).node_type
       :transform
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      parse [label="JSON Parser", fillcolor="#3b82f6", shape="box3d"];
+    }
+  </div>
   """
   @spec add_transform(t(), Yog.node_id(), keyword()) :: t()
   def add_transform(flow, id, opts \\ []) do
@@ -219,6 +255,18 @@ defmodule Choreo.Dataflow do
       :buffer
       iex> Yog.node(flow.graph, :kafka).capacity
       1000
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      kafka [label="Kafka Topic\n(cap: 1000)", fillcolor="#f59e0b", shape="cylinder"];
+    }
+  </div>
   """
   @spec add_buffer(t(), Yog.node_id(), keyword()) :: t()
   def add_buffer(flow, id, opts \\ []) do
@@ -242,6 +290,18 @@ defmodule Choreo.Dataflow do
       [:valid]
       iex> Yog.node(flow.graph, :valid).node_type
       :conditional
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      valid [label="If valid", fillcolor="#8b5cf6", shape="diamond"];
+    }
+  </div>
   """
   @spec add_conditional(t(), Yog.node_id(), keyword()) :: t()
   def add_conditional(flow, id, opts \\ []) do
@@ -265,6 +325,18 @@ defmodule Choreo.Dataflow do
       [:join]
       iex> Yog.node(flow.graph, :join).node_type
       :merge
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      join [label="Join", fillcolor="#06b6d4", shape="trapezium"];
+    }
+  </div>
   """
   @spec add_merge(t(), Yog.node_id(), keyword()) :: t()
   def add_merge(flow, id, opts \\ []) do
@@ -329,6 +401,21 @@ defmodule Choreo.Dataflow do
       "event"
       iex> flow.edge_meta[{:a, :b}].path_type
       :normal
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=0.6, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      b [label="b", fillcolor="#3b82f6", shape="box3d"];
+      a [label="a", fillcolor="#10b981", shape="house"];
+
+      a -> b [style="solid", penwidth="1.0", color="#64748b", label="event"];
+    }
+  </div>
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = flow, from, to, opts \\ []) do
