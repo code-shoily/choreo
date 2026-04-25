@@ -125,6 +125,18 @@ defmodule Choreo.DecisionTree do
       iex> Yog.node(tree.graph, :weather).feature
       "weather"
 
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.7, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      weather [label="weather", penwidth="2.0", fillcolor="#8b5cf6", shape="diamond"];
+    }
+  </div>
+
       iex> tree = Choreo.DecisionTree.new() |> Choreo.DecisionTree.set_root(:a, feature: "x")
       iex> Choreo.DecisionTree.set_root(tree, :b, feature: "y")
       ** (ArgumentError) Tree already has a root
@@ -163,6 +175,18 @@ defmodule Choreo.DecisionTree do
       true
       iex> Yog.node(tree.graph, :temp).node_type
       :decision
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.7, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      temp [label="temp", fillcolor="#3b82f6", shape="diamond"];
+    }
+  </div>
   """
   @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
   def add_decision(%__MODULE__{} = tree, id, opts \\ []) do
@@ -190,6 +214,18 @@ defmodule Choreo.DecisionTree do
       :outcome
       iex> Yog.node(tree.graph, :play).class
       "yes"
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.7, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      play [label="Play", fillcolor="#10b981", style="rounded,filled", shape="box"];
+    }
+  </div>
   """
   @spec add_outcome(t(), Yog.node_id(), keyword()) :: t()
   def add_outcome(%__MODULE__{} = tree, id, opts \\ []) do
@@ -222,6 +258,21 @@ defmodule Choreo.DecisionTree do
       true
       iex> Choreo.DecisionTree.condition(tree, :color, :stop)
       "red"
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.7, ranksep=1.2];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      stop [label="", fillcolor="#10b981", style="rounded,filled", shape="box"];
+      color [label="color", penwidth="2.0", fillcolor="#8b5cf6", shape="diamond"];
+
+      color -> stop [fontcolor="#64748b", color="#64748b", label="red"];
+    }
+  </div>
 
       iex> tree = Choreo.DecisionTree.new()
       iex> tree = tree
