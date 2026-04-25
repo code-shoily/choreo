@@ -6,6 +6,13 @@ defmodule Choreo.FSM do
   state-machine diagrams. It supports normal states, initial states, and
   final (accepting) states.
 
+  ## When to use
+
+  Use `Choreo.FSM` when modelling stateful behaviour — protocol handlers,
+  UI flows, game states, or embedded-system controllers. It verifies
+  determinism, finds dead states, and checks whether any input sequence
+  leads to acceptance.
+
   ## Further reading
 
     * [Finite-state machine (Wikipedia)](https://en.wikipedia.org/wiki/Finite-state_machine)

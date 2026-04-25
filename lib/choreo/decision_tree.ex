@@ -7,6 +7,13 @@ defmodule Choreo.DecisionTree do
   outcomes (class labels or actions). Paths from root to leaf represent
   complete decision chains.
 
+  ## When to use
+
+  Use `Choreo.DecisionTree` when you need to document, validate, or
+  visualize decision logic — business rules, ML classification trees,
+  troubleshooting guides, or configuration selectors. It enforces tree
+  invariants and detects logically inconsistent paths automatically.
+
   The builder enforces **tree invariants**:
 
     * exactly one root node

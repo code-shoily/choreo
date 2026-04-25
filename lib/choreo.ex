@@ -7,6 +7,12 @@ defmodule Choreo do
   system-diagram theming. You can also run graph algorithms such as MST
   and topological sort to analyze your architecture.
 
+  ## When to use
+
+  Use `Choreo` when you need to document, communicate, or analyze the
+  infrastructure of a system — whether for architecture review, onboarding
+  docs, cost optimisation, or resilience planning.
+
   ## Quick Start
 
       system =

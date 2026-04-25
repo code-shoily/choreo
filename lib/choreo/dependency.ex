@@ -6,6 +6,13 @@ defmodule Choreo.Dependency do
   applications, interfaces, and tests — to help visualize and analyze coupling,
   layering, and circular dependencies.
 
+  ## When to use
+
+  Use `Choreo.Dependency` when refactoring a codebase, onboarding new
+  developers, or enforcing architectural boundaries. It surfaces hidden
+  cycles, measures instability, and identifies the deepest dependency chains
+  that slow down builds and tests.
+
   ## Node types
 
     * `:application` — deployable service or app

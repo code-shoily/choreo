@@ -23,7 +23,8 @@ defmodule Choreo.Dataflow.Analysis do
 
   @doc """
   Returns all source node IDs in the dataflow.
-  """
+  This analysis answers the question: "Where does data enter the pipeline?"
+"""
   @spec sources(Dataflow.t()) :: [Yog.node_id()]
   def sources(%Dataflow{} = flow) do
     Dataflow.nodes_of_type(flow, :source)
@@ -31,7 +32,8 @@ defmodule Choreo.Dataflow.Analysis do
 
   @doc """
   Returns all sink node IDs in the dataflow.
-  """
+  This analysis answers the question: "Where does data leave the pipeline?"
+"""
   @spec sinks(Dataflow.t()) :: [Yog.node_id()]
   def sinks(%Dataflow{} = flow) do
     Dataflow.nodes_of_type(flow, :sink)
@@ -39,7 +41,8 @@ defmodule Choreo.Dataflow.Analysis do
 
   @doc """
   Checks whether the dataflow contains a directed cycle.
-  """
+  This analysis answers the question: "Is there a feedback loop in the data pipeline?"
+"""
   @spec cyclic?(Dataflow.t()) :: boolean()
   def cyclic?(%Dataflow{graph: graph}) do
     Yog.cyclic?(graph)
@@ -47,7 +50,8 @@ defmodule Choreo.Dataflow.Analysis do
 
   @doc """
   Returns a topological ordering of all stages.
-  """
+  This analysis answers the question: "In what order should stages execute?"
+"""
   @spec topological_sort(Dataflow.t()) :: {:ok, [Yog.node_id()]} | {:error, :contains_cycle}
   def topological_sort(%Dataflow{graph: graph}) do
     Yog.Traversal.Sort.topological_sort(graph)
@@ -55,7 +59,8 @@ defmodule Choreo.Dataflow.Analysis do
 
   @doc """
   Returns nodes that are not reachable from any source.
-  """
+  This analysis answers the question: "Which stages are unreachable from any source?"
+"""
   @spec orphan_nodes(Dataflow.t()) :: [Yog.node_id()]
   def orphan_nodes(%Dataflow{} = flow) do
     source_ids = sources(flow)
@@ -71,7 +76,8 @@ defmodule Choreo.Dataflow.Analysis do
 
   @doc """
   Returns nodes that cannot reach any sink.
-  """
+  This analysis answers the question: "Which stages can never reach a sink?"
+"""
   @spec dead_ends(Dataflow.t()) :: [Yog.node_id()]
   def dead_ends(%Dataflow{} = flow) do
     sink_ids = sinks(flow)
@@ -92,7 +98,9 @@ defmodule Choreo.Dataflow.Analysis do
   ## Options
 
     * `:threshold` — minimum `in_degree + out_degree` to qualify (default: `3`)
-  """
+
+  This analysis answers the question: "Which stages have the highest fan-in and fan-out?"
+"""
   @spec bottlenecks(Dataflow.t(), keyword()) :: [Yog.node_id()]
   def bottlenecks(%Dataflow{graph: graph}, opts \\ []) do
     threshold = Keyword.get(opts, :threshold, 3)
@@ -133,7 +141,9 @@ defmodule Choreo.Dataflow.Analysis do
 
       Choreo.Dataflow.Analysis.longest_path(pipeline)
       #=> {:ok, [:a, :b, :c, :d], 17}
-  """
+
+  This analysis answers the question: "What is the critical path that determines end-to-end latency?"
+"""
   @spec longest_path(Dataflow.t()) :: {:ok, [Yog.node_id()], number()} | :error
   def longest_path(%Dataflow{graph: graph} = flow) do
     case topological_sort(flow) do
@@ -168,7 +178,9 @@ defmodule Choreo.Dataflow.Analysis do
 
       Analysis.unhandled_errors(flow)
       #=> [:parse, :save]
-  """
+
+  This analysis answers the question: "Which stages lack explicit error handling?"
+"""
   @spec unhandled_errors(Dataflow.t()) :: [Yog.node_id()]
   def unhandled_errors(%Dataflow{} = flow) do
     flow.graph.nodes
@@ -193,7 +205,8 @@ defmodule Choreo.Dataflow.Analysis do
   and compares them against the `:capacity` attribute of each node.
 
   Returns a list of node IDs where `in_rate > capacity`.
-  """
+  This analysis answers the question: "Which stages will be overwhelmed by incoming data?"
+"""
   @spec capacity_bottlenecks(Dataflow.t()) :: [Yog.node_id()]
   def capacity_bottlenecks(%Dataflow{} = flow) do
     simulated = simulate(flow)
@@ -233,7 +246,9 @@ defmodule Choreo.Dataflow.Analysis do
       Choreo.Dataflow.Analysis.simulate(pipeline)
       #=> %{a: %{in_rate: 0, out_rate: 100}, b: %{in_rate: 0, out_rate: 200},
       #=>   m: %{in_rate: 300, out_rate: 300}, c: %{in_rate: 300, out_rate: 0}}
-  """
+
+  This analysis answers the question: "What is the throughput at each stage?"
+"""
   @spec simulate(Dataflow.t()) :: %{
           optional(Yog.node_id()) => %{in_rate: number, out_rate: number, latency_ms: number}
         }
@@ -262,7 +277,9 @@ defmodule Choreo.Dataflow.Analysis do
 
       Choreo.Dataflow.Analysis.backpressure_points(pipeline)
       #=> [:merge_hub, :heavy_transform]
-  """
+
+  This analysis answers the question: "Where will back-pressure build up?"
+"""
   @spec backpressure_points(Dataflow.t(), keyword()) :: [Yog.node_id()]
   def backpressure_points(%Dataflow{} = flow, opts \\ []) do
     threshold = Keyword.get(opts, :threshold, 0)
@@ -280,7 +297,9 @@ defmodule Choreo.Dataflow.Analysis do
 
       Choreo.Dataflow.Analysis.edges_of_type(flow, :error)
       #=> [{:parse, :dlq, "error"}]
-  """
+
+  This analysis answers the question: "Which edges have a specific path type?"
+"""
   @spec edges_of_type(Dataflow.t(), atom()) :: [{Yog.node_id(), Yog.node_id(), String.t()}]
   def edges_of_type(%Dataflow{graph: graph, edge_meta: edge_meta}, path_type) do
     graph
@@ -295,7 +314,8 @@ defmodule Choreo.Dataflow.Analysis do
   Validates a dataflow pipeline and returns a list of issues.
 
   Checks for cycles, orphan nodes, dead ends, missing sources, and missing sinks.
-  """
+  This analysis answers the question: "Is the pipeline structurally sound?"
+"""
   @spec validate(Dataflow.t()) :: [{:error | :warning, String.t()}]
   def validate(%Dataflow{} = flow) do
     []

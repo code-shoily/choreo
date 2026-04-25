@@ -7,6 +7,13 @@ defmodule Choreo.Dataflow do
   complement to `Choreo` architecture diagrams: those show *what*
   infrastructure exists; dataflow shows *how data moves through it*.
 
+  ## When to use
+
+  Use `Choreo.Dataflow` when designing, reviewing, or debugging pipelines
+  — event-driven systems, ETL jobs, stream processors, or microservice
+  data flows. It helps identify bottlenecks, orphan stages, and critical
+  paths before they hit production.
+
   ## Node types
 
     * `:source` — entry point that produces data

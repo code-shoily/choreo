@@ -22,7 +22,8 @@ defmodule Choreo.Workflow.Analysis do
 
   @doc """
   Returns all task node IDs reachable from any start node.
-  """
+  This analysis answers the question: "Which tasks are reachable from any start node?"
+"""
   @spec reachable_tasks(Workflow.t()) :: [Yog.node_id()]
   def reachable_tasks(%Workflow{} = workflow) do
     start_ids = Workflow.starts(workflow)
@@ -37,7 +38,8 @@ defmodule Choreo.Workflow.Analysis do
 
   @doc """
   Returns nodes that are not reachable from any start node.
-  """
+  This analysis answers the question: "Which tasks are not reachable from any start node?"
+"""
   @spec orphan_tasks(Workflow.t()) :: [Yog.node_id()]
   def orphan_tasks(%Workflow{} = workflow) do
     start_ids = Workflow.starts(workflow)
@@ -53,7 +55,8 @@ defmodule Choreo.Workflow.Analysis do
 
   @doc """
   Returns nodes that cannot reach any end node.
-  """
+  This analysis answers the question: "Which tasks can never reach an end node?"
+"""
   @spec dead_ends(Workflow.t()) :: [Yog.node_id()]
   def dead_ends(%Workflow{} = workflow) do
     end_ids = Workflow.ends(workflow)
@@ -73,7 +76,8 @@ defmodule Choreo.Workflow.Analysis do
 
   Edge weights default to the target task's `:timeout_ms`. Returns
   `{:ok, [id], total_weight}` or `:error` if cyclic or no start→end path.
-  """
+  This analysis answers the question: "What is the slowest end-to-end execution path?"
+"""
   @spec critical_path(Workflow.t()) :: {:ok, [Yog.node_id()], number()} | :error
   def critical_path(%Workflow{graph: graph} = workflow) do
     if Yog.cyclic?(graph) do
@@ -106,7 +110,8 @@ defmodule Choreo.Workflow.Analysis do
 
   Tasks at the same level have no dependencies on each other and can
   theoretically run in parallel.
-  """
+  This analysis answers the question: "Which tasks can run in parallel?"
+"""
   @spec parallelizable_tasks(Workflow.t()) :: [[Yog.node_id()]]
   def parallelizable_tasks(%Workflow{graph: graph}) do
     if Yog.cyclic?(graph) do
@@ -129,7 +134,8 @@ defmodule Choreo.Workflow.Analysis do
 
   @doc """
   Returns tasks that have at least one outgoing compensation edge.
-  """
+  This analysis answers the question: "Which tasks have compensation handlers?"
+"""
   @spec failure_scenarios(Workflow.t()) :: [Yog.node_id()]
   def failure_scenarios(%Workflow{graph: graph, edge_meta: edge_meta}) do
     graph.nodes
@@ -155,7 +161,9 @@ defmodule Choreo.Workflow.Analysis do
 
       Analysis.uncompensated_paths(workflow)
       #=> [:process_payment]
-  """
+
+  This analysis answers the question: "Which tasks can fail without a valid compensation path?"
+"""
   @spec uncompensated_paths(Workflow.t()) :: [Yog.node_id()]
   def uncompensated_paths(%Workflow{graph: graph, edge_meta: edge_meta} = flow) do
     can_fail =
@@ -199,7 +207,8 @@ defmodule Choreo.Workflow.Analysis do
 
   @doc """
   Returns tasks that have retry configured but no compensation path.
-  """
+  This analysis answers the question: "Which retry-configured tasks lack compensations?"
+"""
   @spec missing_compensations(Workflow.t()) :: [Yog.node_id()]
   def missing_compensations(%Workflow{graph: graph, edge_meta: edge_meta}) do
     tasks_with_retry =
@@ -230,7 +239,9 @@ defmodule Choreo.Workflow.Analysis do
 
     * `:latency_threshold` — minimum `:timeout_ms` to qualify (default: `10_000`)
     * `:retry_threshold` — minimum `:retry` count to qualify (default: `2`)
-  """
+
+  This analysis answers the question: "Which tasks are high-latency or high-retry?"
+"""
   @spec bottlenecks(Workflow.t(), keyword()) :: [Yog.node_id()]
   def bottlenecks(%Workflow{graph: graph}, opts \\ []) do
     latency_threshold = Keyword.get(opts, :latency_threshold, 10_000)
@@ -250,7 +261,8 @@ defmodule Choreo.Workflow.Analysis do
 
   Assumes sequential execution along the critical path. Parallel paths
   are counted by their longest branch.
-  """
+  This analysis answers the question: "What is the estimated latency for each task?"
+"""
   @spec simulate(Workflow.t()) :: %{optional(Yog.node_id()) => map()}
   def simulate(%Workflow{graph: graph} = workflow) do
     if Yog.cyclic?(graph) do
@@ -273,7 +285,9 @@ defmodule Choreo.Workflow.Analysis do
     * dead-end tasks
     * tasks with retries but no compensations
     * unreachable compensation nodes
-  """
+
+  This analysis answers the question: "Is the workflow structurally sound?"
+"""
   @spec validate(Workflow.t()) :: [{:error | :warning, String.t()}]
   def validate(%Workflow{} = workflow) do
     []

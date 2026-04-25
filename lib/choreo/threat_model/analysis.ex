@@ -43,7 +43,9 @@ defmodule Choreo.ThreatModel.Analysis do
 
       threats = Choreo.ThreatModel.Analysis.stride_threats(model)
       high = Enum.filter(threats, &(&1.severity == :high))
-  """
+
+  This analysis answers the question: "What threats exist in my architecture?"
+"""
   @spec stride_threats(ThreatModel.t()) :: [
           %{
             id: String.t(),
@@ -88,7 +90,9 @@ defmodule Choreo.ThreatModel.Analysis do
       #=> 3
       summary.total
       #=> 14
-  """
+
+  This analysis answers the question: "How are threats distributed by category and severity?"
+"""
   @spec threat_summary(ThreatModel.t()) :: %{
           by_category: %{atom() => %{atom() => non_neg_integer()}},
           by_severity: %{atom() => non_neg_integer()},
@@ -125,7 +129,8 @@ defmodule Choreo.ThreatModel.Analysis do
   Returns all data flows that cross a trust boundary.
 
   Each result is `{from, to, from_boundary, to_boundary}`.
-  """
+  This analysis answers the question: "Which data flows cross a trust boundary?"
+"""
   @spec cross_boundary_flows(ThreatModel.t()) :: [
           {Yog.node_id(), Yog.node_id(), String.t() | nil, String.t() | nil}
         ]
@@ -144,7 +149,8 @@ defmodule Choreo.ThreatModel.Analysis do
 
   These are high-value targets because they contain data at rest and
   are exposed to untrusted input.
-  """
+  This analysis answers the question: "Which data stores are reachable from external entities?"
+"""
   @spec exposed_data_stores(ThreatModel.t()) :: [Yog.node_id()]
   def exposed_data_stores(%ThreatModel{} = model) do
     externals = ThreatModel.elements_of_type(model, :external_entity)
@@ -171,7 +177,9 @@ defmodule Choreo.ThreatModel.Analysis do
 
       paths = Choreo.ThreatModel.Analysis.attack_paths(model)
       #=> [[:user, :api, :db], [:user, :api, :cache]]
-  """
+
+  This analysis answers the question: "What are the attack vectors from outside to data at rest?"
+"""
   @spec attack_paths(ThreatModel.t()) :: [[Yog.node_id()]]
   def attack_paths(%ThreatModel{} = model) do
     externals = ThreatModel.elements_of_type(model, :external_entity)
@@ -189,7 +197,8 @@ defmodule Choreo.ThreatModel.Analysis do
 
   These are risky because compromised process code can leak or tamper
   with sensitive data.
-  """
+  This analysis answers the question: "Which processes access sensitive data from low-trust zones?"
+"""
   @spec high_risk_processes(ThreatModel.t()) :: [Yog.node_id()]
   def high_risk_processes(%ThreatModel{} = model) do
     processes = ThreatModel.elements_of_type(model, :process)
@@ -218,7 +227,8 @@ defmodule Choreo.ThreatModel.Analysis do
   Returns unencrypted data flows that cross a trust boundary.
 
   These are prime targets for interception and tampering.
-  """
+  This analysis answers the question: "Which cross-boundary flows are unencrypted?"
+"""
   @spec unencrypted_boundary_flows(ThreatModel.t()) :: [{Yog.node_id(), Yog.node_id()}]
   def unencrypted_boundary_flows(%ThreatModel{} = model) do
     model
@@ -238,7 +248,9 @@ defmodule Choreo.ThreatModel.Analysis do
     * unencrypted cross-boundary flows
     * processes without privilege level
     * data stores without sensitivity classification
-  """
+
+  This analysis answers the question: "Is the threat model structurally sound?"
+"""
   @spec validate(ThreatModel.t()) :: [{:error | :warning, String.t()}]
   def validate(%ThreatModel{} = model) do
     []

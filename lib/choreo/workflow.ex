@@ -12,6 +12,13 @@ defmodule Choreo.Workflow do
     * **Events** — triggers, timers, signals
     * **Swimlanes** — group tasks by team, service, or domain
 
+  ## When to use
+
+  Use `Choreo.Workflow` when designing distributed business processes,
+  Saga transactions, CI/CD pipelines, or approval flows. It identifies
+  the critical path, finds parallelizable tasks, and verifies that every
+  failure scenario has a compensation route.
+
   ## Further reading
 
     * [Saga Pattern (Microsoft)](https://learn.microsoft.com/en-us/azure/architecture/reference-architectures/saga/saga)

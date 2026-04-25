@@ -61,7 +61,9 @@ defmodule Choreo.Analysis do
         |> Choreo.connect(:db, :cache, cost: 20)
 
       {:ok, mst} = Choreo.Analysis.mst(system)
-  """
+
+  This analysis answers the question: "What is the cheapest way to connect all services?"
+"""
   @spec mst(Choreo.t(), keyword()) ::
           {:ok, Yog.MST.Result.t()} | {:error, atom() | String.t()}
   def mst(%Choreo{graph: graph}, opts \\ []) do
@@ -102,7 +104,9 @@ defmodule Choreo.Analysis do
 
       {:ok, order} = Choreo.Analysis.topological_sort(system)
       # order => [:ingest, :transform, :store]
-  """
+
+  This analysis answers the question: "In what order should I deploy or initialise services?"
+"""
   @spec topological_sort(Choreo.t()) :: {:ok, [Yog.node_id()]} | {:error, String.t()}
   def topological_sort(%Choreo{graph: graph}) do
     case Yog.Traversal.Sort.topological_sort(graph) do
@@ -115,7 +119,8 @@ defmodule Choreo.Analysis do
   Detects cycles in the system.
 
   Returns `true` if the system contains at least one cycle.
-  """
+  This analysis answers the question: "Does my architecture contain a feedback loop?"
+"""
   @spec cyclic?(Choreo.t()) :: boolean()
   def cyclic?(%Choreo{graph: graph}) do
     Yog.cyclic?(graph)
@@ -123,7 +128,8 @@ defmodule Choreo.Analysis do
 
   @doc """
   Returns `true` if the system is a Directed Acyclic Graph (DAG).
-  """
+  This analysis answers the question: "Can I safely order my services linearly?"
+"""
   @spec dag?(Choreo.t()) :: boolean()
   def dag?(%Choreo{graph: graph}) do
     Yog.acyclic?(graph)
@@ -138,7 +144,9 @@ defmodule Choreo.Analysis do
   ## Examples
 
       components = Choreo.Analysis.strongly_connected_components(system)
-  """
+
+  This analysis answers the question: "Which services are mutually dependent?"
+"""
   @spec strongly_connected_components(Choreo.t()) :: [[Yog.node_id()]]
   def strongly_connected_components(%Choreo{graph: graph}) do
     Yog.Connectivity.strongly_connected_components(graph)
@@ -173,7 +181,9 @@ defmodule Choreo.Analysis do
       result = Choreo.Analysis.single_points_of_failure(system)
       result.nodes  #=> [:auth]
       result.edges  #=> [{:api, :auth}, {:auth, :db}]
-  """
+
+  This analysis answers the question: "Which services or links would take down the whole system if they failed?"
+"""
   @spec single_points_of_failure(Choreo.t()) :: %{
           nodes: [Yog.node_id()],
           edges: [{Yog.node_id(), Yog.node_id()}]
@@ -210,7 +220,9 @@ defmodule Choreo.Analysis do
 
       Choreo.Analysis.impact_analysis(system, :db)
       #=> [:auth, :api]
-  """
+
+  This analysis answers the question: "What breaks if this service goes down?"
+"""
   @spec impact_analysis(Choreo.t(), Yog.node_id()) :: [Yog.node_id()]
   def impact_analysis(%Choreo{graph: graph}, target) do
     transposed = Yog.transpose(graph)
@@ -246,7 +258,9 @@ defmodule Choreo.Analysis do
       {:ok, path} = Choreo.Analysis.shortest_path(system, :api, :db)
       path.nodes   #=> [:api, :auth, :db]
       path.weight  #=> 15
-  """
+
+  This analysis answers the question: "What is the fastest or cheapest route between two services?"
+"""
   @spec shortest_path(Choreo.t(), Yog.node_id(), Yog.node_id(), keyword()) ::
           {:ok, map()} | :error
   def shortest_path(%Choreo{graph: graph}, from, to, opts \\ []) do
@@ -287,7 +301,9 @@ defmodule Choreo.Analysis do
 
       # Top 3 bottleneck/bridge services
       Choreo.Analysis.centrality(system, measure: :betweenness, limit: 3)
-  """
+
+  This analysis answers the question: "Which services are the most critical connectors?"
+"""
   @spec centrality(Choreo.t(), keyword()) :: [{Yog.node_id(), float()}]
   def centrality(%Choreo{graph: graph}, opts \\ []) do
     measure = Keyword.get(opts, :measure, :degree)
@@ -333,7 +349,9 @@ defmodule Choreo.Analysis do
 
       Choreo.Analysis.isolated_nodes(system)
       #=> [:orphan_service]
-  """
+
+  This analysis answers the question: "Which services have no connections at all?"
+"""
   @spec isolated_nodes(Choreo.t()) :: [Yog.node_id()]
   def isolated_nodes(%Choreo{graph: graph}) do
     graph.nodes
@@ -367,7 +385,9 @@ defmodule Choreo.Analysis do
       #=>   {:warning, "Single points of failure: [:auth]"},
       #=>   {:warning, "Bridge edges: [{:auth, :db}]"}
       #=> ]
-  """
+
+  This analysis answers the question: "Is my architecture structurally sound?"
+"""
   @spec validate(Choreo.t()) :: [{:error | :warning, String.t()}]
   def validate(%Choreo{} = system) do
     []

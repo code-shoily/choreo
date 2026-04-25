@@ -43,7 +43,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.reachable_states(fsm)
       #=> [:a, :b]
-  """
+
+  This analysis answers the question: "Which states can I reach from the start?"
+"""
   @spec reachable_states(FSM.t()) :: [Yog.node_id()]
   def reachable_states(%FSM{} = fsm) do
     initials = FSM.initial_states(fsm) |> MapSet.to_list()
@@ -74,7 +76,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.dead_states(fsm)
       #=> [:b]
-  """
+
+  This analysis answers the question: "Which states are traps that can never accept?"
+"""
   @spec dead_states(FSM.t()) :: [Yog.node_id()]
   def dead_states(%FSM{} = fsm) do
     finals = FSM.final_states(fsm)
@@ -107,7 +111,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.deterministic?(fsm)
       #=> false
-  """
+
+  This analysis answers the question: "Is this a deterministic finite automaton?"
+"""
   @spec deterministic?(FSM.t()) :: boolean()
   def deterministic?(%FSM{graph: graph}) do
     graph.nodes
@@ -143,7 +149,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.accepts?(fsm, ["start"])
       #=> false
-  """
+
+  This analysis answers the question: "Does this input sequence lead to acceptance?"
+"""
   @spec accepts?(FSM.t(), [String.t()]) :: boolean()
   def accepts?(%FSM{} = fsm, inputs) do
     initial = FSM.initial_states(fsm) |> MapSet.new()
@@ -199,7 +207,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.shortest_accepting_path(fsm)
       #=> {:ok, ["x", "y"]}
-  """
+
+  This analysis answers the question: "What is the minimum input to reach an accepting state?"
+"""
   @spec shortest_accepting_path(FSM.t()) :: {:ok, [String.t()]} | :error
   def shortest_accepting_path(%FSM{} = fsm) do
     initials = FSM.initial_states(fsm) |> MapSet.to_list()
@@ -233,7 +243,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.accepted_strings(fsm, 2)
       #=> [["x"], ["x", "y"]]
-  """
+
+  This analysis answers the question: "What inputs are accepted up to length N?"
+"""
   @spec accepted_strings(FSM.t(), non_neg_integer()) :: [[String.t()]]
   def accepted_strings(%FSM{} = fsm, max_length) when max_length >= 0 do
     initials = FSM.initial_states(fsm) |> MapSet.to_list()
@@ -272,7 +284,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.alphabet(fsm)
       #=> MapSet<["x", "y"]>
-  """
+
+  This analysis answers the question: "What are the distinct input symbols?"
+"""
   @spec alphabet(FSM.t()) :: MapSet.t(String.t())
   def alphabet(%FSM{graph: graph}) do
     graph.nodes
@@ -306,7 +320,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.complete?(fsm)
       #=> true
-  """
+
+  This analysis answers the question: "Does every state handle every input symbol?"
+"""
   @spec complete?(FSM.t()) :: boolean()
   def complete?(%FSM{graph: graph} = fsm) do
     sigma = alphabet(fsm)
@@ -346,7 +362,9 @@ defmodule Choreo.FSM.Analysis do
 
       Choreo.FSM.Analysis.nondeterministic_states(fsm)
       #=> [{:a, "x"}]
-  """
+
+  This analysis answers the question: "Which states break determinism?"
+"""
   @spec nondeterministic_states(FSM.t()) :: [{Yog.node_id(), String.t()}]
   def nondeterministic_states(%FSM{graph: graph}) do
     graph.nodes
@@ -389,7 +407,9 @@ defmodule Choreo.FSM.Analysis do
       issues = Choreo.FSM.Analysis.validate(fsm)
       #=> [{:warning, "Unreachable states: [:orphan]"},
       #=>  {:warning, "Dead states: [:trap]"}]
-  """
+
+  This analysis answers the question: "Is the state machine structurally sound?"
+"""
   @spec validate(FSM.t()) :: [{:error | :warning, String.t()}]
   def validate(%FSM{} = fsm) do
     []

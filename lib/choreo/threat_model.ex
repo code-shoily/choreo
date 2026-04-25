@@ -6,6 +6,13 @@ defmodule Choreo.ThreatModel do
   semantics: trust boundaries, element classification, and automated
   STRIDE threat generation.
 
+  ## When to use
+
+  Use `Choreo.ThreatModel` during security review, threat-modeling
+  sessions, or compliance audits. It automatically generates STRIDE
+  threats, flags unencrypted boundary crossings, and surfaces attack
+  paths from external entities to sensitive data stores.
+
   ## Element types (per Microsoft Threat Modeling Tool)
 
     * `:external_entity` — user, browser, third-party system (outside your control)
