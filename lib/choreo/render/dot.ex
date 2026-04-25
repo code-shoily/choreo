@@ -6,13 +6,13 @@ defmodule Choreo.Render.DOT do
   sensible defaults for infrastructure diagrams:
 
   * Databases are rendered as **cylinders**
-  * Caches as **diamonds**
+  * Caches as **octagons**
   * Services as **3D boxes**
   * Networks as **clouds**
   * Users as **double circles**
   * Load balancers as **hexagons**
-  * Queues as **folders**
-  * Storage as **folders**
+  * Queues as **components**
+  * Storage as **tabs**
 
   Edges are styled according to their semantic type (`:connection` or
   `:dataflow`).

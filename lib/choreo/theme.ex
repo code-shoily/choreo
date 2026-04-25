@@ -71,13 +71,13 @@ defmodule Choreo.Theme do
 
   @default_shapes %{
     database: :cylinder,
-    cache: :diamond,
+    cache: :octagon,
     service: :box3d,
     network: :cloud,
     user: :doublecircle,
     load_balancer: :hexagon,
-    queue: :folder,
-    storage: :folder,
+    queue: :component,
+    storage: :tab,
     generic: :box
   }
 
