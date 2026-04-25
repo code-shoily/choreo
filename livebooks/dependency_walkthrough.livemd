@@ -1,0 +1,436 @@
+# Choreo Dependency: Comprehensive Walkthrough
+
+## Section
+
+```elixir
+Mix.install([
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.5.0"}
+])
+```
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+
+---
+
+## What is Choreo.Dependency?
+
+`Choreo.Dependency` maps software component relationships — applications, libraries, modules, interfaces, and tests — to help you visualise coupling, detect cycles, enforce architectural layers, and measure instability.
+
+Unlike static dependency graphs drawn by hand, Choreo dependency graphs are **analysable**. You can ask:
+
+* "What breaks if I change the Auth module?"
+* "Where are the circular dependencies?"
+* "Is the Repository layer calling the API layer?"
+* "Which components are the most coupled?"
+* "What's the deepest dependency chain?"
+
+### Node Types
+
+| Type          | Shape            | Purpose                    |
+| ------------- | ---------------- | -------------------------- |
+| `application` | 📦 box3d       | Deployable service or app  |
+| `library`     | 🛢️ cylinder | External or shared library |
+| `module`      | ⬛ box          | Internal code unit         |
+| `interface`   | 💎 diamond     | API, contract, or protocol |
+| `test`        | 📝 note        | Test suite or spec         |
+
+### Edge Types
+
+| Type        | Style       | Meaning                      |
+| ----------- | ----------- | ---------------------------- |
+| `:uses`     | solid       | General dependency           |
+| `:imports`  | dashed      | Explicit import / require    |
+| `:calls`    | solid       | Runtime function call        |
+| `:inherits` | dotted      | Inheritance / implementation |
+| `:dev`      | dashed grey | Development-only dependency  |
+
+```elixir
+alias Choreo.Dependency
+alias Choreo.Dependency.Analysis
+
+legend =
+  Dependency.new()
+  |> Dependency.add_application(:app, label: "Application")
+  |> Dependency.add_library(:lib, label: "Library")
+  |> Dependency.add_module(:mod, label: "Module")
+  |> Dependency.add_interface(:iface, label: "Interface")
+  |> Dependency.add_test(:test, label: "Test")
+  |> Dependency.depends_on(:app, :lib, type: :uses)
+  |> Dependency.depends_on(:app, :mod, type: :calls)
+  |> Dependency.depends_on(:mod, :iface, type: :inherits)
+  |> Dependency.depends_on(:test, :app, type: :dev)
+
+Kino.VizJS.render(Dependency.to_dot(legend))
+```
+
+---
+
+## Example 1: Simple Microservice Dependencies
+
+A classic three-service architecture: API Gateway, Auth Service, and User Service. Each depends on shared libraries and infrastructure.
+
+```elixir
+microservices =
+  Dependency.new()
+  |> Dependency.add_application(:api_gateway, label: "API Gateway")
+  |> Dependency.add_application(:auth_service, label: "Auth Service")
+  |> Dependency.add_application(:user_service, label: "User Service")
+  |> Dependency.add_library(:phoenix, label: "Phoenix")
+  |> Dependency.add_library(:ecto, label: "Ecto")
+  |> Dependency.add_library(:jwt, label: "Joken JWT")
+  |> Dependency.add_library(:redis, label: "Redix")
+  |> Dependency.add_interface(:auth_iface, label: "AuthContract")
+  |> Dependency.add_test(:api_tests, label: "API Tests")
+  |> Dependency.add_test(:auth_tests, label: "Auth Tests")
+  |> Dependency.depends_on(:api_gateway, :phoenix, type: :uses)
+  |> Dependency.depends_on(:api_gateway, :auth_service, type: :calls)
+  |> Dependency.depends_on(:api_gateway, :user_service, type: :calls)
+  |> Dependency.depends_on(:auth_service, :phoenix, type: :uses)
+  |> Dependency.depends_on(:auth_service, :ecto, type: :uses)
+  |> Dependency.depends_on(:auth_service, :jwt, type: :imports)
+  |> Dependency.depends_on(:auth_service, :redis, type: :uses)
+  |> Dependency.depends_on(:auth_service, :auth_iface, type: :inherits)
+  |> Dependency.depends_on(:user_service, :phoenix, type: :uses)
+  |> Dependency.depends_on(:user_service, :ecto, type: :uses)
+  |> Dependency.depends_on(:user_service, :auth_iface, type: :inherits)
+  |> Dependency.depends_on(:api_tests, :api_gateway, type: :dev)
+  |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
+
+Kino.VizJS.render(Dependency.to_dot(microservices))
+```
+
+### Impact Analysis
+
+If you change the Auth Contract interface, what else might break?
+
+```elixir
+Analysis.affected_by(microservices, :auth_iface)
+|> IO.inspect(label: "Components affected by auth_iface changes")
+```
+
+### Transitive Dependencies
+
+What does the API Gateway need in order to function?
+
+```elixir
+Analysis.depends_on(microservices, :api_gateway)
+|> IO.inspect(label: "api_gateway transitively depends on")
+```
+
+---
+
+## Example 2: Layered Architecture with Violations
+
+A well-designed system has layers: Repository (data access) → Service (business logic) → API (HTTP handlers). But during refactoring, layers can get crossed.
+
+```elixir
+layers =
+  Dependency.new()
+  |> Dependency.add_cluster("data", label: "Data Layer", fillcolor: "#dbeafe")
+  |> Dependency.add_cluster("service", label: "Service Layer", fillcolor: "#dcfce7")
+  |> Dependency.add_cluster("api", label: "API Layer", fillcolor: "#fef3c7")
+  |> Dependency.add_module(:user_repo, label: "UserRepo", cluster: "data")
+  |> Dependency.add_module(:order_repo, label: "OrderRepo", cluster: "data")
+  |> Dependency.add_module(:user_service, label: "UserService", cluster: "service")
+  |> Dependency.add_module(:order_service, label: "OrderService", cluster: "service")
+  |> Dependency.add_module(:auth_service, label: "AuthService", cluster: "service")
+  |> Dependency.add_module(:api_controller, label: "APIController", cluster: "api")
+  |> Dependency.add_module(:web_socket, label: "WebSocket", cluster: "api")
+  # Correct flows
+  |> Dependency.depends_on(:user_service, :user_repo, type: :calls)
+  |> Dependency.depends_on(:order_service, :order_repo, type: :calls)
+  |> Dependency.depends_on(:auth_service, :user_repo, type: :calls)
+  |> Dependency.depends_on(:api_controller, :user_service, type: :calls)
+  |> Dependency.depends_on(:api_controller, :order_service, type: :calls)
+  |> Dependency.depends_on(:web_socket, :auth_service, type: :calls)
+  # VIOLATION: repo calls back up to API layer!
+  |> Dependency.depends_on(:order_repo, :api_controller, type: :calls)
+  # VIOLATION: API layer talks directly to another API module
+  |> Dependency.depends_on(:web_socket, :api_controller, type: :calls)
+
+Kino.VizJS.render(Dependency.to_dot(layers))
+```
+
+### Layer Enforcement
+
+Define the expected layers and find violations:
+
+```elixir
+layer_map = %{
+  user_repo: 1,
+  order_repo: 1,
+  user_service: 2,
+  order_service: 2,
+  auth_service: 2,
+  api_controller: 3,
+  web_socket: 3
+}
+
+Analysis.layer_violations(layers, layer_map)
+|> Enum.each(fn {from, to, desc} ->
+  IO.puts("❌ #{desc}")
+end)
+```
+
+The layer check flags edges where a lower-numbered layer (foundation) depends on a higher-numbered layer (presentation). In clean architecture, dependencies should only flow downward.
+
+### Transitive Reduction
+
+Some dependencies are redundant. If A → B, B → C, and A → C, the direct A → C edge is often implied.
+
+```elixir
+Analysis.transitive_reduction(layers)
+|> IO.inspect(label: "Redundant edges")
+```
+
+Removing redundant edges simplifies the diagram without losing information.
+
+---
+
+## Example 3: Circular Dependencies
+
+The most dangerous pattern in dependency graphs. Let's model a messy codebase and find the cycles.
+
+```elixir
+messy =
+  Dependency.new()
+  |> Dependency.add_module(:cart, label: "Cart Module")
+  |> Dependency.add_module(:order, label: "Order Module")
+  |> Dependency.add_module(:payment, label: "Payment Module")
+  |> Dependency.add_module(:inventory, label: "Inventory Module")
+  |> Dependency.add_module(:shipping, label: "Shipping Module")
+  |> Dependency.add_module(:notification, label: "Notification Module")
+  # Cycle 1: cart ↔ order
+  |> Dependency.depends_on(:cart, :order, type: :calls)
+  |> Dependency.depends_on(:order, :cart, type: :imports)
+  # Cycle 2: order ↔ payment ↔ inventory → order
+  |> Dependency.depends_on(:order, :payment, type: :calls)
+  |> Dependency.depends_on(:payment, :inventory, type: :uses)
+  |> Dependency.depends_on(:inventory, :order, type: :calls)
+  # Clean edges
+  |> Dependency.depends_on(:order, :shipping, type: :calls)
+  |> Dependency.depends_on(:order, :notification, type: :calls)
+
+Kino.VizJS.render(Dependency.to_dot(messy))
+```
+
+### Finding Cycles
+
+```elixir
+Analysis.cyclic_dependencies(messy)
+|> Enum.each(fn cycle ->
+  path = Enum.join(cycle, " → ")
+  IO.puts("🔁 Cycle: #{path}")
+end)
+```
+
+### Validation
+
+```elixir
+Analysis.validate(messy)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+### Isolated Subsystems
+
+Which components are completely disconnected from each other?
+
+```elixir
+Analysis.isolated_subsystems(messy)
+|> Enum.each(fn component ->
+  IO.puts("Subsystem: #{Enum.join(component, ", ")}")
+end)
+```
+
+---
+
+## Example 4: Instability and Coupling Metrics
+
+Robert C. Martin's instability metric measures how likely a component is to change. A component with many outgoing dependencies (efferent) and few incoming (afferent) is unstable — it depends on the world but the world doesn't depend on it.
+
+```elixir
+metrics =
+  Dependency.new()
+  |> Dependency.add_application(:api, label: "API")
+  |> Dependency.add_application(:auth, label: "Auth")
+  |> Dependency.add_application(:orders, label: "Orders")
+  |> Dependency.add_library(:phoenix, label: "Phoenix")
+  |> Dependency.add_library(:logger, label: "Logger")
+  |> Dependency.add_library(:config, label: "Config")
+  |> Dependency.depends_on(:api, :auth, type: :calls)
+  |> Dependency.depends_on(:api, :orders, type: :calls)
+  |> Dependency.depends_on(:api, :phoenix, type: :uses)
+  |> Dependency.depends_on(:auth, :phoenix, type: :uses)
+  |> Dependency.depends_on(:auth, :logger, type: :uses)
+  |> Dependency.depends_on(:orders, :phoenix, type: :uses)
+  |> Dependency.depends_on(:orders, :logger, type: :uses)
+  |> Dependency.depends_on(:orders, :config, type: :uses)
+
+Kino.VizJS.render(Dependency.to_dot(metrics))
+```
+
+### Instability Scores
+
+```elixir
+Analysis.instability(metrics)
+|> Enum.sort_by(fn {_id, score} -> score end, :desc)
+|> Enum.each(fn {id, score} ->
+  bar = String.duplicate("█", ceil(score * 10))
+  IO.puts("#{id}: #{:erlang.float_to_binary(score, decimals: 2)} #{bar}")
+end)
+```
+
+* **Score 0.0** (stable): Many things depend on it; it depends on nothing. Safe to change? No — high impact.
+* **Score 1.0** (unstable): Depends on many things; nothing depends on it. Safe to change? Yes — low impact.
+
+### Centrality Ranking
+
+Which components are the most connected?
+
+```elixir
+Analysis.centrality(metrics, limit: 5)
+|> IO.inspect(label: "Most coupled components")
+```
+
+### Leaves and Roots
+
+```elixir
+IO.inspect(Analysis.leaves(metrics), label: "Components with no dependents (safe to change)")
+IO.inspect(Analysis.roots(metrics), label: "Components with no dependencies (foundations)")
+```
+
+---
+
+## Example 5: Deep Dependency Chain
+
+Long dependency chains slow down builds, tests, and deployments. Let's find the longest one.
+
+```elixir
+deep =
+  Dependency.new()
+  |> Dependency.add_module(:web, label: "Web Layer")
+  |> Dependency.add_module(:api, label: "API Layer")
+  |> Dependency.add_module(:service, label: "Service Layer")
+  |> Dependency.add_module(:repository, label: "Repository Layer")
+  |> Dependency.add_module(:db_client, label: "DB Client")
+  |> Dependency.add_module(:connection_pool, label: "Connection Pool")
+  |> Dependency.add_module(:tcp_stack, label: "TCP Stack")
+  |> Dependency.depends_on(:web, :api, type: :calls)
+  |> Dependency.depends_on(:api, :service, type: :calls)
+  |> Dependency.depends_on(:service, :repository, type: :calls)
+  |> Dependency.depends_on(:repository, :db_client, type: :calls)
+  |> Dependency.depends_on(:db_client, :connection_pool, type: :uses)
+  |> Dependency.depends_on(:connection_pool, :tcp_stack, type: :uses)
+
+Kino.VizJS.render(Dependency.to_dot(deep))
+```
+
+### Longest Chain
+
+```elixir
+case Analysis.longest_dependency_chain(deep) do
+  {:ok, chain, length} ->
+    IO.puts("Longest chain (#{length} hops): #{Enum.join(chain, " → ")}")
+
+  :error ->
+    IO.puts("Graph contains cycles — longest chain undefined")
+end
+```
+
+---
+
+## Example 6: Fixing a Broken Dependency Graph
+
+Start with a graph that has structural issues and use analysis as a checklist.
+
+```elixir
+broken =
+  Dependency.new()
+  |> Dependency.add_module(:a, label: "Module A")
+  |> Dependency.add_module(:b, label: "Module B")
+  |> Dependency.add_module(:c, label: "Module C")
+  |> Dependency.add_module(:orphan, label: "Orphan")
+  |> Dependency.depends_on(:a, :b, type: :calls)
+  |> Dependency.depends_on(:b, :c, type: :calls)
+  |> Dependency.depends_on(:c, :a, type: :imports)
+  # orphan has no edges
+
+Kino.VizJS.render(Dependency.to_dot(broken))
+```
+
+### Diagnosis
+
+```elixir
+Analysis.validate(broken)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+### The Fix
+
+Break the cycle by introducing an interface:
+
+```elixir
+fixed =
+  Dependency.new()
+  |> Dependency.add_module(:a, label: "Module A")
+  |> Dependency.add_module(:b, label: "Module B")
+  |> Dependency.add_module(:c, label: "Module C")
+  |> Dependency.add_interface(:contract, label: "Contract")
+  |> Dependency.depends_on(:a, :b, type: :calls)
+  |> Dependency.depends_on(:b, :c, type: :calls)
+  |> Dependency.depends_on(:c, :contract, type: :inherits)
+  |> Dependency.depends_on(:a, :contract, type: :inherits)
+
+IO.puts("After fixing:")
+Analysis.validate(fixed) |> IO.inspect()
+Kino.VizJS.render(Dependency.to_dot(fixed))
+```
+
+---
+
+## Advanced: Custom Theming
+
+```elixir
+brand_theme =
+  Choreo.Theme.custom(
+    colors: %{
+      application: "#3b82f6",
+      library: "#f59e0b",
+      module: "#10b981",
+      interface: "#8b5cf6",
+      test: "#ec4899"
+    },
+    node_fontcolor: "white",
+    edge_color: "#94a3b8",
+    graph_bgcolor: "#0f172a"
+  )
+
+Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme))
+```
+
+---
+
+## Summary
+
+| Question                         | Function                              |
+| -------------------------------- | ------------------------------------- |
+| "Where are the cycles?"          | `Analysis.cyclic_dependencies/1`      |
+| "What breaks if I change X?"     | `Analysis.affected_by/2`              |
+| "What does X need?"              | `Analysis.depends_on/2`               |
+| "Are layers respected?"          | `Analysis.layer_violations/2`         |
+| "Which edges are redundant?"     | `Analysis.transitive_reduction/1`     |
+| "How stable is each component?"  | `Analysis.instability/1`              |
+| "What's most coupled?"           | `Analysis.centrality/2`               |
+| "What's the deepest chain?"      | `Analysis.longest_dependency_chain/1` |
+| "Which components are isolated?" | `Analysis.isolated_subsystems/1`      |
+| "Is the graph sound?"            | `Analysis.validate/1`                 |
+| "Render to DOT"                  | `Dependency.to_dot/2`                 |
+
+Dependency graphs as code mean your architecture is version-controlled, reviewable, and automatically checked for cycles, layer violations, and coupling hotspots. Every time you add a new module or library, you can immediately see the impact on build order, test parallelism, and architectural integrity — before the code compiles.
