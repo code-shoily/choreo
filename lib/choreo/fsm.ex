@@ -61,11 +61,12 @@ defmodule Choreo.FSM do
   """
 
   @type t :: %__MODULE__{
-          graph: Yog.graph(),
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           meta: map()
         }
 
-  defstruct graph: nil, meta: %{}
+  defstruct graph: nil, edge_meta: %{}, meta: %{}
 
   alias Choreo.FSM.Analysis
 
@@ -83,7 +84,7 @@ defmodule Choreo.FSM do
   ## Examples
 
       iex> fsm = Choreo.FSM.new()
-      iex> Yog.type(fsm.graph) == :directed
+      iex> fsm.graph.kind == :directed
       true
   """
   @spec new(keyword()) :: t()
@@ -91,7 +92,8 @@ defmodule Choreo.FSM do
     kind = if Keyword.get(opts, :directed, true), do: :directed, else: :undirected
 
     %__MODULE__{
-      graph: Yog.new(kind),
+      graph: Yog.Multi.new(kind),
+      edge_meta: %{},
       meta: %{initial_state: nil, final_states: MapSet.new()}
     }
   end
@@ -111,7 +113,7 @@ defmodule Choreo.FSM do
   ## Examples
 
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_state(:idle, label: "Idle")
-      iex> Yog.node(fsm.graph, :idle).label
+      iex> fsm.graph.nodes[:idle].label
       "Idle"
 
   ## Diagram
@@ -133,7 +135,7 @@ defmodule Choreo.FSM do
       label: Keyword.get(opts, :label, to_string(id))
     }
 
-    fsm = %{fsm | graph: Yog.add_node(fsm.graph, id, data)}
+    fsm = %{fsm | graph: Yog.Multi.add_node(fsm.graph, id, data)}
 
     case Keyword.get(opts, :type) do
       :initial ->
@@ -291,7 +293,7 @@ defmodule Choreo.FSM do
       ...>   |> Choreo.FSM.add_state(:a)
       ...>   |> Choreo.FSM.add_state(:b)
       ...>   |> Choreo.FSM.add_transition(:a, :b, label: "go")
-      iex> Yog.has_edge?(fsm.graph, :a, :b)
+      iex> Yog.Multi.edges_between(fsm.graph, :a, :b) != []
       true
 
   ## Diagram
@@ -313,22 +315,25 @@ defmodule Choreo.FSM do
   def add_transition(%__MODULE__{} = fsm, from, to, opts \\ []) do
     label = build_transition_label(opts)
 
-    existing = Yog.successors(fsm.graph, from)
-
-    if Enum.any?(existing, fn {dest, _lbl} -> dest == to end) do
+    # DFAs do not support epsilon transitions
+    if label == "" do
       raise ArgumentError,
-            "transition from #{inspect(from)} to #{inspect(to)} already exists"
+            "epsilon transitions (empty labels) are not supported in DFAs"
     end
 
-    existing_labels = Enum.map(existing, fn {_to, lbl} -> lbl end)
+    existing = Yog.Multi.successors(fsm.graph, from)
+
+    existing_labels = Enum.map(existing, fn {_dest, _eid, lbl} -> lbl end)
 
     if label in existing_labels do
       raise ArgumentError,
             "duplicate transition label #{inspect(label)} from state #{inspect(from)}"
     end
 
-    graph = Yog.add_edge_ensure(fsm.graph, from, to, label)
-    %{fsm | graph: graph}
+    {graph, edge_id} = Yog.Multi.add_edge(fsm.graph, from, to, label)
+    edge_meta = Map.put(fsm.edge_meta, edge_id, %{label: label, guard: opts[:guard]})
+
+    %{fsm | graph: graph, edge_meta: edge_meta}
   end
 
   defp build_transition_label(opts) do
@@ -374,9 +379,11 @@ defmodule Choreo.FSM do
       iex> Choreo.FSM.transitions(fsm)
       [{:a, :b, "go"}]
   """
-  @spec transitions(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
+  @spec transitions(t()) :: [{Yog.node_id(), Yog.node_id(), String.t()}]
   def transitions(%__MODULE__{graph: graph}) do
-    Yog.all_edges(graph)
+    Enum.map(graph.edges, fn {_edge_id, {from, to, label}} ->
+      {from, to, label}
+    end)
   end
 
   @doc """
@@ -500,7 +507,16 @@ defmodule Choreo.FSM do
 
     to_remove = MapSet.union(dead, MapSet.difference(all, reachable))
 
-    new_graph = Enum.reduce(to_remove, fsm.graph, &Yog.remove_node(&2, &1))
+    removed_edge_ids =
+      fsm.graph.edges
+      |> Enum.filter(fn {_eid, {from, to, _data}} ->
+        from in to_remove or to in to_remove
+      end)
+      |> Enum.map(fn {eid, _} -> eid end)
+
+    new_graph = Enum.reduce(to_remove, fsm.graph, &Yog.Multi.remove_node(&2, &1))
+
+    new_edge_meta = Map.drop(fsm.edge_meta, removed_edge_ids)
 
     new_meta = %{
       fsm.meta
@@ -509,7 +525,7 @@ defmodule Choreo.FSM do
         final_states: MapSet.difference(fsm.meta.final_states, to_remove)
     }
 
-    %__MODULE__{fsm | graph: new_graph, meta: new_meta}
+    %__MODULE__{fsm | graph: new_graph, edge_meta: new_edge_meta, meta: new_meta}
   end
 
   # ============================================================================

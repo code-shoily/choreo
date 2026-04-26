@@ -230,19 +230,6 @@ defmodule Choreo.FSM.AnalysisTest do
       assert MapSet.equal?(sigma, MapSet.new(["x", "y"]))
     end
 
-    test "excludes empty labels" do
-      fsm =
-        FSM.new()
-        |> FSM.add_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_state(:c)
-        |> FSM.add_transition(:a, :b)
-        |> FSM.add_transition(:a, :c, label: "x")
-
-      sigma = Analysis.alphabet(fsm)
-      assert sigma == MapSet.new(["x"])
-    end
-
     test "returns empty for FSM with no transitions" do
       fsm = FSM.new() |> FSM.add_state(:a)
       assert Analysis.alphabet(fsm) == MapSet.new()

@@ -43,7 +43,7 @@ defmodule Choreo.FSM.Render.DOT do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
     base_opts =
-      Yog.Render.DOT.default_options()
+      Yog.Multi.DOT.default_options()
       |> Map.put(:rankdir, :lr)
       |> Map.put(:splines, :spline)
       |> Map.put(:nodesep, 0.5)
@@ -60,12 +60,12 @@ defmodule Choreo.FSM.Render.DOT do
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, fn _id, data -> data[:label] || "" end)
-      |> Map.put(:edge_label, fn weight -> weight || "" end)
+      |> Map.put(:edge_label, fn _edge_id, weight -> weight || "" end)
       |> Map.put(:node_attributes, node_attributes_fn(theme, fsm))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
-    dot = Yog.Render.DOT.to_dot(fsm.graph, base_opts)
+    dot = Yog.Multi.DOT.to_dot(fsm.graph, base_opts)
 
     # Inject invisible entry-point nodes for initial states
     initial_nodes = build_initial_nodes(fsm)

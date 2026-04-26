@@ -52,7 +52,7 @@ defmodule Choreo.FSM.Analysis do
     if initials == [] do
       []
     else
-      Choreo.Internal.bfs_reachable(fsm.graph, initials)
+      bfs_reachable_multi(fsm.graph, initials)
       |> MapSet.to_list()
     end
   end
@@ -86,8 +86,8 @@ defmodule Choreo.FSM.Analysis do
     if finals == [] do
       MapSet.to_list(all)
     else
-      transposed = Yog.transpose(fsm.graph)
-      can_reach_final = Choreo.Internal.bfs_reachable(transposed, finals)
+      predecessors = build_predecessors(fsm.graph)
+      can_reach_final = bfs_reachable_reverse(predecessors, finals)
       MapSet.difference(all, can_reach_final) |> MapSet.to_list()
     end
   end
@@ -122,8 +122,8 @@ defmodule Choreo.FSM.Analysis do
       |> Map.keys()
       |> Enum.all?(fn id ->
         labels =
-          Yog.successors(graph, id)
-          |> Enum.map(fn {_to, label} -> label end)
+          Yog.Multi.successors(graph, id)
+          |> Enum.map(fn {_to, _edge_id, label} -> label end)
 
         length(labels) == length(Enum.uniq(labels))
       end)
@@ -177,11 +177,11 @@ defmodule Choreo.FSM.Analysis do
 
   defp find_next(graph, state, input) do
     graph
-    |> Yog.successors(state)
-    |> Enum.find(fn {_to, label} -> label == input end)
+    |> Yog.Multi.successors(state)
+    |> Enum.find(fn {_to, _edge_id, label} -> label == input end)
     |> case do
       nil -> nil
-      {to, _label} -> to
+      {to, _edge_id, _label} -> to
     end
   end
 
@@ -282,12 +282,8 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec alphabet(FSM.t()) :: MapSet.t(String.t())
   def alphabet(%FSM{graph: graph}) do
-    graph.nodes
-    |> Map.keys()
-    |> Enum.flat_map(fn id ->
-      Yog.successors(graph, id)
-      |> Enum.map(fn {_to, label} -> label end)
-    end)
+    graph.edges
+    |> Enum.map(fn {_eid, {_from, _to, label}} -> label end)
     |> Enum.reject(&(&1 == "" or is_nil(&1)))
     |> MapSet.new()
   end
@@ -325,8 +321,8 @@ defmodule Choreo.FSM.Analysis do
       |> Map.keys()
       |> Enum.all?(fn id ->
         labels =
-          Yog.successors(graph, id)
-          |> Enum.map(fn {_to, label} -> label end)
+          Yog.Multi.successors(graph, id)
+          |> Enum.map(fn {_to, _edge_id, label} -> label end)
           |> MapSet.new()
 
         MapSet.subset?(sigma, labels)
@@ -361,8 +357,8 @@ defmodule Choreo.FSM.Analysis do
     |> Map.keys()
     |> Enum.flat_map(fn id ->
       labels =
-        Yog.successors(graph, id)
-        |> Enum.map(fn {_to, label} -> label end)
+        Yog.Multi.successors(graph, id)
+        |> Enum.map(fn {_to, _edge_id, label} -> label end)
 
       duplicates =
         labels
@@ -481,9 +477,9 @@ defmodule Choreo.FSM.Analysis do
       {:ok, Enum.reverse(path)}
     else
       new_items =
-        Yog.successors(fsm.graph, state)
-        |> Enum.reject(fn {to, _label} -> MapSet.member?(visited, to) end)
-        |> Enum.map(fn {to, label} -> {to, [label | path]} end)
+        Yog.Multi.successors(fsm.graph, state)
+        |> Enum.reject(fn {to, _edge_id, _label} -> MapSet.member?(visited, to) end)
+        |> Enum.map(fn {to, _edge_id, label} -> {to, [label | path]} end)
 
       new_visited = Enum.reduce(new_items, visited, fn {to, _}, acc -> MapSet.put(acc, to) end)
       bfs_path(fsm, rest ++ new_items, new_visited)
@@ -509,11 +505,51 @@ defmodule Choreo.FSM.Analysis do
       next_queue =
         queue
         |> Enum.flat_map(fn {state, path} ->
-          Yog.successors(fsm.graph, state)
-          |> Enum.map(fn {to, label} -> {to, [label | path]} end)
+          Yog.Multi.successors(fsm.graph, state)
+          |> Enum.map(fn {to, _edge_id, label} -> {to, [label | path]} end)
         end)
 
       do_accepted_strings(fsm, next_queue, max_length, current_length + 1, new_acc)
     end
+  end
+
+  # ============================================================================
+  # Multigraph helpers
+  # ============================================================================
+
+  defp bfs_reachable_multi(graph, seeds) do
+    do_bfs_multi(graph, seeds, MapSet.new(seeds))
+  end
+
+  defp do_bfs_multi(_graph, [], visited), do: visited
+
+  defp do_bfs_multi(graph, [h | t], visited) do
+    neighbors =
+      graph
+      |> Yog.Multi.successors(h)
+      |> Enum.map(fn {to, _edge_id, _data} -> to end)
+      |> Enum.reject(&MapSet.member?(visited, &1))
+
+    do_bfs_multi(graph, t ++ neighbors, MapSet.union(visited, MapSet.new(neighbors)))
+  end
+
+  defp build_predecessors(graph) do
+    Enum.reduce(graph.edges, %{}, fn {_eid, {from, to, _data}}, acc ->
+      Map.update(acc, to, [from], &[from | &1])
+    end)
+  end
+
+  defp bfs_reachable_reverse(predecessors, seeds) do
+    do_bfs_reverse(predecessors, seeds, MapSet.new(seeds))
+  end
+
+  defp do_bfs_reverse(_preds, [], visited), do: visited
+
+  defp do_bfs_reverse(preds, [h | t], visited) do
+    neighbors =
+      Map.get(preds, h, [])
+      |> Enum.reject(&MapSet.member?(visited, &1))
+
+    do_bfs_reverse(preds, t ++ neighbors, MapSet.union(visited, MapSet.new(neighbors)))
   end
 end

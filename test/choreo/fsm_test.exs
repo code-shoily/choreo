@@ -9,19 +9,19 @@ defmodule Choreo.FSMTest do
   describe "creation" do
     test "new/0 creates a directed graph by default" do
       fsm = FSM.new()
-      assert Yog.type(fsm.graph) == :directed
+      assert fsm.graph.kind == :directed
     end
 
     test "new/1 can create undirected graph" do
       fsm = FSM.new(directed: false)
-      assert Yog.type(fsm.graph) == :undirected
+      assert fsm.graph.kind == :undirected
     end
   end
 
   describe "states" do
     test "add_state/3 creates a normal state" do
       fsm = FSM.new() |> FSM.add_state(:idle, label: "Idle")
-      data = Yog.node(fsm.graph, :idle)
+      data = fsm.graph.nodes[:idle]
       assert data.label == "Idle"
       refute :idle in FSM.initial_states(fsm)
       refute :idle in FSM.final_states(fsm)
@@ -134,14 +134,15 @@ defmodule Choreo.FSMTest do
       assert [{:a, :b, "go [ready]"}] = FSM.transitions(fsm)
     end
 
-    test "add_transition/4 without label" do
-      fsm =
-        FSM.new()
-        |> FSM.add_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_transition(:a, :b)
-
-      assert [{:a, :b, ""}] = FSM.transitions(fsm)
+    test "add_transition/4 without label rejects epsilon transitions" do
+      assert_raise ArgumentError,
+                   "epsilon transitions (empty labels) are not supported in DFAs",
+                   fn ->
+                     FSM.new()
+                     |> FSM.add_state(:a)
+                     |> FSM.add_state(:b)
+                     |> FSM.add_transition(:a, :b)
+                   end
     end
 
     test "add_transition/4 raises on duplicate label from same state" do
@@ -152,6 +153,27 @@ defmodule Choreo.FSMTest do
         |> FSM.add_state(:c)
         |> FSM.add_transition(:a, :b, label: "x")
         |> FSM.add_transition(:a, :c, label: "x")
+      end
+    end
+
+    test "add_transition/4 allows different labels between same states" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:a, :b, label: "y")
+
+      edges = FSM.transitions(fsm) |> Enum.sort_by(fn {_, _, l} -> l end)
+      assert [{:a, :b, "x"}, {:a, :b, "y"}] = edges
+    end
+
+    test "add_transition/4 rejects epsilon transitions" do
+      assert_raise ArgumentError, fn ->
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b)
       end
     end
   end
