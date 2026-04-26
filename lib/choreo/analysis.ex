@@ -67,10 +67,12 @@ defmodule Choreo.Analysis do
   """
   @spec mst(Choreo.t(), keyword()) ::
           {:ok, Yog.MST.Result.t()} | {:error, atom() | String.t()}
-  def mst(%Choreo{graph: graph}, opts \\ []) do
+  def mst(%Choreo{} = system, opts \\ []) do
     algorithm = Keyword.get(opts, :algorithm, :kruskal)
 
-    # Ensure we work on an undirected graph
+    # Collapse parallel edges and ensure we work on an undirected graph
+    graph = Choreo.to_simple_graph(system)
+
     graph =
       if graph.kind == :directed do
         Yog.Transform.to_undirected(graph, &min/2)
@@ -109,7 +111,9 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "In what order should I deploy or initialise services?"
   """
   @spec topological_sort(Choreo.t()) :: {:ok, [Yog.node_id()]} | {:error, String.t()}
-  def topological_sort(%Choreo{graph: graph}) do
+  def topological_sort(%Choreo{} = system) do
+    graph = Choreo.to_simple_graph(system)
+
     case Yog.Traversal.Sort.topological_sort(graph) do
       {:ok, order} -> {:ok, order}
       {:error, reason} -> {:error, reason}
@@ -123,8 +127,8 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "Does my architecture contain a feedback loop?"
   """
   @spec cyclic?(Choreo.t()) :: boolean()
-  def cyclic?(%Choreo{graph: graph}) do
-    Yog.cyclic?(graph)
+  def cyclic?(%Choreo{} = system) do
+    system |> Choreo.to_simple_graph() |> Yog.cyclic?()
   end
 
   @doc """
@@ -132,8 +136,8 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "Can I safely order my services linearly?"
   """
   @spec dag?(Choreo.t()) :: boolean()
-  def dag?(%Choreo{graph: graph}) do
-    Yog.acyclic?(graph)
+  def dag?(%Choreo{} = system) do
+    system |> Choreo.to_simple_graph() |> Yog.acyclic?()
   end
 
   @doc """
@@ -149,8 +153,8 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "Which services are mutually dependent?"
   """
   @spec strongly_connected_components(Choreo.t()) :: [[Yog.node_id()]]
-  def strongly_connected_components(%Choreo{graph: graph}) do
-    Yog.Connectivity.strongly_connected_components(graph)
+  def strongly_connected_components(%Choreo{} = system) do
+    system |> Choreo.to_simple_graph() |> Yog.Connectivity.strongly_connected_components()
   end
 
   # ============================================================================
@@ -190,7 +194,8 @@ defmodule Choreo.Analysis do
           nodes: [Yog.node_id()],
           edges: [{Yog.node_id(), Yog.node_id()}]
         }
-  def single_points_of_failure(%Choreo{graph: graph}) do
+  def single_points_of_failure(%Choreo{} = system) do
+    graph = Choreo.to_simple_graph(system)
     undirected = ensure_undirected(graph)
     result = Yog.Connectivity.analyze(undirected)
 
@@ -225,7 +230,8 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "What breaks if this service goes down?"
   """
   @spec impact_analysis(Choreo.t(), Yog.node_id()) :: [Yog.node_id()]
-  def impact_analysis(%Choreo{graph: graph}, target) do
+  def impact_analysis(%Choreo{} = system, target) do
+    graph = Choreo.to_simple_graph(system)
     transposed = Yog.transpose(graph)
 
     Choreo.Internal.bfs_reachable(transposed, [target])
@@ -272,7 +278,8 @@ defmodule Choreo.Analysis do
   """
   @spec shortest_path(Choreo.t(), Yog.node_id(), Yog.node_id(), keyword()) ::
           {:ok, map()} | :error
-  def shortest_path(%Choreo{graph: graph}, from, to, opts \\ []) do
+  def shortest_path(%Choreo{} = system, from, to, opts \\ []) do
+    graph = Choreo.to_simple_graph(system)
     zero = Keyword.get(opts, :zero, 0)
     add = Keyword.get(opts, :add, &Kernel.+/2)
     compare = Keyword.get(opts, :compare, &Yog.Utils.compare/2)
@@ -318,7 +325,8 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "Which services are the most critical connectors?"
   """
   @spec centrality(Choreo.t(), keyword()) :: [{Yog.node_id(), float()}]
-  def centrality(%Choreo{graph: graph}, opts \\ []) do
+  def centrality(%Choreo{} = system, opts \\ []) do
+    graph = Choreo.to_simple_graph(system)
     measure = Keyword.get(opts, :measure, :degree)
     limit = Keyword.get(opts, :limit, nil)
 
@@ -371,7 +379,9 @@ defmodule Choreo.Analysis do
     This analysis answers the question: "Which services have no connections at all?"
   """
   @spec isolated_nodes(Choreo.t()) :: [Yog.node_id()]
-  def isolated_nodes(%Choreo{graph: graph}) do
+  def isolated_nodes(%Choreo{} = system) do
+    graph = Choreo.to_simple_graph(system)
+
     graph.nodes
     |> Map.keys()
     |> Enum.filter(fn id ->
@@ -447,7 +457,9 @@ defmodule Choreo.Analysis do
     end
   end
 
-  defp check_cycles(acc, %Choreo{graph: graph} = _system) do
+  defp check_cycles(acc, %Choreo{} = system) do
+    graph = Choreo.to_simple_graph(system)
+
     if graph.kind == :directed and Yog.cyclic?(graph) do
       [{:error, "Cycle detected in system"} | acc]
     else

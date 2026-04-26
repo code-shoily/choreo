@@ -11,12 +11,12 @@ defmodule ChoreoTest do
     test "new/0 creates a directed system by default" do
       system = Choreo.new()
       assert %Choreo{} = system
-      assert Yog.type(system.graph) == :directed
+      assert system.graph.kind == :directed
     end
 
     test "new/1 can create an undirected system" do
       system = Choreo.new(directed: false)
-      assert Yog.type(system.graph) == :undirected
+      assert system.graph.kind == :undirected
     end
   end
 
@@ -76,6 +76,18 @@ defmodule ChoreoTest do
       assert [{:a, :b, 42}] = Choreo.edges(system)
     end
 
+    test "connect/4 allows parallel edges" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b, cost: 42)
+        |> Choreo.connect(:a, :b, cost: 99)
+
+      edges = Choreo.edges(system) |> Enum.sort_by(fn {_, _, c} -> c end)
+      assert [{:a, :b, 42}, {:a, :b, 99}] = edges
+    end
+
     test "add_dataflow/4" do
       system =
         Choreo.new()
@@ -84,7 +96,8 @@ defmodule ChoreoTest do
         |> Choreo.add_dataflow(:a, :b, cost: 5)
 
       assert [{:a, :b, 5}] = Choreo.edges(system)
-      assert get_in(system.edge_meta, [{:a, :b}, :type]) == :dataflow
+      assert [{:a, :b, 5, meta}] = Choreo.edges_with_meta(system)
+      assert meta.type == :dataflow
     end
   end
 

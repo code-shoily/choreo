@@ -54,8 +54,8 @@ defmodule Choreo do
   alias __MODULE__
 
   @type t :: %__MODULE__{
-          graph: Yog.graph(),
-          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           clusters: %{String.t() => map()}
         }
 
@@ -80,7 +80,7 @@ defmodule Choreo do
       iex> map_size(system.clusters)
       0
       iex> system = Choreo.new(directed: false)
-      iex> Yog.type(system.graph)
+      iex> system.graph.kind
       :undirected
   """
   @spec new(keyword()) :: t()
@@ -88,7 +88,7 @@ defmodule Choreo do
     kind = if Keyword.get(opts, :directed, true), do: :directed, else: :undirected
 
     %__MODULE__{
-      graph: Yog.new(kind),
+      graph: Yog.Multi.new(kind),
       edge_meta: %{},
       clusters: %{}
     }
@@ -411,7 +411,7 @@ defmodule Choreo do
         do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(cluster)),
         else: data
 
-    %{system | graph: Yog.add_node(graph, id, data)}
+    %{system | graph: Yog.Multi.add_node(graph, id, data)}
   end
 
   # ============================================================================
@@ -457,8 +457,8 @@ defmodule Choreo do
       |> Map.new()
       |> Map.put_new(:label, nil)
 
-    edge_meta = Map.put(system.edge_meta, {from, to}, meta)
-    graph = Yog.add_edge_ensure(system.graph, from, to, cost)
+    {graph, edge_id} = Yog.Multi.add_edge(system.graph, from, to, cost)
+    edge_meta = Map.put(system.edge_meta, edge_id, meta)
 
     %{system | graph: graph, edge_meta: edge_meta}
   end
@@ -472,9 +472,8 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.add_dataflow(:a, :b)
-      iex> Choreo.edges(system)
-      [{:a, :b, 1}]
-      iex> get_in(system.edge_meta, [{:a, :b}, :type])
+      iex> [{:a, :b, 1, meta}] = Choreo.edges_with_meta(system)
+      iex> meta.type
       :dataflow
   """
   @spec add_dataflow(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
@@ -512,13 +511,54 @@ defmodule Choreo do
   """
   @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def edges(%__MODULE__{graph: graph}) do
-    Yog.all_edges(graph)
+    Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
+      {from, to, weight}
+    end)
   end
 
   @doc """
-  Returns the raw `Yog.Graph` struct underpinning the system.
+  Returns all edges with their metadata as `{from, to, cost, meta}` tuples.
 
-  Useful when you want to drop down to the raw Yog API.
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b, protocol: :http)
+      iex> [{:a, :b, 1, meta}] = Choreo.edges_with_meta(system)
+      iex> meta.protocol
+      :http
+  """
+  @spec edges_with_meta(t()) :: [{Yog.node_id(), Yog.node_id(), number(), map()}]
+  def edges_with_meta(%__MODULE__{graph: graph, edge_meta: edge_meta}) do
+    Enum.map(graph.edges, fn {edge_id, {from, to, weight}} ->
+      {from, to, weight, Map.get(edge_meta, edge_id, %{})}
+    end)
+  end
+
+  @doc """
+  Collapses parallel edges into a simple `Yog.Graph` for algorithm analysis.
+
+  ## Options
+
+    * `:combine` - function to combine weights of parallel edges
+      (default: `&min/2`)
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b)
+      ...> |> Choreo.connect(:a, :b, cost: 10) |> Choreo.connect(:a, :b, cost: 5)
+      iex> simple = Choreo.to_simple_graph(system)
+      iex> Yog.all_edges(simple)
+      [{:a, :b, 5}]
+  """
+  @spec to_simple_graph(t(), keyword()) :: Yog.Graph.t()
+  def to_simple_graph(%__MODULE__{graph: graph}, opts \\ []) do
+    combine = Keyword.get(opts, :combine, &min/2)
+    Yog.Multi.to_simple_graph(graph, combine)
+  end
+
+  @doc """
+  Returns the raw `Yog.Multi.Graph` struct underpinning the system.
+
+  Useful when you want to drop down to the raw Yog Multi API.
 
   ## Examples
 
@@ -526,7 +566,7 @@ defmodule Choreo do
       iex> Choreo.to_graph(system) == system.graph
       true
   """
-  @spec to_graph(t()) :: Yog.graph()
+  @spec to_graph(t()) :: Yog.Multi.Graph.t()
   def to_graph(%__MODULE__{graph: graph}), do: graph
 
   # ============================================================================

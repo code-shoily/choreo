@@ -48,9 +48,9 @@ defmodule Choreo.Render.DOT do
     subgraphs = Choreo.Internal.build_cluster_subgraphs(system, theme)
 
     base =
-      Yog.Render.DOT.default_options()
+      Yog.Multi.DOT.default_options()
       |> Map.put(:node_label, &node_label/2)
-      |> Map.put(:edge_label, &edge_label/1)
+      |> Map.put(:edge_label, fn _edge_id, weight -> edge_label(weight) end)
       |> Map.put(:node_attributes, node_attributes_fn(system, theme))
       |> Map.put(:edge_attributes, edge_attributes_fn(system))
       |> Map.merge(theme_graph_attrs(theme))
@@ -58,7 +58,7 @@ defmodule Choreo.Render.DOT do
 
     base = if subgraphs != [], do: Map.put(base, :subgraphs, subgraphs), else: base
 
-    Yog.Render.DOT.to_dot(system.graph, base)
+    Yog.Multi.DOT.to_dot(system.graph, base)
   end
 
   # ============================================================================
@@ -126,8 +126,8 @@ defmodule Choreo.Render.DOT do
   # ============================================================================
 
   defp edge_attributes_fn(system) do
-    fn from, to, _weight ->
-      meta = Map.get(system.edge_meta, {from, to}, %{})
+    fn _from, to, edge_id, _weight ->
+      meta = Map.get(system.edge_meta, edge_id, %{})
 
       base =
         case meta[:type] do
