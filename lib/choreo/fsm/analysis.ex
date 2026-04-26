@@ -95,20 +95,21 @@ defmodule Choreo.FSM.Analysis do
   @doc """
     Checks whether the FSM is deterministic.
 
-    An FSM is deterministic when no state has two outgoing transitions
-    with the same label. (Epsilon transitions are not supported.)
+    An FSM is deterministic when it has exactly one initial state and no
+    state has two outgoing transitions with the same label.
+    (Epsilon transitions are not supported.)
 
     ## Examples
 
         iex> fsm =
         ...>   Choreo.FSM.new()
-        ...>   |> Choreo.FSM.add_state(:a)
+        ...>   |> Choreo.FSM.add_initial_state(:a)
         ...>   |> Choreo.FSM.add_state(:b)
         ...>   |> Choreo.FSM.add_state(:c)
         ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "y")
         iex> Choreo.FSM.Analysis.deterministic?(fsm)
-        false
+        true
 
     This analysis answers the question: "Is this a deterministic finite automaton?"
   """
@@ -133,9 +134,8 @@ defmodule Choreo.FSM.Analysis do
   @doc """
     Simulates the FSM on a sequence of input symbols.
 
-    Returns `true` if at least one path from an initial state leads to a
-    final state after consuming all inputs. This works for both DFAs and
-    NFAs.
+    Returns `true` if the unique path from the initial state leads to a
+    final state after consuming all inputs.
 
     ## Examples
 
@@ -155,38 +155,33 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec accepts?(FSM.t(), [String.t()]) :: boolean()
   def accepts?(%FSM{} = fsm, inputs) do
-    initial = FSM.initial_states(fsm) |> MapSet.new()
+    case FSM.initial_states(fsm) |> MapSet.to_list() do
+      [initial] ->
+        result =
+          Enum.reduce_while(inputs, initial, fn input, current ->
+            case find_next(fsm.graph, current, input) do
+              nil -> {:halt, :dead}
+              next -> {:cont, next}
+            end
+          end)
 
-    if MapSet.size(initial) == 0 do
-      false
-    else
-      result =
-        Enum.reduce_while(inputs, initial, fn input, current ->
-          next =
-            current
-            |> Enum.flat_map(fn state ->
-              fsm.graph
-              |> Yog.successors(state)
-              |> Enum.filter(fn {_to, label} -> label == input end)
-              |> Enum.map(fn {to, _label} -> to end)
-            end)
-            |> MapSet.new()
+        case result do
+          :dead -> false
+          state -> state in FSM.final_states(fsm)
+        end
 
-          if MapSet.size(next) == 0 do
-            {:halt, :dead}
-          else
-            {:cont, next}
-          end
-        end)
+      [] ->
+        false
+    end
+  end
 
-      case result do
-        :dead ->
-          false
-
-        states ->
-          final_set = FSM.final_states(fsm) |> MapSet.new()
-          not MapSet.disjoint?(states, final_set)
-      end
+  defp find_next(graph, state, input) do
+    graph
+    |> Yog.successors(state)
+    |> Enum.find(fn {_to, label} -> label == input end)
+    |> case do
+      nil -> nil
+      {to, _label} -> to
     end
   end
 
@@ -354,9 +349,9 @@ defmodule Choreo.FSM.Analysis do
         ...>   |> Choreo.FSM.add_state(:b)
         ...>   |> Choreo.FSM.add_state(:c)
         ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "x")
+        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "y")
         iex> Choreo.FSM.Analysis.nondeterministic_states(fsm)
-        [{:a, "x"}]
+        []
 
     This analysis answers the question: "Which states break determinism?"
   """
@@ -377,117 +372,6 @@ defmodule Choreo.FSM.Analysis do
 
       Enum.map(duplicates, fn label -> {id, label} end)
     end)
-  end
-
-  @doc """
-    Converts an NFA to an equivalent complete DFA using the Subset Construction
-    algorithm. Resolves incomplete alphabets by attaching a sink state (`:__trap__`).
-
-    ## Examples
-
-        iex> nfa =
-        ...>   Choreo.FSM.new()
-        ...>   |> Choreo.FSM.add_initial_state(:q0)
-        ...>   |> Choreo.FSM.add_state(:q1)
-        ...>   |> Choreo.FSM.add_state(:q2)
-        ...>   |> Choreo.FSM.add_final_state(:q2)
-        ...>   |> Choreo.FSM.add_transition(:q0, :q1, label: "a")
-        ...>   |> Choreo.FSM.add_transition(:q0, :q2, label: "a")
-        ...>   |> Choreo.FSM.add_transition(:q1, :q2, label: "b")
-        iex> dfa = Choreo.FSM.Analysis.to_dfa(nfa)
-        iex> Choreo.FSM.Analysis.deterministic?(dfa)
-        true
-        iex> Choreo.FSM.Analysis.accepts?(dfa, ["a"])
-        true
-        iex> Choreo.FSM.Analysis.accepts?(dfa, ["a", "b"])
-        true
-  """
-  @spec to_dfa(FSM.t()) :: FSM.t()
-  def to_dfa(%FSM{} = fsm) do
-    sigma = alphabet(fsm)
-    nfa_initial = FSM.initial_states(fsm)
-    nfa_finals = FSM.final_states(fsm) |> MapSet.new()
-
-    if MapSet.size(nfa_initial) == 0 do
-      FSM.new()
-    else
-      mappings = %{nfa_initial => :s0}
-      dfa = FSM.new()
-
-      dfa =
-        if MapSet.disjoint?(nfa_initial, nfa_finals) do
-          FSM.add_initial_state(dfa, :s0)
-        else
-          FSM.add_initial_state(dfa, :s0)
-          |> FSM.add_final_state(:s0)
-        end
-
-      build_dfa(fsm, [{nfa_initial, :s0}], mappings, 1, dfa, sigma, nfa_finals)
-    end
-  end
-
-  defp build_dfa(_fsm, [], _mappings, _next_idx, dfa, _sigma, _nfa_finals), do: dfa
-
-  defp build_dfa(
-         fsm,
-         [{current_set, current_id} | rest],
-         mappings,
-         next_idx,
-         dfa,
-         sigma,
-         nfa_finals
-       ) do
-    {new_rest, new_mappings, new_idx, new_dfa} =
-      Enum.reduce(sigma, {rest, mappings, next_idx, dfa}, fn symbol, {r, m, idx, d} ->
-        next_set =
-          current_set
-          |> Enum.flat_map(fn state ->
-            fsm.graph
-            |> Yog.successors(state)
-            |> Enum.filter(fn {_to, label} -> label == symbol end)
-            |> Enum.map(fn {to, _label} -> to end)
-          end)
-          |> MapSet.new()
-
-        if MapSet.size(next_set) == 0 do
-          d =
-            if Map.has_key?(m, :__trap__) do
-              d
-            else
-              FSM.add_state(d, :__trap__)
-            end
-
-          d =
-            Enum.reduce(sigma, d, fn sym, acc ->
-              FSM.add_transition(acc, :__trap__, :__trap__, label: sym)
-            end)
-
-          d = FSM.add_transition(d, current_id, :__trap__, label: symbol)
-          {r, Map.put(m, :__trap__, :__trap__), idx, d}
-        else
-          case Map.fetch(m, next_set) do
-            {:ok, target_id} ->
-              d = FSM.add_transition(d, current_id, target_id, label: symbol)
-              {r, m, idx, d}
-
-            :error ->
-              target_id = String.to_atom("s#{idx}")
-
-              d =
-                if MapSet.disjoint?(next_set, nfa_finals) do
-                  FSM.add_state(d, target_id)
-                else
-                  FSM.add_final_state(d, target_id)
-                end
-
-              d = FSM.add_transition(d, current_id, target_id, label: symbol)
-
-              {[{next_set, target_id} | r], Map.put(m, next_set, target_id), idx + 1, d}
-          end
-        end
-      end)
-
-    build_dfa(fsm, new_rest, new_mappings, new_idx, new_dfa, sigma, nfa_finals)
   end
 
   # ============================================================================

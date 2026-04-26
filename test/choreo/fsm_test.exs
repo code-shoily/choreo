@@ -42,6 +42,22 @@ defmodule Choreo.FSMTest do
       assert :idle in FSM.initial_states(fsm)
     end
 
+    test "add_state/3 with type: :initial raises when initial state already exists" do
+      assert_raise ArgumentError, fn ->
+        FSM.new()
+        |> FSM.add_state(:idle, type: :initial)
+        |> FSM.add_state(:running, type: :initial)
+      end
+    end
+
+    test "add_initial_state/3 raises when adding second initial state" do
+      assert_raise ArgumentError, fn ->
+        FSM.new()
+        |> FSM.add_initial_state(:idle)
+        |> FSM.add_initial_state(:running)
+      end
+    end
+
     test "add_state/3 with type: :final" do
       fsm = FSM.new() |> FSM.add_state(:done, type: :final)
       assert :done in FSM.final_states(fsm)
@@ -126,6 +142,17 @@ defmodule Choreo.FSMTest do
         |> FSM.add_transition(:a, :b)
 
       assert [{:a, :b, ""}] = FSM.transitions(fsm)
+    end
+
+    test "add_transition/4 raises on duplicate label from same state" do
+      assert_raise ArgumentError, fn ->
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_state(:c)
+        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:a, :c, label: "x")
+      end
     end
   end
 
@@ -264,20 +291,6 @@ defmodule Choreo.FSMTest do
       assert :a in FSM.initial_states(pruned)
       assert :a in FSM.final_states(pruned)
       refute :dead in FSM.states(pruned)
-    end
-
-    test "prune with multiple initial states" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_initial_state(:b)
-        |> FSM.add_final_state(:c)
-        |> FSM.add_transition(:a, :c, label: "go")
-
-      pruned = FSM.prune(fsm)
-      assert :a in FSM.initial_states(pruned)
-      refute :b in FSM.initial_states(pruned)
-      refute :b in FSM.states(pruned)
     end
   end
 end

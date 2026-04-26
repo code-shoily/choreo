@@ -92,29 +92,8 @@ defmodule Choreo.FSM.AnalysisTest do
       assert Analysis.deterministic?(fsm)
     end
 
-    test "false when duplicate labels from a state" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_state(:c)
-        |> FSM.add_transition(:a, :b, label: "x")
-        |> FSM.add_transition(:a, :c, label: "x")
-
-      refute Analysis.deterministic?(fsm)
-    end
-
     test "false for empty fsm" do
       refute Analysis.deterministic?(FSM.new())
-    end
-
-    test "false when multiple initial states" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_initial_state(:b)
-
-      refute Analysis.deterministic?(fsm)
     end
   end
 
@@ -152,19 +131,6 @@ defmodule Choreo.FSM.AnalysisTest do
         |> FSM.add_transition(:idle, :running, label: "start")
 
       refute Analysis.accepts?(fsm, ["invalid"])
-    end
-
-    test "accepts when one of multiple paths reaches final (NFA)" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:q0)
-        |> FSM.add_state(:q1)
-        |> FSM.add_state(:q2)
-        |> FSM.add_final_state(:q2)
-        |> FSM.add_transition(:q0, :q1, label: "a")
-        |> FSM.add_transition(:q0, :q2, label: "a")
-
-      assert Analysis.accepts?(fsm, ["a"])
     end
 
     test "rejects when no initial states" do
@@ -269,8 +235,9 @@ defmodule Choreo.FSM.AnalysisTest do
         FSM.new()
         |> FSM.add_state(:a)
         |> FSM.add_state(:b)
+        |> FSM.add_state(:c)
         |> FSM.add_transition(:a, :b)
-        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:a, :c, label: "x")
 
       sigma = Analysis.alphabet(fsm)
       assert sigma == MapSet.new(["x"])
@@ -316,19 +283,6 @@ defmodule Choreo.FSM.AnalysisTest do
   end
 
   describe "nondeterministic_states/1" do
-    test "returns states with duplicate labels" do
-      fsm =
-        FSM.new()
-        |> FSM.add_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_state(:c)
-        |> FSM.add_transition(:a, :b, label: "x")
-        |> FSM.add_transition(:a, :c, label: "x")
-
-      result = Analysis.nondeterministic_states(fsm)
-      assert {:a, "x"} in result
-    end
-
     test "returns empty for deterministic FSM" do
       fsm =
         FSM.new()
@@ -337,23 +291,6 @@ defmodule Choreo.FSM.AnalysisTest do
         |> FSM.add_transition(:a, :b, label: "x")
 
       assert Analysis.nondeterministic_states(fsm) == []
-    end
-
-    test "identifies multiple offending states" do
-      fsm =
-        FSM.new()
-        |> FSM.add_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_state(:c)
-        |> FSM.add_state(:d)
-        |> FSM.add_transition(:a, :b, label: "x")
-        |> FSM.add_transition(:a, :c, label: "x")
-        |> FSM.add_transition(:b, :c, label: "y")
-        |> FSM.add_transition(:b, :d, label: "y")
-
-      result = Analysis.nondeterministic_states(fsm)
-      assert {:a, "x"} in result
-      assert {:b, "y"} in result
     end
   end
 
@@ -428,22 +365,6 @@ defmodule Choreo.FSM.AnalysisTest do
              end)
     end
 
-    test "warns on nondeterministic transitions" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_final_state(:b)
-        |> FSM.add_final_state(:c)
-        |> FSM.add_transition(:a, :b, label: "x")
-        |> FSM.add_transition(:a, :c, label: "x")
-
-      issues = Analysis.validate(fsm)
-
-      assert Enum.any?(issues, fn {_sev, msg} ->
-               String.contains?(msg, "Nondeterministic")
-             end)
-    end
-
     test "warns on incomplete FSM" do
       fsm =
         FSM.new()
@@ -460,77 +381,6 @@ defmodule Choreo.FSM.AnalysisTest do
 
     test "empty FSM passes validation" do
       assert Analysis.validate(FSM.new()) == []
-    end
-  end
-
-  describe "accepts?/2 with multiple initial states" do
-    test "accepts when any initial state leads to final" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_initial_state(:b)
-        |> FSM.add_final_state(:c)
-        |> FSM.add_transition(:a, :c, label: "x")
-
-      assert Analysis.accepts?(fsm, ["x"])
-    end
-
-    test "rejects when no initial state reaches final" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_initial_state(:b)
-        |> FSM.add_final_state(:c)
-        |> FSM.add_transition(:a, :d, label: "x")
-        |> FSM.add_transition(:b, :d, label: "x")
-
-      refute Analysis.accepts?(fsm, ["x"])
-    end
-  end
-
-  describe "to_dfa/1" do
-    test "converts simple NFA to equivalent DFA" do
-      nfa =
-        FSM.new()
-        |> FSM.add_initial_state(:q0)
-        |> FSM.add_state(:q1)
-        |> FSM.add_state(:q2)
-        |> FSM.add_final_state(:q2)
-        |> FSM.add_transition(:q0, :q1, label: "a")
-        |> FSM.add_transition(:q0, :q2, label: "a")
-        |> FSM.add_transition(:q1, :q2, label: "b")
-
-      dfa = Analysis.to_dfa(nfa)
-
-      assert Analysis.deterministic?(dfa)
-      assert Analysis.accepts?(dfa, ["a"])
-      assert Analysis.accepts?(dfa, ["a", "b"])
-      refute Analysis.accepts?(dfa, ["b"])
-    end
-
-    test "handles incomplete alphabet with trap state" do
-      nfa =
-        FSM.new()
-        |> FSM.add_initial_state(:q0)
-        |> FSM.add_final_state(:q1)
-        |> FSM.add_transition(:q0, :q1, label: "a")
-
-      dfa = Analysis.to_dfa(nfa)
-
-      assert Analysis.deterministic?(dfa)
-      assert :__trap__ in FSM.states(dfa)
-      assert Analysis.complete?(dfa)
-    end
-
-    test "returns empty FSM when no initial states" do
-      nfa =
-        FSM.new()
-        |> FSM.add_state(:q0)
-        |> FSM.add_final_state(:q1)
-        |> FSM.add_transition(:q0, :q1, label: "a")
-
-      dfa = Analysis.to_dfa(nfa)
-      assert FSM.states(dfa) == []
     end
   end
 end

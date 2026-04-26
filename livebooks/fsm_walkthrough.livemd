@@ -9,7 +9,7 @@ Mix.install([
 
 ## Introduction
 
-`Choreo.FSM` is a finite-state machine builder that supports both **deterministic (DFA)** and **nondeterministic (NFA)** automata. You define states, transitions, and analyse reachability, acceptance, determinism, and more. Everything renders to DOT for visualisation.
+`Choreo.FSM` is a finite-state machine builder that supports **deterministic finite automata (DFAs)**. You define states, transitions, and analyse reachability, acceptance, and more. Everything renders to DOT for visualisation.
 
 ```elixir
 alias Choreo.FSM
@@ -81,14 +81,14 @@ order_flow =
 Kino.VizJS.render(FSM.to_dot(order_flow))
 ```
 
-## Determinism & NFA Support
+## Determinism
 
 An FSM is **deterministic** when two conditions hold:
 
 1. Exactly **one** initial state.
 2. No state has two outgoing transitions with the **same label**.
 
-If either condition is violated, the FSM is an NFA. `Choreo.FSM` simulates NFAs using subset construction, so `accepts?/2` works for both.
+`Choreo.FSM` ensures validation tools help track structural determinism.
 
 ```elixir
 # Deterministic — single start, unique labels per state
@@ -101,47 +101,6 @@ dfa =
   |> FSM.add_transition(:q1, :q2, label: "b")
 
 Analysis.deterministic?(dfa)
-```
-
-```elixir
-# Nondeterministic — two initial states
-multi_start =
-  FSM.new()
-  |> FSM.add_initial_state(:a)
-  |> FSM.add_initial_state(:b)
-  |> FSM.add_final_state(:c)
-  |> FSM.add_transition(:a, :c, label: "x")
-
-Analysis.deterministic?(multi_start)
-```
-
-```elixir
-# Nondeterministic — duplicate label from one state
-nfa =
-  FSM.new()
-  |> FSM.add_initial_state(:q0)
-  |> FSM.add_state(:q1)
-  |> FSM.add_state(:q2)
-  |> FSM.add_final_state(:q2)
-  |> FSM.add_transition(:q0, :q1, label: "a")
-  |> FSM.add_transition(:q0, :q2, label: "a")
-  |> FSM.add_transition(:q1, :q2, label: "b")
-
-Analysis.deterministic?(nfa)
-Kino.VizJS.render(FSM.to_dot(nfa))
-```
-
-### NFA-to-DFA Conversion
-
-Use `Analysis.to_dfa/1` to apply the **subset construction** algorithm. The resulting DFA is complete: any missing transition is sent to a `:__trap__` sink state.
-
-```elixir
-dfa = Analysis.to_dfa(nfa)
-
-Analysis.deterministic?(dfa)
-Analysis.accepts?(dfa, ["a"])
-Analysis.accepts?(dfa, ["a", "b"])
-Kino.VizJS.render(FSM.to_dot(dfa))
 ```
 
 ## Analysis
@@ -199,7 +158,7 @@ end)
 
 ### Complement
 
-Swap final and non-final states. If the input is nondeterministic, it is first converted to a DFA.
+Swap final and non-final states.
 
 ```elixir
 comp = FSM.complement(dfa)
@@ -235,7 +194,6 @@ Kino.VizJS.render(dot_dark)
 | Build             | `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
 | Demote            | `remove_initial_state/2`, `remove_final_state/2`                                           |
 | Determinism check | `Analysis.deterministic?/1`                                                                |
-| NFA→DFA         | `Analysis.to_dfa/1`                                                                        |
 | Acceptance        | `Analysis.accepts?/2`                                                                      |
 | Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`                                    |
 | Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                        |

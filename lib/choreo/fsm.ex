@@ -92,7 +92,7 @@ defmodule Choreo.FSM do
 
     %__MODULE__{
       graph: Yog.new(kind),
-      meta: %{initial_states: MapSet.new(), final_states: MapSet.new()}
+      meta: %{initial_state: nil, final_states: MapSet.new()}
     }
   end
 
@@ -137,17 +137,20 @@ defmodule Choreo.FSM do
 
     case Keyword.get(opts, :type) do
       :initial ->
-        put_in(fsm.meta.initial_states, MapSet.put(fsm.meta.initial_states, id))
+        if fsm.meta.initial_state != nil do
+          raise ArgumentError, "DFAs can only have one initial state"
+        end
+
+        put_in(fsm.meta.initial_state, id)
 
       :final ->
         put_in(fsm.meta.final_states, MapSet.put(fsm.meta.final_states, id))
 
       :normal ->
         fsm
-        |> put_in(
-          [Access.key!(:meta), :initial_states],
-          MapSet.delete(fsm.meta.initial_states, id)
-        )
+        |> then(fn acc ->
+          if acc.meta.initial_state == id, do: put_in(acc.meta.initial_state, nil), else: acc
+        end)
         |> put_in([Access.key!(:meta), :final_states], MapSet.delete(fsm.meta.final_states, id))
 
       nil ->
@@ -188,9 +191,13 @@ defmodule Choreo.FSM do
   """
   @spec add_initial_state(t(), Yog.node_id(), keyword()) :: t()
   def add_initial_state(%__MODULE__{} = fsm, id, opts \\ []) do
+    if fsm.meta.initial_state != nil do
+      raise ArgumentError, "DFAs can only have one initial state"
+    end
+
     fsm
     |> add_state(id, opts)
-    |> put_in([Access.key!(:meta), :initial_states], MapSet.put(fsm.meta.initial_states, id))
+    |> put_in([Access.key!(:meta), :initial_state], id)
   end
 
   @doc """
@@ -238,7 +245,11 @@ defmodule Choreo.FSM do
   """
   @spec remove_initial_state(t(), Yog.node_id()) :: t()
   def remove_initial_state(%__MODULE__{} = fsm, id) do
-    put_in(fsm.meta.initial_states, MapSet.delete(fsm.meta.initial_states, id))
+    if fsm.meta.initial_state == id do
+      put_in(fsm.meta.initial_state, nil)
+    else
+      fsm
+    end
   end
 
   @doc """
@@ -295,6 +306,21 @@ defmodule Choreo.FSM do
   @spec add_transition(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_transition(%__MODULE__{} = fsm, from, to, opts \\ []) do
     label = build_transition_label(opts)
+
+    existing = Yog.successors(fsm.graph, from)
+
+    if Enum.any?(existing, fn {dest, _lbl} -> dest == to end) do
+      raise ArgumentError,
+            "transition from #{inspect(from)} to #{inspect(to)} already exists"
+    end
+
+    existing_labels = Enum.map(existing, fn {_to, lbl} -> lbl end)
+
+    if label in existing_labels do
+      raise ArgumentError,
+            "duplicate transition label #{inspect(label)} from state #{inspect(from)}"
+    end
+
     graph = Yog.add_edge_ensure(fsm.graph, from, to, label)
     %{fsm | graph: graph}
   end
@@ -357,7 +383,8 @@ defmodule Choreo.FSM do
       true
   """
   @spec initial_states(t()) :: MapSet.t(Yog.node_id())
-  def initial_states(%__MODULE__{meta: %{initial_states: set}}), do: set
+  def initial_states(%__MODULE__{meta: %{initial_state: nil}}), do: MapSet.new()
+  def initial_states(%__MODULE__{meta: %{initial_state: state}}), do: MapSet.new([state])
   def initial_states(%__MODULE__{}), do: MapSet.new()
 
   @doc """
@@ -411,20 +438,11 @@ defmodule Choreo.FSM do
   """
   @spec complement(t()) :: t()
   def complement(%__MODULE__{} = fsm) do
-    if Analysis.deterministic?(fsm) do
-      all_states = states(fsm) |> MapSet.new()
-      old_finals = final_states(fsm) |> MapSet.new()
-      new_finals = MapSet.difference(all_states, old_finals)
+    all_states = states(fsm) |> MapSet.new()
+    old_finals = final_states(fsm) |> MapSet.new()
+    new_finals = MapSet.difference(all_states, old_finals)
 
-      put_in(fsm.meta.final_states, new_finals)
-    else
-      dfa = Analysis.to_dfa(fsm)
-      all_states = states(dfa) |> MapSet.new()
-      old_finals = final_states(dfa) |> MapSet.new()
-      new_finals = MapSet.difference(all_states, old_finals)
-
-      put_in(dfa.meta.final_states, new_finals)
-    end
+    put_in(fsm.meta.final_states, new_finals)
   end
 
   @doc """
@@ -480,7 +498,8 @@ defmodule Choreo.FSM do
 
     new_meta = %{
       fsm.meta
-      | initial_states: MapSet.difference(fsm.meta.initial_states, to_remove),
+      | initial_state:
+          if(fsm.meta.initial_state in to_remove, do: nil, else: fsm.meta.initial_state),
         final_states: MapSet.difference(fsm.meta.final_states, to_remove)
     }
 

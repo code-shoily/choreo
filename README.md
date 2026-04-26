@@ -146,7 +146,7 @@ FSM.Analysis.shortest_accepting_path(fsm)         #=> {:ok, ["start", "finish"]}
 pruned = FSM.prune(fsm)
 ```
 
-**Features:** NFA simulation via subset construction, reachability, dead-state detection, determinism check, complement, product construction, equivalence checking.
+**Features:** Deterministic execution, reachability, dead-state detection, determinism check, complement, product construction, equivalence checking.
 
 ```dot
 digraph {
