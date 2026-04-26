@@ -137,6 +137,18 @@ defmodule Choreo.Dependency do
       :application
       iex> Yog.node(deps.graph, :api).label
       "API"
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      api [label="API Gateway", fillcolor="#3b82f6", shape="box3d"];
+    }
+  </div>
   """
   @spec add_application(t(), Yog.node_id(), keyword()) :: t()
   def add_application(deps, id, opts \\ []) do
@@ -160,6 +172,18 @@ defmodule Choreo.Dependency do
       [:phx]
       iex> Yog.node(deps.graph, :phx).node_type
       :library
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      phx [label="Phoenix", fillcolor="#f59e0b", shape="cylinder"];
+    }
+  </div>
   """
   @spec add_library(t(), Yog.node_id(), keyword()) :: t()
   def add_library(deps, id, opts \\ []) do
@@ -183,6 +207,18 @@ defmodule Choreo.Dependency do
       [:auth]
       iex> Yog.node(deps.graph, :auth).node_type
       :module
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      auth [label="auth", fillcolor="#10b981", shape="box"];
+    }
+  </div>
   """
   @spec add_module(t(), Yog.node_id(), keyword()) :: t()
   def add_module(deps, id, opts \\ []) do
@@ -206,6 +242,18 @@ defmodule Choreo.Dependency do
       [:contract]
       iex> Yog.node(deps.graph, :contract).node_type
       :interface
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      contract [label="contract", fillcolor="#8b5cf6", shape="diamond"];
+    }
+  </div>
   """
   @spec add_interface(t(), Yog.node_id(), keyword()) :: t()
   def add_interface(deps, id, opts \\ []) do
@@ -229,6 +277,18 @@ defmodule Choreo.Dependency do
       [:auth_test]
       iex> Yog.node(deps.graph, :auth_test).node_type
       :test
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      auth_test [label="auth_test", fillcolor="#64748b", shape="note"];
+    }
+  </div>
   """
   @spec add_test(t(), Yog.node_id(), keyword()) :: t()
   def add_test(deps, id, opts \\ []) do
@@ -290,6 +350,21 @@ defmodule Choreo.Dependency do
       [{:api, :auth, 1}]
       iex> deps.edge_meta[{:api, :auth}].type
       :uses
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=TB, splines=spline, nodesep=0.5, ranksep=1.0];
+      node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
+      edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=9, penwidth=1.0];
+
+      auth [label="auth", fillcolor="#10b981", shape="box"];
+      api [label="api", fillcolor="#3b82f6", shape="box3d"];
+
+      api -> auth [label="uses"];
+    }
+  </div>
 
       iex> deps = Choreo.Dependency.new()
       iex> deps = deps
