@@ -1,8 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.0] - UNRELEASED
 
 ### Added
+
+- **Cross-module diagram composition (`Choreo.embed/4`)**:
+  - Safely merge modular sub-diagrams (`Workflow`, `Dataflow`, etc.) into root clusters.
+  - Automatic cluster namespace isolation and node ID prefixing.
 
 - **Custom theme presets and per-node style overrides** across all modules:
   - Overriding shape, fillcolor, fontcolor, style, and penwidth for individual nodes.
