@@ -31,14 +31,14 @@ defmodule Choreo.ThreatModelTest do
     test "add_external_entity/3" do
       model = ThreatModel.new() |> ThreatModel.add_external_entity(:user, label: "User")
       assert :user in ThreatModel.elements(model)
-      assert Yog.node(model.graph, :user).element_type == :external_entity
+      assert Map.get(model.graph.nodes, :user).element_type == :external_entity
     end
 
     test "add_process/3 with privilege" do
       model = ThreatModel.new() |> ThreatModel.add_process(:api, label: "API", privilege: :admin)
       assert :api in ThreatModel.elements(model)
-      assert Yog.node(model.graph, :api).element_type == :process
-      assert Yog.node(model.graph, :api).privilege == :admin
+      assert Map.get(model.graph.nodes, :api).element_type == :process
+      assert Map.get(model.graph.nodes, :api).privilege == :admin
     end
 
     test "add_data_store/3 with sensitivity" do
@@ -47,28 +47,28 @@ defmodule Choreo.ThreatModelTest do
         |> ThreatModel.add_data_store(:db, label: "Postgres", sensitivity: :confidential)
 
       assert :db in ThreatModel.elements(model)
-      assert Yog.node(model.graph, :db).element_type == :data_store
-      assert Yog.node(model.graph, :db).sensitivity == :confidential
+      assert Map.get(model.graph.nodes, :db).element_type == :data_store
+      assert Map.get(model.graph.nodes, :db).sensitivity == :confidential
     end
 
     test "merges arbitrary options into process data" do
       model =
         ThreatModel.new() |> ThreatModel.add_process(:api, compliance: :gdpr, owner: "team-a")
 
-      data = Yog.node(model.graph, :api)
+      data = Map.get(model.graph.nodes, :api)
       assert data.compliance == :gdpr
       assert data.owner == "team-a"
     end
 
     test "merges arbitrary options into data store data" do
       model = ThreatModel.new() |> ThreatModel.add_data_store(:db, retention: "90d")
-      data = Yog.node(model.graph, :db)
+      data = Map.get(model.graph.nodes, :db)
       assert data.retention == "90d"
     end
 
     test "merges arbitrary options into external entity data" do
       model = ThreatModel.new() |> ThreatModel.add_external_entity(:user, region: "eu")
-      data = Yog.node(model.graph, :user)
+      data = Map.get(model.graph.nodes, :user)
       assert data.region == "eu"
     end
   end
@@ -81,9 +81,9 @@ defmodule Choreo.ThreatModelTest do
         |> ThreatModel.add_process(:api)
         |> ThreatModel.data_flow(:user, :api, label: "request")
 
-      assert Yog.has_edge?(model.graph, :user, :api)
-      assert model.edge_meta[{:user, :api}].label == "request"
-      refute model.edge_meta[{:user, :api}].encrypted
+      assert [{:user, :api, _, meta}] = ThreatModel.edges_with_meta(model)
+      assert meta.label == "request"
+      refute meta.encrypted
     end
 
     test "stores encrypted flag" do
@@ -93,17 +93,19 @@ defmodule Choreo.ThreatModelTest do
         |> ThreatModel.add_process(:api)
         |> ThreatModel.data_flow(:user, :api, encrypted: true)
 
-      assert model.edge_meta[{:user, :api}].encrypted
+      assert [{:user, :api, _, meta}] = ThreatModel.edges_with_meta(model)
+      assert meta.encrypted
     end
 
-    test "raises on duplicate data flow" do
-      assert_raise ArgumentError, fn ->
+    test "allows parallel connections" do
+      model =
         ThreatModel.new()
         |> ThreatModel.add_external_entity(:user)
         |> ThreatModel.add_process(:api)
-        |> ThreatModel.data_flow(:user, :api, label: "x")
-        |> ThreatModel.data_flow(:user, :api, label: "y")
-      end
+        |> ThreatModel.data_flow(:user, :api, label: "request1")
+        |> ThreatModel.data_flow(:user, :api, label: "request2")
+
+      assert length(ThreatModel.flows(model)) == 2
     end
   end
 

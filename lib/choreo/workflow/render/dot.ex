@@ -75,7 +75,7 @@ defmodule Choreo.Workflow.Render.DOT do
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, &node_label/2)
-      |> Map.put(:edge_label, &edge_label/1)
+      |> Map.put(:edge_label, fn _edge_id, weight -> edge_label(weight) end)
       |> Map.put(:node_attributes, node_attributes_fn(theme))
       |> Map.put(:edge_attributes, edge_attributes_fn(workflow))
       |> Map.merge(theme_graph_overrides(theme))
@@ -83,7 +83,7 @@ defmodule Choreo.Workflow.Render.DOT do
 
     base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
 
-    Yog.Render.DOT.to_dot(workflow.graph, base_opts)
+    Yog.Multi.DOT.to_dot(workflow.graph, base_opts)
   end
 
   # ============================================================================
@@ -253,8 +253,8 @@ defmodule Choreo.Workflow.Render.DOT do
   # ============================================================================
 
   defp edge_attributes_fn(workflow) do
-    fn from, to, _weight ->
-      meta = Map.get(workflow.edge_meta, {from, to}, %{})
+    fn _from, _to, edge_id, _weight ->
+      meta = Map.get(workflow.edge_meta, edge_id, %{})
 
       base = edge_type_attrs(meta[:edge_type] || :sequence)
 

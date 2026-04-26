@@ -82,8 +82,8 @@ defmodule Choreo.Analysis do
 
     case algorithm do
       :kruskal -> Yog.MST.kruskal(graph, opts[:compare] || (&Yog.Utils.compare/2))
-      :prim -> Yog.MST.prim(graph)
-      :boruvka -> Yog.MST.boruvka(graph)
+      :prim -> Yog.MST.prim(graph, opts[:compare] || (&Yog.Utils.compare/2))
+      :boruvka -> Yog.MST.boruvka(graph, opts[:compare] || (&Yog.Utils.compare/2))
       _ -> {:error, "Unknown algorithm: #{algorithm}"}
     end
   end

@@ -11,7 +11,6 @@ defmodule Choreo.DependencyTest do
       deps = Dependency.new()
       assert Dependency.nodes(deps) == []
       assert Dependency.edges(deps) == []
-      assert Yog.type(deps.graph) == :directed
     end
   end
 
@@ -19,32 +18,32 @@ defmodule Choreo.DependencyTest do
     test "add_application/3" do
       deps = Dependency.new() |> Dependency.add_application(:api, label: "API")
       assert :api in Dependency.nodes(deps)
-      assert Yog.node(deps.graph, :api).node_type == :application
-      assert Yog.node(deps.graph, :api).label == "API"
+      assert Map.get(deps.graph.nodes, :api).node_type == :application
+      assert Map.get(deps.graph.nodes, :api).label == "API"
     end
 
     test "add_library/3" do
       deps = Dependency.new() |> Dependency.add_library(:phx, label: "Phoenix")
       assert :phx in Dependency.nodes(deps)
-      assert Yog.node(deps.graph, :phx).node_type == :library
+      assert Map.get(deps.graph.nodes, :phx).node_type == :library
     end
 
     test "add_module/3" do
       deps = Dependency.new() |> Dependency.add_module(:auth)
       assert :auth in Dependency.nodes(deps)
-      assert Yog.node(deps.graph, :auth).node_type == :module
+      assert Map.get(deps.graph.nodes, :auth).node_type == :module
     end
 
     test "add_interface/3" do
       deps = Dependency.new() |> Dependency.add_interface(:contract)
       assert :contract in Dependency.nodes(deps)
-      assert Yog.node(deps.graph, :contract).node_type == :interface
+      assert Map.get(deps.graph.nodes, :contract).node_type == :interface
     end
 
     test "add_test/3" do
       deps = Dependency.new() |> Dependency.add_test(:auth_test)
       assert :auth_test in Dependency.nodes(deps)
-      assert Yog.node(deps.graph, :auth_test).node_type == :test
+      assert Map.get(deps.graph.nodes, :auth_test).node_type == :test
     end
   end
 
@@ -56,8 +55,8 @@ defmodule Choreo.DependencyTest do
         |> Dependency.add_module(:auth)
         |> Dependency.depends_on(:api, :auth)
 
-      assert Yog.has_edge?(deps.graph, :api, :auth)
-      assert deps.edge_meta[{:api, :auth}].type == :uses
+      assert [{:api, :auth, _, meta}] = Dependency.edges_with_meta(deps)
+      assert meta.type == :uses
     end
 
     test "stores edge type" do
@@ -67,8 +66,9 @@ defmodule Choreo.DependencyTest do
         |> Dependency.add_module(:auth)
         |> Dependency.depends_on(:api, :auth, type: :calls)
 
-      assert deps.edge_meta[{:api, :auth}].type == :calls
-      assert deps.edge_meta[{:api, :auth}].label == "calls"
+      assert [{:api, :auth, _, meta}] = Dependency.edges_with_meta(deps)
+      assert meta.type == :calls
+      assert meta.label == "calls"
     end
 
     test "supports dev dependency" do
@@ -78,17 +78,19 @@ defmodule Choreo.DependencyTest do
         |> Dependency.add_library(:mox)
         |> Dependency.depends_on(:api, :mox, type: :dev)
 
-      assert deps.edge_meta[{:api, :mox}].type == :dev
+      assert [{:api, :mox, _, meta}] = Dependency.edges_with_meta(deps)
+      assert meta.type == :dev
     end
 
-    test "raises on duplicate dependency" do
-      assert_raise ArgumentError, fn ->
+    test "allows parallel connections" do
+      deps =
         Dependency.new()
         |> Dependency.add_application(:api)
         |> Dependency.add_module(:auth)
-        |> Dependency.depends_on(:api, :auth)
-        |> Dependency.depends_on(:api, :auth)
-      end
+        |> Dependency.depends_on(:api, :auth, type: :calls)
+        |> Dependency.depends_on(:api, :auth, type: :uses)
+
+      assert length(Dependency.edges(deps)) == 2
     end
   end
 
@@ -107,7 +109,7 @@ defmodule Choreo.DependencyTest do
         |> Dependency.add_cluster("core")
         |> Dependency.add_module(:auth, cluster: "core")
 
-      assert Yog.node(deps.graph, :auth).cluster == "cluster_core"
+      assert Map.get(deps.graph.nodes, :auth).cluster == "cluster_core"
     end
   end
 

@@ -275,11 +275,8 @@ defmodule Choreo.FSM do
   @doc """
   Adds a transition (directed edge) between two states.
 
-  > ### Limitation
-  > At most one transition is allowed per `(from, to)` pair.
-  > Adding a second transition between the same states raises
-  > `ArgumentError`. Multigraph support (parallel edges) is planned
-  > for a future release.
+  Multiple transitions are allowed per `(from, to)` pair (parallel edges),
+  as long as they have unique labels from the source state.
 
   ## Options
 

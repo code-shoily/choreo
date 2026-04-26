@@ -65,7 +65,7 @@ defmodule Choreo.ThreatModel.Render.DOT do
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, &node_label/2)
-      |> Map.put(:edge_label, &edge_label/1)
+      |> Map.put(:edge_label, fn _edge_id, label -> edge_label(label) end)
       |> Map.put(:node_attributes, node_attributes_fn(theme))
       |> Map.put(:edge_attributes, edge_attributes_fn(model))
       |> Map.merge(theme_graph_overrides(theme))
@@ -73,7 +73,7 @@ defmodule Choreo.ThreatModel.Render.DOT do
 
     base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
 
-    Yog.Render.DOT.to_dot(model.graph, base_opts)
+    Yog.Multi.DOT.to_dot(model.graph, base_opts)
   end
 
   # ============================================================================
@@ -203,8 +203,8 @@ defmodule Choreo.ThreatModel.Render.DOT do
   # ============================================================================
 
   defp edge_attributes_fn(model) do
-    fn from, to, _weight ->
-      meta = Map.get(model.edge_meta, {from, to}, %{})
+    fn from, to, edge_id, _weight ->
+      meta = Map.get(model.edge_meta, edge_id, %{})
       crosses = ThreatModel.crosses_boundary?(model, from, to)
       encrypted = meta[:encrypted] == true
 

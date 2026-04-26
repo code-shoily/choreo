@@ -88,8 +88,8 @@ defmodule Choreo.ThreatModel do
   """
 
   @type t :: %__MODULE__{
-          graph: Yog.graph(),
-          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           clusters: %{String.t() => map()}
         }
 
@@ -113,7 +113,7 @@ defmodule Choreo.ThreatModel do
   @spec new() :: t()
   def new do
     %__MODULE__{
-      graph: Yog.directed(),
+      graph: Yog.Multi.new(:directed),
       edge_meta: %{},
       clusters: %{}
     }
@@ -170,9 +170,9 @@ defmodule Choreo.ThreatModel do
       iex> model = Choreo.ThreatModel.add_external_entity(model, :user, label: "User")
       iex> Choreo.ThreatModel.elements(model)
       [:user]
-      iex> Yog.node(model.graph, :user).element_type
+      iex> Map.get(model.graph.nodes, :user).element_type
       :external_entity
-      iex> Yog.node(model.graph, :user).label
+      iex> Map.get(model.graph.nodes, :user).label
       "User"
 
   ## Diagram
@@ -208,9 +208,9 @@ defmodule Choreo.ThreatModel do
       iex> model = Choreo.ThreatModel.add_process(model, :api, label: "API", privilege: :admin)
       iex> Choreo.ThreatModel.elements(model)
       [:api]
-      iex> Yog.node(model.graph, :api).element_type
+      iex> Map.get(model.graph.nodes, :api).element_type
       :process
-      iex> Yog.node(model.graph, :api).privilege
+      iex> Map.get(model.graph.nodes, :api).privilege
       :admin
 
   ## Diagram
@@ -246,9 +246,9 @@ defmodule Choreo.ThreatModel do
       iex> model = Choreo.ThreatModel.add_data_store(model, :db, label: "Postgres", sensitivity: :confidential)
       iex> Choreo.ThreatModel.elements(model)
       [:db]
-      iex> Yog.node(model.graph, :db).element_type
+      iex> Map.get(model.graph.nodes, :db).element_type
       :data_store
-      iex> Yog.node(model.graph, :db).sensitivity
+      iex> Map.get(model.graph.nodes, :db).sensitivity
       :confidential
 
   ## Diagram
@@ -275,12 +275,6 @@ defmodule Choreo.ThreatModel do
   @doc """
   Creates a data-flow edge between two elements.
 
-  > ### Limitation
-  > At most one edge is allowed per `(from, to)` pair.
-  > Adding a second flow between the same elements raises
-  > `ArgumentError`. Multigraph support (parallel edges) is planned
-  > for a future release.
-
   ## Options
 
     * `:label` — display label
@@ -296,9 +290,10 @@ defmodule Choreo.ThreatModel do
       ...>   |> Choreo.ThreatModel.data_flow(:user, :api, label: "request")
       iex> Choreo.ThreatModel.flows(model)
       [{:user, :api, "request"}]
-      iex> model.edge_meta[{:user, :api}].label
+      iex> [{_, _, _, meta}] = Choreo.ThreatModel.edges_with_meta(model)
+      iex> meta.label
       "request"
-      iex> model.edge_meta[{:user, :api}].encrypted
+      iex> meta.encrypted
       false
 
   ## Diagram
@@ -326,13 +321,8 @@ defmodule Choreo.ThreatModel do
       |> Map.put(:label, label)
       |> Map.put_new(:encrypted, false)
 
-    if Yog.has_edge?(model.graph, from, to) do
-      raise ArgumentError,
-            "data flow from #{inspect(from)} to #{inspect(to)} already exists"
-    end
-
-    edge_meta = Map.put(model.edge_meta, {from, to}, meta)
-    graph = Yog.add_edge_ensure(model.graph, from, to, label)
+    {graph, edge_id} = Yog.Multi.add_edge(model.graph, from, to, label)
+    edge_meta = Map.put(model.edge_meta, edge_id, meta)
 
     %{model | graph: graph, edge_meta: edge_meta}
   end
@@ -371,9 +361,30 @@ defmodule Choreo.ThreatModel do
       iex> Choreo.ThreatModel.flows(model)
       [{:user, :api, ""}]
   """
-  @spec flows(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
+  @spec flows(t()) :: [{Yog.node_id(), Yog.node_id(), any()}]
   def flows(%__MODULE__{graph: graph}) do
-    Yog.all_edges(graph)
+    Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
+      {from, to, weight}
+    end)
+  end
+
+  @doc """
+  Returns all edges with their metadata as `{from, to, weight, meta}` tuples.
+  """
+  @spec edges_with_meta(t()) :: [{Yog.node_id(), Yog.node_id(), any(), map()}]
+  def edges_with_meta(%__MODULE__{graph: graph, edge_meta: edge_meta}) do
+    Enum.map(graph.edges, fn {edge_id, {from, to, weight}} ->
+      {from, to, weight, Map.get(edge_meta, edge_id, %{})}
+    end)
+  end
+
+  @doc """
+  Collapses parallel edges into a simple Graph for algorithm analysis.
+  """
+  @spec to_simple_graph(t(), keyword()) :: Yog.Graph.t()
+  def to_simple_graph(%__MODULE__{graph: graph}, opts \\ []) do
+    combine = Keyword.get(opts, :combine, fn a, _b -> a end)
+    Yog.Multi.to_simple_graph(graph, combine)
   end
 
   @doc """
@@ -566,6 +577,6 @@ defmodule Choreo.ThreatModel do
         do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(boundary)),
         else: data
 
-    %{model | graph: Yog.add_node(graph, id, data)}
+    %{model | graph: Yog.Multi.add_node(graph, id, data)}
   end
 end

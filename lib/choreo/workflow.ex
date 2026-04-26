@@ -90,8 +90,8 @@ defmodule Choreo.Workflow do
   """
 
   @type t :: %__MODULE__{
-          graph: Yog.graph(),
-          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           clusters: %{String.t() => map()}
         }
 
@@ -119,7 +119,7 @@ defmodule Choreo.Workflow do
   @spec new() :: t()
   def new do
     %__MODULE__{
-      graph: Yog.directed(),
+      graph: Yog.Multi.new(:directed),
       edge_meta: %{},
       clusters: %{}
     }
@@ -138,7 +138,7 @@ defmodule Choreo.Workflow do
       iex> workflow = Choreo.Workflow.add_start(workflow, :begin, label: "Start")
       iex> Choreo.Workflow.starts(workflow)
       [:begin]
-      iex> Yog.node(workflow.graph, :begin).node_type
+      iex> Map.get(workflow.graph.nodes, :begin).node_type
       :start
 
   ## Diagram
@@ -167,7 +167,7 @@ defmodule Choreo.Workflow do
       iex> workflow = Choreo.Workflow.add_end(workflow, :finish, label: "End")
       iex> Choreo.Workflow.ends(workflow)
       [:finish]
-      iex> Yog.node(workflow.graph, :finish).node_type
+      iex> Map.get(workflow.graph.nodes, :finish).node_type
       :end
 
   ## Diagram
@@ -206,9 +206,9 @@ defmodule Choreo.Workflow do
       iex> workflow = Choreo.Workflow.add_task(workflow, :process, timeout_ms: 5000, retry: 3)
       iex> Choreo.Workflow.tasks(workflow)
       [:process]
-      iex> Yog.node(workflow.graph, :process).timeout_ms
+      iex> Map.get(workflow.graph.nodes, :process).timeout_ms
       5000
-      iex> Yog.node(workflow.graph, :process).retry
+      iex> Map.get(workflow.graph.nodes, :process).retry
       3
 
   ## Diagram
@@ -235,7 +235,7 @@ defmodule Choreo.Workflow do
 
       iex> workflow = Choreo.Workflow.new()
       iex> workflow = Choreo.Workflow.add_decision(workflow, :check)
-      iex> Yog.node(workflow.graph, :check).node_type
+      iex> Map.get(workflow.graph.nodes, :check).node_type
       :decision
 
   ## Diagram
@@ -262,7 +262,7 @@ defmodule Choreo.Workflow do
 
       iex> workflow = Choreo.Workflow.new()
       iex> workflow = Choreo.Workflow.add_fork(workflow, :split)
-      iex> Yog.node(workflow.graph, :split).node_type
+      iex> Map.get(workflow.graph.nodes, :split).node_type
       :fork
   """
   @spec add_fork(t(), Yog.node_id(), keyword()) :: t()
@@ -277,7 +277,7 @@ defmodule Choreo.Workflow do
 
       iex> workflow = Choreo.Workflow.new()
       iex> workflow = Choreo.Workflow.add_join(workflow, :merge)
-      iex> Yog.node(workflow.graph, :merge).node_type
+      iex> Map.get(workflow.graph.nodes, :merge).node_type
       :join
   """
   @spec add_join(t(), Yog.node_id(), keyword()) :: t()
@@ -301,7 +301,7 @@ defmodule Choreo.Workflow do
       iex> workflow = Choreo.Workflow.add_compensation(workflow, :rollback, for: :process)
       iex> Choreo.Workflow.compensations(workflow)
       [:rollback]
-      iex> Yog.node(workflow.graph, :rollback).target_task
+      iex> Map.get(workflow.graph.nodes, :rollback).target_task
       :process
 
   ## Diagram
@@ -328,7 +328,7 @@ defmodule Choreo.Workflow do
     }
 
     data = put_swimlane(data, opts[:swimlane])
-    %{workflow | graph: Yog.add_node(workflow.graph, id, data)}
+    %{workflow | graph: Yog.Multi.add_node(workflow.graph, id, data)}
   end
 
   @doc """
@@ -338,7 +338,7 @@ defmodule Choreo.Workflow do
 
       iex> workflow = Choreo.Workflow.new()
       iex> workflow = Choreo.Workflow.add_event(workflow, :timer)
-      iex> Yog.node(workflow.graph, :timer).node_type
+      iex> Map.get(workflow.graph.nodes, :timer).node_type
       :event
   """
   @spec add_event(t(), Yog.node_id(), keyword()) :: t()
@@ -353,11 +353,7 @@ defmodule Choreo.Workflow do
   @doc """
   Connects two workflow nodes with an execution dependency.
 
-  > ### Limitation
-  > At most one edge is allowed per `(from, to)` pair.
-  > Adding a second connection between the same nodes raises
-  > `ArgumentError`. Multigraph support (parallel edges) is planned
-  > for a future release.
+  Multiple connections are allowed per `(from, to)` pair (parallel edges).
 
   ## Options
 
@@ -374,8 +370,8 @@ defmodule Choreo.Workflow do
       ...>   |> Choreo.Workflow.add_task(:b)
       ...>   |> Choreo.Workflow.connect(:a, :b)
       iex> Choreo.Workflow.edges(workflow)
-      [{:a, :b, 1}]
-      iex> workflow.edge_meta[{:a, :b}].edge_type
+      iex> [{:a, :b, _, meta}] = Choreo.Workflow.edges_with_meta(workflow)
+      iex> meta.edge_type
       :sequence
 
   ## Diagram
@@ -410,13 +406,8 @@ defmodule Choreo.Workflow do
       weight: weight
     }
 
-    if Yog.has_edge?(workflow.graph, from, to) do
-      raise ArgumentError,
-            "connection from #{inspect(from)} to #{inspect(to)} already exists"
-    end
-
-    edge_meta = Map.put(workflow.edge_meta, {from, to}, meta)
-    graph = Yog.add_edge_ensure(workflow.graph, from, to, weight)
+    {graph, edge_id} = Yog.Multi.add_edge(workflow.graph, from, to, weight)
+    edge_meta = Map.put(workflow.edge_meta, edge_id, meta)
 
     %{workflow | graph: graph, edge_meta: edge_meta}
   end
@@ -437,7 +428,7 @@ defmodule Choreo.Workflow do
       iex> workflow = workflow
       ...>   |> Choreo.Workflow.add_swimlane("backend", label: "Backend Services")
       ...>   |> Choreo.Workflow.add_task(:api, swimlane: "backend")
-      iex> Yog.node(workflow.graph, :api)[:cluster]
+      iex> Map.get(workflow.graph.nodes, :api)[:cluster]
       "cluster_backend"
   """
   @spec add_swimlane(t(), String.t() | atom(), keyword()) :: t()
@@ -514,7 +505,28 @@ defmodule Choreo.Workflow do
   """
   @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def edges(%__MODULE__{graph: graph}) do
-    Yog.all_edges(graph)
+    Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
+      {from, to, weight}
+    end)
+  end
+
+  @doc """
+  Returns all edges with their metadata as `{from, to, weight, meta}` tuples.
+  """
+  @spec edges_with_meta(t()) :: [{Yog.node_id(), Yog.node_id(), number(), map()}]
+  def edges_with_meta(%__MODULE__{graph: graph, edge_meta: edge_meta}) do
+    Enum.map(graph.edges, fn {edge_id, {from, to, weight}} ->
+      {from, to, weight, Map.get(edge_meta, edge_id, %{})}
+    end)
+  end
+
+  @doc """
+  Collapses parallel edges into a simple Graph for algorithm analysis.
+  """
+  @spec to_simple_graph(t(), keyword()) :: Yog.Graph.t()
+  def to_simple_graph(%__MODULE__{graph: graph}, opts \\ []) do
+    combine = Keyword.get(opts, :combine, &min/2)
+    Yog.Multi.to_simple_graph(graph, combine)
   end
 
   @doc """
@@ -624,7 +636,7 @@ defmodule Choreo.Workflow do
     }
 
     data = put_swimlane(data, opts[:swimlane])
-    %{workflow | graph: Yog.add_node(graph, id, data)}
+    %{workflow | graph: Yog.Multi.add_node(graph, id, data)}
   end
 
   defp put_swimlane(data, nil), do: data
@@ -638,7 +650,7 @@ defmodule Choreo.Workflow do
   defp default_weight(_graph, _to, :timeout), do: 0
 
   defp default_weight(graph, to, _edge_type) do
-    case Yog.node(graph, to) do
+    case Map.get(graph.nodes, to) do
       %{timeout_ms: ms} when is_number(ms) and ms > 0 -> ms
       _ -> 1
     end

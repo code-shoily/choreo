@@ -81,8 +81,8 @@ defmodule Choreo.Dependency do
   """
 
   @type t :: %__MODULE__{
-          graph: Yog.graph(),
-          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           clusters: %{String.t() => map()}
         }
 
@@ -108,7 +108,7 @@ defmodule Choreo.Dependency do
   @spec new() :: t()
   def new do
     %__MODULE__{
-      graph: Yog.directed(),
+      graph: Yog.Multi.new(:directed),
       edge_meta: %{},
       clusters: %{}
     }
@@ -133,9 +133,9 @@ defmodule Choreo.Dependency do
       iex> deps = Choreo.Dependency.add_application(deps, :api, label: "API")
       iex> Choreo.Dependency.nodes(deps)
       [:api]
-      iex> Yog.node(deps.graph, :api).node_type
+      iex> Map.get(deps.graph.nodes, :api).node_type
       :application
-      iex> Yog.node(deps.graph, :api).label
+      iex> Map.get(deps.graph.nodes, :api).label
       "API"
 
   ## Diagram
@@ -170,7 +170,7 @@ defmodule Choreo.Dependency do
       iex> deps = Choreo.Dependency.add_library(deps, :phx, label: "Phoenix")
       iex> Choreo.Dependency.nodes(deps)
       [:phx]
-      iex> Yog.node(deps.graph, :phx).node_type
+      iex> Map.get(deps.graph.nodes, :phx).node_type
       :library
 
   ## Diagram
@@ -205,7 +205,7 @@ defmodule Choreo.Dependency do
       iex> deps = Choreo.Dependency.add_module(deps, :auth)
       iex> Choreo.Dependency.nodes(deps)
       [:auth]
-      iex> Yog.node(deps.graph, :auth).node_type
+      iex> Map.get(deps.graph.nodes, :auth).node_type
       :module
 
   ## Diagram
@@ -240,7 +240,7 @@ defmodule Choreo.Dependency do
       iex> deps = Choreo.Dependency.add_interface(deps, :contract)
       iex> Choreo.Dependency.nodes(deps)
       [:contract]
-      iex> Yog.node(deps.graph, :contract).node_type
+      iex> Map.get(deps.graph.nodes, :contract).node_type
       :interface
 
   ## Diagram
@@ -275,7 +275,7 @@ defmodule Choreo.Dependency do
       iex> deps = Choreo.Dependency.add_test(deps, :auth_test)
       iex> Choreo.Dependency.nodes(deps)
       [:auth_test]
-      iex> Yog.node(deps.graph, :auth_test).node_type
+      iex> Map.get(deps.graph.nodes, :auth_test).node_type
       :test
 
   ## Diagram
@@ -352,9 +352,8 @@ defmodule Choreo.Dependency do
       ...>   |> Choreo.Dependency.add_application(:api)
       ...>   |> Choreo.Dependency.add_module(:auth)
       ...>   |> Choreo.Dependency.depends_on(:api, :auth)
-      iex> Choreo.Dependency.edges(deps)
-      [{:api, :auth, 1}]
-      iex> deps.edge_meta[{:api, :auth}].type
+      iex> [{_, _, _, meta}] = Choreo.Dependency.edges_with_meta(deps)
+      iex> meta.type
       :uses
 
   ## Diagram
@@ -377,9 +376,10 @@ defmodule Choreo.Dependency do
       ...>   |> Choreo.Dependency.add_application(:api)
       ...>   |> Choreo.Dependency.add_module(:auth)
       ...>   |> Choreo.Dependency.depends_on(:api, :auth, type: :calls)
-      iex> deps.edge_meta[{:api, :auth}].type
+      iex> [{_, _, _, meta}] = Choreo.Dependency.edges_with_meta(deps)
+      iex> meta.type
       :calls
-      iex> deps.edge_meta[{:api, :auth}].label
+      iex> meta.label
       "calls"
   """
   @spec depends_on(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
@@ -393,13 +393,8 @@ defmodule Choreo.Dependency do
       |> Map.put(:type, type)
       |> Map.put(:label, label)
 
-    if Yog.has_edge?(deps.graph, from, to) do
-      raise ArgumentError,
-            "dependency from #{inspect(from)} to #{inspect(to)} already exists"
-    end
-
-    edge_meta = Map.put(deps.edge_meta, {from, to}, meta)
-    graph = Yog.add_edge_ensure(deps.graph, from, to, 1)
+    {graph, edge_id} = Yog.Multi.add_edge(deps.graph, from, to, 1)
+    edge_meta = Map.put(deps.edge_meta, edge_id, meta)
 
     %{deps | graph: graph, edge_meta: edge_meta}
   end
@@ -438,9 +433,30 @@ defmodule Choreo.Dependency do
       iex> Choreo.Dependency.edges(deps)
       [{:api, :auth, 1}]
   """
-  @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
+  @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), any()}]
   def edges(%__MODULE__{graph: graph}) do
-    Yog.all_edges(graph)
+    Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
+      {from, to, weight}
+    end)
+  end
+
+  @doc """
+  Returns all edges with their metadata as `{from, to, weight, meta}` tuples.
+  """
+  @spec edges_with_meta(t()) :: [{Yog.node_id(), Yog.node_id(), any(), map()}]
+  def edges_with_meta(%__MODULE__{graph: graph, edge_meta: edge_meta}) do
+    Enum.map(graph.edges, fn {edge_id, {from, to, weight}} ->
+      {from, to, weight, Map.get(edge_meta, edge_id, %{})}
+    end)
+  end
+
+  @doc """
+  Collapses parallel edges into a simple Graph for algorithm analysis.
+  """
+  @spec to_simple_graph(t(), keyword()) :: Yog.Graph.t()
+  def to_simple_graph(%__MODULE__{graph: graph}, opts \\ []) do
+    combine = Keyword.get(opts, :combine, fn a, _b -> a end)
+    Yog.Multi.to_simple_graph(graph, combine)
   end
 
   @doc """
@@ -530,7 +546,7 @@ defmodule Choreo.Dependency do
         do: Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(cluster)),
         else: data
 
-    %{deps | graph: Yog.add_node(graph, id, data)}
+    %{deps | graph: Yog.Multi.add_node(graph, id, data)}
   end
 
   defp type_to_label(:uses), do: "uses"

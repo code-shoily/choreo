@@ -50,14 +50,15 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "Where are the circular dependencies?"
   """
   @spec cyclic_dependencies(Dependency.t()) :: [[Yog.node_id()]]
-  def cyclic_dependencies(%Dependency{graph: graph}) do
-    sccs = Yog.Connectivity.scc(graph)
+  def cyclic_dependencies(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+    sccs = Yog.Connectivity.scc(simple_graph)
 
     sccs
     |> Enum.filter(fn component -> length(component) > 1 end)
     |> Enum.map(fn component ->
       start = hd(component)
-      find_cycle(graph, start, start, MapSet.new([start]), [start])
+      find_cycle(simple_graph, start, start, MapSet.new([start]), [start])
     end)
     |> Enum.reject(&is_nil/1)
   end
@@ -84,8 +85,9 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "What breaks if I change this component?"
   """
   @spec affected_by(Dependency.t(), Yog.node_id()) :: [Yog.node_id()]
-  def affected_by(%Dependency{graph: graph}, target) do
-    transposed = Yog.transpose(graph)
+  def affected_by(%Dependency{} = deps, target) do
+    simple_graph = Dependency.to_simple_graph(deps)
+    transposed = Yog.transpose(simple_graph)
 
     Choreo.Internal.bfs_reachable(transposed, [target])
     |> MapSet.to_list()
@@ -114,8 +116,10 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "What does this component need to function?"
   """
   @spec depends_on(Dependency.t(), Yog.node_id()) :: [Yog.node_id()]
-  def depends_on(%Dependency{graph: graph}, target) do
-    Choreo.Internal.bfs_reachable(graph, [target])
+  def depends_on(%Dependency{} = deps, target) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    Choreo.Internal.bfs_reachable(simple_graph, [target])
     |> MapSet.to_list()
     |> List.delete(target)
   end
@@ -154,8 +158,10 @@ defmodule Choreo.Dependency.Analysis do
   @spec layer_violations(Dependency.t(), %{Yog.node_id() => integer()}) :: [
           {Yog.node_id(), Yog.node_id(), String.t()}
         ]
-  def layer_violations(%Dependency{graph: graph}, layers) do
-    graph
+  def layer_violations(%Dependency{} = deps, layers) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    simple_graph
     |> Yog.all_edges()
     |> Enum.flat_map(fn {from, to, _label} ->
       from_layer = Map.get(layers, from)
@@ -198,14 +204,15 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "Which components are the most coupled?"
   """
   @spec centrality(Dependency.t(), keyword()) :: [Yog.node_id()]
-  def centrality(%Dependency{graph: graph}, opts \\ []) do
+  def centrality(%Dependency{} = deps, opts \\ []) do
     limit = Keyword.get(opts, :limit, nil)
+    simple_graph = Dependency.to_simple_graph(deps)
 
     ranked =
-      graph.nodes
+      simple_graph.nodes
       |> Enum.map(fn {id, _data} ->
-        in_deg = Yog.in_degree(graph, id)
-        out_deg = Yog.out_degree(graph, id)
+        in_deg = Yog.in_degree(simple_graph, id)
+        out_deg = Yog.out_degree(simple_graph, id)
         {id, in_deg + out_deg}
       end)
       |> Enum.sort_by(fn {_id, score} -> -score end)
@@ -234,9 +241,11 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "Which components have no dependents?"
   """
   @spec leaves(Dependency.t()) :: [Yog.node_id()]
-  def leaves(%Dependency{graph: graph}) do
-    graph.nodes
-    |> Enum.filter(fn {id, _data} -> Yog.in_degree(graph, id) == 0 end)
+  def leaves(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    simple_graph.nodes
+    |> Enum.filter(fn {id, _data} -> Yog.in_degree(simple_graph, id) == 0 end)
     |> Enum.map(fn {id, _data} -> id end)
   end
 
@@ -260,9 +269,11 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "Which components have no dependencies?"
   """
   @spec roots(Dependency.t()) :: [Yog.node_id()]
-  def roots(%Dependency{graph: graph}) do
-    graph.nodes
-    |> Enum.filter(fn {id, _data} -> Yog.out_degree(graph, id) == 0 end)
+  def roots(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    simple_graph.nodes
+    |> Enum.filter(fn {id, _data} -> Yog.out_degree(simple_graph, id) == 0 end)
     |> Enum.map(fn {id, _data} -> id end)
   end
 
@@ -289,21 +300,22 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "Which explicit dependencies are redundant?"
   """
   @spec transitive_reduction(Dependency.t()) :: [{Yog.node_id(), Yog.node_id()}]
-  def transitive_reduction(%Dependency{graph: graph}) do
-    edges = Yog.all_edges(graph)
+  def transitive_reduction(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+    edges = Yog.all_edges(simple_graph)
 
     Enum.reduce(edges, [], fn {u, v, _weight}, redundant ->
       # If we remove the direct edge u -> v, can we still reach v from u?
       # We check this by seeing if v is reachable from any OTHER successor of u.
       other_successors =
-        graph
+        simple_graph
         |> Yog.successor_ids(u)
         |> List.delete(v)
 
       if other_successors == [] do
         redundant
       else
-        reachable = Choreo.Internal.bfs_reachable(graph, other_successors)
+        reachable = Choreo.Internal.bfs_reachable(simple_graph, other_successors)
 
         if MapSet.member?(reachable, v) do
           [{u, v} | redundant]
@@ -343,11 +355,13 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "How stable is each component?"
   """
   @spec instability(Dependency.t()) :: %{Yog.node_id() => float()}
-  def instability(%Dependency{graph: graph}) do
-    graph.nodes
+  def instability(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    simple_graph.nodes
     |> Enum.map(fn {id, _data} ->
-      ce = Yog.out_degree(graph, id)
-      ca = Yog.in_degree(graph, id)
+      ce = Yog.out_degree(simple_graph, id)
+      ca = Yog.in_degree(simple_graph, id)
 
       score =
         if ca + ce == 0 do
@@ -388,8 +402,9 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "Which groups of components are completely disconnected?"
   """
   @spec isolated_subsystems(Dependency.t()) :: [[Yog.node_id()]]
-  def isolated_subsystems(%Dependency{graph: graph}) do
-    Yog.Connectivity.weakly_connected_components(graph)
+  def isolated_subsystems(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+    Yog.Connectivity.weakly_connected_components(simple_graph)
   end
 
   @doc """
@@ -424,13 +439,15 @@ defmodule Choreo.Dependency.Analysis do
   This analysis answers the question: "What is the deepest dependency chain?"
   """
   @spec longest_dependency_chain(Dependency.t()) :: {:ok, [Yog.node_id()], number()} | :error
-  def longest_dependency_chain(%Dependency{graph: graph}) do
-    if Yog.cyclic?(graph) do
+  def longest_dependency_chain(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    if Yog.cyclic?(simple_graph) do
       :error
     else
-      case Yog.Traversal.Sort.topological_sort(graph) do
+      case Yog.Traversal.Sort.topological_sort(simple_graph) do
         {:ok, order} ->
-          dp = Choreo.Internal.compute_dp(graph, order)
+          dp = Choreo.Internal.compute_dp(simple_graph, order)
 
           case Choreo.Internal.find_best_end_path(dp) do
             nil ->
@@ -531,10 +548,12 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   defp check_orphans(acc, deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
     isolated =
       Dependency.nodes(deps)
       |> Enum.filter(fn id ->
-        Yog.in_degree(deps.graph, id) == 0 and Yog.out_degree(deps.graph, id) == 0
+        Yog.in_degree(simple_graph, id) == 0 and Yog.out_degree(simple_graph, id) == 0
       end)
 
     if isolated == [] do

@@ -39,11 +39,12 @@ defmodule Choreo.Workflow.Analysis do
   @spec reachable_tasks(Workflow.t()) :: [Yog.node_id()]
   def reachable_tasks(%Workflow{} = workflow) do
     start_ids = Workflow.starts(workflow)
+    simple_graph = Workflow.to_simple_graph(workflow)
 
     if start_ids == [] do
       Workflow.nodes(workflow)
     else
-      Choreo.Internal.bfs_reachable(workflow.graph, start_ids)
+      Choreo.Internal.bfs_reachable(simple_graph, start_ids)
       |> MapSet.to_list()
     end
   end
@@ -67,11 +68,12 @@ defmodule Choreo.Workflow.Analysis do
   @spec orphan_tasks(Workflow.t()) :: [Yog.node_id()]
   def orphan_tasks(%Workflow{} = workflow) do
     start_ids = Workflow.starts(workflow)
+    simple_graph = Workflow.to_simple_graph(workflow)
 
     if start_ids == [] do
       []
     else
-      reachable = Choreo.Internal.bfs_reachable(workflow.graph, start_ids)
+      reachable = Choreo.Internal.bfs_reachable(simple_graph, start_ids)
       all = Workflow.nodes(workflow) |> MapSet.new()
       MapSet.difference(all, reachable) |> MapSet.to_list()
     end
@@ -98,11 +100,12 @@ defmodule Choreo.Workflow.Analysis do
   @spec dead_ends(Workflow.t()) :: [Yog.node_id()]
   def dead_ends(%Workflow{} = workflow) do
     end_ids = Workflow.ends(workflow)
+    simple_graph = Workflow.to_simple_graph(workflow)
 
     if end_ids == [] do
       Workflow.nodes(workflow)
     else
-      transposed = Yog.transpose(workflow.graph)
+      transposed = Yog.transpose(simple_graph)
       can_reach_end = Choreo.Internal.bfs_reachable(transposed, end_ids)
       all = Workflow.nodes(workflow) |> MapSet.new()
       MapSet.difference(all, can_reach_end) |> MapSet.to_list()
@@ -132,15 +135,17 @@ defmodule Choreo.Workflow.Analysis do
   This analysis answers the question: "What is the slowest end-to-end execution path?"
   """
   @spec critical_path(Workflow.t()) :: {:ok, [Yog.node_id()], number()} | :error
-  def critical_path(%Workflow{graph: graph} = workflow) do
-    if Yog.cyclic?(graph) do
+  def critical_path(%Workflow{} = workflow) do
+    simple_graph = Workflow.to_simple_graph(workflow, combine: &max/2)
+
+    if Yog.cyclic?(simple_graph) do
       :error
     else
-      case Sort.topological_sort(graph) do
+      case Sort.topological_sort(simple_graph) do
         {:ok, order} ->
           start_set = Workflow.starts(workflow) |> MapSet.new()
           end_set = Workflow.ends(workflow) |> MapSet.new()
-          dp = Choreo.Internal.compute_dp(graph, order, start_set)
+          dp = Choreo.Internal.compute_dp(simple_graph, order, start_set)
 
           case Choreo.Internal.find_best_end_path(dp, end_set) do
             nil ->
@@ -187,13 +192,15 @@ defmodule Choreo.Workflow.Analysis do
   This analysis answers the question: "Which tasks can run in parallel?"
   """
   @spec parallelizable_tasks(Workflow.t()) :: [[Yog.node_id()]]
-  def parallelizable_tasks(%Workflow{graph: graph}) do
-    if Yog.cyclic?(graph) do
+  def parallelizable_tasks(%Workflow{} = workflow) do
+    simple_graph = Workflow.to_simple_graph(workflow)
+
+    if Yog.cyclic?(simple_graph) do
       []
     else
-      case Sort.topological_sort(graph) do
+      case Sort.topological_sort(simple_graph) do
         {:ok, order} ->
-          levels = compute_levels(graph, order)
+          levels = compute_levels(simple_graph, order)
 
           levels
           |> Enum.group_by(fn {_id, level} -> level end)
@@ -226,10 +233,9 @@ defmodule Choreo.Workflow.Analysis do
     graph.nodes
     |> Map.keys()
     |> Enum.filter(fn id ->
-      graph
-      |> Yog.successor_ids(id)
-      |> Enum.any?(fn succ ->
-        meta = Map.get(edge_meta, {id, succ}, %{})
+      Yog.Multi.successors(graph, id)
+      |> Enum.any?(fn {_to, edge_id, _label} ->
+        meta = Map.get(edge_meta, edge_id, %{})
         meta[:edge_type] == :compensation
       end)
     end)
@@ -265,35 +271,40 @@ defmodule Choreo.Workflow.Analysis do
     can_fail =
       graph.nodes
       |> Enum.filter(fn {id, _data} ->
-        outgoing = Yog.successor_ids(graph, id)
-
-        Enum.any?(outgoing, fn succ ->
-          meta = Map.get(edge_meta, {id, succ}, %{})
+        Yog.Multi.successors(graph, id)
+        |> Enum.any?(fn {_succ, edge_id, _label} ->
+          meta = Map.get(edge_meta, edge_id, %{})
           meta[:edge_type] == :error
         end)
       end)
       |> Enum.map(fn {id, _data} -> id end)
 
     comp_graph =
-      Yog.Transform.filter_edges(graph, fn src, dst, _weight ->
-        meta = Map.get(edge_meta, {src, dst}, %{})
-        meta[:edge_type] == :compensation
+      Enum.reduce(graph.edges, Yog.directed(), fn {edge_id, {src, dst, weight}}, acc ->
+        meta = Map.get(edge_meta, edge_id, %{})
+
+        if meta[:edge_type] == :compensation do
+          acc
+          |> Yog.add_node(src, Map.get(graph.nodes, src))
+          |> Yog.add_node(dst, Map.get(graph.nodes, dst))
+          |> Yog.add_edge_ensure(src, dst, weight)
+        else
+          acc
+        end
       end)
 
     terminals = Workflow.starts(flow) ++ Workflow.ends(flow)
 
     can_fail
     |> Enum.reject(fn id ->
-      # From the failed node, find all error handlers
       error_targets =
-        graph
-        |> Yog.successor_ids(id)
-        |> Enum.filter(fn succ ->
-          meta = Map.get(edge_meta, {id, succ}, %{})
+        Yog.Multi.successors(graph, id)
+        |> Enum.filter(fn {_succ, edge_id, _label} ->
+          meta = Map.get(edge_meta, edge_id, %{})
           meta[:edge_type] == :error
         end)
+        |> Enum.map(fn {succ, _edge_id, _label} -> succ end)
 
-      # Check if EVERY error handler can reach a terminal node via compensation edges
       Enum.all?(error_targets, fn target ->
         reachable = Choreo.Internal.bfs_reachable(comp_graph, [target])
         Enum.any?(terminals, fn t -> MapSet.member?(reachable, t) end)
@@ -334,10 +345,9 @@ defmodule Choreo.Workflow.Analysis do
     tasks_with_compensation =
       tasks_with_retry
       |> Enum.filter(fn id ->
-        graph
-        |> Yog.successor_ids(id)
-        |> Enum.any?(fn succ ->
-          meta = Map.get(edge_meta, {id, succ}, %{})
+        Yog.Multi.successors(graph, id)
+        |> Enum.any?(fn {_succ, edge_id, _label} ->
+          meta = Map.get(edge_meta, edge_id, %{})
           meta[:edge_type] == :compensation
         end)
       end)
@@ -406,12 +416,14 @@ defmodule Choreo.Workflow.Analysis do
   This analysis answers the question: "What is the estimated latency for each task?"
   """
   @spec simulate(Workflow.t()) :: %{optional(Yog.node_id()) => map()}
-  def simulate(%Workflow{graph: graph} = workflow) do
-    if Yog.cyclic?(graph) do
+  def simulate(%Workflow{} = workflow) do
+    simple_graph = Workflow.to_simple_graph(workflow)
+
+    if Yog.cyclic?(simple_graph) do
       %{}
     else
-      case Sort.topological_sort(graph) do
-        {:ok, order} -> do_simulate(graph, order, workflow.edge_meta, %{})
+      case Sort.topological_sort(simple_graph) do
+        {:ok, order} -> do_simulate(simple_graph, order, workflow.edge_meta, %{})
         {:error, :contains_cycle} -> %{}
       end
     end
@@ -552,7 +564,9 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   defp check_cycles(acc, workflow) do
-    if Yog.cyclic?(workflow.graph) do
+    simple_graph = Workflow.to_simple_graph(workflow)
+
+    if Yog.cyclic?(simple_graph) do
       [{:error, "Cycle detected in workflow"} | acc]
     else
       acc
@@ -581,10 +595,12 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   defp check_unreachable_compensations(acc, workflow) do
+    simple_graph = Workflow.to_simple_graph(workflow)
+
     unreachable =
       Workflow.compensations(workflow)
       |> Enum.filter(fn id ->
-        in_deg = Yog.in_degree(workflow.graph, id)
+        in_deg = Yog.in_degree(simple_graph, id)
         in_deg == 0
       end)
 

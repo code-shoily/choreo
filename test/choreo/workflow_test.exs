@@ -19,13 +19,13 @@ defmodule Choreo.WorkflowTest do
     test "add_start/3 creates a start node" do
       workflow = Workflow.new() |> Workflow.add_start(:begin, label: "Start")
       assert :begin in Workflow.starts(workflow)
-      assert Yog.node(workflow.graph, :begin).node_type == :start
+      assert Map.get(workflow.graph.nodes, :begin).node_type == :start
     end
 
     test "add_end/3 creates an end node" do
       workflow = Workflow.new() |> Workflow.add_end(:finish, label: "End")
       assert :finish in Workflow.ends(workflow)
-      assert Yog.node(workflow.graph, :finish).node_type == :end
+      assert Map.get(workflow.graph.nodes, :finish).node_type == :end
     end
 
     test "add_task/3 creates a task with metadata" do
@@ -34,7 +34,7 @@ defmodule Choreo.WorkflowTest do
         |> Workflow.add_task(:process, timeout_ms: 5000, retry: 3, retry_backoff_ms: 100)
 
       assert :process in Workflow.tasks(workflow)
-      data = Yog.node(workflow.graph, :process)
+      data = Map.get(workflow.graph.nodes, :process)
       assert data.node_type == :task
       assert data.timeout_ms == 5000
       assert data.retry == 3
@@ -43,28 +43,28 @@ defmodule Choreo.WorkflowTest do
 
     test "add_decision/3 creates a decision node" do
       workflow = Workflow.new() |> Workflow.add_decision(:check)
-      assert Yog.node(workflow.graph, :check).node_type == :decision
+      assert Map.get(workflow.graph.nodes, :check).node_type == :decision
     end
 
     test "add_fork/3 creates a fork node" do
       workflow = Workflow.new() |> Workflow.add_fork(:split)
-      assert Yog.node(workflow.graph, :split).node_type == :fork
+      assert Map.get(workflow.graph.nodes, :split).node_type == :fork
     end
 
     test "add_join/3 creates a join node" do
       workflow = Workflow.new() |> Workflow.add_join(:merge)
-      assert Yog.node(workflow.graph, :merge).node_type == :join
+      assert Map.get(workflow.graph.nodes, :merge).node_type == :join
     end
 
     test "add_compensation/3 creates a compensation node" do
       workflow = Workflow.new() |> Workflow.add_compensation(:rollback, for: :process)
       assert :rollback in Workflow.compensations(workflow)
-      assert Yog.node(workflow.graph, :rollback).target_task == :process
+      assert Map.get(workflow.graph.nodes, :rollback).target_task == :process
     end
 
     test "add_event/3 creates an event node" do
       workflow = Workflow.new() |> Workflow.add_event(:timer)
-      assert Yog.node(workflow.graph, :timer).node_type == :event
+      assert Map.get(workflow.graph.nodes, :timer).node_type == :event
     end
   end
 
@@ -76,8 +76,7 @@ defmodule Choreo.WorkflowTest do
         |> Workflow.add_task(:b)
         |> Workflow.connect(:a, :b)
 
-      assert Yog.has_edge?(workflow.graph, :a, :b)
-      meta = workflow.edge_meta[{:a, :b}]
+      assert [{:a, :b, _, meta}] = Workflow.edges_with_meta(workflow)
       assert meta.edge_type == :sequence
     end
 
@@ -88,7 +87,7 @@ defmodule Choreo.WorkflowTest do
         |> Workflow.add_task(:b)
         |> Workflow.connect(:d, :b, condition: "yes")
 
-      meta = workflow.edge_meta[{:d, :b}]
+      assert [{:d, :b, _, meta}] = Workflow.edges_with_meta(workflow)
       assert meta.condition == "yes"
       assert meta.label == "yes"
     end
@@ -100,7 +99,7 @@ defmodule Choreo.WorkflowTest do
         |> Workflow.add_compensation(:c)
         |> Workflow.connect(:a, :c, edge_type: :compensation)
 
-      meta = workflow.edge_meta[{:a, :c}]
+      assert [{:a, :c, _, meta}] = Workflow.edges_with_meta(workflow)
       assert meta.edge_type == :compensation
       assert meta.label == "compensate"
     end
@@ -112,18 +111,23 @@ defmodule Choreo.WorkflowTest do
         |> Workflow.add_task(:b, timeout_ms: 5000)
         |> Workflow.connect(:a, :b)
 
-      {_from, _to, weight} = hd(Yog.all_edges(workflow.graph))
+      assert [{_from, _to, weight}] = Workflow.edges(workflow)
       assert weight == 5000
     end
 
-    test "raises on duplicate connection" do
-      assert_raise ArgumentError, fn ->
+    test "allows parallel connections between same nodes" do
+      workflow =
         Workflow.new()
-        |> Workflow.add_start(:a)
+        |> Workflow.add_task(:a)
         |> Workflow.add_task(:b)
-        |> Workflow.connect(:a, :b)
-        |> Workflow.connect(:a, :b)
-      end
+        |> Workflow.connect(:a, :b, label: "path1")
+        |> Workflow.connect(:a, :b, label: "path2")
+
+      edges = Workflow.edges_with_meta(workflow)
+      assert length(edges) == 2
+      labels = Enum.map(edges, fn {_, _, _, meta} -> meta.label end)
+      assert "path1" in labels
+      assert "path2" in labels
     end
   end
 
@@ -134,7 +138,7 @@ defmodule Choreo.WorkflowTest do
         |> Workflow.add_swimlane("backend", label: "Backend Services")
         |> Workflow.add_task(:api, swimlane: "backend")
 
-      assert Yog.node(workflow.graph, :api)[:cluster] == "cluster_backend"
+      assert Map.get(workflow.graph.nodes, :api)[:cluster] == "cluster_backend"
     end
   end
 

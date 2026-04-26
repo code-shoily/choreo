@@ -99,9 +99,9 @@ defmodule Choreo.ThreatModel.Analysis do
 
     flow_threats =
       model
-      |> ThreatModel.flows()
-      |> Enum.flat_map(fn {from, to, _label} ->
-        base = threats_for_flow(model, from, to)
+      |> ThreatModel.edges_with_meta()
+      |> Enum.flat_map(fn {from, to, _label, meta} ->
+        base = threats_for_flow(model, from, to, meta)
 
         custom =
           Enum.flat_map(custom_rules, fn rule ->
@@ -232,11 +232,12 @@ defmodule Choreo.ThreatModel.Analysis do
   @spec exposed_data_stores(ThreatModel.t()) :: [Yog.node_id()]
   def exposed_data_stores(%ThreatModel{} = model) do
     externals = ThreatModel.elements_of_type(model, :external_entity)
+    simple_graph = ThreatModel.to_simple_graph(model)
 
     reachable =
       externals
       |> Enum.reduce(MapSet.new(), fn id, acc ->
-        Choreo.Internal.bfs_reachable(model.graph, [id]) |> MapSet.union(acc)
+        Choreo.Internal.bfs_reachable(simple_graph, [id]) |> MapSet.union(acc)
       end)
 
     model
@@ -270,10 +271,11 @@ defmodule Choreo.ThreatModel.Analysis do
   def attack_paths(%ThreatModel{} = model) do
     externals = ThreatModel.elements_of_type(model, :external_entity)
     stores = ThreatModel.elements_of_type(model, :data_store) |> MapSet.new()
+    simple_graph = ThreatModel.to_simple_graph(model)
 
     externals
     |> Enum.flat_map(fn ext ->
-      dfs_all_paths(model.graph, ext, stores, [ext], MapSet.new([ext]))
+      dfs_all_paths(simple_graph, ext, stores, [ext], MapSet.new([ext]))
     end)
   end
 
@@ -300,18 +302,19 @@ defmodule Choreo.ThreatModel.Analysis do
   def high_risk_processes(%ThreatModel{} = model) do
     processes = ThreatModel.elements_of_type(model, :process)
     data_stores = ThreatModel.elements_of_type(model, :data_store)
+    simple_graph = ThreatModel.to_simple_graph(model)
 
     sensitive_stores =
       data_stores
       |> Enum.filter(fn id ->
-        data = Yog.node(model.graph, id)
+        data = Map.get(model.graph.nodes, id)
         data[:sensitivity] in [:confidential, :restricted]
       end)
       |> MapSet.new()
 
     processes
     |> Enum.filter(fn proc ->
-      reachable = Choreo.Internal.bfs_reachable(model.graph, [proc])
+      reachable = Choreo.Internal.bfs_reachable(simple_graph, [proc])
 
       level = ThreatModel.trust_level(model, proc)
       low_trust = is_nil(level) || level <= 2
@@ -342,12 +345,12 @@ defmodule Choreo.ThreatModel.Analysis do
   @spec unencrypted_boundary_flows(ThreatModel.t()) :: [{Yog.node_id(), Yog.node_id()}]
   def unencrypted_boundary_flows(%ThreatModel{} = model) do
     model
-    |> ThreatModel.flows()
-    |> Enum.filter(fn {from, to, _label} ->
+    |> ThreatModel.edges_with_meta()
+    |> Enum.filter(fn {from, to, _label, meta} ->
       ThreatModel.crosses_boundary?(model, from, to) and
-        not encrypted?(model, from, to)
+        meta[:encrypted] != true
     end)
-    |> Enum.map(fn {from, to, _label} -> {from, to} end)
+    |> Enum.map(fn {from, to, _label, _meta} -> {from, to} end)
   end
 
   @doc """
@@ -533,9 +536,9 @@ defmodule Choreo.ThreatModel.Analysis do
     ]
   end
 
-  defp threats_for_flow(model, from, to) do
+  defp threats_for_flow(model, from, to, meta) do
     crosses = ThreatModel.crosses_boundary?(model, from, to)
-    encrypted = encrypted?(model, from, to)
+    encrypted = meta[:encrypted] == true
 
     base_severity = if crosses, do: :high, else: :medium
 
@@ -581,13 +584,6 @@ defmodule Choreo.ThreatModel.Analysis do
       Enum.map(all, &lower_severity/1)
     else
       all
-    end
-  end
-
-  defp encrypted?(%ThreatModel{edge_meta: edge_meta}, from, to) do
-    case Map.fetch(edge_meta, {from, to}) do
-      {:ok, meta} -> meta[:encrypted] == true
-      :error -> false
     end
   end
 
