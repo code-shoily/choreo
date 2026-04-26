@@ -90,19 +90,19 @@ Model systems with typed infrastructure nodes: databases, caches, services, queu
 alias Choreo
 
 system =
-  new()
-  |> add_database(:db, name: "Postgres", kind: :postgres)
-  |> add_cache(:cache, name: "Redis")
-  |> add_service(:api, name: "API Gateway")
-  |> connect(:api, :cache, cost: 5)
-  |> connect(:api, :db, cost: 10)
+  Choreo.new()
+  |> Choreo.add_database(:db, name: "Postgres", kind: :postgres)
+  |> Choreo.add_cache(:cache, name: "Redis")
+  |> Choreo.add_service(:api, name: "API Gateway")
+  |> Choreo.connect(:api, :cache, cost: 5)
+  |> Choreo.connect(:api, :db, cost: 10)
 
 # Analysis
-{:ok, mst} = Analysis.mst(system)
-{:ok, order} = Analysis.topological_sort(system)
+{:ok, mst} = Choreo.Analysis.mst(system)
+{:ok, order} = Choreo.Analysis.topological_sort(system)
 
 # Render
-dot = to_dot(system, theme: :dark)
+dot = Choreo.to_dot(system, theme: :dark)
 ```
 
 **Features:** clusters with nesting, dataflow edges, cost-weighted edges, MST, topological sort, SCC, theming.
@@ -477,7 +477,7 @@ All modules ship with comprehensive ExUnit test suites:
 - [x] Schema validation for dataflow edges
 - [x] Custom theme presets and per-node style overrides
 - [ ] Deeper analysis: centrality metrics, graph colouring, cut vertices
-- [ ] Cross-module composition (e.g. embed a Dataflow inside a Choreo cluster)
+- [x] Cross-module composition (e.g. embed a Dataflow inside a Choreo cluster)
 - [x] Validation framework across all modules
 
 ---
