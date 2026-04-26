@@ -287,6 +287,23 @@ defmodule ChoreoTest do
       assert String.contains?(dot, "fillcolor=\"#e2e8f0\"")
       assert String.contains?(dot, "style=rounded")
     end
+
+    test "exhaustive theme and render overrides coverage" do
+      assert %Choreo.Theme{} = Choreo.Theme.warm()
+      assert %Choreo.Theme{} = Choreo.Theme.forest()
+      assert %Choreo.Theme{} = Choreo.Theme.ocean()
+
+      system =
+        Choreo.new()
+        |> Choreo.add_database(:db, description: "Main DB")
+        |> Choreo.add_service(:api, penwidth: 3)
+        |> Choreo.connect(:api, :db, protocol: :grpc, headport: "n", tailport: "s")
+
+      # Render across presets
+      assert Choreo.to_dot(system, theme: :warm) =~ "db"
+      assert Choreo.to_dot(system, theme: :forest) =~ "db"
+      assert Choreo.to_dot(system, theme: :ocean) =~ "db"
+    end
   end
 
   describe "analysis" do
