@@ -1,13 +1,13 @@
 # Choreo Infrastructure: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.6"},
-  {:kino_vizjs, "~> 0.5.0"}
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
+
+## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
 
@@ -442,6 +442,62 @@ brand_theme =
   )
 
 Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme))
+```
+
+---
+
+## Example 7: Multigraph — Multiple Connections Between the Same Nodes
+
+Real infrastructure often has more than one relationship between the same pair of services. Choreo supports **parallel edges** (multigraph), so you can model reads and writes separately, or different protocols between the same endpoints.
+
+```elixir
+multigraph_example =
+  Choreo.new()
+  |> Choreo.add_service(:api, name: "API Gateway")
+  |> Choreo.add_database(:postgres, name: "Postgres Primary")
+  |> Choreo.add_cache(:redis, name: "Redis")
+  # Two distinct connections to the same database
+  |> Choreo.connect(:api, :postgres, cost: 2, protocol: :tcp, label: "Reads")
+  |> Choreo.connect(:api, :postgres, cost: 5, protocol: :tcp, label: "Writes")
+  # HTTP for REST, gRPC for internal RPC
+  |> Choreo.connect(:api, :redis, cost: 1, protocol: :http, label: "Cache-aside")
+  |> Choreo.connect(:api, :redis, cost: 1, protocol: :grpc, label: "Write-through")
+
+Kino.VizJS.render(Choreo.to_dot(multigraph_example))
+```
+
+### Querying Parallel Edges
+
+```elixir
+IO.inspect(Choreo.edges(multigraph_example), label: "All edges (parallel allowed)")
+
+# Edges with metadata let you distinguish parallel connections
+Choreo.edges_with_meta(multigraph_example)
+|> Enum.each(fn {from, to, cost, meta} ->
+  label = meta[:label] || "connection"
+  protocol = meta[:protocol] || "unknown"
+  IO.puts("#{from} → #{to}: #{label} (#{protocol}, cost=#{cost})")
+end)
+```
+
+### Analysis Still Works
+
+Graph algorithms expect simple graphs, so Choreo automatically collapses parallel edges when running analysis. By default, it keeps the **minimum** cost edge between any pair:
+
+```elixir
+# Shortest path uses the cheapest parallel edge automatically
+{:ok, path} = Analysis.shortest_path(multigraph_example, :api, :postgres)
+IO.puts("Shortest path cost: #{path.weight}")
+# => 2 (the "Reads" edge, not the "Writes" edge)
+```
+
+You can also collapse the multigraph to a simple graph explicitly with a custom combine function:
+
+```elixir
+# Sum the costs of parallel edges instead of taking the minimum
+simple = Choreo.to_simple_graph(multigraph_example, combine: &Kernel.+/2)
+Yog.all_edges(simple)
+|> IO.inspect(label: "Collapsed edges (sum combine)")
 ```
 
 ---
