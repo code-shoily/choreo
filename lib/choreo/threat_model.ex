@@ -95,6 +95,98 @@ defmodule Choreo.ThreatModel do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
+  @add_trust_boundary_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    level: [
+      type: :integer,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    color: [
+      type: :string,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_external_entity_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    boundary: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_process_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    boundary: [
+      type: :string,
+      required: false
+    ],
+    privilege: [
+      type: {:in, [:user, :admin, :system]},
+      required: false
+    ]
+  ]
+
+  @add_data_store_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    boundary: [
+      type: :string,
+      required: false
+    ],
+    sensitivity: [
+      type: {:in, [:public, :internal, :confidential, :restricted]},
+      required: false
+    ]
+  ]
+
+  @data_flow_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    protocol: [
+      type: {:or, [:atom, :string]},
+      required: false
+    ],
+    encrypted: [
+      type: :boolean,
+      required: false,
+      default: false
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -145,6 +237,7 @@ defmodule Choreo.ThreatModel do
   """
   @spec add_trust_boundary(t(), String.t(), keyword()) :: t()
   def add_trust_boundary(%__MODULE__{} = model, name, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_trust_boundary_schema)
     name = Choreo.Internal.ensure_cluster_prefix(name)
     boundary = Map.new(opts)
     clusters = Map.put(model.clusters, name, boundary)
@@ -187,8 +280,8 @@ defmodule Choreo.ThreatModel do
     }
   </div>
   """
-  @spec add_external_entity(t(), Yog.node_id(), keyword()) :: t()
   def add_external_entity(model, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_external_entity_schema)
     add_typed_node(model, id, :external_entity, opts)
   end
 
@@ -225,8 +318,8 @@ defmodule Choreo.ThreatModel do
     }
   </div>
   """
-  @spec add_process(t(), Yog.node_id(), keyword()) :: t()
   def add_process(model, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_process_schema)
     add_typed_node(model, id, :process, opts)
   end
 
@@ -263,8 +356,8 @@ defmodule Choreo.ThreatModel do
     }
   </div>
   """
-  @spec add_data_store(t(), Yog.node_id(), keyword()) :: t()
   def add_data_store(model, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_data_store_schema)
     add_typed_node(model, id, :data_store, opts)
   end
 
@@ -311,8 +404,8 @@ defmodule Choreo.ThreatModel do
     }
   </div>
   """
-  @spec data_flow(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def data_flow(%__MODULE__{} = model, from, to, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @data_flow_schema)
     label = opts[:label] || ""
 
     meta =

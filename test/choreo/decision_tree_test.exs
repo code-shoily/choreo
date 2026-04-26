@@ -137,6 +137,26 @@ defmodule Choreo.DecisionTreeTest do
     end
   end
 
+  describe "strict options validation" do
+    test "set_root/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        DecisionTree.new() |> DecisionTree.set_root(:a, unknown: true)
+      end
+    end
+
+    test "add_decision/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        DecisionTree.new() |> DecisionTree.add_decision(:a, unknown: true)
+      end
+    end
+
+    test "add_outcome/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        DecisionTree.new() |> DecisionTree.add_outcome(:a, unknown: true)
+      end
+    end
+  end
+
   describe "to_dot/2" do
     test "renders a non-empty DOT string" do
       tree =

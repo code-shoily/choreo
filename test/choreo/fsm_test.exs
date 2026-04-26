@@ -315,4 +315,45 @@ defmodule Choreo.FSMTest do
       refute :dead in FSM.states(pruned)
     end
   end
+
+  describe "strict options validation" do
+    test "new/1 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        FSM.new(unknown: true)
+      end
+    end
+
+    test "add_state/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        FSM.new() |> FSM.add_state(:a, unknown: true)
+      end
+    end
+
+    test "add_state/3 raises on invalid type" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        FSM.new() |> FSM.add_state(:a, type: :invalid)
+      end
+    end
+
+    test "add_initial_state/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        FSM.new() |> FSM.add_initial_state(:a, type: :initial)
+      end
+    end
+
+    test "add_final_state/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        FSM.new() |> FSM.add_final_state(:a, unknown: true)
+      end
+    end
+
+    test "add_transition/4 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, unknown: true)
+      end
+    end
+  end
 end

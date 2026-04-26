@@ -183,6 +183,35 @@ defmodule Choreo.DataflowTest do
     end
   end
 
+  describe "strict options validation" do
+    test "add_source/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Dataflow.new() |> Dataflow.add_source(:s, unknown: true)
+      end
+    end
+
+    test "add_sink/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Dataflow.new() |> Dataflow.add_sink(:s, unknown: true)
+      end
+    end
+
+    test "add_transform/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Dataflow.new() |> Dataflow.add_transform(:t, unknown: true)
+      end
+    end
+
+    test "connect/4 raises on invalid path_type" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Dataflow.new()
+        |> Dataflow.add_source(:a)
+        |> Dataflow.add_sink(:b)
+        |> Dataflow.connect(:a, :b, path_type: :invalid)
+      end
+    end
+  end
+
   describe "to_dot/2" do
     test "renders a non-empty DOT string" do
       flow =

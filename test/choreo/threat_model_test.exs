@@ -51,25 +51,22 @@ defmodule Choreo.ThreatModelTest do
       assert Map.get(model.graph.nodes, :db).sensitivity == :confidential
     end
 
-    test "merges arbitrary options into process data" do
-      model =
+    test "raises on arbitrary options in process" do
+      assert_raise NimbleOptions.ValidationError, fn ->
         ThreatModel.new() |> ThreatModel.add_process(:api, compliance: :gdpr, owner: "team-a")
-
-      data = Map.get(model.graph.nodes, :api)
-      assert data.compliance == :gdpr
-      assert data.owner == "team-a"
+      end
     end
 
-    test "merges arbitrary options into data store data" do
-      model = ThreatModel.new() |> ThreatModel.add_data_store(:db, retention: "90d")
-      data = Map.get(model.graph.nodes, :db)
-      assert data.retention == "90d"
+    test "raises on arbitrary options in data store" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        ThreatModel.new() |> ThreatModel.add_data_store(:db, retention: "90d")
+      end
     end
 
-    test "merges arbitrary options into external entity data" do
-      model = ThreatModel.new() |> ThreatModel.add_external_entity(:user, region: "eu")
-      data = Map.get(model.graph.nodes, :user)
-      assert data.region == "eu"
+    test "raises on arbitrary options in external entity" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        ThreatModel.new() |> ThreatModel.add_external_entity(:user, region: "eu")
+      end
     end
   end
 

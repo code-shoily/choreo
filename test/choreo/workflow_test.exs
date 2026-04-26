@@ -170,6 +170,29 @@ defmodule Choreo.WorkflowTest do
     end
   end
 
+  describe "strict options validation" do
+    test "add_task/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Workflow.new() |> Workflow.add_task(:t, unknown: true)
+      end
+    end
+
+    test "connect/4 raises on invalid edge_type" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Workflow.new()
+        |> Workflow.add_start(:a)
+        |> Workflow.add_end(:b)
+        |> Workflow.connect(:a, :b, edge_type: :invalid)
+      end
+    end
+
+    test "add_swimlane/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Workflow.new() |> Workflow.add_swimlane(:s, unknown: true)
+      end
+    end
+  end
+
   describe "queries" do
     test "nodes/1 returns all node ids" do
       workflow =

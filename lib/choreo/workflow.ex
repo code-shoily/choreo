@@ -97,6 +97,176 @@ defmodule Choreo.Workflow do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
+  @add_swimlane_schema [
+    label: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_start_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_end_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_task_schema [
+    timeout_ms: [
+      type: :integer,
+      required: false
+    ],
+    retry: [
+      type: :integer,
+      required: false
+    ],
+    retry_backoff_ms: [
+      type: :integer,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    handler: [
+      type: {:or, [:atom, :string]},
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_decision_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_fork_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_join_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_compensation_schema [
+    for: [
+      type: {:or, [:atom, :string]},
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    handler: [
+      type: {:or, [:atom, :string]},
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_event_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    swimlane: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @connect_schema [
+    condition: [
+      type: :string,
+      required: false
+    ],
+    edge_type: [
+      type: {:in, [:sequence, :compensation, :retry, :failure, :timeout, :error]},
+      required: false
+    ],
+    weight: [
+      type: {:or, [:integer, :float]},
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -155,6 +325,7 @@ defmodule Choreo.Workflow do
   """
   @spec add_start(t(), Yog.node_id(), keyword()) :: t()
   def add_start(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_start_schema)
     add_typed_node(workflow, id, :start, opts)
   end
 
@@ -184,6 +355,7 @@ defmodule Choreo.Workflow do
   """
   @spec add_end(t(), Yog.node_id(), keyword()) :: t()
   def add_end(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_end_schema)
     add_typed_node(workflow, id, :end, opts)
   end
 
@@ -223,8 +395,8 @@ defmodule Choreo.Workflow do
     }
   </div>
   """
-  @spec add_task(t(), Yog.node_id(), keyword()) :: t()
   def add_task(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_task_schema)
     add_typed_node(workflow, id, :task, opts)
   end
 
@@ -250,8 +422,8 @@ defmodule Choreo.Workflow do
     }
   </div>
   """
-  @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
   def add_decision(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_decision_schema)
     add_typed_node(workflow, id, :decision, opts)
   end
 
@@ -267,6 +439,7 @@ defmodule Choreo.Workflow do
   """
   @spec add_fork(t(), Yog.node_id(), keyword()) :: t()
   def add_fork(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_fork_schema)
     add_typed_node(workflow, id, :fork, opts)
   end
 
@@ -280,8 +453,8 @@ defmodule Choreo.Workflow do
       iex> Map.get(workflow.graph.nodes, :merge).node_type
       :join
   """
-  @spec add_join(t(), Yog.node_id(), keyword()) :: t()
   def add_join(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_join_schema)
     add_typed_node(workflow, id, :join, opts)
   end
 
@@ -318,6 +491,8 @@ defmodule Choreo.Workflow do
   """
   @spec add_compensation(t(), Yog.node_id(), keyword()) :: t()
   def add_compensation(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_compensation_schema)
+
     data = %{
       type: :workflow_node,
       node_type: :compensation,
@@ -341,8 +516,8 @@ defmodule Choreo.Workflow do
       iex> Map.get(workflow.graph.nodes, :timer).node_type
       :event
   """
-  @spec add_event(t(), Yog.node_id(), keyword()) :: t()
   def add_event(%__MODULE__{} = workflow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_event_schema)
     add_typed_node(workflow, id, :event, opts)
   end
 
@@ -389,8 +564,8 @@ defmodule Choreo.Workflow do
     }
   </div>
   """
-  @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = workflow, from, to, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @connect_schema)
     edge_type = Keyword.get(opts, :edge_type, :sequence)
     condition = opts[:condition]
 
@@ -433,6 +608,7 @@ defmodule Choreo.Workflow do
   """
   @spec add_swimlane(t(), String.t() | atom(), keyword()) :: t()
   def add_swimlane(%__MODULE__{} = workflow, name, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_swimlane_schema)
     name = Choreo.Internal.ensure_cluster_prefix(name)
     clusters = Map.put(workflow.clusters || %{}, name, Map.new(opts))
     %{workflow | clusters: clusters}

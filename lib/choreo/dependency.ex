@@ -88,6 +88,115 @@ defmodule Choreo.Dependency do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
+  @add_application_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_library_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_module_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_interface_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_test_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_cluster_schema [
+    parent: [
+      type: :string,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    color: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @depends_on_schema [
+    type: [
+      type: {:in, [:uses, :imports, :calls, :inherits, :dev]},
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -150,8 +259,8 @@ defmodule Choreo.Dependency do
     }
   </div>
   """
-  @spec add_application(t(), Yog.node_id(), keyword()) :: t()
   def add_application(deps, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_application_schema)
     add_typed_node(deps, id, :application, opts)
   end
 
@@ -185,8 +294,8 @@ defmodule Choreo.Dependency do
     }
   </div>
   """
-  @spec add_library(t(), Yog.node_id(), keyword()) :: t()
   def add_library(deps, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_library_schema)
     add_typed_node(deps, id, :library, opts)
   end
 
@@ -220,8 +329,8 @@ defmodule Choreo.Dependency do
     }
   </div>
   """
-  @spec add_module(t(), Yog.node_id(), keyword()) :: t()
   def add_module(deps, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_module_schema)
     add_typed_node(deps, id, :module, opts)
   end
 
@@ -255,8 +364,8 @@ defmodule Choreo.Dependency do
     }
   </div>
   """
-  @spec add_interface(t(), Yog.node_id(), keyword()) :: t()
   def add_interface(deps, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_interface_schema)
     add_typed_node(deps, id, :interface, opts)
   end
 
@@ -290,8 +399,8 @@ defmodule Choreo.Dependency do
     }
   </div>
   """
-  @spec add_test(t(), Yog.node_id(), keyword()) :: t()
   def add_test(deps, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_test_schema)
     add_typed_node(deps, id, :test, opts)
   end
 
@@ -319,6 +428,7 @@ defmodule Choreo.Dependency do
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = deps, name, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_cluster_schema)
     name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
     clusters = Map.put(deps.clusters, name, cluster)
@@ -382,8 +492,8 @@ defmodule Choreo.Dependency do
       iex> meta.label
       "calls"
   """
-  @spec depends_on(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def depends_on(%__MODULE__{} = deps, from, to, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @depends_on_schema)
     type = Keyword.get(opts, :type, :uses)
     label = opts[:label] || type_to_label(type)
 

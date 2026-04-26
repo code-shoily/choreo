@@ -128,6 +128,23 @@ defmodule Choreo.DependencyTest do
     end
   end
 
+  describe "strict options validation" do
+    test "add_application/3 raises on unknown options" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Dependency.new() |> Dependency.add_application(:a, unknown: true)
+      end
+    end
+
+    test "depends_on/4 raises on invalid type" do
+      assert_raise NimbleOptions.ValidationError, fn ->
+        Dependency.new()
+        |> Dependency.add_application(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.depends_on(:a, :b, type: :invalid)
+      end
+    end
+  end
+
   describe "to_dot/2" do
     test "renders a non-empty DOT string" do
       deps =

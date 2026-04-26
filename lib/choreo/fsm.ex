@@ -68,6 +68,50 @@ defmodule Choreo.FSM do
 
   defstruct graph: nil, edge_meta: %{}, meta: %{}
 
+  @new_schema [
+    directed: [
+      type: :boolean,
+      required: false,
+      default: true
+    ]
+  ]
+
+  @add_state_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    type: [
+      type: {:in, [:normal, :initial, :final]},
+      required: false
+    ]
+  ]
+
+  @add_initial_state_schema [
+    label: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_final_state_schema [
+    label: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_transition_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    guard: [
+      type: :string,
+      required: false
+    ]
+  ]
+
   alias Choreo.FSM.Analysis
 
   # ============================================================================
@@ -89,7 +133,8 @@ defmodule Choreo.FSM do
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
-    kind = if Keyword.get(opts, :directed, true), do: :directed, else: :undirected
+    opts = NimbleOptions.validate!(opts, @new_schema)
+    kind = if opts[:directed], do: :directed, else: :undirected
 
     %__MODULE__{
       graph: Yog.Multi.new(kind),
@@ -130,6 +175,8 @@ defmodule Choreo.FSM do
   """
   @spec add_state(t(), Yog.node_id(), keyword()) :: t()
   def add_state(%__MODULE__{} = fsm, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_state_schema)
+
     data = %{
       type: :state,
       label: Keyword.get(opts, :label, to_string(id))
@@ -193,6 +240,8 @@ defmodule Choreo.FSM do
   """
   @spec add_initial_state(t(), Yog.node_id(), keyword()) :: t()
   def add_initial_state(%__MODULE__{} = fsm, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_initial_state_schema)
+
     if fsm.meta.initial_state != nil do
       raise ArgumentError, "DFAs can only have one initial state"
     end
@@ -231,6 +280,8 @@ defmodule Choreo.FSM do
   """
   @spec add_final_state(t(), Yog.node_id(), keyword()) :: t()
   def add_final_state(%__MODULE__{} = fsm, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_final_state_schema)
+
     fsm
     |> add_state(id, opts)
     |> put_in([Access.key!(:meta), :final_states], MapSet.put(fsm.meta.final_states, id))
@@ -310,6 +361,7 @@ defmodule Choreo.FSM do
   """
   @spec add_transition(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def add_transition(%__MODULE__{} = fsm, from, to, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_transition_schema)
     label = build_transition_label(opts)
 
     # DFAs do not support epsilon transitions

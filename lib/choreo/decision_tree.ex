@@ -75,6 +75,55 @@ defmodule Choreo.DecisionTree do
 
   defstruct graph: nil, root: nil, edge_meta: %{}
 
+  @set_root_schema [
+    feature: [
+      type: :string,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_decision_schema [
+    feature: [
+      type: :string,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_outcome_schema [
+    class: [
+      type: :string,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    probability: [
+      type: {:or, [:integer, :float]},
+      required: false
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -145,6 +194,7 @@ defmodule Choreo.DecisionTree do
   def set_root(tree, id, opts \\ [])
 
   def set_root(%__MODULE__{root: nil} = tree, id, opts) do
+    opts = NimbleOptions.validate!(opts, @set_root_schema)
     data = node_data(:root, opts)
 
     %{
@@ -190,6 +240,7 @@ defmodule Choreo.DecisionTree do
   """
   @spec add_decision(t(), Yog.node_id(), keyword()) :: t()
   def add_decision(%__MODULE__{} = tree, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_decision_schema)
     data = node_data(:decision, opts)
     %{tree | graph: Yog.add_node(tree.graph, id, data)}
   end
@@ -229,6 +280,7 @@ defmodule Choreo.DecisionTree do
   """
   @spec add_outcome(t(), Yog.node_id(), keyword()) :: t()
   def add_outcome(%__MODULE__{} = tree, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_outcome_schema)
     data = node_data(:outcome, opts)
     %{tree | graph: Yog.add_node(tree.graph, id, data)}
   end

@@ -95,6 +95,162 @@ defmodule Choreo.Dataflow do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
+  @add_source_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    rate: [
+      type: {:or, [:integer, :float, :string]},
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_sink_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_transform_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    latency_ms: [
+      type: {:or, [:integer, :float]},
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ],
+    capacity: [
+      type: {:or, [:integer, :string]},
+      required: false
+    ]
+  ]
+
+  @add_buffer_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    capacity: [
+      type: {:or, [:integer, :string]},
+      required: false
+    ],
+    latency_ms: [
+      type: {:or, [:integer, :float]},
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_conditional_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_merge_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    description: [
+      type: :string,
+      required: false
+    ],
+    cluster: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @add_cluster_schema [
+    parent: [
+      type: :string,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    color: [
+      type: :string,
+      required: false
+    ]
+  ]
+
+  @connect_schema [
+    data_type: [
+      type: :string,
+      required: false
+    ],
+    label: [
+      type: :string,
+      required: false
+    ],
+    rate: [
+      type: {:or, [:integer, :float, :string]},
+      required: false
+    ],
+    path_type: [
+      type: {:in, [:normal, :error, :retry, :dead_letter]},
+      required: false
+    ],
+    weight: [
+      type: {:or, [:integer, :float]},
+      required: false
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -158,8 +314,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec add_source(t(), Yog.node_id(), keyword()) :: t()
   def add_source(flow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_source_schema)
     add_typed_node(flow, id, :source, opts)
   end
 
@@ -193,8 +349,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec add_sink(t(), Yog.node_id(), keyword()) :: t()
   def add_sink(flow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_sink_schema)
     add_typed_node(flow, id, :sink, opts)
   end
 
@@ -229,8 +385,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec add_transform(t(), Yog.node_id(), keyword()) :: t()
   def add_transform(flow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_transform_schema)
     add_typed_node(flow, id, :transform, opts)
   end
 
@@ -268,8 +424,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec add_buffer(t(), Yog.node_id(), keyword()) :: t()
   def add_buffer(flow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_buffer_schema)
     add_typed_node(flow, id, :buffer, opts)
   end
 
@@ -303,8 +459,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec add_conditional(t(), Yog.node_id(), keyword()) :: t()
   def add_conditional(flow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_conditional_schema)
     add_typed_node(flow, id, :conditional, opts)
   end
 
@@ -338,8 +494,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec add_merge(t(), Yog.node_id(), keyword()) :: t()
   def add_merge(flow, id, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_merge_schema)
     add_typed_node(flow, id, :merge, opts)
   end
 
@@ -367,6 +523,7 @@ defmodule Choreo.Dataflow do
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = flow, name, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_cluster_schema)
     name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
     clusters = Map.put(flow.clusters, name, cluster)
@@ -423,8 +580,8 @@ defmodule Choreo.Dataflow do
     }
   </div>
   """
-  @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = flow, from, to, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @connect_schema)
     data_type = opts[:data_type]
     label = opts[:label] || data_type
 
