@@ -61,6 +61,128 @@ defmodule Choreo do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
+  @new_schema [
+    directed: [
+      type: :boolean,
+      required: false,
+      default: true,
+      doc: "Whether the underlying graph is directed."
+    ]
+  ]
+
+  @node_schema [
+    name: [
+      type: :string,
+      required: false,
+      doc: "Display name (defaults to the node id)."
+    ],
+    description: [
+      type: :string,
+      required: false,
+      doc: "Tooltip / annotation text."
+    ],
+    cluster: [
+      type: :string,
+      required: false,
+      doc: "Cluster name for visual grouping."
+    ],
+    shape: [
+      type: :atom,
+      required: false,
+      doc: "Shape override (e.g. `:box`, `:cylinder`)."
+    ],
+    fillcolor: [
+      type: :string,
+      required: false,
+      doc: "Background color override."
+    ],
+    fontcolor: [
+      type: :string,
+      required: false,
+      doc: "Font color override."
+    ],
+    style: [
+      type: :string,
+      required: false,
+      doc: "Style override (e.g. `\"filled\"`)."
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false,
+      doc: "Border thickness override."
+    ]
+  ]
+
+  @add_typed_node_schema [
+                           kind: [
+                             type: :atom,
+                             required: false,
+                             doc: "Specific kind of node (e.g. `:postgres`, `:redis`)."
+                           ]
+                         ] ++ @node_schema
+
+  @add_cluster_schema [
+    parent: [
+      type: :string,
+      required: false,
+      doc: "Parent cluster name for nesting."
+    ],
+    label: [
+      type: :string,
+      required: false,
+      doc: "Display label for the cluster."
+    ],
+    style: [
+      type: :string,
+      required: false,
+      doc: "Visual style (e.g. `\"filled\"`, `\"rounded\"`)."
+    ],
+    fillcolor: [
+      type: :string,
+      required: false,
+      doc: "Background color override."
+    ],
+    color: [
+      type: :string,
+      required: false,
+      doc: "Border color override."
+    ]
+  ]
+
+  @connect_schema [
+    cost: [
+      type: {:or, [:integer, :float]},
+      required: false,
+      default: 1,
+      doc: "Numeric weight used by MST and algorithms."
+    ],
+    label: [
+      type: :string,
+      required: false,
+      doc: "Display label for the edge."
+    ],
+    protocol: [
+      type: {:or, [:atom, :string]},
+      required: false,
+      doc: "Communication protocol."
+    ],
+    type: [
+      type: :atom,
+      required: false,
+      doc: "Internal semantic type."
+    ],
+    headport: [
+      type: :string,
+      required: false,
+      doc: "Graphviz headport override."
+    ],
+    tailport: [
+      type: :string,
+      required: false,
+      doc: "Graphviz tailport override."
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -70,7 +192,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:directed` - whether the underlying graph is directed (default: `true`)
+  #{NimbleOptions.docs(@new_schema)}
 
   ## Examples
 
@@ -85,7 +207,8 @@ defmodule Choreo do
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
-    kind = if Keyword.get(opts, :directed, true), do: :directed, else: :undirected
+    opts = NimbleOptions.validate!(opts, @new_schema)
+    kind = if opts[:directed], do: :directed, else: :undirected
 
     %__MODULE__{
       graph: Yog.Multi.new(kind),
@@ -103,9 +226,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:postgres`, `:mysql`, `:mongodb`, `:dynamodb`, etc.
-    * `:name` - display name (defaults to the node id)
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -138,9 +259,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:redis`, `:memcached`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -169,9 +288,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:api`, `:worker`, `:web`, `:microservice`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -202,9 +319,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:vpc`, `:subnet`, `:cdn`, `:dns`, `:firewall`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -234,9 +349,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:person`, `:device`, `:external_service`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -265,9 +378,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:nginx`, `:haproxy`, `:alb`, `:cloudflare`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -296,9 +407,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:kafka`, `:rabbitmq`, `:sqs`, `:pubsub`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -328,9 +437,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:kind` - `:s3`, `:nfs`, `:block`, `:glacier`, etc.
-    * `:name` - display name
-    * `:description` - tooltip / annotation text
+  #{NimbleOptions.docs(@add_typed_node_schema)}
 
   ## Examples
 
@@ -377,11 +484,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:parent` - name of the parent cluster for nesting (e.g. VPC → AZ)
-    * `:label` - display label (defaults to the cluster name)
-    * `:style` - `:filled`, `:rounded`, etc.
-    * `:fillcolor` - background colour
-    * `:color` - border colour
+  #{NimbleOptions.docs(@add_cluster_schema)}
 
   ## Examples
 
@@ -391,6 +494,7 @@ defmodule Choreo do
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = system, name, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @add_cluster_schema)
     name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
     clusters = Map.put(system.clusters, name, cluster)
@@ -398,6 +502,8 @@ defmodule Choreo do
   end
 
   defp add_typed_node(%__MODULE__{graph: graph} = system, id, type, opts) do
+    schema = if type == :generic, do: @node_schema, else: @add_typed_node_schema
+    opts = NimbleOptions.validate!(opts, schema)
     {cluster, rest_opts} = Keyword.pop(opts, :cluster)
 
     data =
@@ -423,9 +529,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:cost` - numeric weight used by MST and other algorithms (default: `1`)
-    * `:label` - display label for the edge
-    * `:protocol` - `:http`, `:https`, `:grpc`, `:tcp`, etc.
+  #{NimbleOptions.docs(@connect_schema)}
 
   ## Examples
 
@@ -450,7 +554,8 @@ defmodule Choreo do
   """
   @spec connect(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def connect(%__MODULE__{} = system, from, to, opts \\ []) do
-    cost = Keyword.get(opts, :cost, 1)
+    opts = NimbleOptions.validate!(opts, @connect_schema)
+    cost = opts[:cost]
 
     meta =
       opts

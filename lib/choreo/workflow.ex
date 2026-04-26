@@ -524,13 +524,7 @@ defmodule Choreo.Workflow do
 
   ## Options
 
-    * `:timeout_ms` — maximum time allowed for the task (default: `5000`)
-    * `:retry` — number of retry attempts on failure (default: `0`)
-    * `:retry_backoff_ms` — backoff between retries in milliseconds
-    * `:label` — display label
-    * `:handler` — handler name / reference
-    * `:description` — tooltip text
-    * `:swimlane` — swimlane group name
+  #{NimbleOptions.docs(@add_task_schema)}
 
   ## Examples
 
@@ -623,10 +617,7 @@ defmodule Choreo.Workflow do
 
   ## Options
 
-    * `:for` — the task id this compensation rolls back
-    * `:label` — display label
-    * `:handler` — handler name / reference
-    * `:description` — tooltip text
+  #{NimbleOptions.docs(@add_compensation_schema)}
 
   ## Examples
 
@@ -692,10 +683,7 @@ defmodule Choreo.Workflow do
 
   ## Options
 
-    * `:condition` — branch condition label (shown on decision edges)
-    * `:edge_type` — `:sequence` (default), `:compensation`, `:retry`, `:failure`, `:timeout`
-    * `:weight` — edge weight for path calculations (defaults to target task timeout_ms)
-    * `:label` — override edge label
+  #{NimbleOptions.docs(@connect_schema)}
 
   ## Examples
 

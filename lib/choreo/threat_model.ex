@@ -280,11 +280,7 @@ defmodule Choreo.ThreatModel do
 
   ## Options
 
-    * `:label` — display label
-    * `:level` — numeric trust level (higher = more trusted)
-    * `:style` — visual style override
-    * `:color` — border colour override
-    * `:fillcolor` — background colour override
+  #{NimbleOptions.docs(@add_trust_boundary_schema)}
 
   ## Examples
 
@@ -313,9 +309,7 @@ defmodule Choreo.ThreatModel do
 
   ## Options
 
-    * `:label` — display label
-    * `:description` — tooltip text
-    * `:boundary` — trust boundary name
+  #{NimbleOptions.docs(@add_external_entity_schema)}
 
   ## Examples
 
@@ -350,10 +344,7 @@ defmodule Choreo.ThreatModel do
 
   ## Options
 
-    * `:label` — display label
-    * `:description` — tooltip text
-    * `:boundary` — trust boundary name
-    * `:privilege` — privilege level (e.g., `:user`, `:admin`, `:system`)
+  #{NimbleOptions.docs(@add_process_schema)}
 
   ## Examples
 
@@ -388,10 +379,7 @@ defmodule Choreo.ThreatModel do
 
   ## Options
 
-    * `:label` — display label
-    * `:description` — tooltip text
-    * `:boundary` — trust boundary name
-    * `:sensitivity` — data sensitivity (`:public`, `:internal`, `:confidential`, `:restricted`)
+  #{NimbleOptions.docs(@add_data_store_schema)}
 
   ## Examples
 
@@ -430,9 +418,7 @@ defmodule Choreo.ThreatModel do
 
   ## Options
 
-    * `:label` — display label
-    * `:protocol` — `:http`, `:https`, `:grpc`, `:tcp`, `:udp`, etc.
-    * `:encrypted` — whether the flow is encrypted (default: `false`)
+  #{NimbleOptions.docs(@data_flow_schema)}
 
   ## Examples
 

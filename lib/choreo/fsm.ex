@@ -212,8 +212,7 @@ defmodule Choreo.FSM do
 
   ## Options
 
-    * `:label` — display label (defaults to the state id)
-    * `:type` — `:normal`, `:initial`, or `:final` (default: `:normal`)
+  #{NimbleOptions.docs(@add_state_schema)}
 
   ## Examples
 
@@ -275,7 +274,7 @@ defmodule Choreo.FSM do
 
   ## Options
 
-    * `:label` — display label (defaults to the state id)
+  #{NimbleOptions.docs(@add_initial_state_schema)}
 
   ## Examples
 
@@ -318,7 +317,7 @@ defmodule Choreo.FSM do
 
   ## Options
 
-    * `:label` — display label (defaults to the state id)
+  #{NimbleOptions.docs(@add_final_state_schema)}
 
   ## Examples
 
@@ -391,8 +390,7 @@ defmodule Choreo.FSM do
 
   ## Options
 
-    * `:label` — label shown on the transition arrow
-    * `:guard` — guard condition (rendered alongside the label)
+  #{NimbleOptions.docs(@add_transition_schema)}
 
   ## Examples
 

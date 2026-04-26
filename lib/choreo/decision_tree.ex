@@ -219,9 +219,7 @@ defmodule Choreo.DecisionTree do
 
   ## Options
 
-    * `:feature` — the attribute being tested (rendered as label)
-    * `:label` — override display label
-    * `:description` — tooltip text
+  #{NimbleOptions.docs(@set_root_schema)}
 
   ## Examples
 
@@ -273,9 +271,7 @@ defmodule Choreo.DecisionTree do
 
   ## Options
 
-    * `:feature` — the attribute being tested
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
+  #{NimbleOptions.docs(@add_decision_schema)}
 
   ## Examples
 
@@ -310,10 +306,7 @@ defmodule Choreo.DecisionTree do
 
   ## Options
 
-    * `:class` — class label or action name
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:probability` — optional probability / confidence score
+  #{NimbleOptions.docs(@add_outcome_schema)}
 
   ## Examples
 

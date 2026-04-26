@@ -4,8 +4,13 @@
 
 ### Added
 
+- **Custom theme presets and per-node style overrides** across all modules:
+  - Overriding shape, fillcolor, fontcolor, style, and penwidth for individual nodes.
+  - Global theme preset capabilities.
+- **Automated validation parameter docs** using `NimbleOptions.docs/1`.
 - **Strict Schema Validation** using `NimbleOptions` across all core modules:
   - All diagram builders (`Choreo.FSM`, `Choreo.DecisionTree`, `Choreo.ThreatModel`, `Choreo.Workflow`, `Choreo.Dataflow`, and `Choreo.Dependency`) now enforce compile-time and runtime options validation on nodes and edges.
+
 - **Multigraph support (parallel edges)** for `Choreo` and `Choreo.FSM`:
   - Multiple distinct edges can now exist between the same pair of nodes
   - `Choreo.edges_with_meta/1` — returns `[{from, to, cost, meta}]` tuples

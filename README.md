@@ -475,7 +475,7 @@ All modules ship with comprehensive ExUnit test suites:
 - [x] STRIDE threat modeling (`Choreo.ThreatModel`)
 - [x] Task orchestration workflows (`Choreo.Workflow`)
 - [x] Schema validation for dataflow edges
-- [ ] Custom theme presets and per-node style overrides
+- [x] Custom theme presets and per-node style overrides
 - [ ] Deeper analysis: centrality metrics, graph colouring, cut vertices
 - [ ] Cross-module composition (e.g. embed a Dataflow inside a Choreo cluster)
 - [x] Validation framework across all modules

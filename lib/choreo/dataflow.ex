@@ -406,10 +406,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:rate` — throughput in events/sec (used by simulation)
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_source_schema)}
 
   ## Examples
 
@@ -444,9 +441,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_sink_schema)}
 
   ## Examples
 
@@ -479,10 +474,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:latency_ms` — processing latency in milliseconds (used by simulation)
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_transform_schema)}
 
   ## Examples
 
@@ -515,11 +507,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:capacity` — annotated capacity (visual only)
-    * `:latency_ms` — buffering latency in milliseconds (used by simulation)
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_buffer_schema)}
 
   ## Examples
 
@@ -554,9 +542,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_conditional_schema)}
 
   ## Examples
 
@@ -589,9 +575,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_merge_schema)}
 
   ## Examples
 
@@ -628,11 +612,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:parent` — name of the parent cluster for nesting
-    * `:label` — display label (defaults to the cluster name)
-    * `:style` — `:filled`, `:rounded`, etc.
-    * `:fillcolor` — background colour
-    * `:color` — border colour
+  #{NimbleOptions.docs(@add_cluster_schema)}
 
   ## Examples
 
@@ -665,11 +645,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:data_type` — type of data travelling the edge (rendered as label)
-    * `:label` — override label (defaults to `data_type`)
-    * `:rate` — throughput annotation (visual only)
-    * `:path_type` — `:normal` (default), `:error`, `:retry`, `:dead_letter`
-    * `:weight` — numeric weight for critical-path analysis (default: `1`)
+  #{NimbleOptions.docs(@connect_schema)}
 
   ## Examples
 

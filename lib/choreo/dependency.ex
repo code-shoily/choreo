@@ -332,9 +332,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_application_schema)}
 
   ## Examples
 
@@ -369,9 +367,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_library_schema)}
 
   ## Examples
 
@@ -404,9 +400,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_module_schema)}
 
   ## Examples
 
@@ -439,9 +433,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_interface_schema)}
 
   ## Examples
 
@@ -474,9 +466,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:label` — display label (defaults to the node id)
-    * `:description` — tooltip text
-    * `:cluster` — cluster name for grouping
+  #{NimbleOptions.docs(@add_test_schema)}
 
   ## Examples
 
@@ -513,11 +503,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:parent` — name of the parent cluster for nesting
-    * `:label` — display label (defaults to the cluster name)
-    * `:style` — `:filled`, `:rounded`, etc.
-    * `:fillcolor` — background colour
-    * `:color` — border colour
+  #{NimbleOptions.docs(@add_cluster_schema)}
 
   ## Examples
 
@@ -552,8 +538,7 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:type` — `:uses`, `:imports`, `:calls`, `:inherits`, `:dev` (default: `:uses`)
-    * `:label` — override label
+  #{NimbleOptions.docs(@depends_on_schema)}
 
   ## Examples
 
