@@ -84,6 +84,26 @@ defmodule Choreo.FSM do
     type: [
       type: {:in, [:normal, :initial, :final]},
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -91,12 +111,52 @@ defmodule Choreo.FSM do
     label: [
       type: :string,
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
   @add_final_state_schema [
     label: [
       type: :string,
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
       required: false
     ]
   ]

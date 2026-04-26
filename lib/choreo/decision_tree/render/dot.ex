@@ -85,7 +85,67 @@ defmodule Choreo.DecisionTree.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_tree_theme()
   defp resolve_theme(:dark), do: dark_tree_theme()
+  defp resolve_theme(:warm), do: warm_tree_theme()
+  defp resolve_theme(:forest), do: forest_tree_theme()
+  defp resolve_theme(:ocean), do: ocean_tree_theme()
   defp resolve_theme(_), do: default_tree_theme()
+
+  defp warm_tree_theme do
+    %Theme{
+      name: :tree_warm,
+      colors: %{
+        root: "#ec4899",
+        decision: "#f97316",
+        outcome: "#10b981"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#78716c",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#fef2f2"
+    }
+  end
+
+  defp forest_tree_theme do
+    %Theme{
+      name: :tree_forest,
+      colors: %{
+        root: "#15803d",
+        decision: "#166534",
+        outcome: "#84cc16"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#4b5563",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0fdf4"
+    }
+  end
+
+  defp ocean_tree_theme do
+    %Theme{
+      name: :tree_ocean,
+      colors: %{
+        root: "#1d4ed8",
+        decision: "#0284c7",
+        outcome: "#0ea5e9"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#64748b",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0f9ff"
+    }
+  end
 
   defp default_tree_theme do
     %Theme{
@@ -178,28 +238,56 @@ defmodule Choreo.DecisionTree.Render.DOT do
             [
               {:shape, :diamond},
               {:fillcolor, tree_color(theme, :root)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"},
               {:penwidth, 2.0}
             ]
 
           :decision ->
             [
               {:shape, :diamond},
-              {:fillcolor, tree_color(theme, :decision)}
+              {:fillcolor, tree_color(theme, :decision)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :outcome ->
             [
               {:shape, :box},
               {:style, "rounded,filled"},
+              {:fontcolor, theme.node_fontcolor},
               {:fillcolor, tree_color(theme, :outcome)}
             ]
 
           _ ->
             [
               {:shape, :ellipse},
-              {:fillcolor, tree_color(theme, :decision)}
+              {:fillcolor, tree_color(theme, :decision)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
         end
+
+      base =
+        if shape = data[:shape], do: [{:shape, shape} | Keyword.delete(base, :shape)], else: base
+
+      base =
+        if color = data[:fillcolor],
+          do: [{:fillcolor, color} | Keyword.delete(base, :fillcolor)],
+          else: base
+
+      base =
+        if fontcolor = data[:fontcolor],
+          do: [{:fontcolor, fontcolor} | Keyword.delete(base, :fontcolor)],
+          else: base
+
+      base =
+        if style = data[:style], do: [{:style, style} | Keyword.delete(base, :style)], else: base
+
+      base =
+        if penwidth = data[:penwidth],
+          do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
+          else: base
 
       if desc = data[:description] do
         [{:tooltip, desc} | base]

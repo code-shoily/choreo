@@ -69,6 +69,9 @@ defmodule Choreo.Render.DOT do
   defp resolve_theme(:default), do: Theme.default()
   defp resolve_theme(:dark), do: Theme.dark()
   defp resolve_theme(:minimal), do: Theme.minimal()
+  defp resolve_theme(:warm), do: Theme.warm()
+  defp resolve_theme(:forest), do: Theme.forest()
+  defp resolve_theme(:ocean), do: Theme.ocean()
   defp resolve_theme(_), do: Theme.default()
 
   defp theme_graph_attrs(%Theme{} = theme) do
@@ -99,15 +102,24 @@ defmodule Choreo.Render.DOT do
     fn _id, data ->
       type = Map.get(data, :type, :generic)
 
-      shape = Theme.shape(theme, type)
-      color = Theme.color(theme, type)
+      shape = Map.get(data, :shape) || Theme.shape(theme, type)
+      color = Map.get(data, :fillcolor) || Theme.color(theme, type)
+      fontcolor = Map.get(data, :fontcolor) || theme.node_fontcolor
+      style = Map.get(data, :style, "filled")
 
       attrs = [
         {:shape, shape},
         {:fillcolor, color},
-        {:fontcolor, theme.node_fontcolor},
-        {:style, "filled"}
+        {:fontcolor, fontcolor},
+        {:style, style}
       ]
+
+      attrs =
+        if penwidth = data[:penwidth] do
+          [{:penwidth, penwidth} | attrs]
+        else
+          attrs
+        end
 
       if desc = data[:description] do
         [{:tooltip, desc} | attrs]

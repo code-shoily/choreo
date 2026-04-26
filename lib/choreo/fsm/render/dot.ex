@@ -84,7 +84,67 @@ defmodule Choreo.FSM.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_fsm_theme()
   defp resolve_theme(:dark), do: dark_fsm_theme()
+  defp resolve_theme(:warm), do: warm_fsm_theme()
+  defp resolve_theme(:forest), do: forest_fsm_theme()
+  defp resolve_theme(:ocean), do: ocean_fsm_theme()
   defp resolve_theme(_), do: default_fsm_theme()
+
+  defp warm_fsm_theme do
+    %Theme{
+      name: :fsm_warm,
+      colors: %{
+        normal: "#fecdd3",
+        initial: "#f43f5e",
+        final: "#fda4af"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "#1e293b",
+      edge_color: "#78716c",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#fef2f2"
+    }
+  end
+
+  defp forest_fsm_theme do
+    %Theme{
+      name: :fsm_forest,
+      colors: %{
+        normal: "#dcfce7",
+        initial: "#22c55e",
+        final: "#86efac"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "#1e293b",
+      edge_color: "#4b5563",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0fdf4"
+    }
+  end
+
+  defp ocean_fsm_theme do
+    %Theme{
+      name: :fsm_ocean,
+      colors: %{
+        normal: "#e0f2fe",
+        initial: "#0ea5e9",
+        final: "#7dd3fc"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "#1e293b",
+      edge_color: "#64748b",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0f9ff"
+    }
+  end
 
   defp default_fsm_theme do
     %Theme{
@@ -139,37 +199,67 @@ defmodule Choreo.FSM.Render.DOT do
   # ============================================================================
 
   defp node_attributes_fn(theme, fsm) do
-    fn id, _data ->
+    fn id, data ->
       is_initial = id in FSM.initial_states(fsm)
       is_final = id in FSM.final_states(fsm)
 
-      cond do
-        is_initial and is_final ->
-          [
-            {:shape, :doublecircle},
-            {:fillcolor, fsm_color(theme, :initial)},
-            {:fontcolor, "white"},
-            {:penwidth, 2.0}
-          ]
+      base =
+        cond do
+          is_initial and is_final ->
+            [
+              {:shape, :doublecircle},
+              {:fillcolor, fsm_color(theme, :initial)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"},
+              {:penwidth, 2.0}
+            ]
 
-        is_initial ->
-          [
-            {:fillcolor, fsm_color(theme, :initial)},
-            {:fontcolor, "white"}
-          ]
+          is_initial ->
+            [
+              {:fillcolor, fsm_color(theme, :initial)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
+            ]
 
-        is_final ->
-          [
-            {:shape, :doublecircle},
-            {:fillcolor, fsm_color(theme, :final)},
-            {:penwidth, 2.0}
-          ]
+          is_final ->
+            [
+              {:shape, :doublecircle},
+              {:fillcolor, fsm_color(theme, :final)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"},
+              {:penwidth, 2.0}
+            ]
 
-        true ->
-          [
-            {:fillcolor, fsm_color(theme, :normal)}
-          ]
-      end
+          true ->
+            [
+              {:fillcolor, fsm_color(theme, :normal)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
+            ]
+        end
+
+      base =
+        if shape = data[:shape], do: [{:shape, shape} | Keyword.delete(base, :shape)], else: base
+
+      base =
+        if color = data[:fillcolor],
+          do: [{:fillcolor, color} | Keyword.delete(base, :fillcolor)],
+          else: base
+
+      base =
+        if fontcolor = data[:fontcolor],
+          do: [{:fontcolor, fontcolor} | Keyword.delete(base, :fontcolor)],
+          else: base
+
+      base =
+        if style = data[:style], do: [{:style, style} | Keyword.delete(base, :style)], else: base
+
+      base =
+        if penwidth = data[:penwidth],
+          do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
+          else: base
+
+      base
     end
   end
 

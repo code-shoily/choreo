@@ -243,6 +243,81 @@ defmodule Choreo.Theme do
   end
 
   @doc """
+  Warm theme — sunset palette, warm background.
+  """
+  @spec warm() :: t()
+  def warm do
+    struct!(__MODULE__,
+      name: :warm,
+      colors: %{
+        database: "#f43f5e",
+        cache: "#f97316",
+        service: "#fbbf24",
+        network: "#ec4899",
+        user: "#ef4444",
+        load_balancer: "#ea580c",
+        queue: "#dc2626",
+        storage: "#db2777",
+        generic: "#78716c"
+      },
+      graph_bgcolor: "#fef2f2",
+      edge_color: "#78716c",
+      node_fontname: "Helvetica",
+      node_fontcolor: "white"
+    )
+  end
+
+  @doc """
+  Forest theme — lush green palette, earth tones.
+  """
+  @spec forest() :: t()
+  def forest do
+    struct!(__MODULE__,
+      name: :forest,
+      colors: %{
+        database: "#15803d",
+        cache: "#166534",
+        service: "#65a30d",
+        network: "#14b8a6",
+        user: "#84cc16",
+        load_balancer: "#047857",
+        queue: "#4d7c0f",
+        storage: "#0f766e",
+        generic: "#4b5563"
+      },
+      graph_bgcolor: "#f0fdf4",
+      edge_color: "#4b5563",
+      node_fontname: "Helvetica",
+      node_fontcolor: "white"
+    )
+  end
+
+  @doc """
+  Ocean theme — deep blue palette, cool background.
+  """
+  @spec ocean() :: t()
+  def ocean do
+    struct!(__MODULE__,
+      name: :ocean,
+      colors: %{
+        database: "#1d4ed8",
+        cache: "#0369a1",
+        service: "#0891b2",
+        network: "#2563eb",
+        user: "#0284c7",
+        load_balancer: "#0e7490",
+        queue: "#1e3a8a",
+        storage: "#008080",
+        generic: "#64748b"
+      },
+      graph_bgcolor: "#f0f9ff",
+      edge_color: "#64748b",
+      node_fontname: "Helvetica",
+      node_fontcolor: "white"
+    )
+  end
+
+  @doc """
   Resolves the effective shape for a node type, falling back to defaults.
 
   ## Examples

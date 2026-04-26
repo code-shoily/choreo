@@ -93,7 +93,91 @@ defmodule Choreo.Workflow.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_workflow_theme()
   defp resolve_theme(:dark), do: dark_workflow_theme()
+  defp resolve_theme(:warm), do: warm_workflow_theme()
+  defp resolve_theme(:forest), do: forest_workflow_theme()
+  defp resolve_theme(:ocean), do: ocean_workflow_theme()
   defp resolve_theme(_), do: default_workflow_theme()
+
+  defp warm_workflow_theme do
+    %Theme{
+      name: :workflow_warm,
+      colors: %{
+        start: "#10b981",
+        end: "#ef4444",
+        task: "#f97316",
+        decision: "#fbbf24",
+        fork: "#ea580c",
+        join: "#ea580c",
+        compensation: "#f43f5e",
+        event: "#db2777"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#78716c",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#fef2f2",
+      cluster_fillcolor: "#fee2e2",
+      cluster_style: :rounded,
+      cluster_color: "#fca5a5"
+    }
+  end
+
+  defp forest_workflow_theme do
+    %Theme{
+      name: :workflow_forest,
+      colors: %{
+        start: "#84cc16",
+        end: "#ef4444",
+        task: "#15803d",
+        decision: "#65a30d",
+        fork: "#166534",
+        join: "#166534",
+        compensation: "#047857",
+        event: "#14b8a6"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#4b5563",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0fdf4",
+      cluster_fillcolor: "#dcfce7",
+      cluster_style: :rounded,
+      cluster_color: "#86efac"
+    }
+  end
+
+  defp ocean_workflow_theme do
+    %Theme{
+      name: :workflow_ocean,
+      colors: %{
+        start: "#0ea5e9",
+        end: "#ef4444",
+        task: "#1d4ed8",
+        decision: "#0891b2",
+        fork: "#0369a1",
+        join: "#0369a1",
+        compensation: "#0e7490",
+        event: "#2563eb"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#64748b",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0f9ff",
+      cluster_fillcolor: "#e0f2fe",
+      cluster_style: :rounded,
+      cluster_color: "#7dd3fc"
+    }
+  end
 
   defp default_workflow_theme do
     %Theme{
@@ -168,6 +252,8 @@ defmodule Choreo.Workflow.Render.DOT do
             [
               {:shape, :circle},
               {:fillcolor, wf_color(theme, :start)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"},
               {:penwidth, 2.0}
             ]
 
@@ -175,37 +261,48 @@ defmodule Choreo.Workflow.Render.DOT do
             [
               {:shape, :doublecircle},
               {:fillcolor, wf_color(theme, :end)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"},
               {:penwidth, 2.0}
             ]
 
           :task ->
             [
               {:shape, :box3d},
-              {:fillcolor, wf_color(theme, :task)}
+              {:fillcolor, wf_color(theme, :task)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :decision ->
             [
               {:shape, :diamond},
-              {:fillcolor, wf_color(theme, :decision)}
+              {:fillcolor, wf_color(theme, :decision)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :fork ->
             [
               {:shape, :invhouse},
-              {:fillcolor, wf_color(theme, :fork)}
+              {:fillcolor, wf_color(theme, :fork)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :join ->
             [
               {:shape, :house},
-              {:fillcolor, wf_color(theme, :join)}
+              {:fillcolor, wf_color(theme, :join)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :compensation ->
             [
               {:shape, :note},
               {:fillcolor, wf_color(theme, :compensation)},
+              {:fontcolor, theme.node_fontcolor},
               {:style, "filled,dashed"},
               {:color, "#ef4444"}
             ]
@@ -213,15 +310,40 @@ defmodule Choreo.Workflow.Render.DOT do
           :event ->
             [
               {:shape, :cloud},
-              {:fillcolor, wf_color(theme, :event)}
+              {:fillcolor, wf_color(theme, :event)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           _ ->
             [
               {:shape, :box},
-              {:fillcolor, wf_color(theme, :task)}
+              {:fillcolor, wf_color(theme, :task)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
         end
+
+      base =
+        if shape = data[:shape], do: [{:shape, shape} | Keyword.delete(base, :shape)], else: base
+
+      base =
+        if color = data[:fillcolor],
+          do: [{:fillcolor, color} | Keyword.delete(base, :fillcolor)],
+          else: base
+
+      base =
+        if fontcolor = data[:fontcolor],
+          do: [{:fontcolor, fontcolor} | Keyword.delete(base, :fontcolor)],
+          else: base
+
+      base =
+        if style = data[:style], do: [{:style, style} | Keyword.delete(base, :style)], else: base
+
+      base =
+        if penwidth = data[:penwidth],
+          do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
+          else: base
 
       if desc = data[:description] do
         [{:tooltip, desc} | base]

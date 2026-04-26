@@ -116,6 +116,26 @@ defmodule Choreo.Workflow do
     swimlane: [
       type: :string,
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -130,6 +150,26 @@ defmodule Choreo.Workflow do
     ],
     swimlane: [
       type: :string,
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
       required: false
     ]
   ]
@@ -162,6 +202,26 @@ defmodule Choreo.Workflow do
     swimlane: [
       type: :string,
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -176,6 +236,26 @@ defmodule Choreo.Workflow do
     ],
     swimlane: [
       type: :string,
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
       required: false
     ]
   ]
@@ -192,6 +272,26 @@ defmodule Choreo.Workflow do
     swimlane: [
       type: :string,
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -206,6 +306,26 @@ defmodule Choreo.Workflow do
     ],
     swimlane: [
       type: :string,
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
       required: false
     ]
   ]
@@ -230,6 +350,26 @@ defmodule Choreo.Workflow do
     swimlane: [
       type: :string,
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -244,6 +384,26 @@ defmodule Choreo.Workflow do
     ],
     swimlane: [
       type: :string,
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
       required: false
     ]
   ]

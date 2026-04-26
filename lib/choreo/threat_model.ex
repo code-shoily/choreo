@@ -130,6 +130,26 @@ defmodule Choreo.ThreatModel do
     boundary: [
       type: :string,
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -149,6 +169,26 @@ defmodule Choreo.ThreatModel do
     privilege: [
       type: {:in, [:user, :admin, :system]},
       required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
     ]
   ]
 
@@ -167,6 +207,26 @@ defmodule Choreo.ThreatModel do
     ],
     sensitivity: [
       type: {:in, [:public, :internal, :confidential, :restricted]},
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
       required: false
     ]
   ]

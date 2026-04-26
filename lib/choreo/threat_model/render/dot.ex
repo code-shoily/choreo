@@ -83,7 +83,76 @@ defmodule Choreo.ThreatModel.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_threat_theme()
   defp resolve_theme(:dark), do: dark_threat_theme()
+  defp resolve_theme(:warm), do: warm_threat_theme()
+  defp resolve_theme(:forest), do: forest_threat_theme()
+  defp resolve_theme(:ocean), do: ocean_threat_theme()
   defp resolve_theme(_), do: default_threat_theme()
+
+  defp warm_threat_theme do
+    %Theme{
+      name: :threat_warm,
+      colors: %{
+        external_entity: "#f43f5e",
+        process: "#f97316",
+        data_store: "#ea580c"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#78716c",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#fef2f2",
+      cluster_fillcolor: "#fee2e2",
+      cluster_style: :dashed,
+      cluster_color: "#ef4444"
+    }
+  end
+
+  defp forest_threat_theme do
+    %Theme{
+      name: :threat_forest,
+      colors: %{
+        external_entity: "#15803d",
+        process: "#14b8a6",
+        data_store: "#047857"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#4b5563",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0fdf4",
+      cluster_fillcolor: "#dcfce7",
+      cluster_style: :dashed,
+      cluster_color: "#ef4444"
+    }
+  end
+
+  defp ocean_threat_theme do
+    %Theme{
+      name: :threat_ocean,
+      colors: %{
+        external_entity: "#1d4ed8",
+        process: "#0ea5e9",
+        data_store: "#0369a1"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#64748b",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0f9ff",
+      cluster_fillcolor: "#e0f2fe",
+      cluster_style: :dashed,
+      cluster_color: "#ef4444"
+    }
+  end
 
   defp default_threat_theme do
     %Theme{
@@ -148,27 +217,56 @@ defmodule Choreo.ThreatModel.Render.DOT do
             [
               {:shape, :box},
               {:fillcolor, threat_color(theme, :external_entity)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"},
               {:penwidth, 2.0}
             ]
 
           :process ->
             [
               {:shape, :circle},
-              {:fillcolor, threat_color(theme, :process)}
+              {:fillcolor, threat_color(theme, :process)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :data_store ->
             [
               {:shape, :cylinder},
-              {:fillcolor, threat_color(theme, :data_store)}
+              {:fillcolor, threat_color(theme, :data_store)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           _ ->
             [
               {:shape, :box},
-              {:fillcolor, threat_color(theme, :process)}
+              {:fillcolor, threat_color(theme, :process)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
         end
+
+      base =
+        if shape = data[:shape], do: [{:shape, shape} | Keyword.delete(base, :shape)], else: base
+
+      base =
+        if color = data[:fillcolor],
+          do: [{:fillcolor, color} | Keyword.delete(base, :fillcolor)],
+          else: base
+
+      base =
+        if fontcolor = data[:fontcolor],
+          do: [{:fontcolor, fontcolor} | Keyword.delete(base, :fontcolor)],
+          else: base
+
+      base =
+        if style = data[:style], do: [{:style, style} | Keyword.delete(base, :style)], else: base
+
+      base =
+        if penwidth = data[:penwidth],
+          do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
+          else: base
 
       if desc = data[:description] do
         [{:tooltip, desc} | base]

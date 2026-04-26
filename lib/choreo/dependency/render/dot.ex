@@ -103,7 +103,82 @@ defmodule Choreo.Dependency.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_dependency_theme()
   defp resolve_theme(:dark), do: dark_dependency_theme()
+  defp resolve_theme(:warm), do: warm_dependency_theme()
+  defp resolve_theme(:forest), do: forest_dependency_theme()
+  defp resolve_theme(:ocean), do: ocean_dependency_theme()
   defp resolve_theme(_), do: default_dependency_theme()
+
+  defp warm_dependency_theme do
+    %Theme{
+      name: :dependency_warm,
+      colors: %{
+        application: "#ea580c",
+        library: "#fbbf24",
+        module: "#f43f5e",
+        interface: "#db2777",
+        test: "#78716c"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#78716c",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 9,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#fef2f2",
+      cluster_fillcolor: "#fee2e2",
+      cluster_style: :rounded,
+      cluster_color: "#fca5a5"
+    }
+  end
+
+  defp forest_dependency_theme do
+    %Theme{
+      name: :dependency_forest,
+      colors: %{
+        application: "#047857",
+        library: "#65a30d",
+        module: "#15803d",
+        interface: "#0f766e",
+        test: "#4b5563"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#4b5563",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 9,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0fdf4",
+      cluster_fillcolor: "#dcfce7",
+      cluster_style: :rounded,
+      cluster_color: "#86efac"
+    }
+  end
+
+  defp ocean_dependency_theme do
+    %Theme{
+      name: :dependency_ocean,
+      colors: %{
+        application: "#0e7490",
+        library: "#0891b2",
+        module: "#1d4ed8",
+        interface: "#008080",
+        test: "#64748b"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#64748b",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 9,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0f9ff",
+      cluster_fillcolor: "#e0f2fe",
+      cluster_style: :rounded,
+      cluster_color: "#7dd3fc"
+    }
+  end
 
   defp default_dependency_theme do
     %Theme{
@@ -171,39 +246,72 @@ defmodule Choreo.Dependency.Render.DOT do
           :application ->
             [
               {:shape, :box3d},
-              {:fillcolor, dep_color(theme, :application)}
+              {:fillcolor, dep_color(theme, :application)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :library ->
             [
               {:shape, :cylinder},
-              {:fillcolor, dep_color(theme, :library)}
+              {:fillcolor, dep_color(theme, :library)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :module ->
             [
               {:shape, :box},
-              {:fillcolor, dep_color(theme, :module)}
+              {:fillcolor, dep_color(theme, :module)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :interface ->
             [
               {:shape, :diamond},
-              {:fillcolor, dep_color(theme, :interface)}
+              {:fillcolor, dep_color(theme, :interface)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :test ->
             [
               {:shape, :note},
-              {:fillcolor, dep_color(theme, :test)}
+              {:fillcolor, dep_color(theme, :test)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           _ ->
             [
               {:shape, :box},
-              {:fillcolor, dep_color(theme, :module)}
+              {:fillcolor, dep_color(theme, :module)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
         end
+
+      base =
+        if shape = data[:shape], do: [{:shape, shape} | Keyword.delete(base, :shape)], else: base
+
+      base =
+        if color = data[:fillcolor],
+          do: [{:fillcolor, color} | Keyword.delete(base, :fillcolor)],
+          else: base
+
+      base =
+        if fontcolor = data[:fontcolor],
+          do: [{:fontcolor, fontcolor} | Keyword.delete(base, :fontcolor)],
+          else: base
+
+      base =
+        if style = data[:style], do: [{:style, style} | Keyword.delete(base, :style)], else: base
+
+      base =
+        if penwidth = data[:penwidth],
+          do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
+          else: base
 
       base =
         if desc = data[:description] do

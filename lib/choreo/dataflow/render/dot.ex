@@ -93,7 +93,85 @@ defmodule Choreo.Dataflow.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_dataflow_theme()
   defp resolve_theme(:dark), do: dark_dataflow_theme()
+  defp resolve_theme(:warm), do: warm_dataflow_theme()
+  defp resolve_theme(:forest), do: forest_dataflow_theme()
+  defp resolve_theme(:ocean), do: ocean_dataflow_theme()
   defp resolve_theme(_), do: default_dataflow_theme()
+
+  defp warm_dataflow_theme do
+    %Theme{
+      name: :dataflow_warm,
+      colors: %{
+        source: "#fbbf24",
+        sink: "#f43f5e",
+        transform: "#f97316",
+        buffer: "#ea580c",
+        conditional: "#ec4899",
+        merge: "#db2777"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#78716c",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#fef2f2",
+      cluster_fillcolor: "#fee2e2",
+      cluster_style: :rounded,
+      cluster_color: "#fca5a5"
+    }
+  end
+
+  defp forest_dataflow_theme do
+    %Theme{
+      name: :dataflow_forest,
+      colors: %{
+        source: "#84cc16",
+        sink: "#15803d",
+        transform: "#14b8a6",
+        buffer: "#047857",
+        conditional: "#65a30d",
+        merge: "#0f766e"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#4b5563",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0fdf4",
+      cluster_fillcolor: "#dcfce7",
+      cluster_style: :rounded,
+      cluster_color: "#86efac"
+    }
+  end
+
+  defp ocean_dataflow_theme do
+    %Theme{
+      name: :dataflow_ocean,
+      colors: %{
+        source: "#0ea5e9",
+        sink: "#1d4ed8",
+        transform: "#0891b2",
+        buffer: "#0369a1",
+        conditional: "#2563eb",
+        merge: "#0e7490"
+      },
+      node_fontname: "Helvetica",
+      node_fontsize: 12,
+      node_fontcolor: "white",
+      edge_color: "#64748b",
+      edge_fontname: "Helvetica",
+      edge_fontsize: 10,
+      edge_penwidth: 1.0,
+      graph_bgcolor: "#f0f9ff",
+      cluster_fillcolor: "#e0f2fe",
+      cluster_style: :rounded,
+      cluster_color: "#7dd3fc"
+    }
+  end
 
   defp default_dataflow_theme do
     %Theme{
@@ -163,45 +241,80 @@ defmodule Choreo.Dataflow.Render.DOT do
           :source ->
             [
               {:shape, :house},
-              {:fillcolor, df_color(theme, :source)}
+              {:fillcolor, df_color(theme, :source)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :sink ->
             [
               {:shape, :invhouse},
-              {:fillcolor, df_color(theme, :sink)}
+              {:fillcolor, df_color(theme, :sink)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :transform ->
             [
               {:shape, :box3d},
-              {:fillcolor, df_color(theme, :transform)}
+              {:fillcolor, df_color(theme, :transform)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :buffer ->
             [
               {:shape, :cylinder},
-              {:fillcolor, df_color(theme, :buffer)}
+              {:fillcolor, df_color(theme, :buffer)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :conditional ->
             [
               {:shape, :diamond},
-              {:fillcolor, df_color(theme, :conditional)}
+              {:fillcolor, df_color(theme, :conditional)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           :merge ->
             [
               {:shape, :trapezium},
-              {:fillcolor, df_color(theme, :merge)}
+              {:fillcolor, df_color(theme, :merge)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
 
           _ ->
             [
               {:shape, :box},
-              {:fillcolor, df_color(theme, :transform)}
+              {:fillcolor, df_color(theme, :transform)},
+              {:fontcolor, theme.node_fontcolor},
+              {:style, "filled"}
             ]
         end
+
+      base =
+        if shape = data[:shape], do: [{:shape, shape} | Keyword.delete(base, :shape)], else: base
+
+      base =
+        if color = data[:fillcolor],
+          do: [{:fillcolor, color} | Keyword.delete(base, :fillcolor)],
+          else: base
+
+      base =
+        if fontcolor = data[:fontcolor],
+          do: [{:fontcolor, fontcolor} | Keyword.delete(base, :fontcolor)],
+          else: base
+
+      base =
+        if style = data[:style], do: [{:style, style} | Keyword.delete(base, :style)], else: base
+
+      base =
+        if penwidth = data[:penwidth],
+          do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
+          else: base
 
       if desc = data[:description] do
         [{:tooltip, desc} | base]
