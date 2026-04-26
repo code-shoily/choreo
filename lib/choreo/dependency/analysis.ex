@@ -20,27 +20,34 @@ defmodule Choreo.Dependency.Analysis do
   alias Choreo.Dependency
 
   @doc """
-    Returns all circular dependency chains.
+  Returns all circular dependency chains.
 
-    Each cycle is returned as a list of node IDs starting and ending at the
-    same node. Only one representative cycle is returned per strongly
-    connected component.
+  Each cycle is returned as a list of node IDs starting and ending at the
+  same node. Only one representative cycle is returned per strongly
+  connected component.
 
-    ## Examples
+  ## Examples
 
-        deps =
-          Choreo.Dependency.new()
-          |> Choreo.Dependency.add_module(:a)
-          |> Choreo.Dependency.add_module(:b)
-          |> Choreo.Dependency.add_module(:c)
-          |> Choreo.Dependency.depends_on(:a, :b)
-          |> Choreo.Dependency.depends_on(:b, :a)
-          |> Choreo.Dependency.depends_on(:c, :a)
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :a)
+      ...>   |> Choreo.Dependency.depends_on(:c, :a)
+      iex> cycles = Choreo.Dependency.Analysis.cyclic_dependencies(deps)
+      iex> length(cycles)
+      1
+      iex> [cycle] = cycles
+      iex> hd(cycle) == List.last(cycle)
+      true
+      iex> :a in cycle
+      true
+      iex> :b in cycle
+      true
 
-        Choreo.Dependency.Analysis.cyclic_dependencies(deps)
-        #=> [[:a, :b, :a]]
-
-    This analysis answers the question: "Where are the circular dependencies?"
+  This analysis answers the question: "Where are the circular dependencies?"
   """
   @spec cyclic_dependencies(Dependency.t()) :: [[Yog.node_id()]]
   def cyclic_dependencies(%Dependency{graph: graph}) do
@@ -56,24 +63,25 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Returns all nodes that transitively depend on the given node.
+  Returns all nodes that transitively depend on the given node.
 
-    If you change `target`, these are the components that could break.
+  If you change `target`, these are the components that could break.
 
-    ## Examples
+  ## Examples
 
-        deps =
-          Choreo.Dependency.new()
-          |> Choreo.Dependency.add_application(:api)
-          |> Choreo.Dependency.add_module(:auth)
-          |> Choreo.Dependency.add_module(:util)
-          |> Choreo.Dependency.depends_on(:api, :auth)
-          |> Choreo.Dependency.depends_on(:auth, :util)
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.add_module(:util)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      ...>   |> Choreo.Dependency.depends_on(:auth, :util)
+      iex> Enum.sort(Choreo.Dependency.Analysis.affected_by(deps, :util))
+      [:api, :auth]
+      iex> Choreo.Dependency.Analysis.affected_by(deps, :api)
+      []
 
-        Choreo.Dependency.Analysis.affected_by(deps, :util)
-        #=> [:auth, :api]
-
-    This analysis answers the question: "What breaks if I change this component?"
+  This analysis answers the question: "What breaks if I change this component?"
   """
   @spec affected_by(Dependency.t(), Yog.node_id()) :: [Yog.node_id()]
   def affected_by(%Dependency{graph: graph}, target) do
@@ -85,16 +93,25 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Returns all nodes that the given node transitively depends on.
+  Returns all nodes that the given node transitively depends on.
 
-    These are the components `target` cannot function without.
+  These are the components `target` cannot function without.
 
-    ## Examples
+  ## Examples
 
-        Choreo.Dependency.Analysis.depends_on(deps, :api)
-        #=> [:auth, :util]
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.add_module(:util)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      ...>   |> Choreo.Dependency.depends_on(:auth, :util)
+      iex> Enum.sort(Choreo.Dependency.Analysis.depends_on(deps, :api))
+      [:auth, :util]
+      iex> Choreo.Dependency.Analysis.depends_on(deps, :util)
+      []
 
-    This analysis answers the question: "What does this component need to function?"
+  This analysis answers the question: "What does this component need to function?"
   """
   @spec depends_on(Dependency.t(), Yog.node_id()) :: [Yog.node_id()]
   def depends_on(%Dependency{graph: graph}, target) do
@@ -104,31 +121,35 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Checks edges against an expected layered architecture.
+  Checks edges against an expected layered architecture.
 
-    `layers` is a map of `node_id => layer_index` where lower numbers are
-    "lower" layers (foundations). A violation occurs when an edge points
-    from a lower layer to a higher layer (the dependency arrow goes
-    upward).
+  `layers` is a map of `node_id => layer_index` where lower numbers are
+  "lower" layers (foundations). A violation occurs when an edge points
+  from a lower layer to a higher layer (the dependency arrow goes
+  upward).
 
-    Returns a list of violation tuples: `{from, to, description}`.
+  Returns a list of violation tuples: `{from, to, description}`.
 
-    ## Examples
+  ## Examples
 
-        layers = %{repo: 1, service: 2, api: 3}
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:repo)
+      ...>   |> Choreo.Dependency.add_module(:service)
+      ...>   |> Choreo.Dependency.add_module(:api)
+      ...>   |> Choreo.Dependency.depends_on(:service, :repo)
+      ...>   |> Choreo.Dependency.depends_on(:repo, :api)
+      iex> layers = %{repo: 1, service: 2, api: 3}
+      iex> violations = Choreo.Dependency.Analysis.layer_violations(deps, layers)
+      iex> length(violations)
+      1
+      iex> {from, to, _desc} = hd(violations)
+      iex> from
+      :repo
+      iex> to
+      :api
 
-        deps =
-          Choreo.Dependency.new()
-          |> Choreo.Dependency.add_module(:repo)
-          |> Choreo.Dependency.add_module(:service)
-          |> Choreo.Dependency.add_module(:api)
-          |> Choreo.Dependency.depends_on(:service, :repo)
-          |> Choreo.Dependency.depends_on(:repo, :api)  # violation!
-
-        Choreo.Dependency.Analysis.layer_violations(deps, layers)
-        #=> [{:repo, :api, "repo (layer 1) -> api (layer 3)"}]
-
-    This analysis answers the question: "Which edges violate my layered architecture?"
+  This analysis answers the question: "Which edges violate my layered architecture?"
   """
   @spec layer_violations(Dependency.t(), %{Yog.node_id() => integer()}) :: [
           {Yog.node_id(), Yog.node_id(), String.t()}
@@ -150,20 +171,31 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Returns nodes ranked by coupling centrality (in-degree + out-degree).
+  Returns nodes ranked by coupling centrality (in-degree + out-degree).
 
-    The most coupled components are at the head of the list.
+  The most coupled components are at the head of the list.
 
-    ## Options
+  ## Options
 
-      * `:limit` — maximum number of results (default: all)
+    * `:limit` — maximum number of results (default: all)
 
-    ## Examples
+  ## Examples
 
-        Choreo.Dependency.Analysis.centrality(deps)
-        #=> [:util, :auth, :api]
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:hub)
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :hub)
+      ...>   |> Choreo.Dependency.depends_on(:b, :hub)
+      ...>   |> Choreo.Dependency.depends_on(:hub, :c)
+      iex> hd(Choreo.Dependency.Analysis.centrality(deps))
+      :hub
+      iex> length(Choreo.Dependency.Analysis.centrality(deps, limit: 2))
+      2
 
-    This analysis answers the question: "Which components are the most coupled?"
+  This analysis answers the question: "Which components are the most coupled?"
   """
   @spec centrality(Dependency.t(), keyword()) :: [Yog.node_id()]
   def centrality(%Dependency{graph: graph}, opts \\ []) do
@@ -183,10 +215,23 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Returns nodes with no dependents (nothing depends on them).
+  Returns nodes with no dependents (nothing depends on them).
 
-    These are safe to change or delete without breaking other components.
-    This analysis answers the question: "Which components have no dependents?"
+  These are safe to change or delete without breaking other components.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :c)
+      iex> Choreo.Dependency.Analysis.leaves(deps)
+      [:a]
+
+  This analysis answers the question: "Which components have no dependents?"
   """
   @spec leaves(Dependency.t()) :: [Yog.node_id()]
   def leaves(%Dependency{graph: graph}) do
@@ -196,10 +241,23 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Returns nodes with no dependencies (foundational components).
+  Returns nodes with no dependencies (foundational components).
 
-    These are the bottom of the dependency stack.
-    This analysis answers the question: "Which components have no dependencies?"
+  These are the bottom of the dependency stack.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :c)
+      iex> Choreo.Dependency.Analysis.roots(deps)
+      [:c]
+
+  This analysis answers the question: "Which components have no dependencies?"
   """
   @spec roots(Dependency.t()) :: [Yog.node_id()]
   def roots(%Dependency{graph: graph}) do
@@ -209,27 +267,26 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Identifies redundant explicit dependencies.
+  Identifies redundant explicit dependencies.
 
-    If A depends on B, B depends on C, and A depends on C, the direct
-    edge A -> C is often redundant. This returns a list of `{from, to}`
-    tuples representing these redundant edges.
+  If A depends on B, B depends on C, and A depends on C, the direct
+  edge A -> C is often redundant. This returns a list of `{from, to}`
+  tuples representing these redundant edges.
 
-    ## Examples
+  ## Examples
 
-        deps =
-          Choreo.Dependency.new()
-          |> Choreo.Dependency.add_module(:a)
-          |> Choreo.Dependency.add_module(:b)
-          |> Choreo.Dependency.add_module(:c)
-          |> Choreo.Dependency.depends_on(:a, :b)
-          |> Choreo.Dependency.depends_on(:b, :c)
-          |> Choreo.Dependency.depends_on(:a, :c) # Redundant
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :c)
+      iex> Choreo.Dependency.Analysis.transitive_reduction(deps)
+      [{:a, :c}]
 
-        Choreo.Dependency.Analysis.transitive_reduction(deps)
-        #=> [{:a, :c}]
-
-    This analysis answers the question: "Which explicit dependencies are redundant?"
+  This analysis answers the question: "Which explicit dependencies are redundant?"
   """
   @spec transitive_reduction(Dependency.t()) :: [{Yog.node_id(), Yog.node_id()}]
   def transitive_reduction(%Dependency{graph: graph}) do
@@ -258,19 +315,32 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Calculates the Instability metric for each component.
+  Calculates the Instability metric for each component.
 
-    Formula: `Efferent Coupling / (Afferent + Efferent Coupling)`
-    Returns a map of `node_id => instability_score`.
-    A score of 0.0 means the component is maximally stable.
-    A score of 1.0 means the component is maximally unstable.
+  Formula: `Efferent Coupling / (Afferent + Efferent Coupling)`
+  Returns a map of `node_id => instability_score`.
+  A score of 0.0 means the component is maximally stable.
+  A score of 1.0 means the component is maximally unstable.
 
-    ## Examples
+  ## Examples
 
-        Choreo.Dependency.Analysis.instability(deps)
-        #=> %{a: 1.0, b: 0.5, c: 0.0}
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:stable)
+      ...>   |> Choreo.Dependency.add_module(:unstable)
+      ...>   |> Choreo.Dependency.add_module(:mixed)
+      ...>   |> Choreo.Dependency.depends_on(:unstable, :stable)
+      ...>   |> Choreo.Dependency.depends_on(:unstable, :mixed)
+      ...>   |> Choreo.Dependency.depends_on(:mixed, :stable)
+      iex> scores = Choreo.Dependency.Analysis.instability(deps)
+      iex> scores.stable
+      0.0
+      iex> scores.unstable
+      1.0
+      iex> scores.mixed
+      0.5
 
-    This analysis answers the question: "How stable is each component?"
+  This analysis answers the question: "How stable is each component?"
   """
   @spec instability(Dependency.t()) :: %{Yog.node_id() => float()}
   def instability(%Dependency{graph: graph}) do
@@ -292,10 +362,30 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Identifies completely isolated subsystems (weakly connected components).
+  Identifies completely isolated subsystems (weakly connected components).
 
-    Returns a list of components, where each component is a list of node IDs.
-    This analysis answers the question: "Which groups of components are completely disconnected?"
+  Returns a list of components, where each component is a list of node IDs.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a1)
+      ...>   |> Choreo.Dependency.add_module(:a2)
+      ...>   |> Choreo.Dependency.depends_on(:a1, :a2)
+      ...>   |> Choreo.Dependency.add_module(:b1)
+      ...>   |> Choreo.Dependency.add_module(:b2)
+      ...>   |> Choreo.Dependency.depends_on(:b1, :b2)
+      ...>   |> Choreo.Dependency.add_module(:orphan)
+      iex> subsystems = Choreo.Dependency.Analysis.isolated_subsystems(deps)
+      iex> length(subsystems)
+      3
+      iex> Enum.any?(subsystems, fn g -> Enum.sort(g) == [:a1, :a2] end)
+      true
+      iex> Enum.any?(subsystems, fn g -> g == [:orphan] end)
+      true
+
+  This analysis answers the question: "Which groups of components are completely disconnected?"
   """
   @spec isolated_subsystems(Dependency.t()) :: [[Yog.node_id()]]
   def isolated_subsystems(%Dependency{graph: graph}) do
@@ -303,27 +393,35 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Finds the longest dependency chain in the graph.
+  Finds the longest dependency chain in the graph.
 
-    This measures the maximum depth of the dependency tree — useful for
-    estimating compilation or test ordering time.
+  This measures the maximum depth of the dependency tree — useful for
+  estimating compilation or test ordering time.
 
-    Returns `{:ok, [id], total_weight}` or `:error` if cyclic.
+  Returns `{:ok, [id], total_weight}` or `:error` if cyclic.
 
-    ## Examples
+  ## Examples
 
-        deps =
-          Choreo.Dependency.new()
-          |> Choreo.Dependency.add_module(:a)
-          |> Choreo.Dependency.add_module(:b)
-          |> Choreo.Dependency.add_module(:c)
-          |> Choreo.Dependency.depends_on(:a, :b)
-          |> Choreo.Dependency.depends_on(:b, :c)
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:c)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :c)
+      iex> Choreo.Dependency.Analysis.longest_dependency_chain(deps)
+      {:ok, [:a, :b, :c], 2}
 
-        Choreo.Dependency.Analysis.longest_dependency_chain(deps)
-        #=> {:ok, [:a, :b, :c], 2}
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :a)
+      iex> Choreo.Dependency.Analysis.longest_dependency_chain(deps)
+      :error
 
-    This analysis answers the question: "What is the deepest dependency chain?"
+  This analysis answers the question: "What is the deepest dependency chain?"
   """
   @spec longest_dependency_chain(Dependency.t()) :: {:ok, [Yog.node_id()], number()} | :error
   def longest_dependency_chain(%Dependency{graph: graph}) do
@@ -351,14 +449,35 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
-    Validates a dependency graph and returns a list of issues.
+  Validates a dependency graph and returns a list of issues.
 
-    Checks for:
-      * circular dependencies
-      * orphaned nodes (no edges at all)
+  Checks for:
+    * circular dependencies
+    * orphaned nodes (no edges at all)
 
-    Returns a list of `{severity, message}` tuples.
-    This analysis answers the question: "Is the dependency graph structurally sound?"
+  Returns a list of `{severity, message}` tuples.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      iex> Choreo.Dependency.Analysis.validate(deps)
+      []
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      ...>   |> Choreo.Dependency.depends_on(:b, :a)
+      iex> issues = Choreo.Dependency.Analysis.validate(deps)
+      iex> Enum.any?(issues, fn {sev, msg} -> sev == :error and String.contains?(msg, "Circular") end)
+      true
+
+  This analysis answers the question: "Is the dependency graph structurally sound?"
   """
   @spec validate(Dependency.t()) :: [{:error | :warning, String.t()}]
   def validate(%Dependency{} = deps) do

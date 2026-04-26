@@ -1,6 +1,9 @@
 defmodule Choreo.DependencyTest do
   use ExUnit.Case
 
+  doctest Choreo.Dependency
+  doctest Choreo.Dependency.Render.DOT
+
   alias Choreo.Dependency
 
   describe "new/0" do

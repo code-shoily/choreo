@@ -28,6 +28,21 @@ defmodule Choreo.Dependency.Render.DOT do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api, label: "API")
+      ...>   |> Choreo.Dependency.add_module(:auth, label: "Auth")
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      iex> dot = Choreo.Dependency.Render.DOT.to_dot(deps)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "API")
+      true
+      iex> String.contains?(dot, "Auth")
+      true
   """
   @spec to_dot(Choreo.Dependency.t(), keyword()) :: String.t()
   def to_dot(%Choreo.Dependency{} = deps, opts \\ []) do

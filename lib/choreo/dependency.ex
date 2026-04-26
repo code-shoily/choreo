@@ -96,6 +96,14 @@ defmodule Choreo.Dependency do
   Creates a new empty dependency graph.
 
   Dependency graphs are always directed.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> Choreo.Dependency.nodes(deps)
+      []
+      iex> Choreo.Dependency.edges(deps)
+      []
   """
   @spec new() :: t()
   def new do
@@ -118,6 +126,17 @@ defmodule Choreo.Dependency do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = Choreo.Dependency.add_application(deps, :api, label: "API")
+      iex> Choreo.Dependency.nodes(deps)
+      [:api]
+      iex> Yog.node(deps.graph, :api).node_type
+      :application
+      iex> Yog.node(deps.graph, :api).label
+      "API"
   """
   @spec add_application(t(), Yog.node_id(), keyword()) :: t()
   def add_application(deps, id, opts \\ []) do
@@ -132,6 +151,15 @@ defmodule Choreo.Dependency do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = Choreo.Dependency.add_library(deps, :phx, label: "Phoenix")
+      iex> Choreo.Dependency.nodes(deps)
+      [:phx]
+      iex> Yog.node(deps.graph, :phx).node_type
+      :library
   """
   @spec add_library(t(), Yog.node_id(), keyword()) :: t()
   def add_library(deps, id, opts \\ []) do
@@ -146,6 +174,15 @@ defmodule Choreo.Dependency do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = Choreo.Dependency.add_module(deps, :auth)
+      iex> Choreo.Dependency.nodes(deps)
+      [:auth]
+      iex> Yog.node(deps.graph, :auth).node_type
+      :module
   """
   @spec add_module(t(), Yog.node_id(), keyword()) :: t()
   def add_module(deps, id, opts \\ []) do
@@ -160,6 +197,15 @@ defmodule Choreo.Dependency do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = Choreo.Dependency.add_interface(deps, :contract)
+      iex> Choreo.Dependency.nodes(deps)
+      [:contract]
+      iex> Yog.node(deps.graph, :contract).node_type
+      :interface
   """
   @spec add_interface(t(), Yog.node_id(), keyword()) :: t()
   def add_interface(deps, id, opts \\ []) do
@@ -174,6 +220,15 @@ defmodule Choreo.Dependency do
     * `:label` — display label (defaults to the node id)
     * `:description` — tooltip text
     * `:cluster` — cluster name for grouping
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = Choreo.Dependency.add_test(deps, :auth_test)
+      iex> Choreo.Dependency.nodes(deps)
+      [:auth_test]
+      iex> Yog.node(deps.graph, :auth_test).node_type
+      :test
   """
   @spec add_test(t(), Yog.node_id(), keyword()) :: t()
   def add_test(deps, id, opts \\ []) do
@@ -194,6 +249,13 @@ defmodule Choreo.Dependency do
     * `:style` — `:filled`, `:rounded`, etc.
     * `:fillcolor` — background colour
     * `:color` — border colour
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = Choreo.Dependency.add_cluster(deps, "core", label: "Core")
+      iex> deps.clusters["cluster_core"].label
+      "Core"
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = deps, name, opts \\ []) do
@@ -219,7 +281,25 @@ defmodule Choreo.Dependency do
 
   ## Examples
 
-      deps = Choreo.Dependency.depends_on(deps, :api, :auth, type: :calls)
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      iex> Choreo.Dependency.edges(deps)
+      [{:api, :auth, 1}]
+      iex> deps.edge_meta[{:api, :auth}].type
+      :uses
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth, type: :calls)
+      iex> deps.edge_meta[{:api, :auth}].type
+      :calls
+      iex> deps.edge_meta[{:api, :auth}].label
+      "calls"
   """
   @spec depends_on(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def depends_on(%__MODULE__{} = deps, from, to, opts \\ []) do
@@ -244,6 +324,15 @@ defmodule Choreo.Dependency do
 
   @doc """
   Returns all node IDs in the dependency graph.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      iex> Enum.sort(Choreo.Dependency.nodes(deps))
+      [:api, :auth]
   """
   @spec nodes(t()) :: [Yog.node_id()]
   def nodes(%__MODULE__{graph: graph}) do
@@ -251,7 +340,17 @@ defmodule Choreo.Dependency do
   end
 
   @doc """
-  Returns all dependency edges as `{from, to, label}` tuples.
+  Returns all dependency edges as `{from, to, weight}` tuples.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      iex> Choreo.Dependency.edges(deps)
+      [{:api, :auth, 1}]
   """
   @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), number()}]
   def edges(%__MODULE__{graph: graph}) do
@@ -260,6 +359,20 @@ defmodule Choreo.Dependency do
 
   @doc """
   Returns all nodes of a given type.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:a)
+      ...>   |> Choreo.Dependency.add_application(:b)
+      ...>   |> Choreo.Dependency.add_library(:c)
+      iex> Enum.sort(Choreo.Dependency.nodes_of_type(deps, :application))
+      [:a, :b]
+      iex> Choreo.Dependency.nodes_of_type(deps, :library)
+      [:c]
+      iex> Choreo.Dependency.nodes_of_type(deps, :module)
+      []
   """
   @spec nodes_of_type(t(), atom()) :: [Yog.node_id()]
   def nodes_of_type(%__MODULE__{graph: graph}, type) do
@@ -270,6 +383,13 @@ defmodule Choreo.Dependency do
 
   @doc """
   Returns the raw `Yog.Graph` struct underpinning the dependency graph.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> graph = Choreo.Dependency.to_graph(deps)
+      iex> graph.kind
+      :directed
   """
   @spec to_graph(t()) :: Yog.graph()
   def to_graph(%__MODULE__{graph: graph}), do: graph
@@ -284,6 +404,21 @@ defmodule Choreo.Dependency do
   ## Options
 
     * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api, label: "API")
+      ...>   |> Choreo.Dependency.add_module(:auth, label: "Auth")
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      iex> dot = Choreo.Dependency.to_dot(deps)
+      iex> String.contains?(dot, "digraph")
+      true
+      iex> String.contains?(dot, "API")
+      true
+      iex> String.contains?(dot, "Auth")
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = deps, opts \\ []) do

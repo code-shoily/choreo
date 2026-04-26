@@ -1,6 +1,8 @@
 defmodule Choreo.Dependency.AnalysisTest do
   use ExUnit.Case
 
+  doctest Choreo.Dependency.Analysis
+
   alias Choreo.Dependency
   alias Choreo.Dependency.Analysis
 
