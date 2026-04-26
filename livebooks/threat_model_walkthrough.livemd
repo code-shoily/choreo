@@ -1,13 +1,13 @@
 # Choreo ThreatModel: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.6"},
-  {:kino_vizjs, "~> 0.5.0"}
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
+
+## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. If you prefer PlantUML, copy any DOT output into [PlantText](https://www.planttext.com/), [PlantUML Online Server](https://www.plantuml.com/plantuml/), or use the VS Code PlantUML extension. You can also install Graphviz locally and run `dot -Tpng diagram.dot -o diagram.png`.
 
@@ -404,6 +404,26 @@ IO.puts(plantuml)
 ```
 
 You can copy this directly into [PlantText](https://www.planttext.com/) or your Confluence PlantUML macro blocks securely.
+
+---
+
+## Example 4: Multigraph (Parallel Data Flows)
+
+Sometimes multiple distinct data payloads cross boundaries between the same entities (e.g., an HTTPS request and a WebSocket notification channel).
+
+```elixir
+parallel_flows =
+  ThreatModel.new()
+  |> ThreatModel.add_trust_boundary("internet", level: 0)
+  |> ThreatModel.add_trust_boundary("app", level: 2)
+  |> ThreatModel.add_external_entity(:user, boundary: "internet")
+  |> ThreatModel.add_process(:api, boundary: "app")
+  |> ThreatModel.data_flow(:user, :api, label: "Payload (HTTPS)", encrypted: true)
+  |> ThreatModel.data_flow(:user, :api, label: "Signal (WS)", encrypted: false)
+
+IO.puts("Number of data flows: #{length(ThreatModel.flows(parallel_flows))}")
+Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
+```
 
 ---
 

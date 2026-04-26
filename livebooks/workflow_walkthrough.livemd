@@ -1,13 +1,13 @@
 # Choreo Workflow: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.6"},
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
   {:kino_vizjs, "~> 0.5.0"}
 ])
 ```
+
+## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
 
@@ -481,6 +481,26 @@ brand_theme =
   )
 
 Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme))
+```
+
+---
+
+## Example 6: Multigraph (Parallel Transitions)
+
+Sometimes tasks transition between states along multiple paths (e.g., synchronous data payload and asynchronous notification).
+
+```elixir
+multi_flow =
+  Workflow.new()
+  |> Workflow.add_start(:start)
+  |> Workflow.add_task(:process)
+  |> Workflow.add_end(:done)
+  |> Workflow.connect(:start, :process)
+  |> Workflow.connect(:process, :done, label: "Payload", weight: 1000)
+  |> Workflow.connect(:process, :done, label: "Event", weight: 200)
+
+IO.puts("Number of edges: #{length(Workflow.edges(multi_flow))}")
+Kino.VizJS.render(Workflow.to_dot(multi_flow))
 ```
 
 ---

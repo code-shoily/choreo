@@ -2,18 +2,39 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Multigraph support (parallel edges)** for `Choreo` and `Choreo.FSM`:
+  - Multiple distinct edges can now exist between the same pair of nodes
+  - `Choreo.edges_with_meta/1` — returns `[{from, to, cost, meta}]` tuples
+  - `Choreo.to_simple_graph/2` — collapses parallel edges for algorithm analysis (default combine: `min/2`)
+- `Choreo.FSM` enforces **100% DFA purity** at build time:
+  - Epsilon transitions (empty labels) are rejected with `ArgumentError`
+  - Different transition labels between the same state pair are now allowed (e.g., `q0 --"a"--> q1` and `q0 --"b"--> q1`)
+  - Duplicate labels from the same state are still rejected (DFA determinism)
+
 ### Changed
 
+- **Breaking:** `Choreo` core module converted from simple graph (`Yog.Graph`) to multigraph (`Yog.Multi.Graph`):
+  - `edge_meta` is now keyed by `edge_id` (integer) instead of `{from, to}` tuples
+  - `connect/4` and `add_dataflow/4` use `Yog.Multi.add_edge/4`
+  - `Choreo.Render.DOT` uses `Yog.Multi.DOT` for rendering parallel edges
+  - `Choreo.Analysis` internally collapses multigraphs to simple graphs before running algorithms
+- **Breaking:** `Choreo.FSM` converted from simple graph to multigraph:
+  - `add_transition/4` uses `Yog.Multi.add_edge/4`
+  - `Choreo.FSM.Render.DOT` uses `Yog.Multi.DOT`
+  - `Choreo.FSM.Analysis` rewritten with multigraph-aware BFS and reverse-reachability helpers
+- Bumped `yog_ex` requirement to `~> 0.97.1` (provides `Yog.Multi.DOT`)
 - **Breaking:** Restored pure DFA boundaries across execution engines.
 - Dropped ambiguous NFA mappings (`Analysis.to_dfa/1`).
 - Refactored `%Choreo.FSM{meta: %{initial_state: state}}` singular state vectors.
 - All edge builders now raise `ArgumentError` on duplicate `(from, to)` pairs instead of silently overwriting:
-  - `Choreo.FSM.add_transition/4`
   - `Choreo.Dataflow.connect/4`
   - `Choreo.Workflow.connect/4`
   - `Choreo.Dependency.depends_on/4`
   - `Choreo.ThreatModel.data_flow/4`
-- Documented single-edge-per-pair limitation in all edge-builder docstrings. Multigraph support (parallel edges) is planned for a future release.
+- `Choreo.FSM.add_transition/4` no longer raises on duplicate `(from, to)` pairs — it allows parallel edges with different labels (DFA-compliant)
+- Removed obsolete "single-edge-per-pair limitation" notes from docstrings where multigraph is now supported.
 
 ## 0.6.0 — 2026-04-25
 

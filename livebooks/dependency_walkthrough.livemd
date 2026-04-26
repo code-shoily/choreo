@@ -1,12 +1,16 @@
 # Choreo Dependency: Comprehensive Walkthrough
 
+```elixir
+Mix.install([
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.5.0"}
+])
+```
+
 ## Section
 
 ```elixir
-Mix.install([
-  {:choreo, "~> 0.6"},
-  {:kino_vizjs, "~> 0.5.0"}
-])
+
 ```
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
@@ -413,6 +417,24 @@ brand_theme =
   )
 
 Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme))
+```
+
+---
+
+## Example 7: Multigraph (Parallel Dependencies)
+
+A component can depend on another for multiple distinct reasons (e.g., both an explicit `:uses` runtime dependency and a `:dev` testing harness mock).
+
+```elixir
+parallel_deps =
+  Dependency.new()
+  |> Dependency.add_application(:api, label: "API")
+  |> Dependency.add_library(:auth, label: "Auth Service")
+  |> Dependency.depends_on(:api, :auth, type: :uses)
+  |> Dependency.depends_on(:api, :auth, type: :dev)
+
+IO.puts("Number of dependencies: #{length(Dependency.edges(parallel_deps))}")
+Kino.VizJS.render(Dependency.to_dot(parallel_deps))
 ```
 
 ---
