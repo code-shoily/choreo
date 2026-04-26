@@ -55,7 +55,6 @@ defmodule Choreo.DecisionTree.Render.DOT do
       |> Map.put(:node_fontsize, theme.node_fontsize)
       |> Map.put(:node_fontcolor, theme.node_fontcolor)
       |> Map.put(:edge_color, theme.edge_color)
-      |> Map.put(:edge_fontcolor, theme.edge_color)
       |> Map.put(:edge_fontname, theme.edge_fontname)
       |> Map.put(:edge_fontsize, theme.edge_fontsize)
       |> Map.put(:edge_penwidth, theme.edge_penwidth)
