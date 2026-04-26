@@ -334,6 +334,12 @@ defmodule Choreo.Dependency do
 
   Direction reads as "`from` depends on `to`".
 
+  > ### Limitation
+  > At most one edge is allowed per `(from, to)` pair.
+  > Adding a second dependency between the same components raises
+  > `ArgumentError`. Multigraph support (parallel edges) is planned
+  > for a future release.
+
   ## Options
 
     * `:type` — `:uses`, `:imports`, `:calls`, `:inherits`, `:dev` (default: `:uses`)
@@ -386,6 +392,11 @@ defmodule Choreo.Dependency do
       |> Map.new()
       |> Map.put(:type, type)
       |> Map.put(:label, label)
+
+    if Yog.has_edge?(deps.graph, from, to) do
+      raise ArgumentError,
+            "dependency from #{inspect(from)} to #{inspect(to)} already exists"
+    end
 
     edge_meta = Map.put(deps.edge_meta, {from, to}, meta)
     graph = Yog.add_edge_ensure(deps.graph, from, to, 1)

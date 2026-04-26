@@ -380,6 +380,12 @@ defmodule Choreo.Dataflow do
   @doc """
   Connects two stages with a data-flow edge.
 
+  > ### Limitation
+  > At most one edge is allowed per `(from, to)` pair.
+  > Adding a second connection between the same stages raises
+  > `ArgumentError`. Multigraph support (parallel edges) is planned
+  > for a future release.
+
   ## Options
 
     * `:data_type` — type of data travelling the edge (rendered as label)
@@ -429,6 +435,11 @@ defmodule Choreo.Dataflow do
       |> Map.put_new(:path_type, :normal)
 
     weight = opts[:weight] || 1
+
+    if Yog.has_edge?(flow.graph, from, to) do
+      raise ArgumentError,
+            "connection from #{inspect(from)} to #{inspect(to)} already exists"
+    end
 
     edge_meta = Map.put(flow.edge_meta, {from, to}, meta)
     graph = Yog.add_edge_ensure(flow.graph, from, to, weight)

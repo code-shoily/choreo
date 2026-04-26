@@ -80,6 +80,16 @@ defmodule Choreo.DependencyTest do
 
       assert deps.edge_meta[{:api, :mox}].type == :dev
     end
+
+    test "raises on duplicate dependency" do
+      assert_raise ArgumentError, fn ->
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:auth)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:api, :auth)
+      end
+    end
   end
 
   describe "clusters" do

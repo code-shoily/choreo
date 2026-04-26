@@ -127,6 +127,16 @@ defmodule Choreo.DataflowTest do
 
       assert flow.edge_meta[{:a, :b}].path_type == :dead_letter
     end
+
+    test "raises on duplicate connection" do
+      assert_raise ArgumentError, fn ->
+        Dataflow.new()
+        |> Dataflow.add_source(:a)
+        |> Dataflow.add_transform(:b)
+        |> Dataflow.connect(:a, :b, data_type: "x")
+        |> Dataflow.connect(:a, :b, data_type: "y")
+      end
+    end
   end
 
   describe "clusters" do

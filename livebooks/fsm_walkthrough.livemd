@@ -146,12 +146,16 @@ bad_fsm =
   |> FSM.add_initial_state(:a)
   |> FSM.add_final_state(:c)
   |> FSM.add_transition(:a, :c, label: "x")
-  |> FSM.add_transition(:a, :c, label: "x")
+  |> FSM.add_transition(:a, :c, label: "y")
 
 Analysis.validate(bad_fsm)
 |> Enum.each(fn {severity, msg} ->
   IO.puts("[#{severity}] #{msg}")
 end)
+
+bad_fsm
+|> Choreo.FSM.Render.DOT.to_dot()
+|> Kino.VizJS.render()
 ```
 
 ## Transforms

@@ -275,6 +275,12 @@ defmodule Choreo.ThreatModel do
   @doc """
   Creates a data-flow edge between two elements.
 
+  > ### Limitation
+  > At most one edge is allowed per `(from, to)` pair.
+  > Adding a second flow between the same elements raises
+  > `ArgumentError`. Multigraph support (parallel edges) is planned
+  > for a future release.
+
   ## Options
 
     * `:label` — display label
@@ -319,6 +325,11 @@ defmodule Choreo.ThreatModel do
       |> Map.new()
       |> Map.put(:label, label)
       |> Map.put_new(:encrypted, false)
+
+    if Yog.has_edge?(model.graph, from, to) do
+      raise ArgumentError,
+            "data flow from #{inspect(from)} to #{inspect(to)} already exists"
+    end
 
     edge_meta = Map.put(model.edge_meta, {from, to}, meta)
     graph = Yog.add_edge_ensure(model.graph, from, to, label)

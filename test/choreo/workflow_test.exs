@@ -115,6 +115,16 @@ defmodule Choreo.WorkflowTest do
       {_from, _to, weight} = hd(Yog.all_edges(workflow.graph))
       assert weight == 5000
     end
+
+    test "raises on duplicate connection" do
+      assert_raise ArgumentError, fn ->
+        Workflow.new()
+        |> Workflow.add_start(:a)
+        |> Workflow.add_task(:b)
+        |> Workflow.connect(:a, :b)
+        |> Workflow.connect(:a, :b)
+      end
+    end
   end
 
   describe "swimlanes" do

@@ -7,6 +7,13 @@
 - **Breaking:** Restored pure DFA boundaries across execution engines.
 - Dropped ambiguous NFA mappings (`Analysis.to_dfa/1`).
 - Refactored `%Choreo.FSM{meta: %{initial_state: state}}` singular state vectors.
+- All edge builders now raise `ArgumentError` on duplicate `(from, to)` pairs instead of silently overwriting:
+  - `Choreo.FSM.add_transition/4`
+  - `Choreo.Dataflow.connect/4`
+  - `Choreo.Workflow.connect/4`
+  - `Choreo.Dependency.depends_on/4`
+  - `Choreo.ThreatModel.data_flow/4`
+- Documented single-edge-per-pair limitation in all edge-builder docstrings. Multigraph support (parallel edges) is planned for a future release.
 
 ## 0.6.0 — 2026-04-25
 

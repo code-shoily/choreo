@@ -353,6 +353,12 @@ defmodule Choreo.Workflow do
   @doc """
   Connects two workflow nodes with an execution dependency.
 
+  > ### Limitation
+  > At most one edge is allowed per `(from, to)` pair.
+  > Adding a second connection between the same nodes raises
+  > `ArgumentError`. Multigraph support (parallel edges) is planned
+  > for a future release.
+
   ## Options
 
     * `:condition` — branch condition label (shown on decision edges)
@@ -403,6 +409,11 @@ defmodule Choreo.Workflow do
       edge_type: edge_type,
       weight: weight
     }
+
+    if Yog.has_edge?(workflow.graph, from, to) do
+      raise ArgumentError,
+            "connection from #{inspect(from)} to #{inspect(to)} already exists"
+    end
 
     edge_meta = Map.put(workflow.edge_meta, {from, to}, meta)
     graph = Yog.add_edge_ensure(workflow.graph, from, to, weight)

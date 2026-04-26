@@ -95,6 +95,16 @@ defmodule Choreo.ThreatModelTest do
 
       assert model.edge_meta[{:user, :api}].encrypted
     end
+
+    test "raises on duplicate data flow" do
+      assert_raise ArgumentError, fn ->
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.data_flow(:user, :api, label: "x")
+        |> ThreatModel.data_flow(:user, :api, label: "y")
+      end
+    end
   end
 
   describe "boundary queries" do
