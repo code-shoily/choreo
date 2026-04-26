@@ -183,6 +183,15 @@ defmodule Choreo do
     ]
   ]
 
+  @embed_schema [
+    prefix: [
+      type: {:or, [:string, :atom]},
+      required: false,
+      default: "sub_",
+      doc: "Prefix to prevent ID collisions."
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -499,6 +508,121 @@ defmodule Choreo do
     cluster = Map.new(opts)
     clusters = Map.put(system.clusters, name, cluster)
     %{system | clusters: clusters}
+  end
+
+  @doc """
+  Embeds another diagram inside a cluster of the current system.
+
+  ## Options
+
+  #{NimbleOptions.docs(@embed_schema)}
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_cluster("vpc")
+      iex> flow = Choreo.Dataflow.new() |> Choreo.Dataflow.add_source(:in)
+      iex> system = Choreo.embed(system, flow, "vpc", prefix: "flow_")
+      iex> Map.has_key?(Choreo.nodes(system), :flow_in)
+      true
+  """
+  @spec embed(t(), struct(), String.t(), keyword()) :: t()
+  def embed(%__MODULE__{} = system, child_diagram, cluster_name, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @embed_schema)
+    prefix = to_string(opts[:prefix])
+    cluster_prefix = prefix
+
+    # 1. Reassign inner clusters
+    child_clusters = Map.get(child_diagram, :clusters, %{})
+
+    updated_clusters =
+      Enum.reduce(child_clusters, system.clusters, fn {c_name, c_meta}, acc ->
+        clean_name = String.replace(c_name, "cluster_", "")
+        new_name = Choreo.Internal.ensure_cluster_prefix(cluster_prefix <> clean_name)
+
+        new_meta =
+          if parent = c_meta[:parent] do
+            clean_parent = String.replace(parent, "cluster_", "")
+
+            Map.put(
+              c_meta,
+              :parent,
+              Choreo.Internal.ensure_cluster_prefix(cluster_prefix <> clean_parent)
+            )
+          else
+            Map.put(c_meta, :parent, Choreo.Internal.ensure_cluster_prefix(cluster_name))
+          end
+
+        Map.put(acc, new_name, new_meta)
+      end)
+
+    # 2. Extract nodes
+    child_nodes = get_in(child_diagram, [Access.key(:graph), Access.key(:nodes)]) || %{}
+
+    updated_graph =
+      Enum.reduce(child_nodes, system.graph, fn {node_id, node_data}, acc_graph ->
+        prefixed_id = :"#{prefix}#{node_id}"
+
+        node_cluster =
+          if c = node_data[:cluster] do
+            clean_c = String.replace(c, "cluster_", "")
+            Choreo.Internal.ensure_cluster_prefix(cluster_prefix <> clean_c)
+          else
+            Choreo.Internal.ensure_cluster_prefix(cluster_name)
+          end
+
+        node_name = node_data[:name] || node_data[:label] || to_string(node_id)
+
+        new_data =
+          node_data
+          |> Map.put(:cluster, node_cluster)
+          |> Map.put(:name, node_name)
+
+        Yog.Multi.add_node(acc_graph, prefixed_id, new_data)
+      end)
+
+    # 3. Extract edges
+    child_edge_meta = Map.get(child_diagram, :edge_meta, %{})
+
+    updated_state =
+      case Map.keys(child_edge_meta) do
+        [{_, _} | _] ->
+          # Simple graph edges
+          edges_list = Yog.all_edges(child_diagram.graph)
+
+          Enum.reduce(edges_list, {updated_graph, system.edge_meta}, fn {from, to, weight},
+                                                                        {g_acc, m_acc} ->
+            meta = Map.get(child_edge_meta, {from, to}, %{})
+            new_from = :"#{prefix}#{from}"
+            new_to = :"#{prefix}#{to}"
+
+            {g_acc, edge_id} = Yog.Multi.add_edge(g_acc, new_from, new_to, weight)
+            m_acc = Map.put(m_acc, edge_id, meta)
+            {g_acc, m_acc}
+          end)
+
+        _ ->
+          # Multigraph parallel edges
+          child_edges = get_in(child_diagram, [Access.key(:graph), Access.key(:edges)]) || %{}
+
+          Enum.reduce(child_edge_meta, {updated_graph, system.edge_meta}, fn {edge_id, meta},
+                                                                             {g_acc, m_acc} ->
+            case Map.get(child_edges, edge_id) do
+              {from, to, weight} ->
+                new_from = :"#{prefix}#{from}"
+                new_to = :"#{prefix}#{to}"
+
+                {g_acc, new_edge_id} = Yog.Multi.add_edge(g_acc, new_from, new_to, weight)
+                m_acc = Map.put(m_acc, new_edge_id, meta)
+                {g_acc, m_acc}
+
+              _ ->
+                {g_acc, m_acc}
+            end
+          end)
+      end
+
+    {final_graph, final_edge_meta} = updated_state
+    %{system | graph: final_graph, edge_meta: final_edge_meta, clusters: updated_clusters}
   end
 
   defp add_typed_node(%__MODULE__{graph: graph} = system, id, type, opts) do
