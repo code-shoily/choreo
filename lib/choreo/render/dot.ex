@@ -121,6 +121,13 @@ defmodule Choreo.Render.DOT do
           attrs
         end
 
+      attrs =
+        if image = data[:image] do
+          [{:image, image} | attrs]
+        else
+          attrs
+        end
+
       if desc = data[:description] do
         [{:tooltip, desc} | attrs]
       else

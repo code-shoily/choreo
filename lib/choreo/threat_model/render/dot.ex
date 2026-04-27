@@ -268,6 +268,11 @@ defmodule Choreo.ThreatModel.Render.DOT do
           do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
           else: base
 
+      base =
+        if image = data[:image],
+          do: [{:image, image} | Keyword.delete(base, :image)],
+          else: base
+
       if desc = data[:description] do
         [{:tooltip, desc} | base]
       else

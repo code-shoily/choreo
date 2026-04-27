@@ -104,7 +104,7 @@ defmodule Choreo.Workflow do
     ]
   ]
 
-  @add_start_schema [
+  @node_schema [
     label: [
       type: :string,
       required: false
@@ -135,200 +135,39 @@ defmodule Choreo.Workflow do
     ],
     penwidth: [
       type: {:or, [:integer, :float]},
+      required: false
+    ],
+    image: [
+      type: :string,
       required: false
     ]
   ]
 
-  @add_end_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    swimlane: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+  @add_start_schema @node_schema
+  @add_end_schema @node_schema
 
   @add_task_schema [
-    timeout_ms: [
-      type: :integer,
-      required: false
-    ],
-    retry: [
-      type: :integer,
-      required: false
-    ],
-    retry_backoff_ms: [
-      type: :integer,
-      required: false
-    ],
-    label: [
-      type: :string,
-      required: false
-    ],
-    handler: [
-      type: {:or, [:atom, :string]},
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    swimlane: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                     timeout_ms: [
+                       type: :integer,
+                       required: false
+                     ],
+                     retry: [
+                       type: :integer,
+                       required: false
+                     ],
+                     retry_backoff_ms: [
+                       type: :integer,
+                       required: false
+                     ],
+                     handler: [
+                       type: {:or, [:atom, :string]},
+                       required: false
+                     ]
+                   ] ++ @node_schema
 
-  @add_decision_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    swimlane: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
-
-  @add_fork_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    swimlane: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
-
-  @add_join_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    swimlane: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+  @add_decision_schema @node_schema
+  @add_fork_schema @node_schema
+  @add_join_schema @node_schema
 
   @add_compensation_schema [
     for: [

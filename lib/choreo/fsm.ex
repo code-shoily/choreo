@@ -76,90 +76,46 @@ defmodule Choreo.FSM do
     ]
   ]
 
+  @node_schema [
+    label: [
+      type: :string,
+      required: false
+    ],
+    shape: [
+      type: :atom,
+      required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
+    ],
+    fontcolor: [
+      type: :string,
+      required: false
+    ],
+    style: [
+      type: :string,
+      required: false
+    ],
+    penwidth: [
+      type: {:or, [:integer, :float]},
+      required: false
+    ],
+    image: [
+      type: :string,
+      required: false
+    ]
+  ]
+
   @add_state_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    type: [
-      type: {:in, [:normal, :initial, :final]},
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                      type: [
+                        type: {:in, [:normal, :initial, :final]},
+                        required: false
+                      ]
+                    ] ++ @node_schema
 
-  @add_initial_state_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
-
-  @add_final_state_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+  @add_initial_state_schema @node_schema
+  @add_final_state_schema @node_schema
 
   @add_transition_schema [
     label: [

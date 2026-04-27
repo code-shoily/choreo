@@ -88,7 +88,7 @@ defmodule Choreo.Dependency do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
-  @add_application_schema [
+  @node_schema [
     label: [
       type: :string,
       required: false
@@ -119,79 +119,17 @@ defmodule Choreo.Dependency do
     ],
     penwidth: [
       type: {:or, [:integer, :float]},
+      required: false
+    ],
+    image: [
+      type: :string,
       required: false
     ]
   ]
 
-  @add_library_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
-
-  @add_module_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+  @add_application_schema @node_schema
+  @add_library_schema @node_schema
+  @add_module_schema @node_schema
 
   @add_interface_schema [
     label: [

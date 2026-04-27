@@ -259,6 +259,11 @@ defmodule Choreo.FSM.Render.DOT do
           do: [{:penwidth, penwidth} | Keyword.delete(base, :penwidth)],
           else: base
 
+      base =
+        if image = data[:image],
+          do: [{:image, image} | Keyword.delete(base, :image)],
+          else: base
+
       base
     end
   end

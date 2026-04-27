@@ -314,6 +314,11 @@ defmodule Choreo.Dependency.Render.DOT do
           else: base
 
       base =
+        if image = data[:image],
+          do: [{:image, image} | Keyword.delete(base, :image)],
+          else: base
+
+      base =
         if desc = data[:description] do
           [{:tooltip, desc} | base]
         else

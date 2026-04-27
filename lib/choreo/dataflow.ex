@@ -95,17 +95,13 @@ defmodule Choreo.Dataflow do
 
   defstruct graph: nil, edge_meta: %{}, clusters: %{}
 
-  @add_source_schema [
+  @node_schema [
     label: [
       type: :string,
       required: false
     ],
     description: [
       type: :string,
-      required: false
-    ],
-    rate: [
-      type: {:or, [:integer, :float, :string]},
       required: false
     ],
     cluster: [
@@ -130,200 +126,47 @@ defmodule Choreo.Dataflow do
     ],
     penwidth: [
       type: {:or, [:integer, :float]},
+      required: false
+    ],
+    image: [
+      type: :string,
       required: false
     ]
   ]
 
-  @add_sink_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+  @add_source_schema [
+                       rate: [
+                         type: {:or, [:integer, :float, :string]},
+                         required: false
+                       ]
+                     ] ++ @node_schema
+
+  @add_sink_schema @node_schema
 
   @add_transform_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    latency_ms: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    capacity: [
-      type: {:or, [:integer, :string]},
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                          latency_ms: [
+                            type: {:or, [:integer, :float]},
+                            required: false
+                          ],
+                          capacity: [
+                            type: {:or, [:integer, :string]},
+                            required: false
+                          ]
+                        ] ++ @node_schema
 
   @add_buffer_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    capacity: [
-      type: {:or, [:integer, :string]},
-      required: false
-    ],
-    latency_ms: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                       capacity: [
+                         type: {:or, [:integer, :string]},
+                         required: false
+                       ],
+                       latency_ms: [
+                         type: {:or, [:integer, :float]},
+                         required: false
+                       ]
+                     ] ++ @node_schema
 
-  @add_conditional_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
-
-  @add_merge_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    cluster: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+  @add_conditional_schema @node_schema
+  @add_merge_schema @node_schema
 
   @add_cluster_schema [
     parent: [

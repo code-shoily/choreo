@@ -81,5 +81,13 @@ defmodule Choreo.PresetsTest do
 
     assert wf_dot =~ "fillcolor=\"#ff00ff\""
     assert wf_dot =~ "shape=\"hexagon\""
+
+    # Node images
+    img_dot =
+      DecisionTree.new()
+      |> DecisionTree.add_decision(1, image: "/path/to/google.png")
+      |> Choreo.to_dot()
+
+    assert img_dot =~ "image=\"/path/to/google.png\""
   end
 end

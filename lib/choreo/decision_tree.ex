@@ -75,11 +75,7 @@ defmodule Choreo.DecisionTree do
 
   defstruct graph: nil, root: nil, edge_meta: %{}
 
-  @set_root_schema [
-    feature: [
-      type: :string,
-      required: false
-    ],
+  @node_schema [
     label: [
       type: :string,
       required: false
@@ -107,82 +103,37 @@ defmodule Choreo.DecisionTree do
     penwidth: [
       type: {:or, [:integer, :float]},
       required: false
+    ],
+    image: [
+      type: :string,
+      required: false
     ]
   ]
+
+  @set_root_schema [
+                     feature: [
+                       type: :string,
+                       required: false
+                     ]
+                   ] ++ @node_schema
 
   @add_decision_schema [
-    feature: [
-      type: :string,
-      required: false
-    ],
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                         feature: [
+                           type: :string,
+                           required: false
+                         ]
+                       ] ++ @node_schema
 
   @add_outcome_schema [
-    class: [
-      type: :string,
-      required: false
-    ],
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    probability: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                        class: [
+                          type: :string,
+                          required: false
+                        ],
+                        probability: [
+                          type: {:or, [:integer, :float]},
+                          required: false
+                        ]
+                      ] ++ @node_schema
 
   # ============================================================================
   # Creation

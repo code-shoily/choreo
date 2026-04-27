@@ -110,6 +110,11 @@ defmodule Choreo do
       type: {:or, [:integer, :float]},
       required: false,
       doc: "Border thickness override."
+    ],
+    image: [
+      type: :string,
+      required: false,
+      doc: "Image/icon path or URL override."
     ]
   ]
 

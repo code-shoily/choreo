@@ -118,7 +118,7 @@ defmodule Choreo.ThreatModel do
     ]
   ]
 
-  @add_external_entity_schema [
+  @node_schema [
     label: [
       type: :string,
       required: false
@@ -150,86 +150,28 @@ defmodule Choreo.ThreatModel do
     penwidth: [
       type: {:or, [:integer, :float]},
       required: false
+    ],
+    image: [
+      type: :string,
+      required: false
     ]
   ]
+
+  @add_external_entity_schema @node_schema
 
   @add_process_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    boundary: [
-      type: :string,
-      required: false
-    ],
-    privilege: [
-      type: {:in, [:user, :admin, :system]},
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                        privilege: [
+                          type: {:in, [:user, :admin, :system]},
+                          required: false
+                        ]
+                      ] ++ @node_schema
 
   @add_data_store_schema [
-    label: [
-      type: :string,
-      required: false
-    ],
-    description: [
-      type: :string,
-      required: false
-    ],
-    boundary: [
-      type: :string,
-      required: false
-    ],
-    sensitivity: [
-      type: {:in, [:public, :internal, :confidential, :restricted]},
-      required: false
-    ],
-    shape: [
-      type: :atom,
-      required: false
-    ],
-    fillcolor: [
-      type: :string,
-      required: false
-    ],
-    fontcolor: [
-      type: :string,
-      required: false
-    ],
-    style: [
-      type: :string,
-      required: false
-    ],
-    penwidth: [
-      type: {:or, [:integer, :float]},
-      required: false
-    ]
-  ]
+                           sensitivity: [
+                             type: {:in, [:public, :internal, :confidential, :restricted]},
+                             required: false
+                           ]
+                         ] ++ @node_schema
 
   @data_flow_schema [
     label: [
