@@ -876,15 +876,14 @@ defmodule Choreo.Dataflow do
   defp add_typed_node(%__MODULE__{graph: graph} = flow, id, type, opts) do
     {cluster, rest_opts} = Keyword.pop(opts, :cluster)
 
-    data = %{
-      type: :dataflow_node,
-      node_type: type,
-      label: Keyword.get(rest_opts, :label, to_string(id)),
-      description: rest_opts[:description],
-      capacity: rest_opts[:capacity],
-      rate: rest_opts[:rate],
-      latency_ms: rest_opts[:latency_ms]
-    }
+    data =
+      rest_opts
+      |> Map.new()
+      |> Map.merge(%{
+        type: :dataflow_node,
+        node_type: type,
+        label: Keyword.get(rest_opts, :label, to_string(id))
+      })
 
     data =
       if cluster,

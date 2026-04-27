@@ -588,17 +588,13 @@ defmodule Choreo.DecisionTree do
   # ============================================================================
 
   defp node_data(type, opts) do
-    base = %{
+    opts
+    |> Map.new()
+    |> Map.merge(%{
       type: :decision_tree_node,
       node_type: type,
-      label: Keyword.get(opts, :label, to_string(opts[:feature] || "")),
-      description: opts[:description]
-    }
-
-    base = if feature = opts[:feature], do: Map.put(base, :feature, feature), else: base
-    base = if class = opts[:class], do: Map.put(base, :class, class), else: base
-    base = if prob = opts[:probability], do: Map.put(base, :probability, prob), else: base
-    base
+      label: Keyword.get(opts, :label, to_string(opts[:feature] || ""))
+    })
   end
 
   defp has_parent?(%__MODULE__{graph: graph}, child) do

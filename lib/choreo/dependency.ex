@@ -729,12 +729,14 @@ defmodule Choreo.Dependency do
   defp add_typed_node(%__MODULE__{graph: graph} = deps, id, type, opts) do
     {cluster, rest_opts} = Keyword.pop(opts, :cluster)
 
-    data = %{
-      type: :dependency_node,
-      node_type: type,
-      label: Keyword.get(rest_opts, :label, to_string(id)),
-      description: rest_opts[:description]
-    }
+    data =
+      rest_opts
+      |> Map.new()
+      |> Map.merge(%{
+        type: :dependency_node,
+        node_type: type,
+        label: Keyword.get(rest_opts, :label, to_string(id))
+      })
 
     data =
       if cluster,

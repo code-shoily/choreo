@@ -236,10 +236,13 @@ defmodule Choreo.FSM do
   def add_state(%__MODULE__{} = fsm, id, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_state_schema)
 
-    data = %{
-      type: :state,
-      label: Keyword.get(opts, :label, to_string(id))
-    }
+    data =
+      opts
+      |> Map.new()
+      |> Map.merge(%{
+        type: :state,
+        label: Keyword.get(opts, :label, to_string(id))
+      })
 
     fsm = %{fsm | graph: Yog.Multi.add_node(fsm.graph, id, data)}
 

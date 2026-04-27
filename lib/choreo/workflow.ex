@@ -948,16 +948,14 @@ defmodule Choreo.Workflow do
   # ============================================================================
 
   defp add_typed_node(%__MODULE__{graph: graph} = workflow, id, type, opts) do
-    data = %{
-      type: :workflow_node,
-      node_type: type,
-      label: Keyword.get(opts, :label, to_string(id)),
-      timeout_ms: opts[:timeout_ms],
-      retry: opts[:retry],
-      retry_backoff_ms: opts[:retry_backoff_ms],
-      handler: opts[:handler],
-      description: opts[:description]
-    }
+    data =
+      opts
+      |> Map.new()
+      |> Map.merge(%{
+        type: :workflow_node,
+        node_type: type,
+        label: Keyword.get(opts, :label, to_string(id))
+      })
 
     data = put_swimlane(data, opts[:swimlane])
     %{workflow | graph: Yog.Multi.add_node(graph, id, data)}
