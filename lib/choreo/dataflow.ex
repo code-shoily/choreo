@@ -894,3 +894,7 @@ defmodule Choreo.Dataflow do
     %{flow | graph: Yog.add_node(graph, id, data)}
   end
 end
+
+defimpl Choreo.DOT, for: Choreo.Dataflow do
+  def to_dot(flow, opts), do: Choreo.Dataflow.Render.DOT.to_dot(flow, opts)
+end

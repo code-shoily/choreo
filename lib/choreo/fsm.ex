@@ -660,3 +660,7 @@ defmodule Choreo.FSM do
     Choreo.FSM.Render.DOT.to_dot(fsm, opts)
   end
 end
+
+defimpl Choreo.DOT, for: Choreo.FSM do
+  def to_dot(fsm, opts), do: Choreo.FSM.Render.DOT.to_dot(fsm, opts)
+end

@@ -819,9 +819,9 @@ defmodule Choreo do
       iex> String.contains?(dot, "api")
       true
   """
-  @spec to_dot(t(), keyword()) :: String.t()
-  def to_dot(%__MODULE__{} = system, opts \\ []) do
-    Choreo.Render.DOT.to_dot(system, opts)
+  @spec to_dot(any(), keyword()) :: String.t()
+  def to_dot(diagram, opts \\ []) do
+    Choreo.DOT.to_dot(diagram, opts)
   end
 
   @doc """
@@ -835,4 +835,8 @@ defmodule Choreo do
   """
   @spec clusters(t()) :: %{String.t() => map()}
   def clusters(%__MODULE__{clusters: clusters}), do: clusters
+end
+
+defimpl Choreo.DOT, for: Choreo do
+  def to_dot(system, opts), do: Choreo.Render.DOT.to_dot(system, opts)
 end

@@ -611,3 +611,7 @@ defmodule Choreo.DecisionTree do
     MapSet.member?(reachable, parent)
   end
 end
+
+defimpl Choreo.DOT, for: Choreo.DecisionTree do
+  def to_dot(tree, opts), do: Choreo.DecisionTree.Render.DOT.to_dot(tree, opts)
+end

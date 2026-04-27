@@ -719,3 +719,7 @@ defmodule Choreo.ThreatModel do
     %{model | graph: Yog.Multi.add_node(graph, id, data)}
   end
 end
+
+defimpl Choreo.DOT, for: Choreo.ThreatModel do
+  def to_dot(model, opts), do: Choreo.ThreatModel.Render.DOT.to_dot(model, opts)
+end

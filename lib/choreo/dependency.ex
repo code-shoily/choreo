@@ -751,3 +751,7 @@ defmodule Choreo.Dependency do
   defp type_to_label(:dev), do: "dev"
   defp type_to_label(_), do: ""
 end
+
+defimpl Choreo.DOT, for: Choreo.Dependency do
+  def to_dot(deps, opts), do: Choreo.Dependency.Render.DOT.to_dot(deps, opts)
+end

@@ -987,3 +987,7 @@ defmodule Choreo.Workflow do
   defp edge_type_label(:timeout), do: "timeout"
   defp edge_type_label(_), do: nil
 end
+
+defimpl Choreo.DOT, for: Choreo.Workflow do
+  def to_dot(workflow, opts), do: Choreo.Workflow.Render.DOT.to_dot(workflow, opts)
+end
