@@ -38,4 +38,48 @@ defmodule Choreo.PresetsTest do
     assert Workflow.to_dot(Workflow.new(), theme: :forest) =~ "digraph"
     assert Workflow.to_dot(Workflow.new(), theme: :ocean) =~ "digraph"
   end
+
+  test "modules support custom per-node styling overrides" do
+    # DecisionTree
+    dt_dot =
+      DecisionTree.new()
+      |> DecisionTree.add_decision(1,
+        label: "Life",
+        fillcolor: "#440000",
+        fontcolor: "#559900",
+        shape: :diamond
+      )
+      |> Choreo.to_dot()
+
+    assert dt_dot =~ "fillcolor=\"#440000\""
+    assert dt_dot =~ "fontcolor=\"#559900\""
+    assert dt_dot =~ "shape=\"diamond\""
+
+    # Dataflow
+    df_dot =
+      Dataflow.new()
+      |> Dataflow.add_source(:s, fillcolor: "#112233", penwidth: 3.5)
+      |> Choreo.to_dot()
+
+    assert df_dot =~ "fillcolor=\"#112233\""
+    assert df_dot =~ "penwidth=\"3.5\""
+
+    # FSM
+    fsm_dot =
+      FSM.new()
+      |> FSM.add_state(:q, fontcolor: "#abcdef", style: "dotted")
+      |> Choreo.to_dot()
+
+    assert fsm_dot =~ "fontcolor=\"#abcdef\""
+    assert fsm_dot =~ "style=\"dotted\""
+
+    # Workflow
+    wf_dot =
+      Workflow.new()
+      |> Workflow.add_task(:t, fillcolor: "#ff00ff", shape: :hexagon)
+      |> Choreo.to_dot()
+
+    assert wf_dot =~ "fillcolor=\"#ff00ff\""
+    assert wf_dot =~ "shape=\"hexagon\""
+  end
 end
