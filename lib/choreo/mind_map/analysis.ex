@@ -1,0 +1,405 @@
+defmodule Choreo.MindMap.Analysis do
+  @moduledoc """
+  Analysis functions for `Choreo.MindMap`.
+
+  Provides algorithms that answer practical questions about a mind map:
+
+    * How deep is the map? (max depth from root)
+    * How broad is the map? (number of leaf nodes)
+    * Which ideas are orphaned? (not reachable from root)
+    * What are all root-to-leaf paths?
+    * Is the map structurally sound?
+
+  ## Further reading
+
+    * [Mind map (Wikipedia)](https://en.wikipedia.org/wiki/Mind_map)
+  """
+
+  alias Choreo.MindMap
+
+  @doc """
+  Returns the maximum depth of the mind map (number of branch edges from
+  root to deepest leaf).
+
+  A single-node map has depth 0.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a, label: "a")
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_subtopic(:c)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      ...>   |> Choreo.MindMap.branch(:b, :c)
+      iex> Choreo.MindMap.Analysis.depth(map)
+      2
+      iex> Choreo.MindMap.Analysis.depth(Choreo.MindMap.new())
+      0
+
+  This analysis answers the question: "How deep is the mind map?"
+  """
+  @spec depth(MindMap.t()) :: non_neg_integer()
+  def depth(%MindMap{root: nil}), do: 0
+
+  def depth(%MindMap{} = map) do
+    do_depth(map, map.root, 0)
+  end
+
+  @doc """
+  Returns the number of leaf nodes (nodes with no outgoing branch edges).
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_topic(:c)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      ...>   |> Choreo.MindMap.branch(:a, :c)
+      iex> Choreo.MindMap.Analysis.breadth(map)
+      2
+
+  This analysis answers the question: "How many leaf ideas exist?"
+  """
+  @spec breadth(MindMap.t()) :: non_neg_integer()
+  def breadth(%MindMap{} = map) do
+    length(leaves(map))
+  end
+
+  @doc """
+  Returns all leaf node IDs (nodes with no outgoing branch edges).
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_topic(:c)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      ...>   |> Choreo.MindMap.branch(:a, :c)
+      iex> Enum.sort(Choreo.MindMap.Analysis.leaves(map))
+      [:b, :c]
+
+  This analysis answers the question: "Which ideas have no children?"
+  """
+  @spec leaves(MindMap.t()) :: [Yog.node_id()]
+  def leaves(%MindMap{} = map) do
+    map.graph.nodes
+    |> Enum.filter(fn {id, _data} ->
+      branch_out_degree(map, id) == 0
+    end)
+    |> Enum.map(fn {id, _data} -> id end)
+  end
+
+  @doc """
+  Returns nodes that are not reachable from the root via branch edges.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_topic(:c)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      iex> Choreo.MindMap.Analysis.orphan_nodes(map)
+      [:c]
+
+  This analysis answers the question: "Which ideas are disconnected from the root?"
+  """
+  @spec orphan_nodes(MindMap.t()) :: [Yog.node_id()]
+  def orphan_nodes(%MindMap{root: nil}), do: []
+
+  def orphan_nodes(%MindMap{} = map) do
+    reachable =
+      map.graph
+      |> branch_reachable([map.root])
+      |> MapSet.new()
+
+    all = MindMap.nodes(map) |> MapSet.new()
+    MapSet.difference(all, reachable) |> MapSet.to_list()
+  end
+
+  @doc """
+  Returns the maximum number of nodes at any single depth level.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_topic(:c)
+      ...>   |> Choreo.MindMap.add_topic(:d)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      ...>   |> Choreo.MindMap.branch(:a, :c)
+      ...>   |> Choreo.MindMap.branch(:a, :d)
+      iex> Choreo.MindMap.Analysis.max_width(map)
+      3
+
+  This analysis answers the question: "What is the widest level of the map?"
+  """
+  @spec max_width(MindMap.t()) :: non_neg_integer()
+  def max_width(%MindMap{root: nil}), do: 0
+
+  def max_width(%MindMap{} = map) do
+    map
+    |> nodes_by_depth()
+    |> Map.values()
+    |> Enum.map(&length/1)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  @doc """
+  Enumerates all root-to-leaf paths via branch edges.
+
+  Each path is a list of node IDs from root to leaf.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_subtopic(:c)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      ...>   |> Choreo.MindMap.branch(:b, :c)
+      iex> Choreo.MindMap.Analysis.paths(map)
+      [[:a, :b, :c]]
+
+  This analysis answers the question: "What are all root-to-leaf paths?"
+  """
+  @spec paths(MindMap.t()) :: [[Yog.node_id()]]
+  def paths(%MindMap{root: nil}), do: []
+
+  def paths(%MindMap{} = map) do
+    do_paths(map, map.root, [map.root], [])
+  end
+
+  @doc """
+  Returns a map of node type frequencies.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_subtopic(:c)
+      ...>   |> Choreo.MindMap.add_note(:d)
+      iex> Choreo.MindMap.Analysis.type_frequencies(map)
+      %{root: 1, topic: 1, subtopic: 1, note: 1}
+
+  This analysis answers the question: "What is the composition of the map?"
+  """
+  @spec type_frequencies(MindMap.t()) :: %{atom() => non_neg_integer()}
+  def type_frequencies(%MindMap{graph: graph}) do
+    graph.nodes
+    |> Enum.group_by(fn {_id, data} -> data[:node_type] || :unknown end)
+    |> Enum.map(fn {type, nodes} -> {type, length(nodes)} end)
+    |> Map.new()
+  end
+
+  @doc """
+  Checks whether the mind map contains a directed cycle via branch edges.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_topic(:c)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      ...>   |> Choreo.MindMap.branch(:b, :c)
+      ...>   |> Choreo.MindMap.branch(:c, :b)
+      iex> Choreo.MindMap.Analysis.cyclic?(map)
+      true
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      iex> Choreo.MindMap.Analysis.cyclic?(map)
+      false
+
+  This analysis answers the question: "Is there a cycle in the hierarchy?"
+  """
+  @spec cyclic?(MindMap.t()) :: boolean()
+  def cyclic?(%MindMap{graph: graph}) do
+    Yog.cyclic?(graph)
+  end
+
+  @doc """
+  Validates mind map structural soundness.
+
+  Checks for:
+    * missing root
+    * cycles in the hierarchy
+    * orphan nodes (not reachable from root)
+    * nodes with multiple branch parents
+
+  Returns a list of `{severity, message}` tuples.
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      iex> map = map
+      ...>   |> Choreo.MindMap.set_root(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.branch(:a, :b)
+      iex> Choreo.MindMap.Analysis.validate(map)
+      []
+
+      iex> map = Choreo.MindMap.new()
+      iex> Choreo.MindMap.Analysis.validate(map)
+      [{:error, "Mind map has no root"}]
+
+  This analysis answers the question: "Is the mind map structurally sound?"
+  """
+  @spec validate(MindMap.t()) :: [{:error | :warning, String.t()}]
+  def validate(%MindMap{} = map) do
+    []
+    |> check_root(map)
+    |> check_cycles(map)
+    |> check_orphans(map)
+    |> check_multiple_parents(map)
+  end
+
+  # ============================================================================
+  # Private helpers — depth
+  # ============================================================================
+
+  defp do_depth(map, current, depth) do
+    children = branch_successors(map, current)
+
+    if children == [] do
+      depth
+    else
+      children
+      |> Enum.map(fn child -> do_depth(map, child, depth + 1) end)
+      |> Enum.max()
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — paths
+  # ============================================================================
+
+  defp do_paths(map, current, path, acc) do
+    children = branch_successors(map, current)
+
+    if children == [] do
+      [Enum.reverse(path) | acc]
+    else
+      Enum.reduce(children, acc, fn child, acc ->
+        do_paths(map, child, [child | path], acc)
+      end)
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — width / depth distribution
+  # ============================================================================
+
+  defp nodes_by_depth(map) do
+    do_nodes_by_depth(map, map.root, 0, %{})
+  end
+
+  defp do_nodes_by_depth(_map, nil, _depth, acc), do: acc
+
+  defp do_nodes_by_depth(map, id, depth, acc) do
+    acc = Map.update(acc, depth, [id], &[id | &1])
+    children = branch_successors(map, id)
+
+    Enum.reduce(children, acc, fn child, acc ->
+      do_nodes_by_depth(map, child, depth + 1, acc)
+    end)
+  end
+
+  # ============================================================================
+  # Private helpers — branch graph utilities
+  # ============================================================================
+
+  defp branch_successors(map, id) do
+    map.graph
+    |> Yog.successor_ids(id)
+    |> Enum.filter(fn succ ->
+      meta = Map.get(map.edge_meta, {id, succ}, %{})
+      meta[:edge_type] == :branch
+    end)
+  end
+
+  defp branch_out_degree(map, id) do
+    length(branch_successors(map, id))
+  end
+
+  defp branch_reachable(graph, seeds) do
+    do_bfs(graph, seeds, MapSet.new(seeds))
+  end
+
+  defp do_bfs(_graph, [], visited), do: visited
+
+  defp do_bfs(graph, [h | t], visited) do
+    neighbors =
+      graph
+      |> Yog.successor_ids(h)
+      |> Enum.reject(&MapSet.member?(visited, &1))
+
+    do_bfs(graph, t ++ neighbors, MapSet.union(visited, MapSet.new(neighbors)))
+  end
+
+  # ============================================================================
+  # Private helpers — validation
+  # ============================================================================
+
+  defp check_root(acc, map) do
+    if is_nil(map.root) do
+      [{:error, "Mind map has no root"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_cycles(acc, map) do
+    if cyclic?(map) do
+      [{:error, "Cycle detected in mind map hierarchy"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_orphans(acc, map) do
+    case orphan_nodes(map) do
+      [] -> acc
+      nodes -> [{:warning, "Orphan nodes: #{inspect(nodes)}"} | acc]
+    end
+  end
+
+  defp check_multiple_parents(acc, map) do
+    violations =
+      map.graph.nodes
+      |> Enum.flat_map(fn {id, _data} ->
+        branch_parents =
+          map.graph
+          |> Yog.predecessors(id)
+          |> Enum.filter(fn {pred, _weight} ->
+            meta = Map.get(map.edge_meta, {pred, id}, %{})
+            meta[:edge_type] == :branch
+          end)
+
+        if length(branch_parents) > 1 do
+          parent_ids = Enum.map(branch_parents, fn {pred, _weight} -> pred end)
+          [{:warning, "Node #{inspect(id)} has multiple branch parents: #{inspect(parent_ids)}"}]
+        else
+          []
+        end
+      end)
+
+    violations ++ acc
+  end
+end

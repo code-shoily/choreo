@@ -19,6 +19,12 @@
   - Multiple distinct edges can now exist between the same pair of nodes
   - `Choreo.edges_with_meta/1` — returns `[{from, to, cost, meta}]` tuples
   - `Choreo.to_simple_graph/2` — collapses parallel edges for algorithm analysis (default combine: `min/2`)
+- `Choreo.MindMap` — concept-mapping builder with hierarchical branches and associative cross-links
+  - Nodes: `set_root/3`, `add_topic/3`, `add_subtopic/3`, `add_note/3`
+  - Edges: `branch/4` (hierarchical), `associate/4` (cross-link with dashed, undirected rendering)
+  - Analysis: `depth/1`, `breadth/1`, `leaves/1`, `orphan_nodes/1`, `max_width/1`, `paths/1`, `type_frequencies/1`, `cyclic?/1`, `validate/1`
+  - 5 built-in themes (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`) with mind-map-specific colour palettes
+  - Same-rank sibling alignment in DOT output
 - `Choreo.FSM` enforces **100% DFA purity** at build time:
   - Epsilon transitions (empty labels) are rejected with `ArgumentError`
   - Different transition labels between the same state pair are now allowed (e.g., `q0 --"a"--> q1` and `q0 --"b"--> q1`)

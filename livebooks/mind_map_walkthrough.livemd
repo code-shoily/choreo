@@ -1,0 +1,349 @@
+# Choreo MindMap: Comprehensive Walkthrough
+
+## Section
+
+```elixir
+Mix.install([
+  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
+  {:kino_vizjs, "~> 0.8.0"}
+])
+```
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+
+---
+
+## What is Choreo.MindMap?
+
+`Choreo.MindMap` models hierarchical concept maps where a central idea radiates into topics, sub-topics, and notes. Cross-links (associations) between branches are supported for non-hierarchical relationships.
+
+Unlike free-form graphs, mind maps enforce a **single-root invariant**:
+
+* **Exactly one root** — the central concept node
+* **Tree-like hierarchy** — branch edges form a directed acyclic graph from root outward
+* **Associative links** — dashed edges without direction for cross-cutting relationships
+
+These invariants mean you can analyze a mind map structurally: measure depth, detect orphans, enumerate root-to-leaf paths, and validate soundness.
+
+### Node Types
+
+| Type       | Shape                    | Purpose                                 |
+| ---------- | ------------------------ | --------------------------------------- |
+| `root`     | ⭕ double circle (bold) | Central concept — exactly one per map |
+| `topic`    | 🔵 ellipse             | Main branch radiating from root         |
+| `subtopic` | ⬛ rounded box          | Nested idea under a topic               |
+| `note`     | 📝 note shape          | Annotation or detail                    |
+
+```elixir
+alias Choreo.MindMap
+alias Choreo.MindMap.Analysis
+
+legend =
+  MindMap.new()
+  |> MindMap.set_root(:root, label: "Root")
+  |> MindMap.add_topic(:topic, label: "Topic")
+  |> MindMap.add_subtopic(:subtopic, label: "Subtopic")
+  |> MindMap.add_note(:note, label: "Note")
+  |> MindMap.branch(:root, :topic)
+  |> MindMap.branch(:topic, :subtopic)
+  |> MindMap.branch(:subtopic, :note)
+
+Kino.VizJS.render(MindMap.to_dot(legend))
+```
+
+---
+
+## Example 1: Brainstorming a Talk Outline
+
+Map out the structure of a conference talk. The root is the talk title; topics are major sections; subtopics are key points; notes are speaker reminders.
+
+```elixir
+talk =
+  MindMap.new()
+  |> MindMap.set_root(:talk, label: "Building Resilient Elixir Systems")
+  |> MindMap.add_topic(:supervision, label: "Supervision Trees")
+  |> MindMap.add_topic(:patterns, label: "Fault-Tolerance Patterns")
+  |> MindMap.add_topic(:observability, label: "Observability")
+  |> MindMap.add_subtopic(:one_for_one, label: "One-for-One")
+  |> MindMap.add_subtopic(:one_for_all, label: "One-for-All")
+  |> MindMap.add_subtopic(:circuit_breaker, label: "Circuit Breaker")
+  |> MindMap.add_subtopic(:bulkhead, label: "Bulkhead")
+  |> MindMap.add_subtopic(:telemetry, label: "Telemetry")
+  |> MindMap.add_subtopic(:tracing, label: "OpenTelemetry")
+  |> MindMap.add_note(:demo, label: "Live demo at 15 min")
+  |> MindMap.add_note(:story, label: "Tell outage story")
+  |> MindMap.branch(:talk, :supervision)
+  |> MindMap.branch(:talk, :patterns)
+  |> MindMap.branch(:talk, :observability)
+  |> MindMap.branch(:supervision, :one_for_one)
+  |> MindMap.branch(:supervision, :one_for_all)
+  |> MindMap.branch(:patterns, :circuit_breaker)
+  |> MindMap.branch(:patterns, :bulkhead)
+  |> MindMap.branch(:observability, :telemetry)
+  |> MindMap.branch(:observability, :tracing)
+  |> MindMap.branch(:circuit_breaker, :demo)
+  |> MindMap.branch(:bulkhead, :story)
+  # Cross-link: circuit breakers improve telemetry signals
+  |> MindMap.associate(:circuit_breaker, :telemetry, label: "improves")
+
+Kino.VizJS.render(MindMap.to_dot(talk))
+```
+
+### Structural Metrics
+
+```elixir
+IO.puts("Depth: #{Analysis.depth(talk)}")
+IO.puts("Breadth (leaves): #{Analysis.breadth(talk)}")
+IO.puts("Max width: #{Analysis.max_width(talk)}")
+IO.inspect(Analysis.type_frequencies(talk), label: "Composition")
+```
+
+Depth tells you how many levels of detail the map has. Breadth counts terminal ideas. Max width shows the widest level — useful for estimating how many ideas fit on a single slide.
+
+### Root-to-Leaf Paths
+
+```elixir
+Analysis.paths(talk)
+|> Enum.each(fn path ->
+  IO.puts(Enum.join(path, " → "))
+end)
+```
+
+Each path is a complete narrative thread from the central concept to a terminal detail. Use these to sanity-check that every section has depth and no section is under-developed.
+
+---
+
+## Example 2: Domain Knowledge Map
+
+Document the key concepts of a software domain. Cross-links show relationships that cut across the hierarchy.
+
+```elixir
+domain =
+  MindMap.new()
+  |> MindMap.set_root(:dist_sys, label: "Distributed Systems")
+  |> MindMap.add_topic(:consistency, label: "Consistency")
+  |> MindMap.add_topic(:availability, label: "Availability")
+  |> MindMap.add_topic(:partitioning, label: "Partitioning")
+  |> MindMap.add_subtopic(:cap, label: "CAP Theorem")
+  |> MindMap.add_subtopic(:paxos, label: "Paxos")
+  |> MindMap.add_subtopic(:raft, label: "Raft")
+  |> MindMap.add_subtopic(:sharding, label: "Sharding")
+  |> MindMap.add_subtopic(:replication, label: "Replication")
+  |> MindMap.add_note(:Brewer, label: "Eric Brewer, 2000")
+  |> MindMap.branch(:dist_sys, :consistency)
+  |> MindMap.branch(:dist_sys, :availability)
+  |> MindMap.branch(:dist_sys, :partitioning)
+  |> MindMap.branch(:consistency, :cap)
+  |> MindMap.branch(:consistency, :paxos)
+  |> MindMap.branch(:consistency, :raft)
+  |> MindMap.branch(:partitioning, :sharding)
+  |> MindMap.branch(:partitioning, :replication)
+  |> MindMap.branch(:cap, :Brewer)
+  # Cross-links
+  |> MindMap.associate(:cap, :sharding, label: "influences")
+  |> MindMap.associate(:raft, :replication, label: "uses")
+
+Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark))
+```
+
+### Validation
+
+```elixir
+Analysis.validate(domain)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+A valid mind map has exactly one root, no cycles in the hierarchy, and all nodes reachable from the root.
+
+---
+
+## Example 3: Product Feature Planning
+
+Plan a product roadmap as a mind map. Topics are release themes; subtopics are epics; notes are risk reminders.
+
+```elixir
+roadmap =
+  MindMap.new()
+  |> MindMap.set_root(:product, label: "SaaS Platform v2")
+  |> MindMap.add_topic(:auth, label: "Auth & Security")
+  |> MindMap.add_topic(:billing, label: "Billing")
+  |> MindMap.add_topic(:performance, label: "Performance")
+  |> MindMap.add_topic(:integrations, label: "Integrations")
+  |> MindMap.add_subtopic(:sso, label: "SSO (SAML)")
+  |> MindMap.add_subtopic(:mfa, label: "MFA")
+  |> MindMap.add_subtopic(:stripe, label: "Stripe Checkout")
+  |> MindMap.add_subtopic(:usage, label: "Usage-Based Pricing")
+  |> MindMap.add_subtopic(:caching, label: "Redis Caching")
+  |> MindMap.add_subtopic(:cdn, label: "CDN")
+  |> MindMap.add_subtopic(:webhooks, label: "Webhooks")
+  |> MindMap.add_subtopic(:api, label: "REST API v2")
+  |> MindMap.add_note(:gdpr, label: "GDPR review required")
+  |> MindMap.add_note(:load_test, label: "Load test before release")
+  |> MindMap.branch(:product, :auth)
+  |> MindMap.branch(:product, :billing)
+  |> MindMap.branch(:product, :performance)
+  |> MindMap.branch(:product, :integrations)
+  |> MindMap.branch(:auth, :sso)
+  |> MindMap.branch(:auth, :mfa)
+  |> MindMap.branch(:billing, :stripe)
+  |> MindMap.branch(:billing, :usage)
+  |> MindMap.branch(:performance, :caching)
+  |> MindMap.branch(:performance, :cdn)
+  |> MindMap.branch(:integrations, :webhooks)
+  |> MindMap.branch(:integrations, :api)
+  |> MindMap.branch(:auth, :gdpr)
+  |> MindMap.branch(:performance, :load_test)
+  # Cross-link: webhooks affect caching strategy
+  |> MindMap.associate(:webhooks, :caching, label: "affects")
+
+Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean))
+```
+
+### Detect Orphans
+
+```elixir
+Analysis.orphan_nodes(roadmap)
+|> case do
+  [] -> IO.puts("✅ All nodes reachable from root")
+  orphans -> IO.puts("⚠️ Orphan nodes: #{inspect(orphans)}")
+end
+```
+
+Orphan nodes are ideas that have been added but not connected to the hierarchy. They're often forgotten requirements.
+
+### Type Composition
+
+```elixir
+Analysis.type_frequencies(roadmap)
+|> Enum.each(fn {type, count} ->
+  IO.puts("#{type}: #{count}")
+end)
+```
+
+---
+
+## Example 4: Deep Hierarchical Map
+
+A deeply nested map demonstrates depth and width analysis.
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+deep =
+  MindMap.new()
+  |> MindMap.set_root(:science, label: "Science")
+  |> MindMap.add_topic(:physics, label: "Physics")
+  |> MindMap.add_topic(:biology, label: "Biology")
+  |> MindMap.add_subtopic(:quantum, label: "Quantum Mechanics")
+  |> MindMap.add_subtopic(:relativity, label: "Relativity")
+  |> MindMap.add_subtopic(:genetics, label: "Genetics")
+  |> MindMap.add_subtopic(:ecology, label: "Ecology")
+  |> MindMap.add_note(:entanglement, label: "Quantum Entanglement")
+  |> MindMap.add_note(:dna, label: "DNA Structure")
+  |> MindMap.branch(:science, :physics)
+  |> MindMap.branch(:science, :biology)
+  |> MindMap.branch(:physics, :quantum)
+  |> MindMap.branch(:physics, :relativity)
+  |> MindMap.branch(:biology, :genetics)
+  |> MindMap.branch(:biology, :ecology)
+  |> MindMap.branch(:quantum, :entanglement)
+  |> MindMap.branch(:genetics, :dna)
+
+IO.puts("Depth: #{Analysis.depth(deep)}")
+IO.puts("Max width: #{Analysis.max_width(deep)}")
+IO.inspect(Analysis.leaves(deep), label: "Leaves")
+Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest))
+```
+
+---
+
+## Example 5: Fixing a Broken Map
+
+The builder does not enforce tree invariants at construction time (unlike `DecisionTree`), so validation is especially useful.
+
+```elixir
+broken =
+  MindMap.new()
+  |> MindMap.set_root(:a)
+  |> MindMap.add_topic(:b)
+  |> MindMap.add_topic(:c)
+  |> MindMap.add_topic(:d)
+  # c is orphaned — never branched from root
+  |> MindMap.branch(:a, :b)
+  |> MindMap.branch(:b, :d)
+  # d has two branch parents (b and a) — unusual but allowed
+  |> MindMap.branch(:a, :d)
+
+Analysis.validate(broken)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
+
+The validator catches:
+
+* Missing root
+* Cycles in the hierarchy
+* Orphan nodes (not reachable from root)
+* Nodes with multiple branch parents
+
+### Cycle Detection
+
+```elixir
+cyclic =
+  MindMap.new()
+  |> MindMap.set_root(:a)
+  |> MindMap.add_topic(:b)
+  |> MindMap.add_topic(:c)
+  |> MindMap.branch(:a, :b)
+  |> MindMap.branch(:b, :c)
+  |> MindMap.branch(:c, :b)
+
+Analysis.cyclic?(cyclic)
+```
+
+Cycles in a mind map hierarchy are usually a mistake. They break depth calculation and root-to-leaf path enumeration.
+
+---
+
+## Advanced: Custom Theming
+
+```elixir
+brand_theme =
+  Choreo.Theme.custom(
+    colors: %{
+      root: "#8b5cf6",
+      topic: "#3b82f6",
+      subtopic: "#06b6d4",
+      note: "#f59e0b"
+    },
+    node_fontcolor: "white",
+    edge_color: "#94a3b8",
+    graph_bgcolor: "#0f172a"
+  )
+
+Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme))
+```
+
+---
+
+## Summary
+
+| Question                           | Function                      |
+| ---------------------------------- | ----------------------------- |
+| "How deep is the map?"             | `Analysis.depth/1`            |
+| "How many leaf ideas?"             | `Analysis.breadth/1`          |
+| "What is the widest level?"        | `Analysis.max_width/1`        |
+| "Which ideas have no children?"    | `Analysis.leaves/1`           |
+| "What are all root-to-leaf paths?" | `Analysis.paths/1`            |
+| "Which ideas are disconnected?"    | `Analysis.orphan_nodes/1`     |
+| "What is the composition?"         | `Analysis.type_frequencies/1` |
+| "Is there a cycle?"                | `Analysis.cyclic?/1`          |
+| "Is the map structurally sound?"   | `Analysis.validate/1`         |
+| "Render to DOT"                    | `MindMap.to_dot/2`            |
+
+Mind maps as code mean your brainstorming sessions, documentation, and planning artefacts are version-controlled, diffable, and automatically validated. Every addition is checked for reachability from the root and structural soundness — before it ever becomes a static diagram.

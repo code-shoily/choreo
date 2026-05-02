@@ -113,11 +113,16 @@ defmodule Choreo.MixProject do
           Choreo.Workflow,
           Choreo.Workflow.Render.DOT
         ],
+        "Mind Maps": [
+          Choreo.MindMap,
+          Choreo.MindMap.Render.DOT
+        ],
         Analysis: [
           Choreo.FSM.Analysis,
           Choreo.Dataflow.Analysis,
           Choreo.Dependency.Analysis,
           Choreo.DecisionTree.Analysis,
+          Choreo.MindMap.Analysis,
           Choreo.ThreatModel.Analysis,
           Choreo.Workflow.Analysis
         ]

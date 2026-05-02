@@ -38,6 +38,7 @@ Dataflow.to_dot(pipeline)                #=> DOT string
   - [Choreo.Dataflow — Pipeline Diagrams](#choreodataflow--pipeline-diagrams)
   - [Choreo.Dependency — Software Dependency Graphs](#choreodependency--software-dependency-graphs)
   - [Choreo.DecisionTree — Classification Trees](#choreodecisiontree--classification-trees)
+  - [Choreo.MindMap — Concept Mapping](#choreomindmap--concept-mapping)
   - [Choreo.ThreatModel — STRIDE Threat Modeling](#choreothreatmodel--stride-threat-modeling)
   - [Choreo.Workflow — Task Orchestration](#choreoworkflow--task-orchestration)
 - [Themes & Rendering](#themes--rendering)
@@ -61,6 +62,8 @@ Choreo is **analysis-first**: you describe a system, you get answers.
 | "Are there circular dependencies?" | `Choreo.Dependency.Analysis.cyclic_dependencies(deps)` |
 | "What threats exist in my architecture?" | `Choreo.ThreatModel.Analysis.stride_threats(model)` |
 | "Which feature drives the most splits?" | `Choreo.DecisionTree.Analysis.feature_importance(tree)` |
+| "How deep is this mind map?" | `Choreo.MindMap.Analysis.depth(map)` |
+| "Which ideas are orphaned?" | `Choreo.MindMap.Analysis.orphan_nodes(map)` |
 
 Everything renders to **DOT (Graphviz)** for publication-quality output with built-in `:default`, `:dark`, and custom themes.
 
@@ -366,6 +369,57 @@ digraph {
 
 ---
 
+### Choreo.MindMap — Concept Mapping
+
+Model hierarchical concept maps with a central root, branching topics and subtopics, and associative cross-links.
+
+```elixir
+alias Choreo.MindMap
+alias Choreo.MindMap.Analysis
+
+map =
+  MindMap.new()
+  |> MindMap.set_root(:elixir, label: "Elixir")
+  |> MindMap.add_topic(:concurrency, label: "Concurrency")
+  |> MindMap.add_topic(:ecosystem, label: "Ecosystem")
+  |> MindMap.add_subtopic(:processes, label: "Processes")
+  |> MindMap.add_note(:beam, label: "BEAM VM")
+  |> MindMap.branch(:elixir, :concurrency)
+  |> MindMap.branch(:elixir, :ecosystem)
+  |> MindMap.branch(:concurrency, :processes)
+  |> MindMap.branch(:ecosystem, :beam)
+  |> MindMap.associate(:processes, :beam, label: "runs on")
+
+# Analysis
+Analysis.depth(map)          #=> 2
+Analysis.breadth(map)        #=> 2
+Analysis.orphan_nodes(map)   #=> []
+Analysis.paths(map)          #=> [[:elixir, :concurrency, :processes], [:elixir, :ecosystem, :beam]]
+Analysis.validate(map)       #=> []
+```
+
+**Features:** single-root invariant, branch and associate edge types, depth/breadth/width metrics, root-to-leaf path enumeration, orphan detection, cycle detection, type-frequency analysis, validation.
+
+```dot
+digraph {
+  rankdir=TB; splines=spline; nodesep=0.6; ranksep=1.2;
+  node [shape=ellipse, style=filled, fontname="Helvetica", fontsize=12];
+  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
+  elixir [label="Elixir", shape=doublecircle, fillcolor="#8b5cf6", fontcolor=white, penwidth=2];
+  concurrency [label="Concurrency", shape=ellipse, fillcolor="#3b82f6", fontcolor=white];
+  ecosystem [label="Ecosystem", shape=ellipse, fillcolor="#10b981", fontcolor=white];
+  processes [label="Processes", shape=box, style="rounded,filled", fillcolor="#06b6d4", fontcolor=white];
+  beam [label="BEAM VM", shape=note, fillcolor="#f59e0b", fontcolor=white];
+  elixir -> concurrency;
+  elixir -> ecosystem;
+  concurrency -> processes;
+  ecosystem -> beam;
+  processes -> beam [label="runs on", style=dashed, color="#94a3b8", dir=none];
+}
+```
+
+---
+
 ### Choreo.ThreatModel — STRIDE Threat Modeling
 
 Extend dataflow diagrams with security semantics. Auto-generate STRIDE threats based on element types, trust boundaries, and encryption status.
@@ -439,6 +493,7 @@ Every module has type-specific shapes and colours:
 | `Choreo.Dataflow` | source, sink, transform, buffer, conditional, merge | house, invhouse, box3d, cylinder, diamond, trapezium |
 | `Choreo.Dependency` | application, library, module, interface, test | box3d, cylinder, box, diamond, note |
 | `Choreo.DecisionTree` | root, decision, outcome | diamond (double), diamond, rounded box |
+| `Choreo.MindMap` | root, topic, subtopic, note | doublecircle, ellipse, rounded box, note |
 | `Choreo.ThreatModel` | external_entity, process, data_store | box (double), circle, cylinder |
 | `Choreo.Workflow` | start, end, task, decision, fork, join, compensation, event | circle, doublecircle, box3d, diamond, invhouse, house, note, cloud |
 
@@ -459,9 +514,10 @@ All modules ship with comprehensive ExUnit test suites:
 | `Choreo.Dataflow` | 44 |
 | `Choreo.Dependency` | 36 |
 | `Choreo.DecisionTree` | 34 |
+| `Choreo.MindMap` | 43 |
 | `Choreo.ThreatModel` | 33 |
 | `Choreo.Workflow` | 48 |
-| **Total** | **267** |
+| **Total** | **310** |
 
 ---
 
@@ -474,6 +530,7 @@ All modules ship with comprehensive ExUnit test suites:
 - [x] Decision trees (`Choreo.DecisionTree`)
 - [x] STRIDE threat modeling (`Choreo.ThreatModel`)
 - [x] Task orchestration workflows (`Choreo.Workflow`)
+- [x] Mind maps (`Choreo.MindMap`)
 - [x] Schema validation for dataflow edges
 - [x] Custom theme presets and per-node style overrides
 - [ ] Deeper analysis: centrality metrics, graph colouring, cut vertices
