@@ -344,6 +344,9 @@ defmodule Choreo.MindMap.Render.DOT do
           base = [{:color, "#94a3b8"}, {:style, "dashed"}, {:dir, "none"}]
           if label = meta[:label], do: [{:label, label} | base], else: base
 
+        :virtual ->
+          [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+
         _ ->
           base = [{:color, "#64748b"}]
           if label = meta[:label], do: [{:label, label} | base], else: base

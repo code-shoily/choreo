@@ -580,3 +580,62 @@ end
 defimpl Choreo.DOT, for: Choreo.MindMap do
   def to_dot(map, opts), do: Choreo.MindMap.Render.DOT.to_dot(map, opts)
 end
+
+defimpl Choreo.Viewable, for: Choreo.MindMap do
+  def rebuild(diagram, new_graph) do
+    new_edge_meta =
+      diagram.edge_meta
+      |> Enum.filter(fn {{from, to}, _meta} ->
+        Map.has_key?(new_graph.nodes, from) and Map.has_key?(new_graph.nodes, to)
+      end)
+      |> Map.new()
+
+    # Add virtual edge metadata for any graph edges that lack it
+    vmeta = virtual_edge_meta(diagram)
+
+    new_edge_meta =
+      new_graph
+      |> Yog.all_edges()
+      |> Enum.reduce(new_edge_meta, fn {from, to, _weight}, acc ->
+        if Map.has_key?(acc, {from, to}) do
+          acc
+        else
+          Map.put(acc, {from, to}, vmeta)
+        end
+      end)
+
+    new_root =
+      if Map.has_key?(new_graph.nodes, diagram.root) do
+        diagram.root
+      else
+        new_graph.nodes
+        |> Enum.sort_by(fn {id, data} ->
+          # Prefer typed hierarchy first, then lowest in-degree (most upstream)
+          {root_priority(data[:node_type]), Yog.in_degree(new_graph, id)}
+        end)
+        |> List.first()
+        |> case do
+          {id, _data} -> id
+          nil -> nil
+        end
+      end
+
+    %{diagram | graph: new_graph, edge_meta: new_edge_meta, root: new_root}
+  end
+
+  def zoom_predicate(_diagram, 0), do: fn data -> data[:node_type] == :root end
+  def zoom_predicate(_diagram, 1), do: fn data -> data[:node_type] in [:root, :topic] end
+
+  def zoom_predicate(_diagram, 2),
+    do: fn data -> data[:node_type] in [:root, :topic, :subtopic] end
+
+  def zoom_predicate(_diagram, _level), do: fn _data -> true end
+
+  def virtual_edge_meta(_diagram), do: %{edge_type: :virtual, label: nil}
+
+  defp root_priority(:root), do: 0
+  defp root_priority(:topic), do: 1
+  defp root_priority(:subtopic), do: 2
+  defp root_priority(:note), do: 3
+  defp root_priority(_), do: 99
+end

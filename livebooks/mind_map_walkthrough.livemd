@@ -310,6 +310,97 @@ Cycles in a mind map hierarchy are usually a mistake. They break depth calculati
 
 ---
 
+## Example 6: Graph Lenses with Choreo.View
+
+`Choreo.View` lets you look at the same mind map through different focal lengths — zoom out for an overview, focus on a specific branch, or filter out details.
+
+### Zoom Levels
+
+Show only the big picture (root + topics):
+
+```elixir
+alias Choreo.View
+
+overview = View.zoom(talk, level: 1)
+Kino.VizJS.render(MindMap.to_dot(overview))
+```
+
+Show root, topics, and subtopics (hide notes):
+
+```elixir
+mid = View.zoom(talk, level: 2)
+Kino.VizJS.render(MindMap.to_dot(mid))
+```
+
+### Focus on a Branch
+
+Highlight one topic and its neighbourhood:
+
+```elixir
+focused = View.focus(talk, :patterns, radius: 1)
+Kino.VizJS.render(MindMap.to_dot(focused))
+```
+
+Focus with a larger radius to see second-degree connections:
+
+```elixir
+wider = View.focus(talk, :supervision, radius: 2)
+Kino.VizJS.render(MindMap.to_dot(wider))
+```
+
+### Trace a Path
+
+Show only the shortest path between two ideas — useful for tracing a narrative thread:
+
+```elixir
+path_view = View.focus_between(talk, :talk, :demo, radius: 1)
+Kino.VizJS.render(MindMap.to_dot(path_view))
+```
+
+### Transitive Zoom
+
+When zooming out, hidden intermediate nodes can break the visual connection between remaining concepts. Enable `transitive: true` to draw virtual edges through collapsed intermediates:
+
+```elixir
+overview = View.zoom(talk, level: 1, transitive: true)
+Kino.VizJS.render(MindMap.to_dot(overview))
+```
+
+### Collapse — Aggregate Nodes
+
+Merge multiple related nodes into a single aggregate. All edges are rewired automatically:
+
+```elixir
+# Merge all subtopics under "Concurrency" into one billing system node
+billing =
+  View.collapse(talk, fn id, _data ->
+    id in [:circuit_breaker, :bulkhead]
+  end, :resilience_patterns,
+    label: "Resilience Patterns",
+    data: %{node_type: :topic}
+  )
+
+Kino.VizJS.render(MindMap.to_dot(billing))
+```
+
+### Custom Filtering
+
+Remove all notes for a clean stakeholder deck:
+
+```elixir
+clean = View.filter(talk, fn _id, data -> data[:node_type] != :note end)
+Kino.VizJS.render(MindMap.to_dot(clean))
+```
+
+Show only the left half of the map:
+
+```elixir
+left_half = View.filter(talk, fn id, _data -> id in [:talk, :supervision, :patterns, :one_for_one, :one_for_all, :circuit_breaker, :bulkhead, :demo, :story] end)
+Kino.VizJS.render(MindMap.to_dot(left_half))
+```
+
+---
+
 ## Advanced: Custom Theming
 
 ```elixir
@@ -344,6 +435,11 @@ Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme))
 | "What is the composition?"         | `Analysis.type_frequencies/1` |
 | "Is there a cycle?"                | `Analysis.cyclic?/1`          |
 | "Is the map structurally sound?"   | `Analysis.validate/1`         |
+| "Zoom out to overview"             | `View.zoom/2`                 |
+| "Focus on a branch"                | `View.focus/3`                |
+| "Trace a path between two nodes"   | `View.focus_between/4`        |
+| "Filter nodes"                     | `View.filter/3`               |
+| "Collapse into aggregate"          | `View.collapse/4`             |
 | "Render to DOT"                    | `MindMap.to_dot/2`            |
 
 Mind maps as code mean your brainstorming sessions, documentation, and planning artefacts are version-controlled, diffable, and automatically validated. Every addition is checked for reachability from the root and structural soundness — before it ever becomes a static diagram.
