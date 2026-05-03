@@ -33,7 +33,7 @@
   - `collapse/4` — aggregate multiple nodes into one, automatically rewiring all incoming/outgoing edges and removing duplicates/self-loops
   - Protocol-based design (`Choreo.Viewable`) so each module defines its own rebuild, root-resolution, zoom-predicate, and virtual-edge styling
   - Virtual edges are automatically styled (dashed, pale) via the protocol's `virtual_edge_meta/1` callback
-  - Supports `Choreo.MindMap`, `Choreo.DecisionTree`, `Choreo.Dataflow`, `Choreo.ThreatModel`, and `Choreo.Dependency`
+  - Supports all diagram modules: `Choreo`, `Choreo.MindMap`, `Choreo.DecisionTree`, `Choreo.Dataflow`, `Choreo.ThreatModel`, `Choreo.Dependency`, and `Choreo.Workflow`
   - `Choreo.View` transparently handles both simple graphs (`Yog.Graph`) and multigraphs (`Yog.Multi.Graph`) via internal dispatch helpers
 - `Choreo.FSM` enforces **100% DFA purity** at build time:
   - Epsilon transitions (empty labels) are rejected with `ArgumentError`

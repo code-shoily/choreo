@@ -825,6 +825,37 @@ defmodule Choreo.Workflow do
   defp edge_type_label(_), do: nil
 end
 
+defimpl Choreo.Viewable, for: Choreo.Workflow do
+  def rebuild(workflow, new_graph) do
+    new_edge_meta = Map.take(workflow.edge_meta, Map.keys(new_graph.edges))
+
+    existing_ids = MapSet.new(Map.keys(new_edge_meta))
+
+    new_edge_meta =
+      Enum.reduce(Map.keys(new_graph.edges), new_edge_meta, fn eid, acc ->
+        if MapSet.member?(existing_ids, eid) do
+          acc
+        else
+          Map.put(acc, eid, virtual_edge_meta(workflow))
+        end
+      end)
+
+    %{workflow | graph: new_graph, edge_meta: new_edge_meta}
+  end
+
+  def zoom_predicate(_, 0), do: fn _, d -> d[:node_type] in [:start, :end] end
+
+  def zoom_predicate(_, 1),
+    do: fn _, d -> d[:node_type] in [:start, :end, :task] end
+
+  def zoom_predicate(_, 2),
+    do: fn _, d -> d[:node_type] in [:start, :end, :task, :decision, :fork, :join] end
+
+  def zoom_predicate(_, _), do: fn _, _ -> true end
+
+  def virtual_edge_meta(_), do: %{edge_type: :virtual, label: nil}
+end
+
 defimpl Choreo.DOT, for: Choreo.Workflow do
   def to_dot(workflow, opts), do: Choreo.Workflow.Render.DOT.to_dot(workflow, opts)
 end

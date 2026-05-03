@@ -148,32 +148,37 @@ defmodule Choreo.Render.DOT do
     fn _from, to, edge_id, _weight ->
       meta = Map.get(system.edge_meta, edge_id, %{})
 
-      base =
-        case meta[:type] do
-          :dataflow ->
-            [{:color, "#6366f1"}, {:penwidth, 1.5}, {:style, "dashed"}]
+      if meta[:edge_type] == :virtual do
+        [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+      else
+        base =
+          case meta[:type] do
+            :dataflow ->
+              [{:color, "#6366f1"}, {:penwidth, 1.5}, {:style, "dashed"}]
 
-          _ ->
-            [{:color, "#64748b"}, {:penwidth, 1.0}]
-        end
+            _ ->
+              [{:color, "#64748b"}, {:penwidth, 1.0}]
+          end
 
-      base = if protocol = meta[:protocol], do: [{:label, to_string(protocol)} | base], else: base
+        base =
+          if protocol = meta[:protocol], do: [{:label, to_string(protocol)} | base], else: base
 
-      # Smart headport: databases look best when entered from the top.
-      target_data = Map.get(system.graph.nodes, to, %{})
+        # Smart headport: databases look best when entered from the top.
+        target_data = Map.get(system.graph.nodes, to, %{})
 
-      base =
-        if target_data[:type] == :database and is_nil(meta[:headport]) do
-          [{:headport, "n"} | base]
-        else
-          base
-        end
+        base =
+          if target_data[:type] == :database and is_nil(meta[:headport]) do
+            [{:headport, "n"} | base]
+          else
+            base
+          end
 
-      # Allow user overrides
-      base = if port = meta[:headport], do: [{:headport, port} | base], else: base
-      base = if port = meta[:tailport], do: [{:tailport, port} | base], else: base
+        # Allow user overrides
+        base = if port = meta[:headport], do: [{:headport, port} | base], else: base
+        base = if port = meta[:tailport], do: [{:tailport, port} | base], else: base
 
-      base
+        base
+      end
     end
   end
 

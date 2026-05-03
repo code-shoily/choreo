@@ -383,11 +383,15 @@ defmodule Choreo.Workflow.Render.DOT do
     fn _from, _to, edge_id, _weight ->
       meta = Map.get(workflow.edge_meta, edge_id, %{})
 
-      base = edge_type_attrs(meta[:edge_type] || :sequence)
+      if meta[:edge_type] == :virtual do
+        [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+      else
+        base = edge_type_attrs(meta[:edge_type] || :sequence)
 
-      base = if label = meta[:label], do: [{:label, label} | base], else: base
+        base = if label = meta[:label], do: [{:label, label} | base], else: base
 
-      base
+        base
+      end
     end
   end
 

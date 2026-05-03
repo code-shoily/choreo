@@ -213,4 +213,183 @@ defmodule Choreo.WorkflowTest do
       assert [{:a, :b, _}] = Workflow.edges(workflow)
     end
   end
+
+  describe "Choreo.Viewable" do
+    test "zoom level 0 keeps only start and end nodes" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_decision(:check)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :finish)
+
+      zoomed = Choreo.View.zoom(workflow, level: 0)
+      assert Enum.sort(Workflow.nodes(zoomed)) == [:begin, :finish]
+    end
+
+    test "zoom level 1 keeps start, end, and tasks" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_decision(:check)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :finish)
+
+      zoomed = Choreo.View.zoom(workflow, level: 1)
+      assert Enum.sort(Workflow.nodes(zoomed)) == [:begin, :finish, :process]
+    end
+
+    test "zoom level 2 keeps control flow nodes" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_decision(:check)
+        |> Workflow.add_fork(:split)
+        |> Workflow.add_join(:merge)
+        |> Workflow.add_event(:timer)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :check)
+        |> Workflow.connect(:check, :finish)
+
+      zoomed = Choreo.View.zoom(workflow, level: 2)
+
+      assert Enum.sort(Workflow.nodes(zoomed)) == [
+               :begin,
+               :check,
+               :finish,
+               :merge,
+               :process,
+               :split
+             ]
+    end
+
+    test "focus keeps node and neighbourhood on multigraph" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :finish)
+
+      focused = Choreo.View.focus(workflow, :process, radius: 1)
+      assert Enum.sort(Workflow.nodes(focused)) == [:begin, :finish, :process]
+    end
+
+    test "filter removes matching nodes on multigraph" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :finish)
+
+      filtered =
+        Choreo.View.filter(workflow, fn _id, data ->
+          data[:node_type] != :task
+        end)
+
+      assert Enum.sort(Workflow.nodes(filtered)) == [:begin, :finish]
+    end
+
+    test "transitive edges add virtual metadata on multigraph" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :finish)
+
+      filtered =
+        Choreo.View.filter(
+          workflow,
+          fn _id, data ->
+            data[:node_type] != :task
+          end,
+          transitive: true
+        )
+
+      assert Enum.sort(Workflow.nodes(filtered)) == [:begin, :finish]
+
+      edges = Workflow.edges_with_meta(filtered)
+      assert length(edges) == 1
+
+      {_from, _to, _weight, meta} = hd(edges)
+      assert meta[:edge_type] == :virtual
+    end
+
+    test "focus_between finds shortest path on multigraph" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_task(:validate)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :validate)
+        |> Workflow.connect(:validate, :finish)
+
+      path = Choreo.View.focus_between(workflow, :begin, :finish)
+      assert Enum.sort(Workflow.nodes(path)) == [:begin, :finish, :process, :validate]
+    end
+
+    test "collapse aggregates nodes on multigraph" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_task(:validate)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:begin, :validate)
+
+      collapsed =
+        Choreo.View.collapse(
+          workflow,
+          fn _id, data ->
+            data[:node_type] == :task
+          end,
+          :tasks
+        )
+
+      assert :tasks in Workflow.nodes(collapsed)
+      assert :begin in Workflow.nodes(collapsed)
+      refute :process in Workflow.nodes(collapsed)
+      refute :validate in Workflow.nodes(collapsed)
+
+      edges = Workflow.edges(collapsed)
+
+      assert {:begin, :tasks, _} =
+               Enum.find(edges, fn {f, t, _} -> f == :begin and t == :tasks end)
+    end
+
+    test "renderer styles virtual edges" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_end(:finish)
+        |> Workflow.connect(:begin, :process)
+        |> Workflow.connect(:process, :finish)
+
+      filtered =
+        Choreo.View.filter(
+          workflow,
+          fn _id, data ->
+            data[:node_type] != :task
+          end,
+          transitive: true
+        )
+
+      dot = Workflow.to_dot(filtered)
+      assert String.contains?(dot, "#cbd5e1")
+    end
+  end
 end

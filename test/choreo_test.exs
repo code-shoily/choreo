@@ -383,4 +383,177 @@ defmodule ChoreoTest do
       assert length(components) == 2
     end
   end
+
+  describe "Choreo.Viewable" do
+    test "zoom level 0 keeps only services" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.add_network(:vpc)
+        |> Choreo.add_user(:client)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:api, :cache)
+
+      zoomed = Choreo.View.zoom(system, level: 0)
+      assert Map.keys(Choreo.nodes(zoomed)) == [:api]
+    end
+
+    test "zoom level 1 keeps services and data layer" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.add_queue(:q)
+        |> Choreo.add_storage(:s3)
+        |> Choreo.add_network(:vpc)
+        |> Choreo.add_user(:client)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:api, :cache)
+
+      zoomed = Choreo.View.zoom(system, level: 1)
+      assert Enum.sort(Map.keys(Choreo.nodes(zoomed))) == [:api, :cache, :db, :q, :s3]
+    end
+
+    test "zoom level 2 adds infrastructure layer" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.add_load_balancer(:lb)
+        |> Choreo.add_network(:vpc)
+        |> Choreo.add_user(:client)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:api, :cache)
+
+      zoomed = Choreo.View.zoom(system, level: 2)
+      assert Enum.sort(Map.keys(Choreo.nodes(zoomed))) == [:api, :cache, :db, :lb, :vpc]
+    end
+
+    test "focus keeps node and neighbourhood on multigraph" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:api, :cache)
+
+      focused = Choreo.View.focus(system, :api, radius: 1)
+      assert Enum.sort(Map.keys(Choreo.nodes(focused))) == [:api, :cache, :db]
+    end
+
+    test "filter removes matching nodes on multigraph" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:api, :cache)
+
+      filtered =
+        Choreo.View.filter(system, fn _id, data ->
+          data[:type] != :database
+        end)
+
+      assert Enum.sort(Map.keys(Choreo.nodes(filtered))) == [:api, :cache]
+    end
+
+    test "transitive edges add virtual metadata on multigraph" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:db, :cache)
+
+      filtered =
+        Choreo.View.filter(
+          system,
+          fn _id, data ->
+            data[:type] != :database
+          end,
+          transitive: true
+        )
+
+      assert Enum.sort(Map.keys(Choreo.nodes(filtered))) == [:api, :cache]
+
+      edges = Choreo.edges_with_meta(filtered)
+      assert length(edges) == 1
+
+      {_from, _to, _weight, meta} = hd(edges)
+      assert meta[:edge_type] == :virtual
+    end
+
+    test "focus_between finds shortest path on multigraph" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.add_storage(:s3)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:db, :cache)
+        |> Choreo.connect(:cache, :s3)
+
+      path = Choreo.View.focus_between(system, :api, :s3)
+      assert Enum.sort(Map.keys(Choreo.nodes(path))) == [:api, :cache, :db, :s3]
+    end
+
+    test "collapse aggregates nodes on multigraph" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:api, :cache)
+
+      collapsed =
+        Choreo.View.collapse(
+          system,
+          fn _id, data ->
+            data[:type] in [:database, :cache]
+          end,
+          :data_layer
+        )
+
+      assert :data_layer in Map.keys(Choreo.nodes(collapsed))
+      assert :api in Map.keys(Choreo.nodes(collapsed))
+      refute :db in Map.keys(Choreo.nodes(collapsed))
+      refute :cache in Map.keys(Choreo.nodes(collapsed))
+
+      edges = Choreo.edges(collapsed)
+
+      assert {:api, :data_layer, _} =
+               Enum.find(edges, fn {f, t, _} -> f == :api and t == :data_layer end)
+    end
+
+    test "renderer styles virtual edges" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:db, :cache)
+
+      filtered =
+        Choreo.View.filter(
+          system,
+          fn _id, data ->
+            data[:type] != :database
+          end,
+          transitive: true
+        )
+
+      dot = Choreo.to_dot(filtered)
+      assert String.contains?(dot, "#cbd5e1")
+    end
+  end
 end
