@@ -292,41 +292,36 @@ defmodule Choreo.Analysis do
   # ============================================================================
 
   @doc """
-    Ranks nodes by centrality — identifying the most critical services.
+  Calculates centrality scores for nodes in the diagram.
 
-    ## Options
+  Centrality identifies the most important or "central" nodes in a graph.
+  Supported measures include:
 
-      * `:measure` — centrality algorithm to use:
+    * `:measure` — one of:
         - `:degree` (default) — simple connectivity count
         - `:betweenness` — bridge/gatekeeper detection
         - `:closeness` — distance-based importance
         - `:pagerank` — link-quality importance (directed graphs)
-      * `:limit` — return only the top N results
-      * `:mode` — for degree centrality: `:in_degree`, `:out_degree`,
-        or `:total_degree` (default)
-      * Semiring options (`:zero`, `:add`, `:compare`, `:to_float`)
-        for betweenness and closeness
+    * `:limit` — return only the top N results
+    * `:mode` — for degree centrality: `:in_degree`, `:out_degree`,
+      or `:total_degree` (default)
+    * Semiring options (`:zero`, `:add`, `:compare`, `:to_float`)
+      for betweenness and closeness
 
-    Returns a list of `{node_id, score}` tuples sorted by score descending.
+  Returns a list of `{node_id, score}` tuples sorted by score descending.
 
-    ## Examples
+  ## Examples
 
-        iex> system =
-        ...>   Choreo.new()
-        ...>   |> Choreo.add_service(:api)
-        ...>   |> Choreo.add_service(:auth)
-        ...>   |> Choreo.add_database(:db)
-        ...>   |> Choreo.connect(:api, :auth)
-        ...>   |> Choreo.connect(:auth, :db)
-        iex> [{top_node, _score} | _rest] = Choreo.Analysis.centrality(system)
-        iex> top_node
-        :auth
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b)
+      iex> [{top, _}] = Choreo.Analysis.centrality(system, limit: 1)
+      iex> top
+      :a
 
-    This analysis answers the question: "Which services are the most critical connectors?"
+  This analysis answers the question: "Which nodes are the most critical connectors?"
   """
-  @spec centrality(Choreo.t(), keyword()) :: [{Yog.node_id(), float()}]
-  def centrality(%Choreo{} = system, opts \\ []) do
-    graph = Choreo.to_simple_graph(system)
+  @spec centrality(struct(), keyword()) :: [{Yog.node_id(), float()}]
+  def centrality(diagram, opts \\ []) do
+    graph = get_simple_graph(diagram)
     measure = Keyword.get(opts, :measure, :degree)
     limit = Keyword.get(opts, :limit, nil)
 
@@ -354,6 +349,88 @@ defmodule Choreo.Analysis do
       |> Enum.sort_by(fn {_id, score} -> -score end)
 
     if limit, do: Enum.take(ranked, limit), else: ranked
+  end
+
+  @doc """
+  Generates a "heat-mapped" version of a diagram by coloring nodes based on
+  their centrality scores.
+
+  ## Options
+
+    * `:measure` — Centrality measure to use (`:degree`, `:betweenness`, etc.)
+    * `:palette` — Color palette (`:heat`, `:cool`, `:spectral`)
+    * All other options are passed to `centrality/2`.
+
+  ## Examples
+
+      # Highlight high-degree services in a system diagram
+      system = Choreo.new() |> ...
+      heat_system = Choreo.Analysis.heatmap(system, palette: :heat)
+
+  This analysis answers the question: "Where are the hotspots in my architecture?"
+  """
+  @spec heatmap(struct(), keyword()) :: struct()
+  def heatmap(diagram, opts \\ []) do
+    palette = Keyword.get(opts, :palette, :heat)
+    scores = Keyword.get(opts, :scores) || centrality(diagram, opts)
+
+    if scores == [] do
+      diagram
+    else
+      # Normalize scores to [0.0, 1.0]
+      values = Enum.map(scores, &elem(&1, 1))
+      min = Enum.min(values)
+      max = Enum.max(values)
+      range = max - min
+
+      heatmapped =
+        Enum.reduce(scores, diagram, fn {id, score}, acc ->
+          norm = if range == 0, do: 1.0, else: (score - min) / range
+          color = Choreo.Theme.color_from_scale(norm, palette)
+
+          update_node_data(acc, id, fn data ->
+            Map.put(data, :fillcolor, color)
+          end)
+        end)
+
+      if Keyword.get(opts, :legend, false) do
+        # We only support legend injection for Choreo structs for now
+        # to avoid type mismatches in other diagram builders.
+        # But we can provide a standalone legend function.
+        heatmapped
+      else
+        heatmapped
+      end
+    end
+  end
+
+  @doc """
+  Returns a standalone Choreo diagram acting as a color legend for a heatmap palette.
+
+  ## Examples
+
+      iex> legend = Choreo.Analysis.legend(:heat)
+      iex> Choreo.to_dot(legend) =~ "Legend"
+  """
+  @spec legend(atom() | [String.t()]) :: Choreo.t()
+  def legend(palette \\ :heat) do
+    Choreo.new()
+    |> Choreo.add_cluster("importance_legend", style: :dashed, label: "Importance Legend")
+    |> Choreo.add_service(:low,
+      name: "Low",
+      cluster: "importance_legend",
+      fillcolor: Choreo.Theme.color_from_scale(0.0, palette)
+    )
+    |> Choreo.add_service(:mid,
+      name: "Medium",
+      cluster: "importance_legend",
+      fillcolor: Choreo.Theme.color_from_scale(0.5, palette)
+    )
+    |> Choreo.add_service(:high,
+      name: "High",
+      cluster: "importance_legend",
+      fillcolor: Choreo.Theme.color_from_scale(1.0, palette)
+    )
   end
 
   # ============================================================================
@@ -474,5 +551,37 @@ defmodule Choreo.Analysis do
       [] -> acc
       edges -> [{:warning, "Bridge edges: #{inspect(edges)}"} | acc]
     end
+  end
+
+  defp get_simple_graph(diagram) do
+    cond do
+      function_exported?(diagram.__struct__, :to_simple_graph, 1) ->
+        diagram.__struct__.to_simple_graph(diagram)
+
+      function_exported?(diagram.__struct__, :to_simple_graph, 2) ->
+        diagram.__struct__.to_simple_graph(diagram, [])
+
+      Map.has_key?(diagram, :graph) and is_struct(diagram.graph, Yog.Graph) ->
+        diagram.graph
+
+      true ->
+        raise ArgumentError, "Diagram type #{inspect(diagram.__struct__)} is not analysis-ready"
+    end
+  end
+
+  defp update_node_data(diagram, id, fun) do
+    new_graph =
+      case diagram.graph do
+        %Yog.Graph{nodes: nodes} = g ->
+          %{g | nodes: Map.put(nodes, id, fun.(nodes[id]))}
+
+        %Yog.Multi.Graph{nodes: nodes} = g ->
+          %{g | nodes: Map.put(nodes, id, fun.(nodes[id]))}
+
+        _ ->
+          diagram.graph
+      end
+
+    %{diagram | graph: new_graph}
   end
 end

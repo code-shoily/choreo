@@ -686,4 +686,37 @@ defmodule Choreo.ThreatModel.Analysis do
       [{:warning, "Data stores without sensitivity: #{inspect(unclassified)}"} | acc]
     end
   end
+
+  @doc """
+  Generates a heatmap of the threat model based on threat density.
+
+  Nodes with more threats will be colored with "hotter" colors from the
+  selected palette.
+
+  ## Options
+    * `:palette` — Color palette (`:heat`, `:cool`, `:spectral`)
+    * All other options are passed to `stride_threats/2`.
+  """
+  @spec heatmap(ThreatModel.t(), keyword()) :: ThreatModel.t()
+  def heatmap(%ThreatModel{} = model, opts \\ []) do
+    threats = stride_threats(model, opts)
+
+    scores =
+      threats
+      |> Enum.reject(&is_tuple(&1.target))
+      |> Enum.group_by(& &1.target)
+      |> Enum.map(fn {id, ts} -> {id, length(ts)} end)
+
+    # Fill in zeros for nodes with no threats
+    node_ids = Map.keys(model.graph.nodes)
+    zero_scores = Enum.map(node_ids, fn id -> {id, 0} end)
+
+    final_scores =
+      zero_scores
+      |> Map.new()
+      |> Map.merge(Map.new(scores))
+      |> Map.to_list()
+
+    Choreo.Analysis.heatmap(model, Keyword.put(opts, :scores, final_scores))
+  end
 end

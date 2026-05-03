@@ -138,9 +138,9 @@ defmodule Choreo do
       doc: "Display label for the cluster."
     ],
     style: [
-      type: :string,
+      type: {:or, [:string, :atom]},
       required: false,
-      doc: "Visual style (e.g. `\"filled\"`, `\"rounded\"`)."
+      doc: "Visual style (e.g. :filled, :rounded)."
     ],
     fillcolor: [
       type: :string,

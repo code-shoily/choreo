@@ -69,6 +69,30 @@ defmodule Choreo.Theme do
           cluster_color: String.t() | nil
         }
 
+  @heat_scale [
+    "#ffffcc",
+    "#ffeda0",
+    "#fed976",
+    "#feb24c",
+    "#fd8d3c",
+    "#fc4e2a",
+    "#e31a1c",
+    "#bd0026",
+    "#800026"
+  ]
+  @cool_scale [
+    "#f7fbff",
+    "#deebf7",
+    "#c6dbef",
+    "#9ecae1",
+    "#6baed6",
+    "#4292c6",
+    "#2171b5",
+    "#08519c",
+    "#08306b"
+  ]
+  @spectral_scale ["#2b83ba", "#abdda4", "#ffffbf", "#fdae61", "#d7191c"]
+
   @default_shapes %{
     database: :cylinder,
     cache: :octagon,
@@ -183,6 +207,34 @@ defmodule Choreo.Theme do
     struct!(theme, opts_without_maps)
     |> Map.put(:colors, new_colors)
     |> Map.put(:shapes, new_shapes)
+  end
+
+  @doc """
+  Returns a hex color from a predefined scale based on a normalized value (0.0 to 1.0).
+
+  ## Palettes
+  - `:heat` — Yellow to Red (9 steps)
+  - `:cool` — Light Blue to Dark Blue (9 steps)
+  - `:spectral` — Blue-Yellow-Red (5 steps)
+  """
+  @spec color_from_scale(float(), atom() | [String.t()]) :: String.t()
+  def color_from_scale(normalized, palette) when is_atom(palette) do
+    scale =
+      case palette do
+        :heat -> @heat_scale
+        :cool -> @cool_scale
+        :spectral -> @spectral_scale
+        _ -> @heat_scale
+      end
+
+    color_from_scale(normalized, scale)
+  end
+
+  def color_from_scale(normalized, scale) when is_list(scale) do
+    # Clamp to [0, 1]
+    n = max(0.0, min(1.0, normalized))
+    index = round(n * (length(scale) - 1))
+    Enum.at(scale, index)
   end
 
   @doc """

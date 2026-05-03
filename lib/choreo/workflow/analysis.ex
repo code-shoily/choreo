@@ -610,4 +610,24 @@ defmodule Choreo.Workflow.Analysis do
       [{:warning, "Unreachable compensation nodes: #{inspect(unreachable)}"} | acc]
     end
   end
+
+  @doc """
+  Generates a heatmap of the workflow based on cumulative execution latency.
+
+  Nodes with higher total latency (including retries and backoffs) will be
+  colored with "hotter" colors.
+
+  ## Options
+    * `:palette` — Color palette (`:heat`, `:cool`, `:spectral`)
+  """
+  @spec heatmap(Workflow.t(), keyword()) :: Workflow.t()
+  def heatmap(%Workflow{} = workflow, opts \\ []) do
+    simulation = simulate(workflow)
+
+    scores =
+      simulation
+      |> Enum.map(fn {id, stats} -> {id, stats.cumulative_latency} end)
+
+    Choreo.Analysis.heatmap(workflow, Keyword.put(opts, :scores, scores))
+  end
 end

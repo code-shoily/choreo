@@ -562,6 +562,25 @@ defmodule Choreo.Dataflow.Analysis do
     end
   end
 
+  @doc """
+  Generates a heatmap of the dataflow based on throughput (inbound rate).
+
+  Nodes with higher incoming data rates will be colored with "hotter" colors.
+
+  ## Options
+    * `:palette` — Color palette (`:heat`, `:cool`, `:spectral`)
+  """
+  @spec heatmap(Dataflow.t(), keyword()) :: Dataflow.t()
+  def heatmap(%Dataflow{} = flow, opts \\ []) do
+    simulation = simulate(flow)
+
+    scores =
+      simulation
+      |> Enum.map(fn {id, stats} -> {id, stats.in_rate} end)
+
+    Choreo.Analysis.heatmap(flow, Keyword.put(opts, :scores, scores))
+  end
+
   defp check_orphans(acc, flow) do
     case orphan_nodes(flow) do
       [] -> acc
