@@ -1,0 +1,149 @@
+# Choreo: Advanced Architectural Analysis
+
+```elixir
+Mix.install([
+  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
+  {:kino_vizjs, "~> 0.8.0"}
+])
+```
+
+## Section
+
+> **Deeper Insights:** Beyond simple visualization, Choreo provides structural metrics to identify single points of failure, coupled nuclei, and performance hotspots.
+
+---
+
+## 1. Single Point of Failure (SPOF) Detection
+
+An **Articulation Point** (or Cut Vertex) is a node that, if removed, would split the graph into two or more disconnected components. In a microservice architecture, these are your most critical nodes.
+
+```elixir
+alias Choreo
+alias Choreo.Analysis
+
+system =
+  Choreo.new()
+  |> Choreo.add_service(:a, name: "Svc A")
+  |> Choreo.add_service(:b, name: "Critical Hub")
+  |> Choreo.add_service(:c, name: "Svc C")
+  |> Choreo.add_service(:d, name: "Svc D")
+  |> Choreo.connect(:a, :b)
+  |> Choreo.connect(:b, :c)
+  |> Choreo.connect(:b, :d)
+
+# Highlight SPOFs in Red
+spof_system = Analysis.heatmap(system, measure: :spof, palette: :heat)
+
+Kino.Layout.grid([
+  Kino.VizJS.render(Choreo.to_dot(spof_system)),
+  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+], columns: 2)
+```
+
+---
+
+## 2. Nucleus Detection (K-Core)
+
+**K-Core Decomposition** identifies nested layers of connectivity. Higher "Core Numbers" represent nodes that are part of a tightly-coupled nucleus.
+
+```elixir
+# A more complex mesh
+mesh = Choreo.new()
+  |> Choreo.add_service(:n1) |> Choreo.add_service(:n2) |> Choreo.add_service(:n3)
+  |> Choreo.add_service(:n4) |> Choreo.add_service(:n5) |> Choreo.add_service(:n6)
+  # The 3-core "Nucleus"
+  |> Choreo.connect(:n1, :n2) |> Choreo.connect(:n2, :n3) |> Choreo.connect(:n3, :n1)
+  |> Choreo.connect(:n1, :n4) |> Choreo.connect(:n2, :n4) |> Choreo.connect(:n3, :n4)
+  # Peripheral nodes
+  |> Choreo.add_service(:p1) |> Choreo.connect(:n4, :p1)
+
+# Visualize the "Core"
+# The nucleus (n1, n2, n3, n4) will be red/orange, peripheral p1 will be pale yellow.
+core_system = Analysis.heatmap(mesh, measure: :k_core, palette: :cool)
+
+Kino.Layout.grid([
+  Kino.VizJS.render(Choreo.to_dot(core_system)),
+  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :cool)))
+], columns: 2)
+```
+
+---
+
+## 3. Workflow Latency Hotspots
+
+Workflow heatmaps highlight tasks based on their cumulative latency (including retries).
+
+```elixir
+alias Choreo.Workflow
+alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
+
+wf = Workflow.new()
+  |> Workflow.add_start(:start)
+  |> Workflow.add_task(:fast, timeout_ms: 100)
+  |> Workflow.add_task(:slow, timeout_ms: 5000)
+  |> Workflow.add_end(:done)
+  |> Workflow.connect(:start, :fast)
+  |> Workflow.connect(:fast, :slow)
+  |> Workflow.connect(:slow, :done)
+
+# Highlight slow tasks
+heat_wf = WorkflowAnalysis.heatmap(wf, palette: :spectral)
+
+Kino.Layout.grid([
+  Kino.VizJS.render(Workflow.to_dot(heat_wf)),
+  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :spectral)))
+], columns: 2)
+```
+
+---
+
+## 4. Dataflow Throughput Hotspots
+
+Dataflow heatmaps visualize volume by coloring stages based on their inbound event rate.
+
+```elixir
+alias Choreo.Dataflow
+alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
+
+pipeline = Dataflow.new()
+  |> Dataflow.add_source(:sensor, rate: 1000)
+  |> Dataflow.add_transform(:parser, latency_ms: 10)
+  |> Dataflow.add_sink(:db)
+  |> Dataflow.connect(:sensor, :parser)
+  |> Dataflow.connect(:parser, :db)
+
+# Highlight high-volume stages
+heat_df = DataflowAnalysis.heatmap(pipeline, palette: :heat)
+
+Kino.Layout.grid([
+  Kino.VizJS.render(Dataflow.to_dot(heat_df)),
+  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+], columns: 2)
+```
+
+---
+
+## 5. ThreatModel Risk Hotspots
+
+ThreatModel heatmaps identify security "Hotspots" by node threat density.
+
+```elixir
+alias Choreo.ThreatModel
+alias Choreo.ThreatModel.Analysis, as: ThreatAnalysis
+
+model = ThreatModel.new()
+  |> ThreatModel.add_trust_boundary("internet", level: 0)
+  |> ThreatModel.add_external_entity(:user, boundary: "internet")
+  |> ThreatModel.add_process(:api, boundary: "app")
+  |> ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :confidential)
+  |> ThreatModel.data_flow(:user, :api)
+  |> ThreatModel.data_flow(:api, :db)
+
+# Highlight security hotspots
+heat_tm = ThreatAnalysis.heatmap(model, palette: :heat)
+
+Kino.Layout.grid([
+  Kino.VizJS.render(ThreatModel.to_dot(heat_tm)),
+  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+], columns: 2)
+```

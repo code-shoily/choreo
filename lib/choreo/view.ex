@@ -339,48 +339,71 @@ defmodule Choreo.View do
     end
   end
 
-  defp graph_successor_ids(graph, id), do: Yog.successor_ids(graph, id)
+  defp graph_successor_ids(graph, id) do
+    if is_struct(graph, Yog.Multi.Graph) do
+      case Map.get(graph.out_edge_ids, id) do
+        nil ->
+          []
 
-  defp graph_predecessor_ids(%Yog.Multi.Graph{} = graph, id) do
-    case Map.fetch(graph.in_edge_ids, id) do
-      {:ok, edge_ids} ->
-        Enum.map(edge_ids, fn eid ->
-          {src, _, _} = Map.fetch!(graph.edges, eid)
-          src
-        end)
-        |> Enum.uniq()
-
-      :error ->
-        []
+        edge_ids ->
+          Enum.map(edge_ids, fn eid ->
+            {_, dest, _} = Map.get(graph.edges, eid)
+            dest
+          end)
+          |> Enum.uniq()
+      end
+    else
+      # credo:disable-for-next-line
+      apply(Yog, :successor_ids, [graph, id])
     end
   end
 
   defp graph_predecessor_ids(graph, id) do
-    graph
-    |> Yog.predecessors(id)
-    |> Enum.map(fn {node_id, _data} -> node_id end)
-  end
+    if is_struct(graph, Yog.Multi.Graph) do
+      case Map.get(graph.in_edge_ids, id) do
+        nil ->
+          []
 
-  defp graph_all_edges(%Yog.Multi.Graph{edges: edges}) do
-    Map.values(edges)
-  end
-
-  defp graph_all_edges(graph), do: Yog.all_edges(graph)
-
-  defp graph_has_edge?(%Yog.Multi.Graph{} = graph, from, to) do
-    case Map.get(graph.out_edge_ids, from) do
-      nil ->
-        false
-
-      edge_ids ->
-        Enum.any?(edge_ids, fn eid ->
-          {f, t, _} = Map.get(graph.edges, eid)
-          f == from and t == to
-        end)
+        edge_ids ->
+          Enum.map(edge_ids, fn eid ->
+            {src, _, _} = Map.get(graph.edges, eid)
+            src
+          end)
+          |> Enum.uniq()
+      end
+    else
+      # credo:disable-for-next-line
+      apply(Yog, :predecessors, [graph, id])
+      |> Enum.map(fn {node_id, _data} -> node_id end)
     end
   end
 
-  defp graph_has_edge?(graph, from, to), do: Yog.has_edge?(graph, from, to)
+  defp graph_all_edges(graph) do
+    if is_struct(graph, Yog.Multi.Graph) do
+      Map.values(graph.edges)
+    else
+      # credo:disable-for-next-line
+      apply(Yog, :all_edges, [graph])
+    end
+  end
+
+  defp graph_has_edge?(graph, from, to) do
+    if is_struct(graph, Yog.Multi.Graph) do
+      case Map.get(graph.out_edge_ids, from) do
+        nil ->
+          false
+
+        edge_ids ->
+          Enum.any?(edge_ids, fn eid ->
+            {f, t, _} = Map.get(graph.edges, eid)
+            f == from and t == to
+          end)
+      end
+    else
+      # credo:disable-for-next-line
+      apply(Yog, :has_edge?, [graph, from, to])
+    end
+  end
 
   defp graph_add_node(%Yog.Multi.Graph{} = graph, id, data),
     do: Yog.Multi.add_node(graph, id, data)

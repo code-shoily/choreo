@@ -302,6 +302,8 @@ defmodule Choreo.Analysis do
         - `:betweenness` — bridge/gatekeeper detection
         - `:closeness` — distance-based importance
         - `:pagerank` — link-quality importance (directed graphs)
+        - `:spof` — single point of failure (cut vertex) detection
+        - `:k_core` — nucleus/cluster density analysis
     * `:limit` — return only the top N results
     * `:mode` — for degree centrality: `:in_degree`, `:out_degree`,
       or `:total_degree` (default)
@@ -312,10 +314,11 @@ defmodule Choreo.Analysis do
 
   ## Examples
 
-      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b)
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.add_service(:c)
+      iex> system = system |> Choreo.connect(:a, :b) |> Choreo.connect(:c, :b)
       iex> [{top, _}] = Choreo.Analysis.centrality(system, limit: 1)
       iex> top
-      :a
+      :b
 
   This analysis answers the question: "Which nodes are the most critical connectors?"
   """
@@ -372,7 +375,27 @@ defmodule Choreo.Analysis do
   @spec heatmap(struct(), keyword()) :: struct()
   def heatmap(diagram, opts \\ []) do
     palette = Keyword.get(opts, :palette, :heat)
-    scores = Keyword.get(opts, :scores) || centrality(diagram, opts)
+    graph = get_simple_graph(diagram)
+    node_ids = Map.keys(graph.nodes)
+
+    scores =
+      case Keyword.get(opts, :scores) do
+        nil ->
+          case Keyword.get(opts, :measure, :degree) do
+            :spof ->
+              cuts = cut_vertices(diagram)
+              Enum.map(node_ids, fn id -> {id, if(id in cuts, do: 1.0, else: 0.0)} end)
+
+            :k_core ->
+              core_numbers(diagram) |> Map.to_list()
+
+            _ ->
+              centrality(diagram, opts)
+          end
+
+        scores ->
+          scores
+      end
 
     if scores == [] do
       diagram
@@ -383,24 +406,14 @@ defmodule Choreo.Analysis do
       max = Enum.max(values)
       range = max - min
 
-      heatmapped =
-        Enum.reduce(scores, diagram, fn {id, score}, acc ->
-          norm = if range == 0, do: 1.0, else: (score - min) / range
-          color = Choreo.Theme.color_from_scale(norm, palette)
+      Enum.reduce(scores, diagram, fn {id, score}, acc ->
+        norm = if range == 0, do: 1.0, else: (score - min) / range
+        color = Choreo.Theme.color_from_scale(norm, palette)
 
-          update_node_data(acc, id, fn data ->
-            Map.put(data, :fillcolor, color)
-          end)
+        update_node_data(acc, id, fn data ->
+          Map.put(data, :fillcolor, color)
         end)
-
-      if Keyword.get(opts, :legend, false) do
-        # We only support legend injection for Choreo structs for now
-        # to avoid type mismatches in other diagram builders.
-        # But we can provide a standalone legend function.
-        heatmapped
-      else
-        heatmapped
-      end
+      end)
     end
   end
 
@@ -412,8 +425,13 @@ defmodule Choreo.Analysis do
       iex> legend = Choreo.Analysis.legend(:heat)
       iex> Choreo.to_dot(legend) =~ "Legend"
   """
-  @spec legend(atom() | [String.t()]) :: Choreo.t()
-  def legend(palette \\ :heat) do
+  def legend(opts_or_palette \\ :heat) do
+    palette =
+      case opts_or_palette do
+        p when is_atom(p) -> p
+        p when is_list(p) -> Keyword.get(p, :palette, :heat)
+      end
+
     Choreo.new()
     |> Choreo.add_cluster("importance_legend", style: :dashed, label: "Importance Legend")
     |> Choreo.add_service(:low,
@@ -431,6 +449,56 @@ defmodule Choreo.Analysis do
       cluster: "importance_legend",
       fillcolor: Choreo.Theme.color_from_scale(1.0, palette)
     )
+  end
+
+  @doc """
+  Finds articulation points (cut vertices) in the diagram.
+
+  An articulation point is a node whose removal increases the number of
+  connected components in the graph. In architectural terms, these are
+  Single Points of Failure (SPOFs).
+
+  Returns a list of node IDs.
+
+  ## Examples
+
+      iex> system = Choreo.new()
+      iex> system = system |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.add_service(:c)
+      iex> system = system |> Choreo.connect(:a, :b) |> Choreo.connect(:b, :c)
+      iex> Choreo.Analysis.cut_vertices(system)
+      [:b]
+  """
+  @spec cut_vertices(struct()) :: [Yog.node_id()]
+  def cut_vertices(diagram) do
+    graph = get_simple_graph(diagram)
+    # Articulation points are defined on the underlying undirected graph
+    undirected = Yog.Transform.to_undirected(graph, fn a, _b -> a end)
+    initial_components = length(Yog.Connectivity.Components.connected_components(undirected))
+
+    nodes = Map.keys(undirected.nodes)
+
+    Enum.filter(nodes, fn id ->
+      subgraph =
+        Yog.Transform.filter_nodes_indexed(undirected, fn node_id, _data -> node_id != id end)
+
+      length(Yog.Connectivity.Components.connected_components(subgraph)) > initial_components
+    end)
+  end
+
+  @doc """
+  Calculates the core number for each node in the diagram.
+
+  The core number of a node is the largest value `k` such that the node
+  belongs to a maximal subgraph where every node has degree at least `k`.
+
+  Returns a map of `node_id => core_number`.
+  """
+  @spec core_numbers(struct()) :: %{Yog.node_id() => integer()}
+  def core_numbers(diagram) do
+    graph = get_simple_graph(diagram)
+    # K-Core decomposition works best on undirected graphs for architecture
+    undirected = Yog.Transform.to_undirected(graph, fn a, _b -> a end)
+    Yog.Connectivity.KCore.core_numbers(undirected)
   end
 
   # ============================================================================
@@ -573,10 +641,10 @@ defmodule Choreo.Analysis do
     new_graph =
       case diagram.graph do
         %Yog.Graph{nodes: nodes} = g ->
-          %{g | nodes: Map.put(nodes, id, fun.(nodes[id]))}
+          %{g | nodes: Map.put(nodes, id, fun.(nodes[id] || %{}))}
 
         %Yog.Multi.Graph{nodes: nodes} = g ->
-          %{g | nodes: Map.put(nodes, id, fun.(nodes[id]))}
+          %{g | nodes: Map.put(nodes, id, fun.(nodes[id] || %{}))}
 
         _ ->
           diagram.graph

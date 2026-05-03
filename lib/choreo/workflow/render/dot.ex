@@ -243,8 +243,8 @@ defmodule Choreo.Workflow.Render.DOT do
   end
 
   defp theme_graph_overrides(%Theme{} = theme) do
-    base = if theme.graph_rankdir, do: %{rankdir: theme.graph_rankdir}, else: %{}
-    if theme.graph_bgcolor, do: Map.put(base, :bgcolor, theme.graph_bgcolor), else: base
+    base = if theme.graph_rankdir != nil, do: %{rankdir: theme.graph_rankdir}, else: %{}
+    if theme.graph_bgcolor != nil, do: Map.put(base, :bgcolor, theme.graph_bgcolor), else: base
   end
 
   # ============================================================================
