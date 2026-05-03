@@ -490,6 +490,8 @@ defmodule Choreo.ThreatModel.Analysis do
         []
       end
 
+    base = if privilege == :none, do: Enum.map(base, &lower_severity/1), else: base
+
     base ++ elevation
   end
 

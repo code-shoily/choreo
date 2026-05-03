@@ -161,7 +161,7 @@ defmodule Choreo.ThreatModel do
 
   @add_process_schema [
                         privilege: [
-                          type: {:in, [:user, :admin, :system]},
+                          type: {:in, [:none, :user, :admin, :system]},
                           required: false
                         ]
                       ] ++ @node_schema
