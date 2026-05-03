@@ -386,5 +386,39 @@ defmodule Choreo.ViewTest do
 
       assert filtered.edge_meta[{:a, :c}].edge_type == :virtual
     end
+
+    test "transitive zoom on Workflow" do
+      wf =
+        Choreo.Workflow.new()
+        |> Choreo.Workflow.add_start(:s)
+        |> Choreo.Workflow.add_task(:t)
+        |> Choreo.Workflow.add_end(:e)
+        |> Choreo.Workflow.connect(:s, :t)
+        |> Choreo.Workflow.connect(:t, :e)
+
+      zoomed = View.zoom(wf, level: 0, transitive: true)
+      nodes = Choreo.Workflow.nodes(zoomed)
+      assert :s in nodes
+      assert :e in nodes
+
+      flows = Map.values(zoomed.graph.edges)
+      assert Enum.any?(flows, fn {f, t, _} -> f == :s and t == :e end)
+    end
+
+    test "transitive zoom on ThreatModel" do
+      tm =
+        Choreo.ThreatModel.new()
+        |> Choreo.ThreatModel.add_external_entity(:u1)
+        |> Choreo.ThreatModel.add_process(:p)
+        |> Choreo.ThreatModel.add_external_entity(:u2)
+        |> Choreo.ThreatModel.data_flow(:u1, :p)
+        |> Choreo.ThreatModel.data_flow(:p, :u2)
+
+      zoomed = View.zoom(tm, level: 0, transitive: true)
+      elements = Choreo.ThreatModel.elements(zoomed)
+      assert :u1 in elements
+      assert :u2 in elements
+      assert length(Choreo.ThreatModel.flows(zoomed)) == 1
+    end
   end
 end

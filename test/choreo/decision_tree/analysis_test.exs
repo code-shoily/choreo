@@ -243,19 +243,6 @@ defmodule Choreo.DecisionTree.AnalysisTest do
       assert {:error, "Decision node :b has no branches"} in issues
     end
 
-    test "flags outcome with branches" do
-      tree =
-        DecisionTree.new()
-        |> DecisionTree.set_root(:a, feature: "a")
-        |> DecisionTree.add_outcome(:x)
-        |> DecisionTree.add_outcome(:y)
-        |> DecisionTree.branch(:a, :x, "1")
-        |> DecisionTree.branch(:x, :y, "2")
-
-      issues = Analysis.validate(tree)
-      assert {:error, "Outcome node :x has outgoing branches"} in issues
-    end
-
     test "flags duplicate conditions" do
       tree =
         DecisionTree.new()

@@ -351,6 +351,9 @@ defmodule Choreo.DecisionTree do
       has_parent?(tree, child) ->
         raise ArgumentError, "Node #{inspect(child)} already has a parent"
 
+      Yog.node(tree.graph, parent).node_type == :outcome ->
+        raise ArgumentError, "Decision trees do not allow outcomes to have children"
+
       would_create_cycle?(tree, parent, child) ->
         raise ArgumentError, "Branch would create a cycle"
 

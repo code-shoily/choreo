@@ -49,6 +49,23 @@ defmodule Choreo.ThreatModel.AnalysisTest do
       assert Enum.any?(api_threats, &(&1.category == :information_disclosure))
     end
 
+    test "downgrades STRIDE threat severity for unprivileged processes" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_process(:admin_api, boundary: "app", privilege: :admin)
+        |> ThreatModel.add_process(:public_api, boundary: "app", privilege: :none)
+
+      threats = Analysis.stride_threats(model)
+
+      admin_spoofing = Enum.find(threats, &(&1.target == :admin_api and &1.category == :spoofing))
+      none_spoofing = Enum.find(threats, &(&1.target == :public_api and &1.category == :spoofing))
+
+      # :none privilege should lower the severity compared to :admin
+      assert admin_spoofing.severity == :medium
+      assert none_spoofing.severity == :low
+    end
+
     test "generates threats for data store" do
       threats = Analysis.stride_threats(simple_model())
 

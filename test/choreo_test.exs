@@ -304,6 +304,34 @@ defmodule ChoreoTest do
       assert Choreo.to_dot(system, theme: :forest) =~ "db"
       assert Choreo.to_dot(system, theme: :ocean) =~ "db"
     end
+
+    test "Choreo.Theme.override/2 deep merges colors and shapes" do
+      base = Choreo.Theme.default()
+
+      overridden =
+        Choreo.Theme.override(base,
+          graph_rankdir: :lr,
+          colors: %{database: "#ffffff"},
+          shapes: %{api: :ellipse}
+        )
+
+      assert overridden.graph_rankdir == :lr
+      # Existing colors should remain (use helper)
+      assert Choreo.Theme.color(overridden, :cache) == Choreo.Theme.color(base, :cache)
+      # Provided color should be overridden
+      assert Choreo.Theme.color(overridden, :database) == "#ffffff"
+      # Shapes should be overridden
+      assert Choreo.Theme.shape(overridden, :api) == :ellipse
+    end
+
+    test "Choreo.theme/2 helper returns overridden theme" do
+      theme = Choreo.theme(:dark, graph_rankdir: :td, colors: %{database: "#123456"})
+
+      assert theme.graph_rankdir == :td
+      assert Choreo.Theme.color(theme, :database) == "#123456"
+      # Inherits from dark theme
+      assert theme.graph_bgcolor == "#0f172a"
+    end
   end
 
   describe "analysis" do
