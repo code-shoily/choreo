@@ -830,6 +830,20 @@ defmodule Choreo do
   end
 
   @doc """
+  Returns a theme for `Choreo` infrastructure diagrams.
+
+  ## Examples
+
+      iex> theme = Choreo.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Render.DOT.theme(name, overrides)
+  end
+
+  @doc """
   Returns all cluster definitions in the system.
 
   ## Examples

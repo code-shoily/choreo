@@ -712,6 +712,20 @@ defmodule Choreo.Dataflow do
     Choreo.Dataflow.Render.DOT.to_dot(flow, opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.Dataflow`.
+
+  ## Examples
+
+      iex> theme = Choreo.Dataflow.theme(:default, graph_rankdir: :td)
+      iex> theme.graph_rankdir
+      :td
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Dataflow.Render.DOT.theme(name, overrides)
+  end
+
   # ============================================================================
   # Private helpers
   # ============================================================================

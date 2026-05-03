@@ -65,6 +65,11 @@ defmodule Choreo.Render.DOT do
   # Theme resolution
   # ============================================================================
 
+  @doc false
+  def theme(name \\ :default, overrides \\ []) do
+    resolve_theme(name) |> Choreo.Theme.override(overrides)
+  end
+
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: Theme.default()
   defp resolve_theme(:dark), do: Theme.dark()
