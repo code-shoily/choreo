@@ -660,6 +660,20 @@ defmodule Choreo.Dependency do
     Choreo.Dependency.Render.DOT.to_dot(deps, opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.Dependency`.
+
+  ## Examples
+
+      iex> theme = Choreo.Dependency.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Dependency.Render.DOT.theme(name, overrides)
+  end
+
   # ============================================================================
   # Private helpers
   # ============================================================================

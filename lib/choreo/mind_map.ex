@@ -562,6 +562,20 @@ defmodule Choreo.MindMap do
     Choreo.MindMap.Render.DOT.to_dot(map, opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.MindMap`.
+
+  ## Examples
+
+      iex> theme = Choreo.MindMap.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.MindMap.Render.DOT.theme(name, overrides)
+  end
+
   # ============================================================================
   # Private helpers
   # ============================================================================

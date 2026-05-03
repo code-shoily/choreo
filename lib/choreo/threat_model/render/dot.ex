@@ -80,6 +80,11 @@ defmodule Choreo.ThreatModel.Render.DOT do
   # Theme helpers
   # ============================================================================
 
+  @doc false
+  def theme(name \\ :default, overrides \\ []) do
+    resolve_theme(name) |> Choreo.Theme.override(overrides)
+  end
+
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_threat_theme()
   defp resolve_theme(:dark), do: dark_threat_theme()
@@ -202,8 +207,10 @@ defmodule Choreo.ThreatModel.Render.DOT do
     Map.get(colors, key, "#64748b")
   end
 
-  defp theme_graph_overrides(%Theme{graph_bgcolor: nil}), do: %{}
-  defp theme_graph_overrides(%Theme{graph_bgcolor: bg}), do: %{bgcolor: bg}
+  defp theme_graph_overrides(%Theme{} = theme) do
+    base = if theme.graph_rankdir, do: %{rankdir: theme.graph_rankdir}, else: %{}
+    if theme.graph_bgcolor, do: Map.put(base, :bgcolor, theme.graph_bgcolor), else: base
+  end
 
   # ============================================================================
   # Node styling

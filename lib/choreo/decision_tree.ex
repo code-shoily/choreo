@@ -534,6 +534,20 @@ defmodule Choreo.DecisionTree do
     Choreo.DecisionTree.Render.DOT.to_dot(tree, opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.DecisionTree`.
+
+  ## Examples
+
+      iex> theme = Choreo.DecisionTree.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.DecisionTree.Render.DOT.theme(name, overrides)
+  end
+
   # ============================================================================
   # Private helpers
   # ============================================================================

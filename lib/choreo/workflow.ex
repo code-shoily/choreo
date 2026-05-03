@@ -101,6 +101,10 @@ defmodule Choreo.Workflow do
     label: [
       type: :string,
       required: false
+    ],
+    fillcolor: [
+      type: :string,
+      required: false
     ]
   ]
 
@@ -114,7 +118,7 @@ defmodule Choreo.Workflow do
       required: false
     ],
     swimlane: [
-      type: :string,
+      type: {:or, [:string, :atom]},
       required: false
     ],
     shape: [
@@ -187,7 +191,7 @@ defmodule Choreo.Workflow do
       required: false
     ],
     swimlane: [
-      type: :string,
+      type: {:or, [:string, :atom]},
       required: false
     ],
     shape: [
@@ -222,7 +226,7 @@ defmodule Choreo.Workflow do
       required: false
     ],
     swimlane: [
-      type: :string,
+      type: {:or, [:string, :atom]},
       required: false
     ],
     shape: [
@@ -630,6 +634,20 @@ defmodule Choreo.Workflow do
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = workflow, opts \\ []) do
     Choreo.Workflow.Render.DOT.to_dot(workflow, opts)
+  end
+
+  @doc """
+  Returns a theme for `Choreo.Workflow`.
+
+  ## Examples
+
+      iex> theme = Choreo.Workflow.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Workflow.Render.DOT.theme(name, overrides)
   end
 
   # ============================================================================

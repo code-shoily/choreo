@@ -57,9 +57,18 @@ defmodule Choreo.ThreatModelTest do
       end
     end
 
+    test "add_data_store/3 with retention" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_data_store(:db, label: "Logs", retention: "90d")
+
+      assert :db in ThreatModel.elements(model)
+      assert Map.get(model.graph.nodes, :db).retention == "90d"
+    end
+
     test "raises on arbitrary options in data store" do
       assert_raise NimbleOptions.ValidationError, fn ->
-        ThreatModel.new() |> ThreatModel.add_data_store(:db, retention: "90d")
+        ThreatModel.new() |> ThreatModel.add_data_store(:db, fake_option: true)
       end
     end
 

@@ -618,6 +618,20 @@ defmodule Choreo.FSM do
   def to_dot(%__MODULE__{} = fsm, opts \\ []) do
     Choreo.FSM.Render.DOT.to_dot(fsm, opts)
   end
+
+  @doc """
+  Returns a theme for `Choreo.FSM`.
+
+  ## Examples
+
+      iex> theme = Choreo.FSM.theme(:default, graph_rankdir: :tb)
+      iex> theme.graph_rankdir
+      :tb
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.FSM.Render.DOT.theme(name, overrides)
+  end
 end
 
 defimpl Choreo.DOT, for: Choreo.FSM do

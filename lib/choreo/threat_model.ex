@@ -170,6 +170,10 @@ defmodule Choreo.ThreatModel do
                            sensitivity: [
                              type: {:in, [:public, :internal, :confidential, :restricted]},
                              required: false
+                           ],
+                           retention: [
+                             type: {:or, [:integer, :string]},
+                             required: false
                            ]
                          ] ++ @node_schema
 
@@ -632,6 +636,20 @@ defmodule Choreo.ThreatModel do
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = model, opts \\ []) do
     Choreo.ThreatModel.Render.DOT.to_dot(model, opts)
+  end
+
+  @doc """
+  Returns a theme for `Choreo.ThreatModel`.
+
+  ## Examples
+
+      iex> theme = Choreo.ThreatModel.theme(:default, graph_rankdir: :tb)
+      iex> theme.graph_rankdir
+      :tb
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.ThreatModel.Render.DOT.theme(name, overrides)
   end
 
   # ============================================================================

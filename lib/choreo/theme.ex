@@ -104,7 +104,7 @@ defmodule Choreo.Theme do
     edge_fontname: "Helvetica",
     edge_fontsize: 10,
     edge_penwidth: 1.0,
-    graph_rankdir: :tb,
+    graph_rankdir: nil,
     graph_splines: :spline,
     graph_bgcolor: nil,
     graph_nodesep: 0.6,
@@ -162,6 +162,30 @@ defmodule Choreo.Theme do
   end
 
   @doc """
+  Overrides specific fields in a theme, including deep-merging colors and shapes.
+
+  ## Examples
+
+      iex> theme = Choreo.Theme.default() |> Choreo.Theme.override(graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec override(t(), keyword()) :: t()
+  def override(%Theme{} = theme, opts) do
+    colors = Keyword.get(opts, :colors, %{})
+    shapes = Keyword.get(opts, :shapes, %{})
+
+    new_colors = Map.merge(theme.colors, Map.new(colors))
+    new_shapes = Map.merge(theme.shapes, Map.new(shapes))
+
+    opts_without_maps = Keyword.drop(opts, [:colors, :shapes])
+
+    struct!(theme, opts_without_maps)
+    |> Map.put(:colors, new_colors)
+    |> Map.put(:shapes, new_shapes)
+  end
+
+  @doc """
   The default theme — type-coloured nodes, top-down layout.
 
   ## Examples
@@ -170,7 +194,7 @@ defmodule Choreo.Theme do
       iex> theme.name
       :default
       iex> theme.graph_rankdir
-      :tb
+      nil
   """
   @spec default() :: t()
   def default, do: struct!(__MODULE__, name: :default)
