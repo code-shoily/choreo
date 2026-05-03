@@ -375,6 +375,10 @@ defmodule Choreo.Dataflow.Render.DOT do
     end
   end
 
+  defp path_type_attrs(:virtual) do
+    [{:color, "#cbd5e1"}, {:penwidth, 0.8}, {:style, "dashed"}]
+  end
+
   defp path_type_attrs(:error) do
     [{:color, "#ef4444"}, {:penwidth, 1.5}, {:style, "dashed"}]
   end

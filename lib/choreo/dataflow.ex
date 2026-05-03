@@ -740,3 +740,39 @@ end
 defimpl Choreo.DOT, for: Choreo.Dataflow do
   def to_dot(flow, opts), do: Choreo.Dataflow.Render.DOT.to_dot(flow, opts)
 end
+
+defimpl Choreo.Viewable, for: Choreo.Dataflow do
+  def rebuild(flow, new_graph) do
+    new_edge_meta =
+      flow.edge_meta
+      |> Enum.filter(fn {{from, to}, _meta} ->
+        Map.has_key?(new_graph.nodes, from) and Map.has_key?(new_graph.nodes, to)
+      end)
+      |> Map.new()
+
+    vmeta = virtual_edge_meta(flow)
+
+    new_edge_meta =
+      new_graph
+      |> Yog.all_edges()
+      |> Enum.reduce(new_edge_meta, fn {from, to, _weight}, acc ->
+        if Map.has_key?(acc, {from, to}) do
+          acc
+        else
+          Map.put(acc, {from, to}, vmeta)
+        end
+      end)
+
+    %{flow | graph: new_graph, edge_meta: new_edge_meta}
+  end
+
+  def zoom_predicate(_flow, 0),
+    do: fn data -> data[:node_type] in [:source, :sink] end
+
+  def zoom_predicate(_flow, 1),
+    do: fn data -> data[:node_type] in [:source, :sink, :transform] end
+
+  def zoom_predicate(_flow, _level), do: fn _data -> true end
+
+  def virtual_edge_meta(_flow), do: %{path_type: :virtual, label: nil}
+end

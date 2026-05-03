@@ -33,7 +33,7 @@
   - `collapse/4` — aggregate multiple nodes into one, automatically rewiring all incoming/outgoing edges and removing duplicates/self-loops
   - Protocol-based design (`Choreo.Viewable`) so each module defines its own rebuild, root-resolution, zoom-predicate, and virtual-edge styling
   - Virtual edges are automatically styled (dashed, pale) via the protocol's `virtual_edge_meta/1` callback
-  - Supports `Choreo.MindMap` and `Choreo.DecisionTree`
+  - Supports `Choreo.MindMap`, `Choreo.DecisionTree`, and `Choreo.Dataflow`
 - `Choreo.FSM` enforces **100% DFA purity** at build time:
   - Epsilon transitions (empty labels) are rejected with `ArgumentError`
   - Different transition labels between the same state pair are now allowed (e.g., `q0 --"a"--> q1` and `q0 --"b"--> q1`)
