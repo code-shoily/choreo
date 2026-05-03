@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
+  {:choreo, "~> 0.7"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -86,7 +86,7 @@ talk =
   # Cross-link: circuit breakers improve telemetry signals
   |> MindMap.associate(:circuit_breaker, :telemetry, label: "improves")
 
-Kino.VizJS.render(MindMap.to_dot(talk))
+Kino.VizJS.render(MindMap.to_dot(talk), height: "800px")
 ```
 
 ### Structural Metrics
@@ -143,7 +143,7 @@ domain =
   |> MindMap.associate(:cap, :sharding, label: "influences")
   |> MindMap.associate(:raft, :replication, label: "uses")
 
-Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark))
+Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "800px", width: "100%")
 ```
 
 ### Validation
@@ -163,6 +163,8 @@ A valid mind map has exactly one root, no cycles in the hierarchy, and all nodes
 ## Example 3: Product Feature Planning
 
 Plan a product roadmap as a mind map. Topics are release themes; subtopics are epics; notes are risk reminders.
+
+<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 roadmap =
@@ -199,7 +201,7 @@ roadmap =
   # Cross-link: webhooks affect caching strategy
   |> MindMap.associate(:webhooks, :caching, label: "affects")
 
-Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean))
+Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
 ```
 
 ### Detect Orphans
@@ -229,8 +231,6 @@ end)
 
 A deeply nested map demonstrates depth and width analysis.
 
-<!-- livebook:{"output_size":"full"} -->
-
 ```elixir
 deep =
   MindMap.new()
@@ -255,7 +255,7 @@ deep =
 IO.puts("Depth: #{Analysis.depth(deep)}")
 IO.puts("Max width: #{Analysis.max_width(deep)}")
 IO.inspect(Analysis.leaves(deep), label: "Leaves")
-Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest))
+Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px")
 ```
 
 ---
@@ -322,7 +322,7 @@ Show only the big picture (root + topics):
 alias Choreo.View
 
 overview = View.zoom(talk, level: 1)
-Kino.VizJS.render(MindMap.to_dot(overview))
+Kino.VizJS.render(MindMap.to_dot(overview), height: "600px")
 ```
 
 Show root, topics, and subtopics (hide notes):
@@ -417,7 +417,7 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme))
+Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "600px")
 ```
 
 ---

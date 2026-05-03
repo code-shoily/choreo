@@ -4,8 +4,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.6"},
-  {:kino_vizjs, "~> 0.5.0"}
+  {:choreo, "~> 0.7"},
+  {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
