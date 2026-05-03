@@ -17,6 +17,7 @@ defmodule Choreo.View do
     * `focus_between/3` — keep only the shortest path between two nodes
     * `zoom/2` — filter by module-defined zoom level
     * `filter/2` — keep only nodes matching a predicate
+    * `collapse/4` — aggregate multiple nodes into one
 
   ## When to use
 
@@ -82,11 +83,11 @@ defmodule Choreo.View do
     radius = Keyword.get(opts, :radius, 1)
     mode = Keyword.get(opts, :mode, :neighbors)
 
-    if not Yog.has_node?(diagram.graph, node) do
+    if not graph_has_node?(diagram.graph, node) do
       raise ArgumentError, "Node #{inspect(node)} does not exist in diagram"
     end
 
-    new_graph = Yog.ego_graph(diagram.graph, node, radius, mode: mode)
+    new_graph = graph_ego_graph(diagram.graph, node, radius, mode)
     Choreo.Viewable.rebuild(diagram, new_graph)
   end
 
@@ -127,7 +128,7 @@ defmodule Choreo.View do
     validate_node_exists!(diagram.graph, from)
     validate_node_exists!(diagram.graph, to)
 
-    case Yog.Pathfinding.Dijkstra.shortest_path(diagram.graph, from, to) do
+    case graph_shortest_path(diagram.graph, from, to) do
       {:ok, path} ->
         path_nodes = path.nodes
 
@@ -135,7 +136,7 @@ defmodule Choreo.View do
           if radius > 0 do
             path_nodes
             |> Enum.flat_map(fn node ->
-              ego = Yog.ego_graph(diagram.graph, node, radius, mode: :neighbors)
+              ego = graph_ego_graph(diagram.graph, node, radius, :neighbors)
               Map.keys(ego.nodes)
             end)
             |> Enum.uniq()
@@ -143,7 +144,7 @@ defmodule Choreo.View do
             path_nodes
           end
 
-        new_graph = Yog.subgraph(diagram.graph, ids_to_keep)
+        new_graph = graph_subgraph(diagram.graph, ids_to_keep)
         Choreo.Viewable.rebuild(diagram, new_graph)
 
       :error ->
@@ -196,7 +197,7 @@ defmodule Choreo.View do
     transitive = Keyword.get(opts, :transitive, false)
     predicate = Choreo.Viewable.zoom_predicate(diagram, level)
 
-    new_graph = Yog.filter_nodes(diagram.graph, predicate)
+    new_graph = graph_filter_nodes(diagram.graph, predicate)
 
     new_graph =
       if transitive do
@@ -246,7 +247,7 @@ defmodule Choreo.View do
       |> Enum.filter(fn {id, data} -> predicate.(id, data) end)
       |> Enum.map(fn {id, _data} -> id end)
 
-    new_graph = Yog.subgraph(diagram.graph, ids_to_keep)
+    new_graph = graph_subgraph(diagram.graph, ids_to_keep)
 
     new_graph =
       if transitive do
@@ -309,7 +310,7 @@ defmodule Choreo.View do
 
       new_graph =
         diagram.graph
-        |> Yog.add_node(new_id, Map.merge(%{label: label, node_type: :aggregate}, extra_data))
+        |> graph_add_node(new_id, Map.merge(%{label: label, node_type: :aggregate}, extra_data))
         |> rewire_collapsed_edges(ids_to_collapse, new_id)
         |> remove_collapsed_nodes(ids_to_collapse)
 
@@ -318,11 +319,214 @@ defmodule Choreo.View do
   end
 
   # ============================================================================
+  # Graph-type dispatch helpers
+  # ============================================================================
+
+  defp graph_has_node?(%Yog.Multi.Graph{nodes: nodes}, id), do: Map.has_key?(nodes, id)
+  defp graph_has_node?(graph, id), do: Yog.has_node?(graph, id)
+
+  defp graph_successor_ids(%Yog.Multi.Graph{} = graph, id) do
+    case Map.fetch(graph.out_edge_ids, id) do
+      {:ok, edge_ids} ->
+        Enum.map(edge_ids, fn eid ->
+          {_, dst, _} = Map.fetch!(graph.edges, eid)
+          dst
+        end)
+        |> Enum.uniq()
+
+      :error ->
+        []
+    end
+  end
+
+  defp graph_successor_ids(graph, id), do: Yog.successor_ids(graph, id)
+
+  defp graph_predecessor_ids(%Yog.Multi.Graph{} = graph, id) do
+    case Map.fetch(graph.in_edge_ids, id) do
+      {:ok, edge_ids} ->
+        Enum.map(edge_ids, fn eid ->
+          {src, _, _} = Map.fetch!(graph.edges, eid)
+          src
+        end)
+        |> Enum.uniq()
+
+      :error ->
+        []
+    end
+  end
+
+  defp graph_predecessor_ids(graph, id) do
+    graph
+    |> Yog.predecessors(id)
+    |> Enum.map(fn {node_id, _data} -> node_id end)
+  end
+
+  defp graph_all_edges(%Yog.Multi.Graph{edges: edges}) do
+    Map.values(edges)
+  end
+
+  defp graph_all_edges(graph), do: Yog.all_edges(graph)
+
+  defp graph_has_edge?(%Yog.Multi.Graph{} = graph, from, to) do
+    case Map.get(graph.out_edge_ids, from) do
+      nil ->
+        false
+
+      edge_ids ->
+        Enum.any?(edge_ids, fn eid ->
+          {f, t, _} = Map.get(graph.edges, eid)
+          f == from and t == to
+        end)
+    end
+  end
+
+  defp graph_has_edge?(graph, from, to), do: Yog.has_edge?(graph, from, to)
+
+  defp graph_add_node(%Yog.Multi.Graph{} = graph, id, data),
+    do: Yog.Multi.add_node(graph, id, data)
+
+  defp graph_add_node(graph, id, data), do: Yog.add_node(graph, id, data)
+
+  defp graph_remove_node(%Yog.Multi.Graph{} = graph, id),
+    do: Yog.Multi.remove_node(graph, id)
+
+  defp graph_remove_node(graph, id), do: Yog.remove_node(graph, id)
+
+  defp graph_add_edge(%Yog.Multi.Graph{} = graph, from, to, weight) do
+    {new_graph, _eid} = Yog.Multi.add_edge(graph, from, to, weight)
+    new_graph
+  end
+
+  defp graph_add_edge(graph, from, to, weight), do: Yog.add_edge_ensure(graph, from, to, weight)
+
+  defp graph_remove_edge(%Yog.Multi.Graph{} = graph, from, to) do
+    case Map.get(graph.out_edge_ids, from) do
+      nil ->
+        graph
+
+      edge_ids ->
+        to_remove =
+          Enum.filter(edge_ids, fn eid ->
+            {f, t, _} = Map.get(graph.edges, eid)
+            f == from and t == to
+          end)
+
+        Enum.reduce(to_remove, graph, &Yog.Multi.remove_edge(&2, &1))
+    end
+  end
+
+  defp graph_remove_edge(graph, from, to), do: Yog.remove_edge(graph, from, to)
+
+  defp graph_ego_graph(%Yog.Multi.Graph{} = graph, node, radius, mode) do
+    ids = multi_ego_collect(graph, node, radius, mode)
+    multi_subgraph(graph, ids)
+  end
+
+  defp graph_ego_graph(graph, node, radius, mode) do
+    Yog.ego_graph(graph, node, radius, mode: mode)
+  end
+
+  defp graph_filter_nodes(%Yog.Multi.Graph{} = graph, predicate) do
+    kept_ids = for {id, data} <- graph.nodes, predicate.(id, data), do: id
+    multi_subgraph(graph, kept_ids)
+  end
+
+  defp graph_filter_nodes(graph, predicate), do: Yog.filter_nodes(graph, predicate)
+
+  defp graph_subgraph(%Yog.Multi.Graph{} = graph, ids), do: multi_subgraph(graph, ids)
+  defp graph_subgraph(graph, ids), do: Yog.subgraph(graph, ids)
+
+  defp graph_shortest_path(%Yog.Multi.Graph{} = graph, from, to) do
+    # Build a simple graph with uniform numeric weights for pathfinding
+    simple =
+      Enum.reduce(graph.nodes, Yog.new(:directed), fn {id, data}, g ->
+        Yog.add_node(g, id, data)
+      end)
+
+    simple =
+      Enum.reduce(graph.edges, simple, fn {_eid, {src, dst, _data}}, g ->
+        Yog.add_edge_ensure(g, src, dst, 1)
+      end)
+
+    Yog.Pathfinding.Dijkstra.shortest_path(simple, from, to)
+  end
+
+  defp graph_shortest_path(graph, from, to) do
+    Yog.Pathfinding.Dijkstra.shortest_path(graph, from, to)
+  end
+
+  # ============================================================================
+  # Multigraph-specific implementations
+  # ============================================================================
+
+  defp multi_subgraph(%Yog.Multi.Graph{} = graph, ids) do
+    id_set = MapSet.new(ids)
+
+    new_nodes = Map.take(graph.nodes, ids)
+
+    new_edges =
+      for {eid, {from, to, data}} <- graph.edges,
+          MapSet.member?(id_set, from),
+          MapSet.member?(id_set, to),
+          into: %{},
+          do: {eid, {from, to, data}}
+
+    new_out_edge_ids =
+      for {id, edge_set} <- graph.out_edge_ids,
+          MapSet.member?(id_set, id),
+          into: %{},
+          do: {id, MapSet.filter(edge_set, &Map.has_key?(new_edges, &1))}
+
+    new_in_edge_ids =
+      for {id, edge_set} <- graph.in_edge_ids,
+          MapSet.member?(id_set, id),
+          into: %{},
+          do: {id, MapSet.filter(edge_set, &Map.has_key?(new_edges, &1))}
+
+    %Yog.Multi.Graph{
+      graph
+      | nodes: new_nodes,
+        edges: new_edges,
+        out_edge_ids: new_out_edge_ids,
+        in_edge_ids: new_in_edge_ids
+    }
+  end
+
+  defp multi_ego_collect(graph, start, radius, mode) do
+    do_multi_ego_bfs(graph, [{start, 0}], radius, mode, MapSet.new([start]))
+  end
+
+  defp do_multi_ego_bfs(_graph, [], _radius, _mode, visited), do: MapSet.to_list(visited)
+
+  defp do_multi_ego_bfs(graph, [{node, dist} | rest], radius, mode, visited) do
+    if dist >= radius do
+      do_multi_ego_bfs(graph, rest, radius, mode, visited)
+    else
+      neighbors =
+        case mode do
+          :successors ->
+            graph_successor_ids(graph, node)
+
+          :predecessors ->
+            graph_predecessor_ids(graph, node)
+
+          :neighbors ->
+            (graph_successor_ids(graph, node) ++ graph_predecessor_ids(graph, node))
+            |> Enum.uniq()
+        end
+
+      new_visited = MapSet.union(visited, MapSet.new(neighbors))
+      new_queue = rest ++ Enum.map(neighbors, &{&1, dist + 1})
+      do_multi_ego_bfs(graph, new_queue, radius, mode, new_visited)
+    end
+  end
+
+  # ============================================================================
   # Private helpers
   # ============================================================================
 
   defp validate_node_exists!(graph, node) do
-    unless Yog.has_node?(graph, node) do
+    unless graph_has_node?(graph, node) do
       raise ArgumentError, "Node #{inspect(node)} does not exist in diagram"
     end
   end
@@ -331,13 +535,13 @@ defmodule Choreo.View do
     collapsed_set = MapSet.new(collapsed_ids)
 
     # Collect all edges that need rewiring
-    all_edges = Yog.all_edges(graph)
+    all_edges = graph_all_edges(graph)
 
     # Remove all edges touching collapsed nodes, then add rewired ones
     graph_without_collapsed_edges =
       Enum.reduce(all_edges, graph, fn {from, to, _weight}, g ->
         if MapSet.member?(collapsed_set, from) or MapSet.member?(collapsed_set, to) do
-          Yog.remove_edge(g, from, to)
+          graph_remove_edge(g, from, to)
         else
           g
         end
@@ -367,13 +571,13 @@ defmodule Choreo.View do
       if from == to do
         g
       else
-        Yog.add_edge_ensure(g, from, to, weight)
+        graph_add_edge(g, from, to, weight)
       end
     end)
   end
 
   defp remove_collapsed_nodes(graph, collapsed_ids) do
-    Enum.reduce(collapsed_ids, graph, &Yog.remove_node(&2, &1))
+    Enum.reduce(collapsed_ids, graph, &graph_remove_node(&2, &1))
   end
 
   defp add_transitive_edges(original_graph, filtered_graph) do
@@ -385,9 +589,9 @@ defmodule Choreo.View do
 
     Enum.reduce(kept_list, filtered_graph, fn from, graph_acc ->
       Enum.reduce(kept_list, graph_acc, fn to, g_acc ->
-        if from != to and not Yog.has_edge?(g_acc, from, to) do
+        if from != to and not graph_has_edge?(g_acc, from, to) do
           if reachable_through_removed?(original_graph, from, to, kept_ids) do
-            Yog.add_edge_ensure(g_acc, from, to, 0)
+            graph_add_edge(g_acc, from, to, 0)
           else
             g_acc
           end
@@ -412,7 +616,7 @@ defmodule Choreo.View do
     else
       next_nodes =
         graph
-        |> Yog.successor_ids(h)
+        |> graph_successor_ids(h)
         |> Enum.filter(fn succ ->
           not MapSet.member?(visited, succ) and
             (succ == target or not MapSet.member?(kept_ids, succ))

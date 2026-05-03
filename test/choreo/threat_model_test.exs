@@ -181,4 +181,168 @@ defmodule Choreo.ThreatModelTest do
       assert String.contains?(dot, "digraph")
     end
   end
+
+  describe "Choreo.Viewable" do
+    test "zoom level 0 keeps only external entities" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      zoomed = Choreo.View.zoom(model, level: 0)
+      assert Enum.sort(ThreatModel.elements(zoomed)) == [:user]
+    end
+
+    test "zoom level 1 keeps external entities and processes" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      zoomed = Choreo.View.zoom(model, level: 1)
+      assert Enum.sort(ThreatModel.elements(zoomed)) == [:api, :user]
+    end
+
+    test "zoom level 2 keeps everything" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      zoomed = Choreo.View.zoom(model, level: 2)
+      assert Enum.sort(ThreatModel.elements(zoomed)) == [:api, :db, :user]
+    end
+
+    test "focus keeps node and neighbourhood on multigraph" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      focused = Choreo.View.focus(model, :api, radius: 1)
+      assert Enum.sort(ThreatModel.elements(focused)) == [:api, :db, :user]
+    end
+
+    test "filter removes matching nodes on multigraph" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      filtered =
+        Choreo.View.filter(model, fn _id, data ->
+          data[:element_type] != :data_store
+        end)
+
+      assert Enum.sort(ThreatModel.elements(filtered)) == [:api, :user]
+    end
+
+    test "transitive edges add virtual metadata on multigraph" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      filtered =
+        Choreo.View.filter(
+          model,
+          fn _id, data ->
+            data[:element_type] != :process
+          end,
+          transitive: true
+        )
+
+      assert Enum.sort(ThreatModel.elements(filtered)) == [:db, :user]
+
+      edges = ThreatModel.edges_with_meta(filtered)
+      assert length(edges) == 1
+
+      {_from, _to, _weight, meta} = hd(edges)
+      assert meta[:edge_type] == :virtual
+    end
+
+    test "focus_between finds shortest path on multigraph" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_process(:worker)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :worker)
+        |> ThreatModel.data_flow(:worker, :db)
+
+      path = Choreo.View.focus_between(model, :user, :db)
+      assert Enum.sort(ThreatModel.elements(path)) == [:api, :db, :user, :worker]
+    end
+
+    test "collapse aggregates nodes on multigraph" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_process(:worker)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:user, :worker)
+
+      collapsed =
+        Choreo.View.collapse(
+          model,
+          fn _id, data ->
+            data[:element_type] == :process
+          end,
+          :services
+        )
+
+      assert :services in ThreatModel.elements(collapsed)
+      assert :user in ThreatModel.elements(collapsed)
+      refute :api in ThreatModel.elements(collapsed)
+      refute :worker in ThreatModel.elements(collapsed)
+
+      flows = ThreatModel.flows(collapsed)
+
+      assert {:user, :services, _} =
+               Enum.find(flows, fn {f, t, _} -> f == :user and t == :services end)
+    end
+
+    test "renderer styles virtual edges" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:user)
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db)
+
+      filtered =
+        Choreo.View.filter(
+          model,
+          fn _id, data ->
+            data[:element_type] != :process
+          end,
+          transitive: true
+        )
+
+      dot = ThreatModel.to_dot(filtered)
+      assert String.contains?(dot, "#cbd5e1")
+    end
+  end
 end

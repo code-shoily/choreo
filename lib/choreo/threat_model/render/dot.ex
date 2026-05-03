@@ -308,24 +308,29 @@ defmodule Choreo.ThreatModel.Render.DOT do
   defp edge_attributes_fn(model) do
     fn from, to, edge_id, _weight ->
       meta = Map.get(model.edge_meta, edge_id, %{})
-      crosses = ThreatModel.crosses_boundary?(model, from, to)
-      encrypted = meta[:encrypted] == true
 
-      base =
-        cond do
-          not encrypted and crosses ->
-            [{:color, "#ef4444"}, {:fontcolor, "#ef4444"}, {:penwidth, 2.0}, {:style, "dashed"}]
+      if meta[:edge_type] == :virtual do
+        [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+      else
+        crosses = ThreatModel.crosses_boundary?(model, from, to)
+        encrypted = meta[:encrypted] == true
 
-          crosses ->
-            [{:color, "#f59e0b"}, {:fontcolor, "#f59e0b"}, {:penwidth, 1.5}]
+        base =
+          cond do
+            not encrypted and crosses ->
+              [{:color, "#ef4444"}, {:fontcolor, "#ef4444"}, {:penwidth, 2.0}, {:style, "dashed"}]
 
-          true ->
-            [{:color, "#64748b"}, {:fontcolor, "#64748b"}, {:penwidth, 1.0}]
-        end
+            crosses ->
+              [{:color, "#f59e0b"}, {:fontcolor, "#f59e0b"}, {:penwidth, 1.5}]
 
-      base = if proto = meta[:protocol], do: [{:label, to_string(proto)} | base], else: base
+            true ->
+              [{:color, "#64748b"}, {:fontcolor, "#64748b"}, {:penwidth, 1.0}]
+          end
 
-      base
+        base = if proto = meta[:protocol], do: [{:label, to_string(proto)} | base], else: base
+
+        base
+      end
     end
   end
 

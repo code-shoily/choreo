@@ -85,7 +85,8 @@ defmodule Choreo.MixProject do
         Core: [
           Choreo,
           Choreo.Theme,
-          Choreo.View
+          Choreo.View,
+          Choreo.Viewable
         ],
         "System Architecture": [
           Choreo.Render.DOT

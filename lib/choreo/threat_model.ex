@@ -662,6 +662,36 @@ defmodule Choreo.ThreatModel do
   end
 end
 
+defimpl Choreo.Viewable, for: Choreo.ThreatModel do
+  def rebuild(diagram, new_graph) do
+    # Keep edge_meta only for edges that still exist in the new graph
+    new_edge_meta = Map.take(diagram.edge_meta, Map.keys(new_graph.edges))
+
+    # Add virtual edge metadata for edges without metadata
+    existing_ids = MapSet.new(Map.keys(new_edge_meta))
+
+    new_edge_meta =
+      Enum.reduce(Map.keys(new_graph.edges), new_edge_meta, fn eid, acc ->
+        if MapSet.member?(existing_ids, eid) do
+          acc
+        else
+          Map.put(acc, eid, virtual_edge_meta(diagram))
+        end
+      end)
+
+    %{diagram | graph: new_graph, edge_meta: new_edge_meta}
+  end
+
+  def zoom_predicate(_, 0), do: fn _, d -> d[:element_type] == :external_entity end
+
+  def zoom_predicate(_, 1),
+    do: fn _, d -> d[:element_type] in [:external_entity, :process] end
+
+  def zoom_predicate(_, _), do: fn _, _ -> true end
+
+  def virtual_edge_meta(_), do: %{edge_type: :virtual, label: nil, encrypted: false}
+end
+
 defimpl Choreo.DOT, for: Choreo.ThreatModel do
   def to_dot(model, opts), do: Choreo.ThreatModel.Render.DOT.to_dot(model, opts)
 end
