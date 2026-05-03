@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -73,7 +73,7 @@ three_tier =
   |> Choreo.connect(:api, :redis, cost: 2, protocol: :tcp)
   |> Choreo.connect(:web, :s3, cost: 3, protocol: :https)
 
-Kino.VizJS.render(Choreo.to_dot(three_tier))
+Kino.VizJS.render(Choreo.to_dot(three_tier), height: "600px")
 ```
 
 ### Basic Queries
@@ -105,13 +105,23 @@ end
 
 Real systems span availability zones and regions. Choreo's cluster system supports nesting — a region contains AZs, which contain services.
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 multi_region =
   Choreo.new()
   # Top-level clusters
   |> Choreo.add_cluster("global", label: "Global Infrastructure", fillcolor: "#f8fafc")
-  |> Choreo.add_cluster("us_east", label: "US-East Region", parent: "global", fillcolor: "#dbeafe")
-  |> Choreo.add_cluster("us_west", label: "US-West Region", parent: "global", fillcolor: "#dcfce7")
+  |> Choreo.add_cluster("us_east",
+    label: "US-East Region",
+    parent: "global",
+    fillcolor: "#dbeafe"
+  )
+  |> Choreo.add_cluster("us_west",
+    label: "US-West Region",
+    parent: "global",
+    fillcolor: "#dcfce7"
+  )
   |> Choreo.add_cluster("ue1a", label: "AZ-1a", parent: "us_east", fillcolor: "#eff6ff")
   |> Choreo.add_cluster("ue1b", label: "AZ-1b", parent: "us_east", fillcolor: "#eff6ff")
   |> Choreo.add_cluster("uw2a", label: "AZ-2a", parent: "us_west", fillcolor: "#f0fdf4")
@@ -122,17 +132,29 @@ multi_region =
   # US-East AZ-1a
   |> Choreo.add_load_balancer(:alb_east_a, name: "ALB East A", cluster: "ue1a")
   |> Choreo.add_service(:api_east_a, name: "API East A", cluster: "ue1a")
-  |> Choreo.add_database(:postgres_east_a, name: "Postgres Primary", kind: :postgres, cluster: "ue1a")
+  |> Choreo.add_database(:postgres_east_a,
+    name: "Postgres Primary",
+    kind: :postgres,
+    cluster: "ue1a"
+  )
   |> Choreo.add_cache(:redis_east_a, name: "Redis East A", cluster: "ue1a")
   # US-East AZ-1b
   |> Choreo.add_load_balancer(:alb_east_b, name: "ALB East B", cluster: "ue1b")
   |> Choreo.add_service(:api_east_b, name: "API East B", cluster: "ue1b")
-  |> Choreo.add_database(:postgres_east_b, name: "Postgres Replica", kind: :postgres, cluster: "ue1b")
+  |> Choreo.add_database(:postgres_east_b,
+    name: "Postgres Replica",
+    kind: :postgres,
+    cluster: "ue1b"
+  )
   |> Choreo.add_cache(:redis_east_b, name: "Redis East B", cluster: "ue1b")
   # US-West AZ-2a
   |> Choreo.add_load_balancer(:alb_west_a, name: "ALB West A", cluster: "uw2a")
   |> Choreo.add_service(:api_west_a, name: "API West A", cluster: "uw2a")
-  |> Choreo.add_database(:postgres_west_a, name: "Postgres Replica", kind: :postgres, cluster: "uw2a")
+  |> Choreo.add_database(:postgres_west_a,
+    name: "Postgres Replica",
+    kind: :postgres,
+    cluster: "uw2a"
+  )
   |> Choreo.add_cache(:redis_west_a, name: "Redis West A", cluster: "uw2a")
   # Cross-region replication queue
   |> Choreo.add_queue(:kafka, name: "Kafka Replication", cluster: "global")
@@ -155,7 +177,13 @@ multi_region =
   |> Choreo.connect(:kafka, :postgres_east_b, cost: 3)
   |> Choreo.connect(:kafka, :postgres_west_a, cost: 8)
 
-Kino.VizJS.render(Choreo.to_dot(multi_region, theme: :dark))
+Kino.VizJS.render(
+  Choreo.to_dot(multi_region,
+    theme: Choreo.theme(:default, graph_rankdir: :lr)
+  ),
+  height: "600px",
+  engine: "dot"
+)
 ```
 
 ### Centrality Analysis
@@ -254,7 +282,7 @@ resilience =
   |> Choreo.connect(:orders, :redis)
   |> Choreo.connect(:orders, :kafka)
 
-Kino.VizJS.render(Choreo.to_dot(resilience))
+Kino.VizJS.render(Choreo.to_dot(resilience), height: "500px", engine: "circo")
 ```
 
 ### Single Points of Failure
@@ -303,7 +331,7 @@ pipeline =
   |> Choreo.add_dataflow(:index, :warehouse)
   |> Choreo.add_dataflow(:warehouse, :serve)
 
-Kino.VizJS.render(Choreo.to_dot(pipeline))
+Kino.VizJS.render(Choreo.to_dot(pipeline, theme: Choreo.theme(:default, graph_rankdir: :lr)))
 ```
 
 ### Topological Sort
@@ -423,9 +451,12 @@ Kino.VizJS.render(Choreo.to_dot(really_fixed))
 
 ## Advanced: Custom Theming
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 brand_theme =
   Choreo.Theme.custom(
+    graph_rankdir: :lr,
     colors: %{
       database: "#10b981",
       cache: "#f59e0b",
@@ -441,7 +472,7 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme))
+Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme), height: "800px")
 ```
 
 ---
@@ -498,6 +529,53 @@ You can also collapse the multigraph to a simple graph explicitly with a custom 
 simple = Choreo.to_simple_graph(multigraph_example, combine: &Kernel.+/2)
 Yog.all_edges(simple)
 |> IO.inspect(label: "Collapsed edges (sum combine)")
+```
+
+---
+
+## Example 10: Zooming and Architectural Views
+
+When dealing with large infrastructure diagrams, displaying every component can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
+
+For Infrastructure graphs, zoom levels are semantic:
+
+* **Level 0**: Services only (Service topology)
+* **Level 1**: Services and Datastores (including caches, queues, storage)
+* **Level 2**: Services, Datastores, and Infrastructure (Load balancers, networks)
+* **Level 3+**: Everything (including users and generics)
+
+```elixir
+alias Choreo.View
+
+zoom_system =
+  Choreo.new()
+  |> Choreo.add_user(:client)
+  |> Choreo.add_network(:vpc)
+  |> Choreo.add_load_balancer(:lb)
+  |> Choreo.add_service(:web)
+  |> Choreo.add_service(:auth)
+  |> Choreo.add_database(:db)
+  |> Choreo.connect(:client, :lb)
+  |> Choreo.connect(:lb, :web)
+  |> Choreo.connect(:web, :auth)
+  |> Choreo.connect(:auth, :db)
+  |> Choreo.connect(:web, :db)
+
+# Zoom out to Level 0 (Services only)
+service_view = View.zoom(zoom_system, level: 0)
+
+IO.puts("Zoom Level 0 (Services Only)")
+Kino.VizJS.render(Choreo.to_dot(service_view), height: "200px")
+```
+
+When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
+
+```elixir
+# Zoom in to Level 1 (Services + Datastores)
+data_view = View.zoom(zoom_system, level: 1)
+
+IO.puts("Zoom Level 1 (Services + Datastores)")
+Kino.VizJS.render(Choreo.to_dot(data_view), height: "400px")
 ```
 
 ---

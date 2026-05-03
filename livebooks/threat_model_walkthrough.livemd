@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -161,7 +161,7 @@ microservices =
   |> ThreatModel.data_flow(:order_service, :redis_cache, label: "Redis protocol")
   |> ThreatModel.data_flow(:payment_webhook, :order_service, label: "Event bus")
 
-Kino.VizJS.render(ThreatModel.to_dot(microservices, theme: :dark))
+Kino.VizJS.render(ThreatModel.to_dot(microservices))
 ```
 
 ### Cross-Boundary Analysis
@@ -365,7 +365,8 @@ sloppy =
   |> ThreatModel.data_flow(:api, :db)
 
 IO.puts("Issues found:")
-Analysis.validate(sloppy) |> Enum.each(fn {sev, msg} -> IO.puts("  #{msg}") end)
+
+Analysis.validate(sloppy) |> Enum.each(fn {sev, msg} -> IO.puts(" <#{sev}> #{msg}") end)
 ```
 
 Now fix each issue step by step:
@@ -391,7 +392,7 @@ Kino.VizJS.render(ThreatModel.to_dot(hardened))
 ### Dark theme for presentations
 
 ```elixir
-Kino.VizJS.render(ThreatModel.to_dot(microservices, theme: :dark))
+Kino.VizJS.render(ThreatModel.to_dot(microservices))
 ```
 
 ### Export to PlantUML

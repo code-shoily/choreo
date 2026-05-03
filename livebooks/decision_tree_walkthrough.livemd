@@ -1,13 +1,13 @@
 # Choreo DecisionTree: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
+
+## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
 
@@ -197,7 +197,7 @@ loan =
   |> DecisionTree.branch(:employment, :approved_standard, "part-time")
   |> DecisionTree.branch(:employment, :manual_review_employment, "self-employed")
 
-Kino.VizJS.render(DecisionTree.to_dot(loan, theme: :dark))
+Kino.VizJS.render(DecisionTree.to_dot(loan), height: "500px")
 ```
 
 ### Inconsistent Path Detection
@@ -226,6 +226,8 @@ end)
 ## Example 4: Configuration Selector
 
 Help a user pick the right AWS EC2 instance type based on workload characteristics. This tree is deeper and demonstrates how decision trees scale to many levels.
+
+<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 ec2_selector =
@@ -263,7 +265,7 @@ ec2_selector =
   |> DecisionTree.branch(:budget, :t3_large, "moderate")
   |> DecisionTree.branch(:budget, :m6i_xlarge, "flexible")
 
-Kino.VizJS.render(DecisionTree.to_dot(ec2_selector))
+Kino.VizJS.render(DecisionTree.to_dot(ec2_selector), height: "500px")
 ```
 
 ### Interactive Evaluation
@@ -413,7 +415,8 @@ end
 
 ```elixir
 brand_theme =
-  Choreo.Theme.custom(
+  Choreo.DecisionTree.theme(
+    :default,
     colors: %{
       root: "#8b5cf6",
       decision: "#3b82f6",
@@ -421,10 +424,60 @@ brand_theme =
     },
     node_fontcolor: "white",
     edge_color: "#94a3b8",
-    graph_bgcolor: "#0f172a"
+    graph_bgcolor: "lightgray"
   )
 
-Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme))
+Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme), height: "500px")
+```
+
+---
+
+## Example 8: Zooming and Architectural Views
+
+When dealing with deep, complex decision trees, displaying every single condition can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
+
+For Decision Tree graphs, zoom levels are semantic:
+
+* **Level 0**: Root node only (What is the primary decision?)
+* **Level 1**: Root and internal decisions (The decision structure, without outcomes)
+* **Level 2+**: Everything (including all outcomes)
+
+```elixir
+alias Choreo.View
+
+zoom_tree =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:weather, feature: "Outlook")
+  |> DecisionTree.add_decision(:temp, feature: "Temperature")
+  |> DecisionTree.add_decision(:wind, feature: "Wind")
+  |> DecisionTree.add_outcome(:play1, label: "Play")
+  |> DecisionTree.add_outcome(:play2, label: "Play")
+  |> DecisionTree.add_outcome(:play3, label: "Play")
+  |> DecisionTree.add_outcome(:stop1, label: "Don't Play")
+  |> DecisionTree.add_outcome(:stop2, label: "Don't Play")
+  |> DecisionTree.branch(:weather, :play1, "Overcast")
+  |> DecisionTree.branch(:weather, :temp, "Sunny")
+  |> DecisionTree.branch(:weather, :wind, "Rain")
+  |> DecisionTree.branch(:temp, :stop1, "High")
+  |> DecisionTree.branch(:temp, :play2, "Normal")
+  |> DecisionTree.branch(:wind, :stop2, "Strong")
+  |> DecisionTree.branch(:wind, :play3, "Weak")
+
+# Zoom out to Level 1 (Decisions only)
+decision_view = View.zoom(zoom_tree, level: 1)
+
+IO.puts("Zoom Level 1 (Decisions Only)")
+Kino.VizJS.render(DecisionTree.to_dot(decision_view), height: "200px")
+```
+
+When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
+
+```elixir
+# Zoom in to Level 2 (Everything)
+full_view = View.zoom(zoom_tree, level: 2)
+
+IO.puts("Zoom Level 2 (Full Tree)")
+Kino.VizJS.render(DecisionTree.to_dot(full_view), height: "400px")
 ```
 
 ---

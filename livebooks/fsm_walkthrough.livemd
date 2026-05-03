@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```

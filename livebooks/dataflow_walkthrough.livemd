@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -50,7 +50,11 @@ legend =
   |> Dataflow.add_merge(:merge, label: "Merge")
   |> Dataflow.add_sink(:sink, label: "Sink")
 
-Kino.VizJS.render(Dataflow.to_dot(legend))
+Kino.VizJS.render(
+  Dataflow.to_dot(legend,
+    theme: Choreo.Dataflow.theme(:default, graph_rankdir: :tb)
+  )
+)
 ```
 
 ---
@@ -165,17 +169,20 @@ resilient =
   # Happy path
   |> Dataflow.connect(:webhook, :validator, data_type: "raw payload")
   |> Dataflow.connect(:validator, :router, data_type: "validated payload")
-  |> Dataflow.connect(:router, :processor, data_type: "yes", edge_type: :normal)
+  |> Dataflow.connect(:router, :processor, data_type: "yes", path_type: :normal)
   |> Dataflow.connect(:processor, :postgres, data_type: "processed event")
   # Retry loop
-  |> Dataflow.connect(:router, :retry_queue, data_type: "no", edge_type: :retry)
+  |> Dataflow.connect(:router, :retry_queue, data_type: "no", path_type: :retry)
   |> Dataflow.connect(:retry_queue, :retry_handler)
-  |> Dataflow.connect(:retry_handler, :router, data_type: "reattempt", edge_type: :retry)
+  |> Dataflow.connect(:retry_handler, :router, data_type: "reattempt", path_type: :retry)
   # Dead letter after retries exhausted
-  |> Dataflow.connect(:retry_handler, :dlq, data_type: "failed", edge_type: :dead_letter)
-  |> Dataflow.connect(:dlq, :alerting, data_type: "alert", edge_type: :error)
+  |> Dataflow.connect(:retry_handler, :dlq, data_type: "failed", path_type: :dead_letter)
+  |> Dataflow.connect(:dlq, :alerting, data_type: "alert", path_type: :error)
 
-Kino.VizJS.render(Dataflow.to_dot(resilient))
+Kino.VizJS.render(
+  Dataflow.to_dot(resilient, theme: Dataflow.theme(:default, graph_rankdir: :tb)),
+  height: "800px"
+)
 ```
 
 Notice the edge styling:
@@ -212,16 +219,40 @@ microservices =
   |> Dataflow.add_transform(:auth, label: "Auth Middleware\n15ms", latency_ms: 15)
   # Order service cluster
   |> Dataflow.add_cluster("order_service", label: "Order Service", fillcolor: "#eff6ff")
-  |> Dataflow.add_transform(:order_handler, label: "Order Handler\n80ms", latency_ms: 80, cluster: "order_service")
-  |> Dataflow.add_buffer(:order_kafka, label: "Order Events", capacity: 20_000, cluster: "order_service")
-  |> Dataflow.add_transform(:inventory_check, label: "Inventory Check\n60ms", latency_ms: 60, cluster: "order_service")
+  |> Dataflow.add_transform(:order_handler,
+    label: "Order Handler\n80ms",
+    latency_ms: 80,
+    cluster: "order_service"
+  )
+  |> Dataflow.add_buffer(:order_kafka,
+    label: "Order Events",
+    capacity: 20_000,
+    cluster: "order_service"
+  )
+  |> Dataflow.add_transform(:inventory_check,
+    label: "Inventory Check\n60ms",
+    latency_ms: 60,
+    cluster: "order_service"
+  )
   |> Dataflow.add_conditional(:in_stock, label: "In Stock?", cluster: "order_service")
-  |> Dataflow.add_transform(:payment, label: "Payment Service\n250ms", latency_ms: 250, cluster: "order_service")
+  |> Dataflow.add_transform(:payment,
+    label: "Payment Service\n250ms",
+    latency_ms: 250,
+    cluster: "order_service"
+  )
   |> Dataflow.add_sink(:order_db, label: "Order DB", cluster: "order_service")
   # Notification cluster
   |> Dataflow.add_cluster("notifications", label: "Notifications", fillcolor: "#fdf2f8")
-  |> Dataflow.add_transform(:email_worker, label: "Email Worker\n120ms", latency_ms: 120, cluster: "notifications")
-  |> Dataflow.add_transform(:push_worker, label: "Push Worker\n40ms", latency_ms: 40, cluster: "notifications")
+  |> Dataflow.add_transform(:email_worker,
+    label: "Email Worker\n120ms",
+    latency_ms: 120,
+    cluster: "notifications"
+  )
+  |> Dataflow.add_transform(:push_worker,
+    label: "Push Worker\n40ms",
+    latency_ms: 40,
+    cluster: "notifications"
+  )
   |> Dataflow.add_merge(:notification_router, label: "Notify Router", cluster: "notifications")
   |> Dataflow.add_sink(:sendgrid, label: "SendGrid", cluster: "notifications")
   |> Dataflow.add_sink(:firebase, label: "Firebase FCM", cluster: "notifications")
@@ -233,8 +264,8 @@ microservices =
   |> Dataflow.connect(:order_handler, :order_kafka)
   |> Dataflow.connect(:order_kafka, :inventory_check)
   |> Dataflow.connect(:inventory_check, :in_stock)
-  |> Dataflow.connect(:in_stock, :payment, data_type: "yes", edge_type: :normal)
-  |> Dataflow.connect(:in_stock, :order_db, data_type: "no", edge_type: :normal)
+  |> Dataflow.connect(:in_stock, :payment, data_type: "yes", path_type: :normal)
+  |> Dataflow.connect(:in_stock, :order_db, data_type: "no", path_type: :normal)
   |> Dataflow.connect(:payment, :order_db)
   |> Dataflow.connect(:order_db, :email_worker, data_type: "order confirmed")
   |> Dataflow.connect(:order_db, :push_worker, data_type: "order confirmed")
@@ -243,7 +274,11 @@ microservices =
   |> Dataflow.connect(:notification_router, :sendgrid)
   |> Dataflow.connect(:notification_router, :firebase)
 
-Kino.VizJS.render(Dataflow.to_dot(microservices))
+Kino.VizJS.render(
+  Dataflow.to_dot(microservices, theme: Dataflow.theme(:default)),
+  height: "800px",
+  engine: "twopi"
+)
 ```
 
 ### Cluster-Aware Analysis
@@ -338,11 +373,58 @@ brand_theme =
       sink: "#ef4444"
     },
     node_fontcolor: "white",
-    edge_color: "#94a3b8",
-    graph_bgcolor: "#0f172a"
+    edge_color: "#94a3b8"
   )
 
-Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme))
+Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme), height: "800px", engine: "twopi")
+```
+
+---
+
+## Example 8: Zooming and Architectural Views
+
+When dealing with large dataflow pipelines, displaying every single transformation can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
+
+For Dataflow graphs, zoom levels are semantic:
+
+* **Level 0**: Sources and Sinks only (High-level data movement)
+* **Level 1**: Sources, Sinks, and primary Transforms (Mid-level flow)
+* **Level 2+**: Everything (including Buffers, Conditionals, and Merges)
+
+```elixir
+alias Choreo.View
+
+zoom_flow =
+  Dataflow.new()
+  |> Dataflow.add_source(:ingest, label: "Event Stream")
+  |> Dataflow.add_buffer(:kafka, label: "Kafka Topic")
+  |> Dataflow.add_transform(:parse, label: "Parser")
+  |> Dataflow.add_conditional(:filter, label: "Is Valid?")
+  |> Dataflow.add_transform(:enrich, label: "Enricher")
+  |> Dataflow.add_sink(:db, label: "Data Warehouse")
+  |> Dataflow.add_sink(:dlq, label: "Dead Letter Queue")
+  |> Dataflow.connect(:ingest, :kafka)
+  |> Dataflow.connect(:kafka, :parse)
+  |> Dataflow.connect(:parse, :filter)
+  |> Dataflow.connect(:filter, :enrich, label: "yes")
+  |> Dataflow.add_error_path(:filter, :dlq, label: "no")
+  |> Dataflow.connect(:enrich, :db)
+
+# Zoom out to Level 0 (Sources and Sinks only)
+high_level_view = View.zoom(zoom_flow, level: 0)
+
+IO.puts("Zoom Level 0 (Sources and Sinks Only)")
+Kino.VizJS.render(Dataflow.to_dot(high_level_view), height: "200px")
+```
+
+When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
+
+```elixir
+# Zoom in to Level 1 (Sources, Sinks, and Transforms)
+mid_level_view = View.zoom(zoom_flow, level: 1)
+
+IO.puts("Zoom Level 1 (Sources, Sinks, and Transforms)")
+Kino.VizJS.render(Dataflow.to_dot(mid_level_view), height: "300px")
 ```
 
 ---

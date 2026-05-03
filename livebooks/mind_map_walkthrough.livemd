@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -48,7 +48,9 @@ legend =
   |> MindMap.branch(:topic, :subtopic)
   |> MindMap.branch(:subtopic, :note)
 
-Kino.VizJS.render(MindMap.to_dot(legend))
+Kino.VizJS.render(
+  MindMap.to_dot(legend, theme: Choreo.MindMap.theme(:default, graph_rankdir: :lr))
+)
 ```
 
 ---
@@ -60,9 +62,9 @@ Map out the structure of a conference talk. The root is the talk title; topics a
 ```elixir
 talk =
   MindMap.new()
-  |> MindMap.set_root(:talk, label: "Building Resilient Elixir Systems")
-  |> MindMap.add_topic(:supervision, label: "Supervision Trees")
-  |> MindMap.add_topic(:patterns, label: "Fault-Tolerance Patterns")
+  |> MindMap.set_root(:talk, label: "Building\nResilient\nElxir\nSystems")
+  |> MindMap.add_topic(:supervision, label: "Supervision\nTrees")
+  |> MindMap.add_topic(:patterns, label: "Fault-Tolerance\nPatterns")
   |> MindMap.add_topic(:observability, label: "Observability")
   |> MindMap.add_subtopic(:one_for_one, label: "One-for-One")
   |> MindMap.add_subtopic(:one_for_all, label: "One-for-All")
@@ -120,7 +122,7 @@ Document the key concepts of a software domain. Cross-links show relationships t
 ```elixir
 domain =
   MindMap.new()
-  |> MindMap.set_root(:dist_sys, label: "Distributed Systems")
+  |> MindMap.set_root(:dist_sys, label: "Distributed\nSystems")
   |> MindMap.add_topic(:consistency, label: "Consistency")
   |> MindMap.add_topic(:availability, label: "Availability")
   |> MindMap.add_topic(:partitioning, label: "Partitioning")
@@ -143,7 +145,7 @@ domain =
   |> MindMap.associate(:cap, :sharding, label: "influences")
   |> MindMap.associate(:raft, :replication, label: "uses")
 
-Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "800px", width: "100%")
+Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "600px", width: "100%")
 ```
 
 ### Validation
@@ -255,7 +257,7 @@ deep =
 IO.puts("Depth: #{Analysis.depth(deep)}")
 IO.puts("Max width: #{Analysis.max_width(deep)}")
 IO.inspect(Analysis.leaves(deep), label: "Leaves")
-Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px")
+Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px", engine: "twopi")
 ```
 
 ---
@@ -322,14 +324,14 @@ Show only the big picture (root + topics):
 alias Choreo.View
 
 overview = View.zoom(talk, level: 1)
-Kino.VizJS.render(MindMap.to_dot(overview), height: "600px")
+Kino.VizJS.render(MindMap.to_dot(overview), engine: "circo")
 ```
 
 Show root, topics, and subtopics (hide notes):
 
 ```elixir
 mid = View.zoom(talk, level: 2)
-Kino.VizJS.render(MindMap.to_dot(mid))
+Kino.VizJS.render(MindMap.to_dot(mid), height: "600px")
 ```
 
 ### Focus on a Branch
@@ -338,14 +340,14 @@ Highlight one topic and its neighbourhood:
 
 ```elixir
 focused = View.focus(talk, :patterns, radius: 1)
-Kino.VizJS.render(MindMap.to_dot(focused))
+Kino.VizJS.render(MindMap.to_dot(focused), height: "600px")
 ```
 
 Focus with a larger radius to see second-degree connections:
 
 ```elixir
 wider = View.focus(talk, :supervision, radius: 2)
-Kino.VizJS.render(MindMap.to_dot(wider))
+Kino.VizJS.render(MindMap.to_dot(wider), height: "600px")
 ```
 
 ### Trace a Path
@@ -354,7 +356,7 @@ Show only the shortest path between two ideas — useful for tracing a narrative
 
 ```elixir
 path_view = View.focus_between(talk, :talk, :demo, radius: 1)
-Kino.VizJS.render(MindMap.to_dot(path_view))
+Kino.VizJS.render(MindMap.to_dot(path_view), height: "600px")
 ```
 
 ### Transitive Zoom
@@ -363,7 +365,7 @@ When zooming out, hidden intermediate nodes can break the visual connection betw
 
 ```elixir
 overview = View.zoom(talk, level: 1, transitive: true)
-Kino.VizJS.render(MindMap.to_dot(overview))
+Kino.VizJS.render(MindMap.to_dot(overview), height: "600px")
 ```
 
 ### Collapse — Aggregate Nodes
@@ -380,7 +382,7 @@ billing =
     data: %{node_type: :topic}
   )
 
-Kino.VizJS.render(MindMap.to_dot(billing))
+Kino.VizJS.render(MindMap.to_dot(billing), height: "600px")
 ```
 
 ### Custom Filtering
@@ -389,14 +391,14 @@ Remove all notes for a clean stakeholder deck:
 
 ```elixir
 clean = View.filter(talk, fn _id, data -> data[:node_type] != :note end)
-Kino.VizJS.render(MindMap.to_dot(clean))
+Kino.VizJS.render(MindMap.to_dot(clean), height: "600px")
 ```
 
 Show only the left half of the map:
 
 ```elixir
 left_half = View.filter(talk, fn id, _data -> id in [:talk, :supervision, :patterns, :one_for_one, :one_for_all, :circuit_breaker, :bulkhead, :demo, :story] end)
-Kino.VizJS.render(MindMap.to_dot(left_half))
+Kino.VizJS.render(MindMap.to_dot(left_half), height: "600px")
 ```
 
 ---

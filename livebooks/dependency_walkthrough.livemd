@@ -2,16 +2,12 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
 ## Section
-
-```elixir
-
-```
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
 
@@ -65,7 +61,7 @@ legend =
   |> Dependency.depends_on(:mod, :iface, type: :inherits)
   |> Dependency.depends_on(:test, :app, type: :dev)
 
-Kino.VizJS.render(Dependency.to_dot(legend))
+Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")
 ```
 
 ---
@@ -101,7 +97,7 @@ microservices =
   |> Dependency.depends_on(:api_tests, :api_gateway, type: :dev)
   |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
 
-Kino.VizJS.render(Dependency.to_dot(microservices))
+Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")
 ```
 
 ### Impact Analysis
@@ -153,7 +149,7 @@ layers =
   # VIOLATION: API layer talks directly to another API module
   |> Dependency.depends_on(:web_socket, :api_controller, type: :calls)
 
-Kino.VizJS.render(Dependency.to_dot(layers))
+Kino.VizJS.render(Dependency.to_dot(layers), height: "500px")
 ```
 
 ### Layer Enforcement
@@ -330,7 +326,7 @@ deep =
   |> Dependency.depends_on(:db_client, :connection_pool, type: :uses)
   |> Dependency.depends_on(:connection_pool, :tcp_stack, type: :uses)
 
-Kino.VizJS.render(Dependency.to_dot(deep))
+Kino.VizJS.render(Dependency.to_dot(deep, theme: Dependency.theme(:default, graph_rankdir: :lr)))
 ```
 
 ### Longest Chain
@@ -363,7 +359,7 @@ broken =
   |> Dependency.depends_on(:c, :a, type: :imports)
   # orphan has no edges
 
-Kino.VizJS.render(Dependency.to_dot(broken))
+Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo")
 ```
 
 ### Diagnosis
@@ -394,7 +390,7 @@ fixed =
 
 IO.puts("After fixing:")
 Analysis.validate(fixed) |> IO.inspect()
-Kino.VizJS.render(Dependency.to_dot(fixed))
+Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px")
 ```
 
 ---
@@ -416,7 +412,7 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme))
+Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "600px")
 ```
 
 ---
@@ -435,6 +431,54 @@ parallel_deps =
 
 IO.puts("Number of dependencies: #{length(Dependency.edges(parallel_deps))}")
 Kino.VizJS.render(Dependency.to_dot(parallel_deps))
+```
+
+---
+
+## Example 8: Zooming and Architectural Views
+
+When dealing with large systems, displaying every module and interface can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
+
+For Dependency graphs, zoom levels are semantic:
+
+* **Level 0**: Applications only (System Context)
+* **Level 1**: Applications and Libraries (Container/Dependency level)
+* **Level 2**: Applications, Libraries, and Modules (Component level)
+* **Level 3**: Applications, Libraries, Modules, and Interfaces
+* **Level 4+**: Everything (including Tests)
+
+```elixir
+alias Choreo.View
+
+system =
+  Dependency.new()
+  |> Dependency.add_application(:frontend, label: "Frontend API")
+  |> Dependency.add_application(:backend, label: "Backend Service")
+  |> Dependency.add_library(:phx, label: "Phoenix")
+  |> Dependency.add_module(:router, label: "Router")
+  |> Dependency.add_module(:auth, label: "Auth")
+  |> Dependency.add_test(:auth_test, label: "Auth Test")
+  |> Dependency.depends_on(:frontend, :backend, type: :calls)
+  |> Dependency.depends_on(:frontend, :phx, type: :uses)
+  |> Dependency.depends_on(:frontend, :router, type: :calls)
+  |> Dependency.depends_on(:backend, :auth, type: :calls)
+  |> Dependency.depends_on(:auth_test, :auth, type: :dev)
+
+# Zoom out to Level 0 (System Context: Applications only)
+system_view = View.zoom(system, level: 0)
+
+IO.puts("Zoom Level 0 (System Context)")
+Kino.VizJS.render(Dependency.to_dot(system_view), height: "200px")
+```
+
+When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
+
+```elixir
+# Zoom in to Level 2 (Component Level: Apps, Libs, Modules)
+component_view = View.zoom(system, level: 2)
+
+IO.puts("Zoom Level 2 (Component Level)")
+Kino.VizJS.render(Dependency.to_dot(component_view), height: "400px")
 ```
 
 ---

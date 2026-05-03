@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7"},
+  {:choreo, "~> 0.7.1"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -117,7 +117,7 @@ order_saga =
   |> Workflow.connect(:sufficient_stock, :release_inventory, condition: "no", edge_type: :compensation)
   |> Workflow.connect(:refund_payment, :done, edge_type: :compensation)
 
-Kino.VizJS.render(Workflow.to_dot(order_saga))
+Kino.VizJS.render(Workflow.to_dot(order_saga), height: "800px")
 ```
 
 ### Critical Path Analysis
@@ -213,7 +213,7 @@ parallel_order =
   |> Workflow.connect(:join_fulfillment, :ship_order)
   |> Workflow.connect(:ship_order, :done)
 
-Kino.VizJS.render(Workflow.to_dot(parallel_order))
+Kino.VizJS.render(Workflow.to_dot(parallel_order), height: "900px")
 ```
 
 ### Critical Path (Parallel)
@@ -304,7 +304,7 @@ cicd =
   |> Workflow.connect(:deploy_production, :run_smoke_tests)
   |> Workflow.connect(:run_smoke_tests, :live)
 
-Kino.VizJS.render(Workflow.to_dot(cicd, theme: :dark))
+Kino.VizJS.render(Workflow.to_dot(cicd, theme: :dark), height: "800px")
 ```
 
 ### Bottleneck Detection
@@ -378,7 +378,7 @@ approval =
   |> Workflow.connect(:manager_review, :auto_escalate, edge_type: :timeout)
   |> Workflow.connect(:auto_escalate, :escalated)
 
-Kino.VizJS.render(Workflow.to_dot(approval))
+Kino.VizJS.render(Workflow.to_dot(approval), height: "800px")
 ```
 
 ### Failure Scenarios
@@ -458,12 +458,14 @@ fixed =
 
 IO.puts("After fix:")
 Analysis.validate(fixed) |> IO.inspect()
-Kino.VizJS.render(Workflow.to_dot(fixed))
+Kino.VizJS.render(Workflow.to_dot(fixed), height: "600px")
 ```
 
 ---
 
 ## Advanced: Custom Theming
+
+<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 brand_theme =
@@ -480,7 +482,9 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme))
+
+  Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme), height: "800px")
+
 ```
 
 ---
