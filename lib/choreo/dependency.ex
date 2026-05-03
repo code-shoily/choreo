@@ -692,6 +692,42 @@ defmodule Choreo.Dependency do
   defp type_to_label(_), do: ""
 end
 
+defimpl Choreo.Viewable, for: Choreo.Dependency do
+  def rebuild(deps, new_graph) do
+    # Keep edge_meta only for edges that still exist in the new graph
+    new_edge_meta = Map.take(deps.edge_meta, Map.keys(new_graph.edges))
+
+    # Add virtual edge metadata for edges without metadata
+    existing_ids = MapSet.new(Map.keys(new_edge_meta))
+
+    new_edge_meta =
+      Enum.reduce(Map.keys(new_graph.edges), new_edge_meta, fn eid, acc ->
+        if MapSet.member?(existing_ids, eid) do
+          acc
+        else
+          Map.put(acc, eid, virtual_edge_meta(deps))
+        end
+      end)
+
+    %{deps | graph: new_graph, edge_meta: new_edge_meta}
+  end
+
+  def zoom_predicate(_, 0), do: fn _, d -> d[:node_type] == :application end
+
+  def zoom_predicate(_, 1),
+    do: fn _, d -> d[:node_type] in [:application, :library] end
+
+  def zoom_predicate(_, 2),
+    do: fn _, d -> d[:node_type] in [:application, :library, :module] end
+
+  def zoom_predicate(_, 3),
+    do: fn _, d -> d[:node_type] in [:application, :library, :module, :interface] end
+
+  def zoom_predicate(_, _), do: fn _, _ -> true end
+
+  def virtual_edge_meta(_), do: %{edge_type: :virtual, label: nil, type: :uses}
+end
+
 defimpl Choreo.DOT, for: Choreo.Dependency do
   def to_dot(deps, opts), do: Choreo.Dependency.Render.DOT.to_dot(deps, opts)
 end

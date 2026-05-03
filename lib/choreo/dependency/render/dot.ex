@@ -341,24 +341,28 @@ defmodule Choreo.Dependency.Render.DOT do
     fn from, to, edge_id, _weight ->
       meta = Map.get(deps.edge_meta, edge_id, %{})
 
-      base = dep_type_attrs(meta[:type] || :uses)
-
-      # Highlight cycle edges in red
-      base =
-        if MapSet.member?(cycle_edges, {from, to}) do
-          [{:color, "#ef4444"}, {:penwidth, 2.0} | Keyword.drop(base, [:color, :penwidth])]
-        else
-          base
-        end
-
-      if label = meta[:label] do
-        if label != "" do
-          [{:label, label} | base]
-        else
-          base
-        end
+      if meta[:edge_type] == :virtual do
+        [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
       else
-        base
+        base = dep_type_attrs(meta[:type] || :uses)
+
+        # Highlight cycle edges in red
+        base =
+          if MapSet.member?(cycle_edges, {from, to}) do
+            [{:color, "#ef4444"}, {:penwidth, 2.0} | Keyword.drop(base, [:color, :penwidth])]
+          else
+            base
+          end
+
+        if label = meta[:label] do
+          if label != "" do
+            [{:label, label} | base]
+          else
+            base
+          end
+        else
+          base
+        end
       end
     end
   end

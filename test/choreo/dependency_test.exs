@@ -194,4 +194,186 @@ defmodule Choreo.DependencyTest do
       assert String.contains?(dot, "digraph")
     end
   end
+
+  describe "Choreo.Viewable" do
+    test "zoom level 0 keeps only applications" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_interface(:contract)
+        |> Dependency.add_test(:auth_test)
+        |> Dependency.depends_on(:api, :phx)
+        |> Dependency.depends_on(:api, :auth)
+
+      zoomed = Choreo.View.zoom(deps, level: 0)
+      assert Dependency.nodes(zoomed) == [:api]
+    end
+
+    test "zoom level 1 keeps applications and libraries" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_interface(:contract)
+        |> Dependency.depends_on(:api, :phx)
+        |> Dependency.depends_on(:api, :auth)
+
+      zoomed = Choreo.View.zoom(deps, level: 1)
+      assert Enum.sort(Dependency.nodes(zoomed)) == [:api, :phx]
+    end
+
+    test "zoom level 2 keeps applications, libraries, and modules" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_interface(:contract)
+        |> Dependency.depends_on(:api, :phx)
+        |> Dependency.depends_on(:api, :auth)
+
+      zoomed = Choreo.View.zoom(deps, level: 2)
+      assert Enum.sort(Dependency.nodes(zoomed)) == [:api, :auth, :phx]
+    end
+
+    test "zoom level 3 keeps everything except tests" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_interface(:contract)
+        |> Dependency.add_test(:auth_test)
+        |> Dependency.depends_on(:api, :phx)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:auth, :contract)
+
+      zoomed = Choreo.View.zoom(deps, level: 3)
+      assert Enum.sort(Dependency.nodes(zoomed)) == [:api, :auth, :contract, :phx]
+    end
+
+    test "focus keeps node and neighbourhood on multigraph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.depends_on(:api, :phx)
+        |> Dependency.depends_on(:api, :auth)
+
+      focused = Choreo.View.focus(deps, :api, radius: 1)
+      assert Enum.sort(Dependency.nodes(focused)) == [:api, :auth, :phx]
+    end
+
+    test "filter removes matching nodes on multigraph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.depends_on(:api, :phx)
+        |> Dependency.depends_on(:api, :auth)
+
+      filtered =
+        Choreo.View.filter(deps, fn _id, data ->
+          data[:node_type] != :module
+        end)
+
+      assert Enum.sort(Dependency.nodes(filtered)) == [:api, :phx]
+    end
+
+    test "transitive edges add virtual metadata on multigraph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_library(:phx)
+        |> Dependency.add_module(:auth)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:auth, :phx)
+
+      filtered =
+        Choreo.View.filter(
+          deps,
+          fn _id, data ->
+            data[:node_type] != :module
+          end,
+          transitive: true
+        )
+
+      assert Enum.sort(Dependency.nodes(filtered)) == [:api, :phx]
+
+      edges = Dependency.edges_with_meta(filtered)
+      assert length(edges) == 1
+
+      {_from, _to, _weight, meta} = hd(edges)
+      assert meta[:edge_type] == :virtual
+    end
+
+    test "focus_between finds shortest path on multigraph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_module(:repo)
+        |> Dependency.add_library(:phx)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:auth, :repo)
+        |> Dependency.depends_on(:repo, :phx)
+
+      path = Choreo.View.focus_between(deps, :api, :phx)
+      assert Enum.sort(Dependency.nodes(path)) == [:api, :auth, :phx, :repo]
+    end
+
+    test "collapse aggregates nodes on multigraph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_module(:repo)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:api, :repo)
+
+      collapsed =
+        Choreo.View.collapse(
+          deps,
+          fn _id, data ->
+            data[:node_type] == :module
+          end,
+          :core
+        )
+
+      assert :core in Dependency.nodes(collapsed)
+      assert :api in Dependency.nodes(collapsed)
+      refute :auth in Dependency.nodes(collapsed)
+      refute :repo in Dependency.nodes(collapsed)
+
+      edges = Dependency.edges(collapsed)
+      assert {:api, :core, _} = Enum.find(edges, fn {f, t, _} -> f == :api and t == :core end)
+    end
+
+    test "renderer styles virtual edges" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_library(:phx)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:auth, :phx)
+
+      filtered =
+        Choreo.View.filter(
+          deps,
+          fn _id, data ->
+            data[:node_type] != :module
+          end,
+          transitive: true
+        )
+
+      dot = Dependency.to_dot(filtered)
+      assert String.contains?(dot, "#cbd5e1")
+    end
+  end
 end
