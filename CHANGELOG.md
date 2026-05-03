@@ -25,6 +25,15 @@
   - Analysis: `depth/1`, `breadth/1`, `leaves/1`, `orphan_nodes/1`, `max_width/1`, `paths/1`, `type_frequencies/1`, `cyclic?/1`, `validate/1`
   - 5 built-in themes (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`) with mind-map-specific colour palettes
   - Same-rank sibling alignment in DOT output
+- `Choreo.View` — graph lens layer for zoom, focus, filter, and collapse transforms across diagram modules
+  - `focus/3` — ego-graph view (node + N-hop neighbourhood, bidirectional by default)
+  - `focus_between/4` — shortest-path view between two nodes, with optional neighbourhood radius
+  - `zoom/2` — module-defined level-based filtering with optional `transitive: true` for virtual edges through removed intermediates
+  - `filter/3` — predicate-based node filtering with optional `transitive: true`
+  - `collapse/4` — aggregate multiple nodes into one, automatically rewiring all incoming/outgoing edges and removing duplicates/self-loops
+  - Protocol-based design (`Choreo.Viewable`) so each module defines its own rebuild, root-resolution, zoom-predicate, and virtual-edge styling
+  - Virtual edges are automatically styled (dashed, pale) via the protocol's `virtual_edge_meta/1` callback
+  - Prototype supports `Choreo.MindMap`; designed for cross-module expansion
 - `Choreo.FSM` enforces **100% DFA purity** at build time:
   - Epsilon transitions (empty labels) are rejected with `ArgumentError`
   - Different transition labels between the same state pair are now allowed (e.g., `q0 --"a"--> q1` and `q0 --"b"--> q1`)

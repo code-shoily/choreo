@@ -64,6 +64,8 @@ Choreo is **analysis-first**: you describe a system, you get answers.
 | "Which feature drives the most splits?" | `Choreo.DecisionTree.Analysis.feature_importance(tree)` |
 | "How deep is this mind map?" | `Choreo.MindMap.Analysis.depth(map)` |
 | "Which ideas are orphaned?" | `Choreo.MindMap.Analysis.orphan_nodes(map)` |
+| "What's the shortest path from A to B?" | `Choreo.View.focus_between(map, :a, :b)` |
+| "Collapse these nodes into one?" | `Choreo.View.collapse(map, pred, :agg)` |
 
 Everything renders to **DOT (Graphviz)** for publication-quality output with built-in `:default`, `:dark`, and custom themes.
 

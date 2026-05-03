@@ -84,7 +84,8 @@ defmodule Choreo.MixProject do
       groups_for_modules: [
         Core: [
           Choreo,
-          Choreo.Theme
+          Choreo.Theme,
+          Choreo.View
         ],
         "System Architecture": [
           Choreo.Render.DOT
