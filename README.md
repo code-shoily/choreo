@@ -82,6 +82,7 @@ Choreo provides powerful graph analysis tools to identify "hotspots" in your arc
 | **Connectivity** | Degree Centrality | "Which nodes have the most connections?" | `MindMap`, `Dependency` |
 | **SPOF Detection** | Articulation Points | "Which nodes would disconnect the system if they failed?" | `Choreo`, `Dataflow` |
 | **Nucleus Detection** | K-Core Decomposition | "Which nodes form the most tightly-coupled core?" | `Choreo`, `Dependency` |
+| **Dependency Reduction** | Transitive Reduction | "What is the minimal set of dependencies that preserve reachability?" | `Dependency` |
 | **Execution Hotspots** | Latency Heatmap | "Which tasks slow down the entire workflow?" | `Workflow` |
 | **Volume Hotspots** | Throughput Heatmap | "Which stages handle the most data volume?" | `Dataflow` |
 | **Security Hotspots** | Risk Heatmap | "Which components have the most security threats?" | `ThreatModel` |
@@ -147,6 +148,8 @@ dot = Choreo.to_dot(system, theme: :dark)
     api -> db [label="cost: 10", headport=n];
   }
 ```
+
+---
 
 ---
 

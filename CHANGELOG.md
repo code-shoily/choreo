@@ -6,8 +6,10 @@
 
 - **Structural & Heatmap Analysis Suite**:
   - Implemented `Choreo.Analysis.heatmap/2` for automatic, data-driven diagram coloring using configurable color scales.
-  - Added **SPOF Detection**: `Choreo.Analysis.cut_vertices/1` identifies articulation points that could disconnect the system.
-  - Added **Nucleus Detection**: `Choreo.Analysis.core_numbers/1` provides K-Core decomposition to find tightly-coupled clusters.
+  - **Structural Analysis Suite**:
+    *   Implemented `Choreo.Analysis.cut_vertices/1` (Articulation Points) to identify Single Points of Failure.
+    *   Implemented `Choreo.Analysis.core_numbers/1` using K-Core decomposition to isolate tightly-coupled architectural "nuclei."
+    *   Implemented `Choreo.Analysis.reduce_transitive/1` for transitive reduction of dependency meshes.
   - Added domain-specific heatmap analysis:
     - `Choreo.Workflow.Analysis.heatmap/2` for identifying execution latency hotspots.
     - `Choreo.Dataflow.Analysis.heatmap/2` for identifying throughput and data-volume hotspots.

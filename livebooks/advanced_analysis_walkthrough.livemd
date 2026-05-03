@@ -147,3 +147,28 @@ Kino.Layout.grid([
   Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
 ], columns: 2)
 ```
+
+---
+
+## 6. Transitive Reduction (Dependency Cleanup)
+
+**Transitive Reduction** simplifies complex dependency graphs by removing redundant edges while preserving reachability. If `A -> B`, `B -> C`, and `A -> C`, the direct edge `A -> C` is removed because the dependency is already implied by the path through `B`.
+
+```elixir
+alias Choreo.Dependency
+
+# A dense dependency graph with a redundant edge
+deps = Dependency.new()
+  |> Dependency.add_service(:a) |> Dependency.add_service(:b) |> Dependency.add_service(:c)
+  |> Dependency.connect(:a, :b)
+  |> Dependency.connect(:b, :c)
+  |> Dependency.connect(:a, :c) # Redundant!
+
+# Perform reduction
+{:ok, reduced} = Analysis.reduce_transitive(deps)
+
+Kino.Layout.grid([
+  Kino.VizJS.render(Dependency.to_dot(deps)),
+  Kino.VizJS.render(Dependency.to_dot(reduced))
+], columns: 2)
+```

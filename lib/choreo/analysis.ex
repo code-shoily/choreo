@@ -501,6 +501,63 @@ defmodule Choreo.Analysis do
     Yog.Connectivity.KCore.core_numbers(undirected)
   end
 
+  @doc """
+  Performs transitive reduction on the diagram's dependencies.
+
+  Transitive reduction removes redundant edges while preserving reachability.
+  If A -> B, B -> C, and A -> C, then the edge A -> C is removed as it is
+  implied by the other two.
+
+  Returns `{:ok, diagram}` with redundant edges removed, or `{:error, :contains_cycle}`
+  if the diagram is not a DAG.
+
+  ## Examples
+
+      iex> system = Choreo.new()
+      iex> system = system |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.add_service(:c)
+      iex> system = system |> Choreo.connect(:a, :b) |> Choreo.connect(:b, :c) |> Choreo.connect(:a, :c)
+      iex> {:ok, reduced} = Choreo.Analysis.reduce_transitive(system)
+      iex> Enum.count(Choreo.edges(reduced))
+      2
+  """
+  @spec reduce_transitive(struct()) :: {:ok, struct()} | {:error, :contains_cycle}
+  def reduce_transitive(diagram) do
+    graph = get_simple_graph(diagram)
+
+    case Yog.Transform.transitive_reduction(graph) do
+      {:ok, reduced_graph} ->
+        # We want to preserve the Multi.Graph structure if possible,
+        # but since transitive reduction by definition removes "parallel"
+        # redundant paths, we can effectively replace the multi-edges
+        # with the single edges from the reduction.
+
+        # 1. Start with the original diagram (to keep node metadata/clusters)
+        # 2. Clear all edges
+        # 3. Add back edges from the reduced graph
+
+        new_graph =
+          case diagram.graph do
+            %Yog.Multi.Graph{} = g ->
+              cleared = %{g | edges: %{}, next_edge_id: 0, in_edge_ids: %{}, out_edge_ids: %{}}
+
+              Enum.reduce(reduced_graph.out_edges, cleared, fn {src, targets}, acc ->
+                Enum.reduce(targets, acc, fn {dst, weight}, acc_inner ->
+                  {new_g, _} = Yog.Multi.add_edge(acc_inner, src, dst, weight)
+                  new_g
+                end)
+              end)
+
+            _ ->
+              reduced_graph
+          end
+
+        {:ok, %{diagram | graph: new_graph}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   # ============================================================================
   # Isolated nodes
   # ============================================================================

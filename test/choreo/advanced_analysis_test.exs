@@ -49,4 +49,24 @@ defmodule Choreo.AdvancedAnalysisTest do
     # :a and :c are not, should be "colder" (yellow)
     assert heat.graph.nodes[:b].fillcolor != heat.graph.nodes[:a].fillcolor
   end
+
+  test "reduce_transitive removes redundant edges" do
+    # A -> B, B -> C, A -> C (redundant)
+    system =
+      Choreo.new()
+      |> Choreo.add_service(:a)
+      |> Choreo.add_service(:b)
+      |> Choreo.add_service(:c)
+      |> Choreo.connect(:a, :b)
+      |> Choreo.connect(:b, :c)
+      |> Choreo.connect(:a, :c)
+
+    assert Enum.count(Choreo.edges(system)) == 3
+    assert {:ok, reduced} = Analysis.reduce_transitive(system)
+    assert Enum.count(Choreo.edges(reduced)) == 2
+
+    # Check that A -> C was the one removed
+    edges = Choreo.edges(reduced)
+    refute Enum.any?(edges, fn {src, dst, _} -> src == :a and dst == :c end)
+  end
 end
