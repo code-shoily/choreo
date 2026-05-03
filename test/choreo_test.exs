@@ -520,10 +520,8 @@ defmodule ChoreoTest do
           fn _id, data ->
             data[:type] in [:database, :cache]
           end,
-          transitive: true
+          :data_layer
         )
-
-      :data_layer
 
       assert :data_layer in Map.keys(Choreo.nodes(collapsed))
       assert :api in Map.keys(Choreo.nodes(collapsed))
