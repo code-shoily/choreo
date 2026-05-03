@@ -32,6 +32,7 @@ Dataflow.to_dot(pipeline)                #=> DOT string
 
 - [Why Choreo?](#why-choreo)
 - [Installation](#installation)
+- [Graph Analysis & Heatmaps](#graph-analysis--heatmaps)
 - [Modules](#modules)
   - [Choreo — Infrastructure Architecture](#choreo--infrastructure-architecture)
   - [Choreo.FSM — Finite State Machines](#choreofsm--finite-state-machines)
@@ -68,6 +69,26 @@ Choreo is **analysis-first**: you describe a system, you get answers.
 | "Collapse these nodes into one?" | `Choreo.View.collapse(map, pred, :agg)` |
 
 Everything renders to **DOT (Graphviz)** for publication-quality output with built-in `:default`, `:dark`, and custom themes.
+
+---
+
+## Graph Analysis & Heatmaps
+
+Choreo provides powerful graph analysis tools to identify "hotspots" in your architecture, workflows, and pipelines. Use `heatmap/2` to automatically color nodes based on importance or performance metrics.
+
+| Metric | Measure | Question | Best for |
+|--------|---------|----------|----------|
+| **Structural Importance** | Betweenness Centrality | "Which nodes are critical bridges/connectors?" | `Choreo`, `Dependency` |
+| **Connectivity** | Degree Centrality | "Which nodes have the most connections?" | `MindMap`, `Dependency` |
+| **Execution Hotspots** | Latency Heatmap | "Which tasks slow down the entire workflow?" | `Workflow` |
+| **Volume Hotspots** | Throughput Heatmap | "Which stages handle the most data volume?" | `Dataflow` |
+| **Security Hotspots** | Risk Heatmap | "Which components have the most security threats?" | `ThreatModel` |
+
+```elixir
+# Example: Visualizing security risk hotspots
+model = Choreo.ThreatModel.Analysis.heatmap(model, palette: :heat)
+Choreo.ThreatModel.to_dot(model)
+```
 
 ---
 

@@ -1,6 +1,22 @@
 # Changelog
 
-## [0.7.1] - UNRELEASED
+## [0.8.0] - UNRELEASED
+
+### Added
+
+- **Centrality & Heatmap Suite**:
+  - Implemented `Choreo.Analysis.heatmap/2` for automatic, data-driven diagram coloring using configurable color scales.
+  - Added domain-specific heatmap analysis:
+    - `Choreo.Workflow.Analysis.heatmap/2` for identifying execution latency hotspots.
+    - `Choreo.Dataflow.Analysis.heatmap/2` for identifying throughput and data-volume hotspots.
+    - `Choreo.ThreatModel.Analysis.heatmap/2` for identifying security risk hotspots based on threat density.
+  - Added `Choreo.Analysis.legend/1` to generate visual color-scale keys for diagrams.
+  - Generalized `Choreo.Analysis.centrality/2` to support all Choreo diagram types (Workflow, Dataflow, etc.).
+  - Added standard color palettes to `Choreo.Theme`: `:heat` (Yellow-Red), `:cool` (Blue), and `:spectral` (Rainbow).
+- **Structural Enhancements**:
+  - Updated cluster schema to support both atom and string `:style` options, resolving rendering crashes in `Yog.Multi.DOT`.
+
+## [0.7.1] - 2026-05-04
 
 ### Added
 
