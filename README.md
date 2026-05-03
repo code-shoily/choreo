@@ -98,6 +98,10 @@ Choreo.ThreatModel.to_dot(model)
 
 # Example: Finding and highlighting the fastest path
 {:ok, path} = Choreo.Analysis.path(wf, :start, :done, measure: :latency)
+Choreo.Workflow.to_dot(wf, Choreo.Analysis.highlight(path))
+
+# Example: Custom weighted pathfinding (e.g. by 'cost')
+{:ok, path} = Choreo.Analysis.path(system, :a, :b, measure: :cost)
 dot = Choreo.Workflow.to_dot(wf, Choreo.Analysis.highlight(path))
 ```
 

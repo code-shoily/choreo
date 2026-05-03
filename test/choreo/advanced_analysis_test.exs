@@ -119,4 +119,37 @@ defmodule Choreo.AdvancedAnalysisTest do
     {:ok, path} = Analysis.path(system, :a, :c, measure: :throughput)
     assert path.nodes == [:a, :b, :c]
   end
+
+  test "path finds custom weighted path" do
+    # a --(cost: 10)--> b --(cost: 10)--> c (Total: 20)
+    # a --(cost: 50)--> c (Total: 50)
+    system =
+      Choreo.new()
+      |> Choreo.add_service(:a)
+      |> Choreo.add_service(:b)
+      |> Choreo.add_service(:c)
+      |> Choreo.connect(:a, :b, cost: 10)
+      |> Choreo.connect(:b, :c, cost: 10)
+      |> Choreo.connect(:a, :c, cost: 50)
+
+    # Using convenience atom
+    {:ok, path} = Analysis.path(system, :a, :c, measure: :cost)
+    assert path.nodes == [:a, :b, :c]
+
+    # Using explicit weighted mode
+    {:ok, path2} = Analysis.path(system, :a, :c, measure: :weighted, weight_key: :cost)
+    assert path2.nodes == [:a, :b, :c]
+
+    # Using custom function (reverse logic: find most expensive by negating)
+    {:ok, path3} =
+      Analysis.path(system, :a, :c,
+        measure: :weighted,
+        weight_fn: fn diagram, _src, _dst, id ->
+          meta = Map.get(diagram.edge_meta, id, %{})
+          -Map.get(meta, :cost, 0)
+        end
+      )
+
+    assert path3.nodes == [:a, :c]
+  end
 end

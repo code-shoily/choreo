@@ -602,12 +602,28 @@ defmodule Choreo.Analysis do
         weighted = transform_to_weighted_graph(diagram, :risk)
         Dijkstra.shortest_path(weighted, from, to)
 
+      :weighted ->
+        algorithm = opts[:algorithm] || :dijkstra
+        weighted = transform_to_weighted_graph(diagram, :weighted, opts)
+
+        if algorithm == :widest do
+          Dijkstra.widest_path(weighted, from, to)
+        else
+          Dijkstra.shortest_path(weighted, from, to)
+        end
+
+      custom when is_atom(custom) ->
+        # Convenience: if custom atom, treat as weight_key
+        opts = Keyword.put(opts, :weight_key, custom)
+        weighted = transform_to_weighted_graph(diagram, :weighted, opts)
+        Dijkstra.shortest_path(weighted, from, to)
+
       _ ->
         Dijkstra.shortest_path(graph, from, to)
     end
   end
 
-  defp transform_to_weighted_graph(diagram, measure) do
+  defp transform_to_weighted_graph(diagram, measure, opts \\ []) do
     # Convert a diagram (likely with Multi.Graph) to a simple weighted Yog.Graph
     # for pathfinding algorithms.
     simple = get_simple_graph(diagram)
@@ -618,39 +634,67 @@ defmodule Choreo.Analysis do
 
       Enum.reduce(targets, acc, fn {dst, _w}, inner_acc ->
         inner_acc = Yog.add_node(inner_acc, dst, simple.nodes[dst])
-        weight = calculate_edge_weight(diagram, src, dst, measure)
+        weight = calculate_edge_weight(diagram, src, dst, measure, opts)
         Yog.add_edge!(inner_acc, src, dst, weight)
       end)
     end)
   end
 
-  defp calculate_edge_weight(diagram, _src, dst, :latency) do
-    # For latency, the "cost" of a path is the sum of node/edge latencies.
-    # We assign the latency of the destination node to the edge.
-    node_data = diagram.graph.nodes[dst] || %{}
-    # Support both :latency_ms and :timeout_ms (common in Workflows)
-    Map.get(node_data, :latency_ms) || Map.get(node_data, :timeout_ms, 0)
+  defp calculate_edge_weight(diagram, src, dst, measure, opts) do
+    cond do
+      # Custom function takes precedence
+      func = opts[:weight_fn] ->
+        # Find the edge_id if it's a multigraph
+        edge_id = find_edge_id(diagram.graph, src, dst)
+        func.(diagram, src, dst, edge_id)
+
+      # Custom key
+      key = opts[:weight_key] ->
+        extract_metadata_weight(diagram, src, dst, key)
+
+      measure == :latency ->
+        node_data = diagram.graph.nodes[dst] || %{}
+        Map.get(node_data, :latency_ms) || Map.get(node_data, :timeout_ms, 0)
+
+      measure == :throughput ->
+        node_data = diagram.graph.nodes[src] || %{}
+        Map.get(node_data, :rate) || Map.get(node_data, :capacity, 1000)
+
+      measure == :risk ->
+        node_data = diagram.graph.nodes[dst] || %{}
+        Map.get(node_data, :risk_score) || Map.get(node_data, :vulnerability_count, 0)
+
+      true ->
+        1
+    end
   end
 
-  defp calculate_edge_weight(diagram, src, _dst, :throughput) do
-    # For throughput, the "capacity" is the bottleneck.
-    node_data = diagram.graph.nodes[src] || %{}
-    # Support both :rate and :capacity
-    Map.get(node_data, :rate) || Map.get(node_data, :capacity, 1000)
+  defp extract_metadata_weight(diagram, src, dst, key) do
+    # 1. Try edge metadata
+    edge_id = find_edge_id(diagram.graph, src, dst)
+    edge_meta = Map.get(diagram.edge_meta, edge_id, %{})
+
+    case Map.get(edge_meta, key) do
+      nil ->
+        # 2. Try destination node metadata
+        node_meta = Map.get(diagram.graph.nodes, dst, %{})
+        Map.get(node_meta, key, 1)
+
+      val ->
+        val
+    end
   end
 
-  defp calculate_edge_weight(diagram, _src, dst, :risk) do
-    # For risk, we want the "safest" path (minimal total risk).
-    # If no risk is defined, assume neutral cost (1).
-    get_node_metric(diagram, dst, :risk, 1)
+  defp find_edge_id(%Yog.Multi.Graph{} = g, src, dst) do
+    # For multigraphs, we pick the first one between src and dst for pathfinding purposes
+    # Alternatively, we could pick the "best" one, but for simple pathfinding we assume one path.
+    g.edges
+    |> Enum.find_value(nil, fn {id, {s, d, _w}} ->
+      if s == src and d == dst, do: id, else: nil
+    end)
   end
 
-  defp get_node_metric(diagram, id, key, default) do
-    node_data = diagram.graph.nodes[id] || %{}
-    # Some metrics might be in the diagram top-level (like edge_meta),
-    # but usually they are on the nodes in Choreo.
-    Map.get(node_data, key, default)
-  end
+  defp find_edge_id(_g, src, dst), do: {src, dst}
 
   @doc """
   Converts a path result into DOT highlighting options.

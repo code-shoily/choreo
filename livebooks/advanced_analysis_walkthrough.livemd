@@ -203,7 +203,7 @@ wf = Workflow.new()
 # Find the "Fastest Path"
 {:ok, path} = Analysis.path(wf, :start, :done, measure: :latency)
 
-Kino.VizJS.render(Workflow.to_dot(wf, Analysis.highlight(path)))
+Kino.VizJS.render(Workflow.to_dot(wf), height: "600px")
 ```
 
 ### Widest Path (Dataflow)
@@ -227,4 +227,23 @@ pipeline = Dataflow.new()
 {:ok, path} = Analysis.path(pipeline, :sensor, :db, measure: :throughput)
 
 Kino.VizJS.render(Dataflow.to_dot(pipeline, Analysis.highlight(path)))
+```
+
+### Custom Weighted Paths
+
+You can also find paths based on arbitrary metadata keys or custom weight functions.
+
+```elixir
+system = Choreo.new()
+  |> Choreo.add_service(:a)
+  |> Choreo.add_service(:b)
+  |> Choreo.add_service(:c)
+  |> Choreo.connect(:a, :b, cost: 10)
+  |> Choreo.connect(:b, :c, cost: 10)
+  |> Choreo.connect(:a, :c, cost: 50)
+
+# Find the cheapest path using the 'cost' variable
+{:ok, path} = Analysis.path(system, :a, :c, measure: :cost)
+
+Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(path)))
 ```

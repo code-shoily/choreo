@@ -11,6 +11,7 @@
     *   Implemented `Choreo.Analysis.core_numbers/1` using K-Core decomposition to isolate tightly-coupled architectural "nuclei."
     *   Implemented `Choreo.Analysis.reduce_transitive/1` for transitive reduction of dependency meshes.
     *   Implemented `Choreo.Analysis.path/4` for domain-aware pathfinding (Fastest Path, Widest Path, etc.).
+    *   Added support for **Custom Weight Variables** in pathfinding via arbitrary metadata keys or custom lambda functions.
     *   Added `Choreo.Analysis.highlight/1` to easily visualize pathfinding results in rendered diagrams.
   - Added domain-specific heatmap analysis:
     - `Choreo.Workflow.Analysis.heatmap/2` for identifying execution latency hotspots.
