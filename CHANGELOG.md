@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.1] - UNRELEASED
+
+### Added
+
+- **Theming API Overhaul**:
+  - Implemented `Choreo.Theme.override/2` to allow non-destructive deep-merging of nested theme maps (`colors`, `shapes`) while replacing top-level attributes like `graph_rankdir`.
+  - Added a standardized `theme/2` helper function across all core modules (`Workflow`, `Dataflow`, `MindMap`, `FSM`, `DecisionTree`, `Dependency`, and `ThreatModel`) to easily apply specific overrides while preserving default module schemas.
+- Added `:retention` option to `Choreo.ThreatModel.add_data_store/3` for modeling data lifecycles.
+
+### Fixed
+
+- Added `:none` to the allowed `privilege` types in `Choreo.ThreatModel` processes to support modeling unprivileged services.
+- `Choreo.ThreatModel.Analysis` now correctly downgrades the base severity of STRIDE threats (Spoofing, Tampering, Information Disclosure, Denial of Service) for processes with `:none` privilege to reflect their lower impact surface.
+
 ## [0.7.0] - 2026-05-03
 
 ### Added
