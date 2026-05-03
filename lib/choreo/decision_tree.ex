@@ -562,3 +562,56 @@ end
 defimpl Choreo.DOT, for: Choreo.DecisionTree do
   def to_dot(tree, opts), do: Choreo.DecisionTree.Render.DOT.to_dot(tree, opts)
 end
+
+defimpl Choreo.Viewable, for: Choreo.DecisionTree do
+  def rebuild(tree, new_graph) do
+    new_edge_meta =
+      tree.edge_meta
+      |> Enum.filter(fn {{from, to}, _meta} ->
+        Map.has_key?(new_graph.nodes, from) and Map.has_key?(new_graph.nodes, to)
+      end)
+      |> Map.new()
+
+    # Add virtual edge metadata for any graph edges that lack it
+    vmeta = virtual_edge_meta(tree)
+
+    new_edge_meta =
+      new_graph
+      |> Yog.all_edges()
+      |> Enum.reduce(new_edge_meta, fn {from, to, _weight}, acc ->
+        if Map.has_key?(acc, {from, to}) do
+          acc
+        else
+          Map.put(acc, {from, to}, vmeta)
+        end
+      end)
+
+    new_root =
+      if Map.has_key?(new_graph.nodes, tree.root) do
+        tree.root
+      else
+        new_graph.nodes
+        |> Enum.sort_by(fn {id, data} ->
+          {node_priority(data[:node_type]), Yog.in_degree(new_graph, id)}
+        end)
+        |> List.first()
+        |> case do
+          {id, _data} -> id
+          nil -> nil
+        end
+      end
+
+    %{tree | graph: new_graph, edge_meta: new_edge_meta, root: new_root}
+  end
+
+  def zoom_predicate(_tree, 0), do: fn data -> data[:node_type] == :root end
+  def zoom_predicate(_tree, 1), do: fn data -> data[:node_type] in [:root, :decision] end
+  def zoom_predicate(_tree, _level), do: fn _data -> true end
+
+  def virtual_edge_meta(_tree), do: %{edge_type: :virtual, label: nil}
+
+  defp node_priority(:root), do: 0
+  defp node_priority(:decision), do: 1
+  defp node_priority(:outcome), do: 2
+  defp node_priority(_), do: 99
+end

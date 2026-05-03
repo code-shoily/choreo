@@ -320,11 +320,14 @@ defmodule Choreo.DecisionTree.Render.DOT do
     fn from, to, _weight ->
       meta = Map.get(tree.edge_meta, {from, to}, %{})
 
-      base = [{:color, theme.edge_color}, {:fontcolor, theme.edge_color}]
+      case meta[:edge_type] do
+        :virtual ->
+          [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
 
-      base = if label = meta[:label], do: [{:label, label} | base], else: base
-
-      base
+        _ ->
+          base = [{:color, theme.edge_color}, {:fontcolor, theme.edge_color}]
+          if label = meta[:label], do: [{:label, label} | base], else: base
+      end
     end
   end
 
