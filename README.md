@@ -83,6 +83,7 @@ Choreo provides powerful graph analysis tools to identify "hotspots" in your arc
 | **SPOF Detection** | Articulation Points | "Which nodes would disconnect the system if they failed?" | `Choreo`, `Dataflow` |
 | **Nucleus Detection** | K-Core Decomposition | "Which nodes form the most tightly-coupled core?" | `Choreo`, `Dependency` |
 | **Dependency Reduction** | Transitive Reduction | "What is the minimal set of dependencies that preserve reachability?" | `Dependency` |
+| **Path Analysis** | Dijkstra / Widest Path | "What is the fastest or highest-throughput path between two points?" | `Workflow`, `Dataflow` |
 | **Execution Hotspots** | Latency Heatmap | "Which tasks slow down the entire workflow?" | `Workflow` |
 | **Volume Hotspots** | Throughput Heatmap | "Which stages handle the most data volume?" | `Dataflow` |
 | **Security Hotspots** | Risk Heatmap | "Which components have the most security threats?" | `ThreatModel` |
@@ -91,6 +92,13 @@ Choreo provides powerful graph analysis tools to identify "hotspots" in your arc
 # Example: Visualizing security risk hotspots
 model = Choreo.ThreatModel.Analysis.heatmap(model, palette: :heat)
 Choreo.ThreatModel.to_dot(model)
+
+# Example: Transitive Reduction for dependency cleanup
+{:ok, reduced} = Choreo.Analysis.reduce_transitive(deps)
+
+# Example: Finding and highlighting the fastest path
+{:ok, path} = Choreo.Analysis.path(wf, :start, :done, measure: :latency)
+dot = Choreo.Workflow.to_dot(wf, Choreo.Analysis.highlight(path))
 ```
 
 ---
@@ -172,7 +180,6 @@ fsm =
 FSM.Analysis.accepts?(fsm, ["start", "finish"])  #=> true
 FSM.Analysis.deterministic?(fsm)                  #=> true
 FSM.Analysis.shortest_accepting_path(fsm)         #=> {:ok, ["start", "finish"]}
-
 # Transforms
 pruned = FSM.prune(fsm)
 ```

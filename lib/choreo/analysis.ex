@@ -31,6 +31,7 @@ defmodule Choreo.Analysis do
   """
 
   alias Choreo
+  alias Yog.Pathfinding.Dijkstra
 
   # ============================================================================
   # Existing algorithms
@@ -278,13 +279,17 @@ defmodule Choreo.Analysis do
   """
   @spec shortest_path(Choreo.t(), Yog.node_id(), Yog.node_id(), keyword()) ::
           {:ok, map()} | :error
-  def shortest_path(%Choreo{} = system, from, to, opts \\ []) do
+  def shortest_path(system, from, to, opts \\ []) do
     graph = Choreo.to_simple_graph(system)
-    zero = Keyword.get(opts, :zero, 0)
-    add = Keyword.get(opts, :add, &Kernel.+/2)
-    compare = Keyword.get(opts, :compare, &Yog.Utils.compare/2)
 
-    Yog.Pathfinding.Dijkstra.shortest_path(graph, from, to, zero, add, compare)
+    Dijkstra.shortest_path(
+      graph,
+      from,
+      to,
+      opts[:zero] || 0,
+      opts[:add] || (&Kernel.+/2),
+      opts[:compare] || (&Yog.Utils.compare/2)
+    )
   end
 
   # ============================================================================
@@ -557,6 +562,112 @@ defmodule Choreo.Analysis do
         {:error, reason}
     end
   end
+
+  @doc """
+  Finds a path between nodes based on domain-specific criteria.
+
+  Supported measures:
+  - `:shortest` (default): Minimal number of hops.
+  - `:latency`: Minimal cumulative latency (uses `latency_ms` for Workflows/Dataflows).
+  - `:throughput`: Maximal bottleneck capacity (uses `rate` for Dataflows).
+  - `:risk`: Path through nodes with minimal security risk (ThreatModel).
+
+  Returns `{:ok, path}` where path is a `Yog.Pathfinding.Path` struct, or `:error`.
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b)
+      iex> {:ok, path} = Choreo.Analysis.path(system, :a, :b)
+      iex> path.nodes
+      [:a, :b]
+  """
+  @spec path(struct(), Yog.node_id(), Yog.node_id(), keyword()) :: {:ok, map()} | :error
+  def path(diagram, from, to, opts \\ []) do
+    measure = opts[:measure] || :shortest
+    graph = get_simple_graph(diagram)
+
+    case measure do
+      :shortest ->
+        Dijkstra.shortest_path(graph, from, to)
+
+      :latency ->
+        weighted = transform_to_weighted_graph(diagram, :latency)
+        Dijkstra.shortest_path(weighted, from, to)
+
+      :throughput ->
+        weighted = transform_to_weighted_graph(diagram, :throughput)
+        Dijkstra.widest_path(weighted, from, to)
+
+      :risk ->
+        weighted = transform_to_weighted_graph(diagram, :risk)
+        Dijkstra.shortest_path(weighted, from, to)
+
+      _ ->
+        Dijkstra.shortest_path(graph, from, to)
+    end
+  end
+
+  defp transform_to_weighted_graph(diagram, measure) do
+    # Convert a diagram (likely with Multi.Graph) to a simple weighted Yog.Graph
+    # for pathfinding algorithms.
+    simple = get_simple_graph(diagram)
+
+    # Rebuild edges with weights derived from node/edge metadata
+    Enum.reduce(simple.out_edges, Yog.directed(), fn {src, targets}, acc ->
+      acc = Yog.add_node(acc, src, simple.nodes[src])
+
+      Enum.reduce(targets, acc, fn {dst, _w}, inner_acc ->
+        inner_acc = Yog.add_node(inner_acc, dst, simple.nodes[dst])
+        weight = calculate_edge_weight(diagram, src, dst, measure)
+        Yog.add_edge!(inner_acc, src, dst, weight)
+      end)
+    end)
+  end
+
+  defp calculate_edge_weight(diagram, _src, dst, :latency) do
+    # For latency, the "cost" of a path is the sum of node/edge latencies.
+    # We assign the latency of the destination node to the edge.
+    node_data = diagram.graph.nodes[dst] || %{}
+    # Support both :latency_ms and :timeout_ms (common in Workflows)
+    Map.get(node_data, :latency_ms) || Map.get(node_data, :timeout_ms, 0)
+  end
+
+  defp calculate_edge_weight(diagram, src, _dst, :throughput) do
+    # For throughput, the "capacity" is the bottleneck.
+    node_data = diagram.graph.nodes[src] || %{}
+    # Support both :rate and :capacity
+    Map.get(node_data, :rate) || Map.get(node_data, :capacity, 1000)
+  end
+
+  defp calculate_edge_weight(diagram, _src, dst, :risk) do
+    # For risk, we want the "safest" path (minimal total risk).
+    # If no risk is defined, assume neutral cost (1).
+    get_node_metric(diagram, dst, :risk, 1)
+  end
+
+  defp get_node_metric(diagram, id, key, default) do
+    node_data = diagram.graph.nodes[id] || %{}
+    # Some metrics might be in the diagram top-level (like edge_meta),
+    # but usually they are on the nodes in Choreo.
+    Map.get(node_data, key, default)
+  end
+
+  @doc """
+  Converts a path result into DOT highlighting options.
+
+  Returns a list of options suitable for passing to `to_dot/2`.
+  """
+  @spec highlight(map()) :: keyword()
+  def highlight(%{nodes: nodes}) do
+    edges =
+      nodes
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.map(fn [u, v] -> {u, v} end)
+
+    [highlighted_nodes: nodes, highlighted_edges: edges]
+  end
+
+  def highlight(_), do: []
 
   # ============================================================================
   # Isolated nodes
