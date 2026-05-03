@@ -42,6 +42,9 @@ defmodule Choreo.DecisionTree.Render.DOT do
   def to_dot(%Choreo.DecisionTree{} = tree, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
     base_opts =
       Yog.Render.DOT.default_options()
       |> Map.put(:rankdir, :tb)
@@ -61,8 +64,8 @@ defmodule Choreo.DecisionTree.Render.DOT do
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, &edge_label/1)
-      |> Map.put(:node_attributes, node_attributes_fn(theme))
-      |> Map.put(:edge_attributes, edge_attributes_fn(tree, theme))
+      |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
+      |> Map.put(:edge_attributes, edge_attributes_fn(tree, theme, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
@@ -237,8 +240,8 @@ defmodule Choreo.DecisionTree.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(theme) do
-    fn _id, data ->
+  defp node_attributes_fn(theme, hl_nodes) do
+    fn id, data ->
       base =
         case Map.get(data, :node_type, :decision) do
           :root ->
@@ -301,8 +304,16 @@ defmodule Choreo.DecisionTree.Render.DOT do
           do: [{:image, image} | Keyword.delete(base, :image)],
           else: base
 
-      if desc = data[:description] do
-        [{:tooltip, desc} | base]
+      base =
+        if desc = data[:description] do
+          [{:tooltip, desc} | base]
+        else
+          base
+        end
+
+      # Final highlighting override: Omit fillcolor if node is highlighted
+      if MapSet.member?(hl_nodes, id) do
+        Keyword.drop(base, [:fillcolor])
       else
         base
       end
@@ -323,17 +334,25 @@ defmodule Choreo.DecisionTree.Render.DOT do
   # Edge styling
   # ============================================================================
 
-  defp edge_attributes_fn(tree, theme) do
+  defp edge_attributes_fn(tree, theme, hl_edges) do
     fn from, to, _weight ->
       meta = Map.get(tree.edge_meta, {from, to}, %{})
 
-      case meta[:edge_type] do
-        :virtual ->
-          [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+      base =
+        case meta[:edge_type] do
+          :virtual ->
+            [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
 
-        _ ->
-          base = [{:color, theme.edge_color}, {:fontcolor, theme.edge_color}]
-          if label = meta[:label], do: [{:label, label} | base], else: base
+          _ ->
+            base = [{:color, theme.edge_color}, {:fontcolor, theme.edge_color}]
+            if label = meta[:label], do: [{:label, label} | base], else: base
+        end
+
+      # Handle highlighting: Omit color/penwidth if edge is highlighted
+      if MapSet.member?(hl_edges, {from, to}) do
+        Keyword.drop(base, [:color, :penwidth])
+      else
+        base
       end
     end
   end

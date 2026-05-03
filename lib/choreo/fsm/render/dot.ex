@@ -42,6 +42,9 @@ defmodule Choreo.FSM.Render.DOT do
   def to_dot(%Choreo.FSM{} = fsm, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
     base_opts =
       Yog.Multi.DOT.default_options()
       |> Map.put(:rankdir, :lr)
@@ -61,7 +64,8 @@ defmodule Choreo.FSM.Render.DOT do
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, fn _id, data -> data[:label] || "" end)
       |> Map.put(:edge_label, fn _edge_id, weight -> weight || "" end)
-      |> Map.put(:node_attributes, node_attributes_fn(theme, fsm))
+      |> Map.put(:node_attributes, node_attributes_fn(theme, fsm, hl_nodes))
+      |> Map.put(:edge_attributes, edge_attributes_fn(theme, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
@@ -202,7 +206,7 @@ defmodule Choreo.FSM.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(theme, fsm) do
+  defp node_attributes_fn(theme, fsm, hl_nodes) do
     fn id, data ->
       is_initial = id in FSM.initial_states(fsm)
       is_final = id in FSM.final_states(fsm)
@@ -268,7 +272,34 @@ defmodule Choreo.FSM.Render.DOT do
           do: [{:image, image} | Keyword.delete(base, :image)],
           else: base
 
-      base
+      # Final highlighting override: Omit fillcolor if node is highlighted
+      if MapSet.member?(hl_nodes, id) do
+        Keyword.drop(base, [:fillcolor])
+      else
+        base
+      end
+    end
+  end
+
+  # ============================================================================
+  # Edge styling
+  # ============================================================================
+
+  defp edge_attributes_fn(theme, hl_edges) do
+    fn from, to, edge_id, _weight ->
+      base = [
+        {:color, theme.edge_color},
+        {:fontname, theme.edge_fontname},
+        {:fontsize, theme.edge_fontsize},
+        {:penwidth, theme.edge_penwidth}
+      ]
+
+      # Handle highlighting: Omit color/penwidth if edge is highlighted
+      if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
+        Keyword.drop(base, [:color, :penwidth])
+      else
+        base
+      end
     end
   end
 

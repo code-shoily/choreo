@@ -50,6 +50,9 @@ defmodule Choreo.Dependency.Render.DOT do
     subgraphs = Choreo.Internal.build_cluster_subgraphs(deps, theme)
     cycle_edges = cycle_edge_set(deps)
 
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
     base_opts =
       Yog.Render.DOT.default_options()
       |> Map.put(:rankdir, :tb)
@@ -69,8 +72,8 @@ defmodule Choreo.Dependency.Render.DOT do
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, label -> edge_label(label) end)
-      |> Map.put(:node_attributes, node_attributes_fn(theme))
-      |> Map.put(:edge_attributes, edge_attributes_fn(deps, cycle_edges))
+      |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
+      |> Map.put(:edge_attributes, edge_attributes_fn(deps, cycle_edges, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
@@ -246,8 +249,8 @@ defmodule Choreo.Dependency.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(theme) do
-    fn _id, data ->
+  defp node_attributes_fn(theme, hl_nodes) do
+    fn id, data ->
       base =
         case Map.get(data, :node_type, :module) do
           :application ->
@@ -332,7 +335,12 @@ defmodule Choreo.Dependency.Render.DOT do
           base
         end
 
-      base
+      # Final highlighting override: Omit fillcolor if node is highlighted
+      if MapSet.member?(hl_nodes, id) do
+        Keyword.drop(base, [:fillcolor])
+      else
+        base
+      end
     end
   end
 
@@ -344,7 +352,7 @@ defmodule Choreo.Dependency.Render.DOT do
   # Edge styling
   # ============================================================================
 
-  defp edge_attributes_fn(deps, cycle_edges) do
+  defp edge_attributes_fn(deps, cycle_edges, hl_edges) do
     fn from, to, edge_id, _weight ->
       meta = Map.get(deps.edge_meta, edge_id, %{})
 
@@ -361,12 +369,20 @@ defmodule Choreo.Dependency.Render.DOT do
             base
           end
 
-        if label = meta[:label] do
-          if label != "" do
-            [{:label, label} | base]
+        base =
+          if label = meta[:label] do
+            if label != "" do
+              [{:label, label} | base]
+            else
+              base
+            end
           else
             base
           end
+
+        # Handle highlighting: Omit color/penwidth if edge is highlighted
+        if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
+          Keyword.drop(base, [:color, :penwidth])
         else
           base
         end

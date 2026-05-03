@@ -159,10 +159,12 @@ alias Choreo.Dependency
 
 # A dense dependency graph with a redundant edge
 deps = Dependency.new()
-  |> Dependency.add_service(:a) |> Dependency.add_service(:b) |> Dependency.add_service(:c)
-  |> Dependency.connect(:a, :b)
-  |> Dependency.connect(:b, :c)
-  |> Dependency.connect(:a, :c) # Redundant!
+  |> Dependency.add_application(:api)
+  |> Dependency.add_module(:auth)
+  |> Dependency.add_library(:phoenix)
+  |> Dependency.depends_on(:api, :auth)
+  |> Dependency.depends_on(:auth, :phoenix)
+  |> Dependency.depends_on(:api, :phoenix) # Redundant!
 
 # Perform reduction
 {:ok, reduced} = Analysis.reduce_transitive(deps)
@@ -171,4 +173,58 @@ Kino.Layout.grid([
   Kino.VizJS.render(Dependency.to_dot(deps)),
   Kino.VizJS.render(Dependency.to_dot(reduced))
 ], columns: 2)
+```
+
+---
+
+## 7. Path Analysis (Critical Paths & Bottlenecks)
+
+**Path Analysis** finds the optimal route between two services based on domain-specific metrics.
+
+### Fastest Path (Workflow)
+
+Minimize cumulative latency across tasks.
+
+```elixir
+alias Choreo.Workflow
+
+wf = Workflow.new()
+  |> Workflow.add_start(:start)
+  |> Workflow.add_task(:fast_a, timeout_ms: 10)
+  |> Workflow.add_task(:fast_b, timeout_ms: 10)
+  |> Workflow.add_task(:slow, timeout_ms: 500)
+  |> Workflow.add_end(:done)
+  |> Workflow.connect(:start, :fast_a)
+  |> Workflow.connect(:fast_a, :fast_b)
+  |> Workflow.connect(:fast_b, :done)
+  |> Workflow.connect(:start, :slow)
+  |> Workflow.connect(:slow, :done)
+
+# Find the "Fastest Path"
+{:ok, path} = Analysis.path(wf, :start, :done, measure: :latency)
+
+Kino.VizJS.render(Workflow.to_dot(wf, Analysis.highlight(path)))
+```
+
+### Widest Path (Dataflow)
+
+Maximize the bottleneck capacity (minimum throughput) along the path.
+
+```elixir
+alias Choreo.Dataflow
+
+pipeline = Dataflow.new()
+  |> Dataflow.add_source(:sensor, rate: 1000)
+  |> Dataflow.add_transform(:fast_lane, capacity: 800)
+  |> Dataflow.add_transform(:slow_lane, capacity: 50)
+  |> Dataflow.add_sink(:db)
+  |> Dataflow.connect(:sensor, :fast_lane)
+  |> Dataflow.connect(:fast_lane, :db)
+  |> Dataflow.connect(:sensor, :slow_lane)
+  |> Dataflow.connect(:slow_lane, :db)
+
+# Find the "Widest Path"
+{:ok, path} = Analysis.path(pipeline, :sensor, :db, measure: :throughput)
+
+Kino.VizJS.render(Dataflow.to_dot(pipeline, Analysis.highlight(path)))
 ```

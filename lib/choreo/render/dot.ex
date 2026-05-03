@@ -47,12 +47,15 @@ defmodule Choreo.Render.DOT do
 
     subgraphs = Choreo.Internal.build_cluster_subgraphs(system, theme)
 
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
     base =
       Yog.Multi.DOT.default_options()
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, weight -> edge_label(weight) end)
-      |> Map.put(:node_attributes, node_attributes_fn(system, theme))
-      |> Map.put(:edge_attributes, edge_attributes_fn(system))
+      |> Map.put(:node_attributes, node_attributes_fn(system, theme, hl_nodes))
+      |> Map.put(:edge_attributes, edge_attributes_fn(system, hl_edges))
       |> Map.merge(theme_graph_attrs(theme))
       |> Map.merge(Map.new(opts))
 
@@ -103,8 +106,8 @@ defmodule Choreo.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(_system, theme) do
-    fn _id, data ->
+  defp node_attributes_fn(_system, theme, hl_nodes) do
+    fn id, data ->
       type = Map.get(data, :type, :generic)
 
       shape = Map.get(data, :shape) || Theme.shape(theme, type)
@@ -114,10 +117,18 @@ defmodule Choreo.Render.DOT do
 
       attrs = [
         {:shape, shape},
-        {:fillcolor, color},
         {:fontcolor, fontcolor},
         {:style, style}
       ]
+
+      # Only add fillcolor if node is NOT highlighted.
+      # This allows Yog's highlight_color to take precedence.
+      attrs =
+        if MapSet.member?(hl_nodes, id) do
+          attrs
+        else
+          [{:fillcolor, color} | attrs]
+        end
 
       attrs =
         if penwidth = data[:penwidth] do
@@ -149,8 +160,8 @@ defmodule Choreo.Render.DOT do
   # Edge styling
   # ============================================================================
 
-  defp edge_attributes_fn(system) do
-    fn _from, to, edge_id, _weight ->
+  defp edge_attributes_fn(system, hl_edges) do
+    fn from, to, edge_id, _weight ->
       meta = Map.get(system.edge_meta, edge_id, %{})
 
       if meta[:edge_type] == :virtual do
@@ -182,7 +193,12 @@ defmodule Choreo.Render.DOT do
         base = if port = meta[:headport], do: [{:headport, port} | base], else: base
         base = if port = meta[:tailport], do: [{:tailport, port} | base], else: base
 
-        base
+        # Final highlighting override
+        if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
+          Keyword.drop(base, [:color, :penwidth])
+        else
+          base
+        end
       end
     end
   end

@@ -47,6 +47,9 @@ defmodule Choreo.ThreatModel.Render.DOT do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
     subgraphs = Choreo.Internal.build_cluster_subgraphs(model, theme)
 
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
     base_opts =
       Yog.Render.DOT.default_options()
       |> Map.put(:rankdir, :lr)
@@ -66,8 +69,8 @@ defmodule Choreo.ThreatModel.Render.DOT do
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, label -> edge_label(label) end)
-      |> Map.put(:node_attributes, node_attributes_fn(theme))
-      |> Map.put(:edge_attributes, edge_attributes_fn(model))
+      |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
+      |> Map.put(:edge_attributes, edge_attributes_fn(model, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
@@ -216,8 +219,8 @@ defmodule Choreo.ThreatModel.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(theme) do
-    fn _id, data ->
+  defp node_attributes_fn(theme, hl_nodes) do
+    fn id, data ->
       base =
         case Map.get(data, :element_type, :process) do
           :external_entity ->
@@ -280,8 +283,16 @@ defmodule Choreo.ThreatModel.Render.DOT do
           do: [{:image, image} | Keyword.delete(base, :image)],
           else: base
 
-      if desc = data[:description] do
-        [{:tooltip, desc} | base]
+      base =
+        if desc = data[:description] do
+          [{:tooltip, desc} | base]
+        else
+          base
+        end
+
+      # Final highlighting override: Omit fillcolor if node is highlighted
+      if MapSet.member?(hl_nodes, id) do
+        Keyword.drop(base, [:fillcolor])
       else
         base
       end
@@ -312,30 +323,41 @@ defmodule Choreo.ThreatModel.Render.DOT do
   # Edge styling
   # ============================================================================
 
-  defp edge_attributes_fn(model) do
+  defp edge_attributes_fn(model, hl_edges) do
     fn from, to, edge_id, _weight ->
       meta = Map.get(model.edge_meta, edge_id, %{})
 
-      if meta[:edge_type] == :virtual do
-        [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+      base =
+        if meta[:edge_type] == :virtual do
+          [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
+        else
+          crosses = ThreatModel.crosses_boundary?(model, from, to)
+          encrypted = meta[:encrypted] == true
+
+          base =
+            cond do
+              not encrypted and crosses ->
+                [
+                  {:color, "#ef4444"},
+                  {:fontcolor, "#ef4444"},
+                  {:penwidth, 2.0},
+                  {:style, "dashed"}
+                ]
+
+              crosses ->
+                [{:color, "#f59e0b"}, {:fontcolor, "#f59e0b"}, {:penwidth, 1.5}]
+
+              true ->
+                [{:color, "#64748b"}, {:fontcolor, "#64748b"}, {:penwidth, 1.0}]
+            end
+
+          if proto = meta[:protocol], do: [{:label, to_string(proto)} | base], else: base
+        end
+
+      # Handle highlighting: Omit color/penwidth if edge is highlighted
+      if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
+        Keyword.drop(base, [:color, :penwidth])
       else
-        crosses = ThreatModel.crosses_boundary?(model, from, to)
-        encrypted = meta[:encrypted] == true
-
-        base =
-          cond do
-            not encrypted and crosses ->
-              [{:color, "#ef4444"}, {:fontcolor, "#ef4444"}, {:penwidth, 2.0}, {:style, "dashed"}]
-
-            crosses ->
-              [{:color, "#f59e0b"}, {:fontcolor, "#f59e0b"}, {:penwidth, 1.5}]
-
-            true ->
-              [{:color, "#64748b"}, {:fontcolor, "#64748b"}, {:penwidth, 1.0}]
-          end
-
-        base = if proto = meta[:protocol], do: [{:label, to_string(proto)} | base], else: base
-
         base
       end
     end
