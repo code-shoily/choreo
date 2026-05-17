@@ -51,7 +51,7 @@ defmodule Choreo.MixProject do
 
   defp deps do
     [
-      {:yog_ex, "~> 0.97.1"},
+      {:yog_ex, "~> 0.98"},
       {:nimble_options, "~> 1.1"},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -86,10 +86,12 @@ defmodule Choreo.MixProject do
           Choreo,
           Choreo.Theme,
           Choreo.View,
-          Choreo.Viewable
+          Choreo.Viewable,
+          Choreo.Mermaid
         ],
         "System Architecture": [
-          Choreo.Render.DOT
+          Choreo.Render.DOT,
+          Choreo.Render.Mermaid
         ],
         "State Machines": [
           Choreo.FSM,

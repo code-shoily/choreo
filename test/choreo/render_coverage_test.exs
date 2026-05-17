@@ -1,12 +1,47 @@
 defmodule Choreo.RenderCoverageTest do
   use ExUnit.Case
 
+  alias Choreo
   alias Choreo.Dataflow
   alias Choreo.Dependency
   alias Choreo.FSM
   alias Choreo.MindMap
   alias Choreo.ThreatModel
   alias Choreo.Workflow
+
+  test "infrastructure mermaid renderer comprehensive" do
+    system =
+      Choreo.new()
+      |> Choreo.add_database(:db, kind: :postgres)
+      |> Choreo.add_cache(:cache, kind: :redis)
+      |> Choreo.add_service(:api)
+      |> Choreo.add_network(:vpc)
+      |> Choreo.add_user(:client)
+      |> Choreo.add_load_balancer(:lb)
+      |> Choreo.add_queue(:q, kind: :kafka)
+      |> Choreo.add_storage(:s3)
+      |> Choreo.connect(:api, :db, cost: 10)
+      |> Choreo.connect(:api, :cache, cost: 5)
+      |> Choreo.add_dataflow(:client, :api)
+
+    for theme <- [:default, :dark, :warm, :forest, :ocean, :minimal] do
+      assert Choreo.to_mermaid(system, theme: theme) =~ "graph TD"
+    end
+
+    # Custom attributes
+    custom =
+      system
+      |> Choreo.add_database(:custom,
+        shape: :circle,
+        fillcolor: "red",
+        fontcolor: "blue",
+        style: "bold",
+        penwidth: 5.0,
+        image: "icon.png"
+      )
+
+    assert Choreo.to_mermaid(custom) =~ "((\"custom\"))"
+  end
 
   test "workflow renderer comprehensive" do
     wf =

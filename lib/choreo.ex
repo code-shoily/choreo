@@ -3,9 +3,9 @@ defmodule Choreo do
   A domain-specific layer on top of Yog for modeling system architectures.
 
   Choreo lets you define infrastructure diagrams (databases, caches,
-  services, networks, etc.) as graphs and render them to DOT format with
-  system-diagram theming. You can also run graph algorithms such as MST
-  and topological sort to analyze your architecture.
+  services, networks, etc.) as graphs and render them to DOT format or
+  Mermaid.js syntax with system-diagram theming. You can also run graph
+  algorithms such as MST and topological sort to analyze your architecture.
 
   ## When to use
 
@@ -24,6 +24,7 @@ defmodule Choreo do
         |> Choreo.connect(:api, :db, cost: 10)
 
       dot = Choreo.to_dot(system)
+      mermaid = Choreo.to_mermaid(system)
 
   ## Algorithms
 
@@ -830,6 +831,29 @@ defmodule Choreo do
   end
 
   @doc """
+  Renders the system diagram to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, or `:ocean`
+    * `:direction` - `:td`, `:lr`, `:bt`, or `:rl`
+    * Any option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:api)
+      iex> mermaid = Choreo.to_mermaid(system)
+      iex> String.contains?(mermaid, "graph TD")
+      true
+      iex> String.contains?(mermaid, "api")
+      true
+  """
+  @spec to_mermaid(any(), keyword()) :: String.t()
+  def to_mermaid(diagram, opts \\ []) do
+    Choreo.Mermaid.to_mermaid(diagram, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo` infrastructure diagrams.
 
   ## Examples
@@ -891,4 +915,8 @@ end
 
 defimpl Choreo.DOT, for: Choreo do
   def to_dot(system, opts), do: Choreo.Render.DOT.to_dot(system, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo do
+  def to_mermaid(system, opts), do: Choreo.Render.Mermaid.to_mermaid(system, opts)
 end

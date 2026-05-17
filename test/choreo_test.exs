@@ -145,6 +145,18 @@ defmodule ChoreoTest do
       refute String.contains?(dot, "splines=ortho")
     end
 
+    test "to_dot uses label over protocol for edge labels" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.connect(:api, :db, protocol: :grpc, label: "Custom Label")
+
+      dot = Choreo.to_dot(system)
+      assert String.contains?(dot, "label=\"Custom Label\"")
+      refute String.contains?(dot, "label=\"grpc\"")
+    end
+
     test "to_dot adds headport=n for database targets" do
       system =
         Choreo.new()
@@ -331,6 +343,222 @@ defmodule ChoreoTest do
       assert Choreo.Theme.color(theme, :database) == "#123456"
       # Inherits from dark theme
       assert theme.graph_bgcolor == "#0f172a"
+    end
+  end
+
+  describe "mermaid rendering" do
+    test "to_mermaid/1 produces a Mermaid string" do
+      system =
+        Choreo.new()
+        |> Choreo.add_database(:db, kind: :postgres)
+        |> Choreo.add_service(:api)
+        |> Choreo.connect(:api, :db, cost: 10)
+
+      mermaid = Choreo.to_mermaid(system)
+      assert String.contains?(mermaid, "graph TD")
+      assert String.contains?(mermaid, "api")
+      assert String.contains?(mermaid, "db")
+      assert String.contains?(mermaid, "[(\"db\")]")
+      assert String.contains?(mermaid, "[[\"api\"]]")
+    end
+
+    test "to_mermaid/2 supports dark theme" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+
+      mermaid = Choreo.to_mermaid(system, theme: :dark)
+      assert String.contains?(mermaid, "graph TD")
+      assert String.contains?(mermaid, "api")
+    end
+
+    test "to_mermaid/2 supports minimal theme" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+
+      mermaid = Choreo.to_mermaid(system, theme: :minimal)
+      assert String.contains?(mermaid, "api")
+    end
+
+    test "to_mermaid respects custom direction" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+
+      mermaid = Choreo.to_mermaid(system, direction: :lr)
+      assert String.contains?(mermaid, "graph LR")
+    end
+
+    test "to_mermaid uses type-based shapes" do
+      system =
+        Choreo.new()
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.add_service(:api)
+        |> Choreo.add_user(:user)
+        |> Choreo.add_load_balancer(:lb)
+        |> Choreo.add_queue(:q)
+        |> Choreo.add_storage(:s3)
+
+      mermaid = Choreo.to_mermaid(system)
+      assert String.contains?(mermaid, "[(\"db\")]")
+      assert String.contains?(mermaid, "{{\"cache\"}}")
+      assert String.contains?(mermaid, "[[\"api\"]]")
+      assert String.contains?(mermaid, "((\"user\"))")
+      assert String.contains?(mermaid, "([\"q\"])")
+    end
+
+    test "to_mermaid renders flat clusters as subgraphs" do
+      system =
+        Choreo.new()
+        |> Choreo.add_cluster("vpc", label: "VPC")
+        |> Choreo.add_service(:api, cluster: "vpc")
+        |> Choreo.add_database(:db, cluster: "vpc")
+
+      mermaid = Choreo.to_mermaid(system)
+      assert String.contains?(mermaid, "subgraph vpc")
+      assert String.contains?(mermaid, "[\"VPC\"]")
+      assert String.contains?(mermaid, "api")
+      assert String.contains?(mermaid, "db")
+    end
+
+    test "to_mermaid with custom theme overrides colors" do
+      system =
+        Choreo.new()
+        |> Choreo.add_database(:db)
+        |> Choreo.add_service(:api)
+
+      theme = Choreo.Theme.custom(colors: %{database: "#ff0000"})
+      mermaid = Choreo.to_mermaid(system, theme: theme)
+
+      assert String.contains?(mermaid, "#ff0000")
+    end
+
+    test "to_mermaid with custom theme overrides shapes" do
+      system =
+        Choreo.new()
+        |> Choreo.add_database(:db)
+
+      theme = Choreo.Theme.custom(shapes: %{database: :circle})
+      mermaid = Choreo.to_mermaid(system, theme: theme)
+
+      assert String.contains?(mermaid, "db((\"db\"))")
+    end
+
+    test "to_mermaid renders dataflow edges with dashed style" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.add_dataflow(:a, :b)
+
+      mermaid = Choreo.to_mermaid(system)
+      assert String.contains?(mermaid, "a --> b")
+      assert String.contains?(mermaid, "stroke-dasharray")
+    end
+
+    test "to_mermaid renders protocol labels on edges" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b, protocol: :https)
+
+      mermaid = Choreo.to_mermaid(system)
+      assert String.contains?(mermaid, "a -->|https| b")
+    end
+
+    test "to_mermaid renders explicit edge labels" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b, label: "Custom")
+
+      mermaid = Choreo.to_mermaid(system)
+      assert String.contains?(mermaid, "a -->|Custom| b")
+    end
+
+    test "to_mermaid styles virtual edges lightly" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.connect(:api, :db)
+        |> Choreo.connect(:db, :cache)
+
+      filtered =
+        Choreo.View.filter(
+          system,
+          fn _id, data -> data[:type] != :database end,
+          transitive: true
+        )
+
+      mermaid = Choreo.to_mermaid(filtered)
+      assert String.contains?(mermaid, "#cbd5e1")
+    end
+
+    test "to_dot supports custom edge_label callback when no protocol/label set" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b, cost: 42)
+
+      dot =
+        Choreo.Render.DOT.to_dot(system,
+          edge_label: fn _edge_id, weight -> "cost=#{weight}" end
+        )
+
+      assert String.contains?(dot, "label=\"cost=42\"")
+    end
+
+    test "to_mermaid supports custom edge_label callback" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b, cost: 42, protocol: :http)
+
+      mermaid =
+        Choreo.Render.Mermaid.to_mermaid(system,
+          edge_label: fn _edge_id, weight -> "cost=#{weight}" end
+        )
+
+      assert String.contains?(mermaid, "a -->|cost=42| b")
+    end
+
+    test "exhaustive mermaid theme coverage" do
+      system =
+        Choreo.new()
+        |> Choreo.add_database(:db, description: "Main DB")
+        |> Choreo.add_service(:api, penwidth: 3)
+        |> Choreo.connect(:api, :db, protocol: :grpc)
+
+      assert Choreo.to_mermaid(system, theme: :warm) =~ "db"
+      assert Choreo.to_mermaid(system, theme: :forest) =~ "db"
+      assert Choreo.to_mermaid(system, theme: :ocean) =~ "db"
+      assert Choreo.to_mermaid(system, theme: :dark) =~ "db"
+      assert Choreo.to_mermaid(system, theme: :minimal) =~ "db"
+    end
+
+    test "to_mermaid respects highlighted nodes and edges" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b)
+
+      mermaid =
+        Choreo.to_mermaid(system,
+          highlighted_nodes: [:a],
+          highlighted_edges: [{:a, :b}]
+        )
+
+      assert String.contains?(mermaid, ":::highlight")
+      assert String.contains?(mermaid, "classDef highlight")
     end
   end
 

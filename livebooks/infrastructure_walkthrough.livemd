@@ -2,14 +2,14 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7.1"},
-  {:kino_vizjs, "~> 0.8.0"}
+  {:choreo, "~> 0.8"},
+  {:kino_vizjs, "~> 0.8.0"},
 ])
 ```
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally. Since version 0.8.0, Choreo also supports **Mermaid.js** output for GitHub, GitLab, Notion, and any Markdown-based documentation.
 
 ---
 
@@ -49,6 +49,22 @@ legend =
 Kino.VizJS.render(Choreo.to_dot(legend))
 ```
 
+### Mermaid Rendering
+
+Choreo can also render infrastructure diagrams to **Mermaid.js** syntax — perfect for GitHub, GitLab, Notion, and any Markdown-based documentation.
+
+```elixir
+Kino.Mermaid.new(Choreo.to_mermaid(legend))
+```
+
+The output above can also be pasted directly into a Markdown file inside a `mermaid` code block:
+
+````markdown
+```mermaid
+<%= Choreo.to_mermaid(legend) %>
+```
+````
+
 ---
 
 ## Example 1: Classic Three-Tier Web Application
@@ -74,6 +90,12 @@ three_tier =
   |> Choreo.connect(:web, :s3, cost: 3, protocol: :https)
 
 Kino.VizJS.render(Choreo.to_dot(three_tier), height: "600px")
+```
+
+### Mermaid Version
+
+```elixir
+Kino.Mermaid.new(Choreo.to_mermaid(three_tier))
 ```
 
 ### Basic Queries
@@ -104,8 +126,6 @@ end
 ## Example 2: Multi-Region Architecture with Nested Clusters
 
 Real systems span availability zones and regions. Choreo's cluster system supports nesting — a region contains AZs, which contain services.
-
-<!-- livebook:{"output_size":"full"} -->
 
 ```elixir
 multi_region =
@@ -186,6 +206,12 @@ Kino.VizJS.render(
 )
 ```
 
+### Mermaid Version (Left-to-Right)
+
+```elixir
+Kino.Mermaid.new(Choreo.to_mermaid(multi_region, direction: :lr))
+```
+
 ### Centrality Analysis
 
 Which services are the most critical connectors?
@@ -230,6 +256,12 @@ cost_optimisation =
   |> Choreo.connect(:datacenter, :cloud, cost: 10, label: "Direct Connect")
 
 Kino.VizJS.render(Choreo.to_dot(cost_optimisation))
+```
+
+### Mermaid Version
+
+```elixir
+Kino.Mermaid.new(Choreo.to_mermaid(cost_optimisation))
 ```
 
 ### Minimum Spanning Tree
@@ -285,6 +317,14 @@ resilience =
 Kino.VizJS.render(Choreo.to_dot(resilience), height: "500px", engine: "circo")
 ```
 
+### Mermaid Version
+
+```elixir
+resilience
+|> Choreo.to_mermaid(direction: :lr)
+|> Kino.Mermaid.new()
+```
+
 ### Single Points of Failure
 
 ```elixir
@@ -332,6 +372,14 @@ pipeline =
   |> Choreo.add_dataflow(:warehouse, :serve)
 
 Kino.VizJS.render(Choreo.to_dot(pipeline, theme: Choreo.theme(:default, graph_rankdir: :lr)))
+```
+
+### Mermaid Version
+
+```elixir
+pipeline
+|> Choreo.to_mermaid(direction: :lr)
+|> Kino.Mermaid.new()
 ```
 
 ### Topological Sort
@@ -451,8 +499,6 @@ Kino.VizJS.render(Choreo.to_dot(really_fixed))
 
 ## Advanced: Custom Theming
 
-<!-- livebook:{"output_size":"wide"} -->
-
 ```elixir
 brand_theme =
   Choreo.Theme.custom(
@@ -477,6 +523,16 @@ Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme), height: "800p
 
 ---
 
+<!-- livebook:{"break_markdown":true} -->
+
+### Mermaid Version
+
+```elixir
+multi_region
+|> Choreo.to_mermaid(theme: brand_theme)
+|> Kino.Mermaid.new()
+```
+
 ## Example 7: Multigraph — Multiple Connections Between the Same Nodes
 
 Real infrastructure often has more than one relationship between the same pair of services. Choreo supports **parallel edges** (multigraph), so you can model reads and writes separately, or different protocols between the same endpoints.
@@ -495,6 +551,14 @@ multigraph_example =
   |> Choreo.connect(:api, :redis, cost: 1, protocol: :grpc, label: "Write-through")
 
 Kino.VizJS.render(Choreo.to_dot(multigraph_example))
+```
+
+### Mermaid Version
+
+```elixir
+multigraph_example
+|> Choreo.to_mermaid(direction: :lr)
+|> Kino.Mermaid.new()
 ```
 
 ### Querying Parallel Edges
@@ -568,6 +632,12 @@ IO.puts("Zoom Level 0 (Services Only)")
 Kino.VizJS.render(Choreo.to_dot(service_view), height: "200px")
 ```
 
+```elixir
+service_view
+|> Choreo.to_mermaid(theme: :ocean)
+|> Kino.Mermaid.new()
+```
+
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
 
 ```elixir
@@ -579,6 +649,12 @@ Kino.VizJS.render(Choreo.to_dot(data_view), height: "400px")
 ```
 
 ---
+
+```elixir
+data_view
+|> Choreo.to_mermaid(theme: :ocean, direction: :lrF)
+|> Kino.Mermaid.new()
+```
 
 ## Summary
 
@@ -595,5 +671,6 @@ Kino.VizJS.render(Choreo.to_dot(data_view), height: "400px")
 | "Where are my single points of failure?"         | `Analysis.single_points_of_failure/1`      |
 | "Is my architecture sound?"                      | `Analysis.validate/1`                      |
 | "Render to DOT"                                  | `Choreo.to_dot/2`                          |
+| "Render to Mermaid"                              | `Choreo.to_mermaid/2`                      |
 
 Infrastructure diagrams as code mean your architecture is version-controlled, reviewable, and automatically analysed for cost, resilience, and correctness. Every time you add a service or connection, you can immediately see the impact on deployment order, network cost, and fault tolerance — before you provision a single resource.

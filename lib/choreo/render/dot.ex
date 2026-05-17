@@ -177,7 +177,11 @@ defmodule Choreo.Render.DOT do
           end
 
         base =
-          if protocol = meta[:protocol], do: [{:label, to_string(protocol)} | base], else: base
+          cond do
+            label = meta[:label] -> [{:label, to_string(label)} | base]
+            protocol = meta[:protocol] -> [{:label, to_string(protocol)} | base]
+            true -> base
+          end
 
         # Smart headport: databases look best when entered from the top.
         target_data = Map.get(system.graph.nodes, to, %{})
