@@ -228,4 +228,86 @@ defmodule Choreo.Internal do
       :error -> acc
     end
   end
+
+  @doc """
+  Darkens a hex color code slightly for use as a stroke/border color.
+  """
+  @spec darken(String.t()) :: String.t()
+  def darken("#" <> hex) when byte_size(hex) == 6 do
+    hex
+    |> String.to_integer(16)
+    |> then(fn n ->
+      r = max(0, div(n, 0x10000) - 30)
+      g = max(0, div(rem(n, 0x10000), 0x100) - 30)
+      b = max(0, rem(n, 0x100) - 30)
+      <<r::8, g::8, b::8>>
+    end)
+    |> Base.encode16(case: :lower)
+    |> then(&("#" <> &1))
+  end
+
+  def darken(other), do: other
+
+  @doc """
+  Converts a simple `Yog.Graph` to a `Yog.Multi.Graph`, returning `{multi_graph, edge_id_map}`.
+  """
+  @spec to_multi_graph(Yog.graph()) :: {Yog.Multi.graph(), map()}
+  def to_multi_graph(%Yog.Graph{} = graph) do
+    multi = Yog.Multi.new(graph.kind)
+
+    multi =
+      Enum.reduce(graph.nodes, multi, fn {id, data}, acc ->
+        Yog.Multi.add_node(acc, id, data)
+      end)
+
+    {multi, edge_id_map} =
+      Enum.reduce(graph.out_edges, {multi, %{}}, fn {from, targets}, {g_acc, map_acc} ->
+        Enum.reduce(targets, {g_acc, map_acc}, fn {to, weight}, {g2, m2} ->
+          {g3, edge_id} = Yog.Multi.add_edge(g2, from, to, weight)
+          {g3, Map.put(m2, edge_id, {from, to})}
+        end)
+      end)
+
+    {multi, edge_id_map}
+  end
+
+  @doc """
+  Builds cluster subgraph definitions for Mermaid flowchart compatibility.
+  """
+  @spec build_mermaid_subgraphs(map()) :: [map()]
+  def build_mermaid_subgraphs(struct) do
+    clusters = struct.clusters || %{}
+
+    if map_size(clusters) == 0 do
+      []
+    else
+      nodes_by_cluster =
+        struct.graph.nodes
+        |> Enum.group_by(fn {_id, data} -> data[:cluster] end)
+        |> Map.delete(nil)
+
+      Enum.flat_map(nodes_by_cluster, fn {cluster_name, nodes} ->
+        cluster = Map.get(clusters, cluster_name, %{})
+        label = cluster[:label] || cluster_name
+        node_ids = Enum.map(nodes, fn {id, _data} -> id end)
+
+        if node_ids == [] do
+          []
+        else
+          [
+            %{
+              name: clean_cluster_name(cluster_name),
+              label: label,
+              node_ids: node_ids
+            }
+          ]
+        end
+      end)
+    end
+  end
+
+  defp clean_cluster_name(name) do
+    name = to_string(name)
+    String.replace_prefix(name, "cluster_", "")
+  end
 end

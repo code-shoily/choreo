@@ -77,7 +77,7 @@ defmodule Choreo.Render.Mermaid do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
     direction = Keyword.get(opts, :direction, theme_direction(theme))
 
-    subgraphs = build_mermaid_subgraphs(system)
+    subgraphs = Choreo.Internal.build_mermaid_subgraphs(system)
 
     hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
     hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
@@ -147,7 +147,7 @@ defmodule Choreo.Render.Mermaid do
       type = Map.get(data, :type, :generic)
 
       fill = Map.get(data, :fillcolor) || Theme.color(theme, type)
-      stroke = darken(fill)
+      stroke = Choreo.Internal.darken(fill)
 
       attrs = [
         {:fill, fill},
@@ -232,46 +232,6 @@ defmodule Choreo.Render.Mermaid do
   end
 
   # ============================================================================
-  # Subgraphs
-  # ============================================================================
-
-  defp build_mermaid_subgraphs(system) do
-    clusters = system.clusters || %{}
-
-    if map_size(clusters) == 0 do
-      []
-    else
-      nodes_by_cluster =
-        system.graph.nodes
-        |> Enum.group_by(fn {_id, data} -> data[:cluster] end)
-        |> Map.delete(nil)
-
-      Enum.flat_map(nodes_by_cluster, fn {cluster_name, nodes} ->
-        cluster = Map.get(clusters, cluster_name, %{})
-        label = cluster[:label] || cluster_name
-
-        node_ids = Enum.map(nodes, fn {id, _data} -> id end)
-
-        if node_ids == [] do
-          []
-        else
-          [
-            %{
-              name: clean_cluster_name(cluster_name),
-              label: label,
-              node_ids: node_ids
-            }
-          ]
-        end
-      end)
-    end
-  end
-
-  defp clean_cluster_name(name) do
-    name = to_string(name)
-    String.replace_prefix(name, "cluster_", "")
-  end
-
   # Normalize undirected graph edges so from_id <= to_id.
   # This works around Yog.Multi.Mermaid's deduplication filter.
   defp normalize_undirected_graph(%{kind: :undirected} = graph) do
@@ -308,20 +268,4 @@ defmodule Choreo.Render.Mermaid do
   def to_mermaid_shape(:circle), do: :circle
   def to_mermaid_shape(:diamond), do: :rhombus
   def to_mermaid_shape(_), do: :rounded_rect
-
-  # Darken a hex colour slightly for use as a stroke colour.
-  defp darken("#" <> hex) when byte_size(hex) == 6 do
-    hex
-    |> String.to_integer(16)
-    |> then(fn n ->
-      r = max(0, div(n, 0x10000) - 30)
-      g = max(0, div(rem(n, 0x10000), 0x100) - 30)
-      b = max(0, rem(n, 0x100) - 30)
-      <<r::8, g::8, b::8>>
-    end)
-    |> Base.encode16(case: :lower)
-    |> then(&("#" <> &1))
-  end
-
-  defp darken(other), do: other
 end
