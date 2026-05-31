@@ -51,36 +51,80 @@ defmodule Choreo.MindMap.Render.Mermaid do
   """
   @spec to_mermaid(Choreo.MindMap.t(), keyword()) :: String.t()
   def to_mermaid(%Choreo.MindMap{} = map, opts \\ []) do
-    theme = resolve_theme(Keyword.get(opts, :theme, :default))
-    direction = Keyword.get(opts, :direction, :td)
+    case Keyword.get(opts, :syntax, :flowchart) do
+      :mindmap ->
+        to_native_mindmap(map)
 
-    {multi_graph, edge_id_map} = Choreo.Internal.to_multi_graph(map.graph)
+      :flowchart ->
+        theme = resolve_theme(Keyword.get(opts, :theme, :default))
+        direction = Keyword.get(opts, :direction, :td)
 
-    # Build edge_meta keyed by edge_id for the multigraph renderer
-    multi_edge_meta =
-      Map.new(edge_id_map, fn {edge_id, {from, to}} ->
-        meta = Map.get(map.edge_meta, {from, to}, %{})
-        {edge_id, meta}
+        {multi_graph, edge_id_map} = Choreo.Internal.to_multi_graph(map.graph)
+
+        # Build edge_meta keyed by edge_id for the multigraph renderer
+        multi_edge_meta =
+          Map.new(edge_id_map, fn {edge_id, {from, to}} ->
+            meta = Map.get(map.edge_meta, {from, to}, %{})
+            {edge_id, meta}
+          end)
+
+        virtual_map = %{graph: multi_graph, edge_meta: multi_edge_meta}
+
+        hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+        hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
+        base =
+          Yog.Multi.Mermaid.default_options()
+          |> Map.put(:node_label, &node_label/2)
+          |> Map.put(:edge_label, fn edge_id, _weight -> edge_label(virtual_map, edge_id) end)
+          |> Map.put(:node_shape, &node_shape_fn/2)
+          |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
+          |> Map.put(:edge_attributes, edge_attributes_fn(virtual_map, hl_edges))
+          |> Map.put(:direction, direction)
+          |> Map.put(:default_font_color, theme.node_fontcolor)
+          |> Map.merge(Map.new(opts))
+
+        Yog.Multi.Mermaid.to_mermaid(multi_graph, base)
+        |> String.replace("stroke_dasharray", "stroke-dasharray")
+    end
+  end
+
+  defp to_native_mindmap(map) do
+    if is_nil(map.root) do
+      raise ArgumentError, "MindMap must have a root set to be rendered"
+    end
+
+    "mindmap\n" <> render_mindmap_node(map, map.root, 0) <> "\n"
+  end
+
+  defp render_mindmap_node(map, node_id, depth) do
+    data = Map.get(map.graph.nodes, node_id, %{})
+    label = data[:label] || to_string(node_id)
+
+    {open, close} =
+      case data[:node_type] do
+        :root -> {"((", "))"}
+        :topic -> {"(", ")"}
+        :subtopic -> {"[", "]"}
+        :note -> {")", "("}
+        _ -> {"", ""}
+      end
+
+    indent = String.duplicate("  ", depth)
+    line = "#{indent}#{node_id}#{open}#{label}#{close}"
+
+    children =
+      map.graph
+      |> Yog.successor_ids(node_id)
+      |> Enum.filter(fn child_id ->
+        meta = Map.get(map.edge_meta, {node_id, child_id}, %{})
+        meta[:edge_type] == :branch
       end)
+      |> Enum.sort()
 
-    virtual_map = %{graph: multi_graph, edge_meta: multi_edge_meta}
+    children_lines = Enum.map(children, &render_mindmap_node(map, &1, depth + 1))
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
-
-    base =
-      Yog.Multi.Mermaid.default_options()
-      |> Map.put(:node_label, &node_label/2)
-      |> Map.put(:edge_label, fn edge_id, _weight -> edge_label(virtual_map, edge_id) end)
-      |> Map.put(:node_shape, &node_shape_fn/2)
-      |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(virtual_map, hl_edges))
-      |> Map.put(:direction, direction)
-      |> Map.put(:default_font_color, theme.node_fontcolor)
-      |> Map.merge(Map.new(opts))
-
-    Yog.Multi.Mermaid.to_mermaid(multi_graph, base)
-    |> String.replace("stroke_dasharray", "stroke-dasharray")
+    Enum.join([line | children_lines], "\n")
   end
 
   @doc """

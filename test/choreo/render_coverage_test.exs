@@ -121,17 +121,25 @@ defmodule Choreo.RenderCoverageTest do
   test "mind_map renderer comprehensive" do
     mm =
       MindMap.new()
-      |> MindMap.set_root(:r)
-      |> MindMap.add_topic(:t)
-      |> MindMap.add_subtopic(:s)
-      |> MindMap.add_note(:n)
+      |> MindMap.set_root(:r, label: "Root")
+      |> MindMap.add_topic(:t, label: "Topic")
+      |> MindMap.add_subtopic(:s, label: "Subtopic")
+      |> MindMap.add_note(:n, label: "Note")
       |> MindMap.branch(:r, :t)
       |> MindMap.branch(:t, :s)
+      |> MindMap.branch(:t, :n)
 
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert MindMap.to_dot(mm, theme: theme) =~ "digraph"
       assert MindMap.to_mermaid(mm, theme: theme) =~ "graph TD"
     end
+
+    native = MindMap.to_mermaid(mm, syntax: :mindmap)
+    assert native =~ "mindmap"
+    assert native =~ "r((Root))"
+    assert native =~ "  t(Topic)"
+    assert native =~ "    s[Subtopic]"
+    assert native =~ "    n)Note("
   end
 
   test "fsm renderer comprehensive" do

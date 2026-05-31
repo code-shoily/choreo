@@ -563,10 +563,11 @@ defmodule Choreo.MindMap do
   end
 
   @doc """
-  Renders the mind map to Mermaid.js flowchart syntax.
+  Renders the mind map to Mermaid.js flowchart or native mindmap syntax.
 
   ## Options
 
+    * `:syntax` — `:flowchart` (default) or `:mindmap`
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
 
@@ -575,6 +576,13 @@ defmodule Choreo.MindMap do
       iex> map = Choreo.MindMap.new() |> Choreo.MindMap.set_root(:ideas, label: "Ideas")
       iex> mermaid = Choreo.MindMap.to_mermaid(map)
       iex> String.contains?(mermaid, "graph TD")
+      true
+
+      iex> map = Choreo.MindMap.new() |> Choreo.MindMap.set_root(:ideas, label: "Ideas")
+      iex> native = Choreo.MindMap.to_mermaid(map, syntax: :mindmap)
+      iex> String.contains?(native, "mindmap")
+      true
+      iex> String.contains?(native, "ideas((Ideas))")
       true
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
