@@ -3,6 +3,7 @@ defmodule Choreo.DecisionTreeTest do
 
   doctest Choreo.DecisionTree
   doctest Choreo.DecisionTree.Render.DOT
+  doctest Choreo.DecisionTree.Render.Mermaid
 
   alias Choreo.DecisionTree
 
@@ -183,6 +184,76 @@ defmodule Choreo.DecisionTreeTest do
 
       dot = DecisionTree.to_dot(tree, theme: :dark)
       assert String.contains?(dot, "digraph")
+    end
+  end
+
+  describe "to_mermaid/2" do
+    test "renders a non-empty Mermaid string" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:color, feature: "color")
+        |> DecisionTree.add_outcome(:stop, label: "Stop")
+        |> DecisionTree.add_outcome(:go, label: "Go")
+        |> DecisionTree.branch(:color, :stop, "red")
+        |> DecisionTree.branch(:color, :go, "green")
+
+      mermaid = DecisionTree.to_mermaid(tree)
+      assert String.contains?(mermaid, "graph TD")
+      assert String.contains?(mermaid, "color")
+      assert String.contains?(mermaid, "red")
+      assert String.contains?(mermaid, "green")
+    end
+
+    test "renders with dark theme" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :x, "1")
+
+      mermaid = DecisionTree.to_mermaid(tree, theme: :dark)
+      assert String.contains?(mermaid, "graph TD")
+    end
+
+    test "renders with all standard themes" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_decision(:b, feature: "b")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :b, "yes")
+        |> DecisionTree.branch(:b, :x, "no")
+
+      for theme <- [:default, :dark, :warm, :forest, :ocean] do
+        mermaid = DecisionTree.to_mermaid(tree, theme: theme)
+        assert String.contains?(mermaid, "graph TD"), "Theme #{theme} should produce graph TD"
+        assert String.contains?(mermaid, "yes"), "Theme #{theme} should include edge label"
+      end
+    end
+
+    test "respects direction option" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :x, "1")
+
+      mermaid_lr = DecisionTree.to_mermaid(tree, direction: :lr)
+      assert String.contains?(mermaid_lr, "graph LR")
+
+      mermaid_bt = DecisionTree.to_mermaid(tree, direction: :bt)
+      assert String.contains?(mermaid_bt, "graph BT")
+    end
+
+    test "protocol implementation works" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :x, "1")
+
+      mermaid = Choreo.Mermaid.to_mermaid(tree, [])
+      assert String.contains?(mermaid, "graph TD")
     end
   end
 end

@@ -46,6 +46,7 @@ defmodule Choreo.DecisionTree do
       #=> {:ok, [:color, :red_stop], "Stop"}
 
       dot = Choreo.DecisionTree.to_dot(tree)
+      mermaid = Choreo.DecisionTree.to_mermaid(tree)
 
   ## Diagram
 
@@ -538,6 +539,36 @@ defmodule Choreo.DecisionTree do
   end
 
   @doc """
+  Renders the decision tree to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop, label: "Stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:go, label: "Go")
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> mermaid = Choreo.DecisionTree.to_mermaid(tree)
+      iex> String.contains?(mermaid, "graph TD")
+      true
+      iex> String.contains?(mermaid, "red")
+      true
+      iex> String.contains?(mermaid, "green")
+      true
+  """
+  @spec to_mermaid(t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = tree, opts \\ []) do
+    Choreo.DecisionTree.Render.Mermaid.to_mermaid(tree, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.DecisionTree`.
 
   ## Examples
@@ -578,6 +609,10 @@ end
 
 defimpl Choreo.DOT, for: Choreo.DecisionTree do
   def to_dot(tree, opts), do: Choreo.DecisionTree.Render.DOT.to_dot(tree, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo.DecisionTree do
+  def to_mermaid(tree, opts), do: Choreo.DecisionTree.Render.Mermaid.to_mermaid(tree, opts)
 end
 
 defimpl Choreo.Viewable, for: Choreo.DecisionTree do

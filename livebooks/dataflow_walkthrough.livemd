@@ -4,12 +4,13 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7.1"},
+  # {:choreo, "~> 0.7.1"},
+  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Kino.Mermaid` for Mermaid.js output. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
 
 ---
 
@@ -55,6 +56,11 @@ Kino.VizJS.render(
     theme: Choreo.Dataflow.theme(:default, graph_rankdir: :tb)
   )
 )
+Kino.Mermaid.new(
+  Dataflow.to_mermaid(legend,
+    theme: Choreo.Dataflow.theme(:default)
+  )
+)
 ```
 
 ---
@@ -77,6 +83,7 @@ etl =
   |> Dataflow.connect(:enricher, :timescaledb, data_type: "enriched row")
 
 Kino.VizJS.render(Dataflow.to_dot(etl))
+Kino.Mermaid.new(Dataflow.to_mermaid(etl))
 ```
 
 ### Basic Analysis
@@ -115,6 +122,7 @@ iot =
   |> Dataflow.connect(:aggregator, :influxdb)
 
 Kino.VizJS.render(Dataflow.to_dot(iot))
+Kino.Mermaid.new(Dataflow.to_mermaid(iot))
 ```
 
 ### Bottleneck Detection
@@ -181,6 +189,10 @@ resilient =
 
 Kino.VizJS.render(
   Dataflow.to_dot(resilient, theme: Dataflow.theme(:default, graph_rankdir: :tb)),
+  height: "800px"
+)
+Kino.Mermaid.new(
+  Dataflow.to_mermaid(resilient, theme: Dataflow.theme(:default)),
   height: "800px"
 )
 ```
@@ -279,6 +291,10 @@ Kino.VizJS.render(
   height: "800px",
   engine: "twopi"
 )
+Kino.Mermaid.new(
+  Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)),
+  height: "800px"
+)
 ```
 
 ### Cluster-Aware Analysis
@@ -327,6 +343,7 @@ broken =
   # never_reached has no inputs
 
 Kino.VizJS.render(Dataflow.to_dot(broken))
+Kino.Mermaid.new(Dataflow.to_mermaid(broken))
 ```
 
 ### Diagnosis
@@ -353,6 +370,7 @@ fixed =
 IO.inspect(Analysis.orphan_nodes(fixed), label: "Orphans after fix")
 IO.inspect(Analysis.dead_ends(fixed), label: "Dead ends after fix")
 Kino.VizJS.render(Dataflow.to_dot(fixed))
+Kino.Mermaid.new(Dataflow.to_mermaid(fixed))
 ```
 
 ---
@@ -377,6 +395,7 @@ brand_theme =
   )
 
 Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme), height: "800px", engine: "twopi")
+Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: brand_theme), height: "800px")
 ```
 
 ---
@@ -415,6 +434,7 @@ high_level_view = View.zoom(zoom_flow, level: 0)
 
 IO.puts("Zoom Level 0 (Sources and Sinks Only)")
 Kino.VizJS.render(Dataflow.to_dot(high_level_view), height: "200px")
+Kino.Mermaid.new(Dataflow.to_mermaid(high_level_view))
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
@@ -425,6 +445,7 @@ mid_level_view = View.zoom(zoom_flow, level: 1)
 
 IO.puts("Zoom Level 1 (Sources, Sinks, and Transforms)")
 Kino.VizJS.render(Dataflow.to_dot(mid_level_view), height: "300px")
+Kino.Mermaid.new(Dataflow.to_mermaid(mid_level_view))
 ```
 
 ---
@@ -441,5 +462,6 @@ Kino.VizJS.render(Dataflow.to_dot(mid_level_view), height: "300px")
 | "What's the slowest path?"     | `Analysis.longest_path/1`                                    |
 | "Group related nodes visually" | `Dataflow.add_cluster/3` + `cluster: "name"` option on nodes |
 | "Render to DOT"                | `Dataflow.to_dot/2`                                          |
+| "Render to Mermaid"            | `Dataflow.to_mermaid/2`                                      |
 
 Dataflow diagrams as code mean your pipeline architecture is version-controlled, reviewable, and analyzable. Every time you add a transform or buffer, you can immediately see the impact on latency, throughput, and bottlenecks — before you deploy.

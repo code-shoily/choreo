@@ -46,6 +46,7 @@ defmodule Choreo.Workflow do
         |> Choreo.Workflow.connect(:ship_order, :done)
 
       dot = Choreo.Workflow.to_dot(workflow)
+      mermaid = Choreo.Workflow.to_mermaid(workflow)
 
   ## Diagram
 
@@ -637,6 +638,34 @@ defmodule Choreo.Workflow do
   end
 
   @doc """
+  Renders the workflow to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+
+  ## Examples
+
+      iex> workflow = Choreo.Workflow.new()
+      iex> workflow = workflow
+      ...>   |> Choreo.Workflow.add_start(:start)
+      ...>   |> Choreo.Workflow.add_task(:process)
+      ...>   |> Choreo.Workflow.add_end(:end)
+      ...>   |> Choreo.Workflow.connect(:start, :process)
+      ...>   |> Choreo.Workflow.connect(:process, :end)
+      iex> mermaid = Choreo.Workflow.to_mermaid(workflow)
+      iex> String.contains?(mermaid, "graph TD")
+      true
+      iex> String.contains?(mermaid, "process")
+      true
+  """
+  @spec to_mermaid(t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = workflow, opts \\ []) do
+    Choreo.Workflow.Render.Mermaid.to_mermaid(workflow, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.Workflow`.
 
   ## Examples
@@ -876,4 +905,8 @@ end
 
 defimpl Choreo.DOT, for: Choreo.Workflow do
   def to_dot(workflow, opts), do: Choreo.Workflow.Render.DOT.to_dot(workflow, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo.Workflow do
+  def to_mermaid(workflow, opts), do: Choreo.Workflow.Render.Mermaid.to_mermaid(workflow, opts)
 end

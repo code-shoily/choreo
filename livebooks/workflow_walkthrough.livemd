@@ -9,7 +9,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally. Since version 0.8.0, Choreo also supports **Mermaid.js** output for GitHub, GitLab, Notion, and any Markdown-based documentation.
 
 ---
 
@@ -65,6 +65,12 @@ legend =
 Kino.VizJS.render(Workflow.to_dot(legend))
 ```
 
+### Mermaid Rendering
+
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(legend))
+```
+
 ---
 
 ## Example 1: E-Commerce Saga (The Classic)
@@ -118,6 +124,10 @@ order_saga =
   |> Workflow.connect(:refund_payment, :done, edge_type: :compensation)
 
 Kino.VizJS.render(Workflow.to_dot(order_saga), height: "800px")
+```
+
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(order_saga))
 ```
 
 ### Critical Path Analysis
@@ -216,6 +226,10 @@ parallel_order =
 Kino.VizJS.render(Workflow.to_dot(parallel_order), height: "900px")
 ```
 
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(parallel_order))
+```
+
 ### Critical Path (Parallel)
 
 ```elixir
@@ -307,6 +321,10 @@ cicd =
 Kino.VizJS.render(Workflow.to_dot(cicd, theme: :dark), height: "800px")
 ```
 
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(cicd, theme: :dark))
+```
+
 ### Bottleneck Detection
 
 ```elixir
@@ -381,6 +399,10 @@ approval =
 Kino.VizJS.render(Workflow.to_dot(approval), height: "800px")
 ```
 
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(approval))
+```
+
 ### Failure Scenarios
 
 Which tasks have explicit compensation or failure paths?
@@ -423,6 +445,10 @@ broken =
 Kino.VizJS.render(Workflow.to_dot(broken))
 ```
 
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(broken))
+```
+
 ### Diagnosis
 
 ```elixir
@@ -461,6 +487,10 @@ Analysis.validate(fixed) |> IO.inspect()
 Kino.VizJS.render(Workflow.to_dot(fixed), height: "600px")
 ```
 
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(fixed))
+```
+
 ---
 
 ## Advanced: Custom Theming
@@ -484,7 +514,12 @@ brand_theme =
 
 
   Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme), height: "800px")
+```
 
+### Mermaid Version
+
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(parallel_order, theme: brand_theme))
 ```
 
 ---
@@ -507,6 +542,10 @@ IO.puts("Number of edges: #{length(Workflow.edges(multi_flow))}")
 Kino.VizJS.render(Workflow.to_dot(multi_flow))
 ```
 
+```elixir
+Kino.Mermaid.new(Workflow.to_mermaid(multi_flow))
+```
+
 ---
 
 ## Summary
@@ -522,5 +561,6 @@ Kino.VizJS.render(Workflow.to_dot(multi_flow))
 | "Is the workflow structurally sound?" | `Analysis.validate/1`                          |
 | "Group by team"                       | `Workflow.add_swimlane/3` + `:swimlane` option |
 | "Render to DOT"                       | `Workflow.to_dot/2`                            |
+| "Render to Mermaid"                   | `Workflow.to_mermaid/2`                        |
 
 Workflow diagrams as code mean your business processes are version-controlled, reviewable, and auditable. Every time you add a task, change a timeout, or introduce a new decision branch, you can immediately see the impact on critical path latency, parallelisation opportunities, and failure coverage — before you ship to production.

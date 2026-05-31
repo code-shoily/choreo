@@ -170,6 +170,104 @@ defmodule Choreo.WorkflowTest do
     end
   end
 
+  describe "to_mermaid/2" do
+    test "renders a non-empty Mermaid string" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:start)
+        |> Workflow.add_task(:process)
+        |> Workflow.add_end(:end)
+        |> Workflow.connect(:start, :process)
+        |> Workflow.connect(:process, :end)
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "graph TD")
+      assert String.contains?(mermaid, "start")
+      assert String.contains?(mermaid, "process")
+    end
+
+    test "renders with dark theme" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:a)
+        |> Workflow.add_end(:b)
+        |> Workflow.connect(:a, :b)
+
+      mermaid = Workflow.to_mermaid(workflow, theme: :dark)
+      assert String.contains?(mermaid, "graph TD")
+      assert String.contains?(mermaid, "a")
+    end
+
+    test "renders start as circle" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:begin)
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "((\"begin\"))")
+    end
+
+    test "renders end with thick stroke" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_end(:finish)
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "finish")
+      assert String.contains?(mermaid, "stroke-width:3px")
+    end
+
+    test "renders decision as rhombus" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_decision(:check)
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "{\"check\"}")
+    end
+
+    test "renders task as subroutine" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_task(:process)
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "[[\"process\"]]")
+    end
+
+    test "renders compensation edge as dashed red" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_task(:a)
+        |> Workflow.add_compensation(:c)
+        |> Workflow.connect(:a, :c, edge_type: :compensation)
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "stroke-dasharray")
+      assert String.contains?(mermaid, "#ef4444")
+    end
+
+    test "renders swimlanes as subgraphs" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_swimlane("backend", label: "Backend")
+        |> Workflow.add_task(:api, swimlane: "backend")
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "subgraph backend")
+      assert String.contains?(mermaid, "[\"Backend\"]")
+      assert String.contains?(mermaid, "api")
+    end
+
+    test "renders custom theme colors" do
+      workflow = Workflow.new() |> Workflow.add_task(:process)
+
+      theme = Choreo.Theme.custom(colors: %{task: "#ff0000"})
+      mermaid = Workflow.to_mermaid(workflow, theme: theme)
+      assert String.contains?(mermaid, "#ff0000")
+    end
+  end
+
   describe "strict options validation" do
     test "add_task/3 raises on unknown options" do
       assert_raise NimbleOptions.ValidationError, fn ->

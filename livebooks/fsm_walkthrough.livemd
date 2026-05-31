@@ -9,7 +9,7 @@ Mix.install([
 
 ## Introduction
 
-`Choreo.FSM` is a finite-state machine builder that supports **deterministic finite automata (DFAs)**. You define states, transitions, and analyse reachability, acceptance, and more. Everything renders to DOT for visualisation.
+`Choreo.FSM` is a finite-state machine builder that supports **deterministic finite automata (DFAs)**. You define states, transitions, and analyse reachability, acceptance, and more. Everything renders to DOT or Mermaid.js for visualisation.
 
 ```elixir
 alias Choreo.FSM
@@ -24,6 +24,12 @@ fsm =
   |> FSM.add_transition(:authenticating, :logged_in, label: "success")
 
 Kino.VizJS.render(FSM.to_dot(fsm))
+```
+
+### Mermaid Rendering
+
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(fsm))
 ```
 
 ## State Types
@@ -61,6 +67,10 @@ empty_match =
 Kino.VizJS.render(FSM.to_dot(empty_match))
 ```
 
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(empty_match))
+```
+
 ## Building Larger Graphs
 
 ```elixir
@@ -79,6 +89,10 @@ order_flow =
   |> FSM.add_transition(:payment_pending, :cancelled, label: "declined")
 
 Kino.VizJS.render(FSM.to_dot(order_flow))
+```
+
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(order_flow))
 ```
 
 ## Determinism
@@ -158,6 +172,10 @@ bad_fsm
 |> Kino.VizJS.render()
 ```
 
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(bad_fsm))
+```
+
 ## Transforms
 
 ### Complement
@@ -171,6 +189,10 @@ IO.inspect(FSM.final_states(comp), label: "Final states in complement")
 Kino.VizJS.render(FSM.to_dot(comp))
 ```
 
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(comp))
+```
+
 ### Prune
 
 Remove unreachable states and dead (trap) states, producing a smaller equivalent FSM.
@@ -182,6 +204,10 @@ IO.inspect(FSM.states(pruned), label: "States after pruning")
 Kino.VizJS.render(FSM.to_dot(pruned))
 ```
 
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(pruned))
+```
+
 ## Theming
 
 Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
@@ -189,6 +215,12 @@ Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
 ```elixir
 dot_dark = FSM.to_dot(order_flow, theme: :presentation)
 Kino.VizJS.render(dot_dark)
+```
+
+### Mermaid Version
+
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(order_flow, theme: :dark))
 ```
 
 ## Summary
@@ -203,4 +235,5 @@ Kino.VizJS.render(dot_dark)
 | Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                        |
 | Validation        | `Analysis.validate/1`                                                                      |
 | Transforms        | `FSM.complement/1`, `FSM.prune/1`                                                          |
-| Render            | `FSM.to_dot/2`                                                                             |
+| Render to DOT     | `FSM.to_dot/2`                                                                             |
+| Render to Mermaid | `FSM.to_mermaid/2`                                                                         |

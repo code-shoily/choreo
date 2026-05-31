@@ -237,6 +237,76 @@ defmodule Choreo.FSMTest do
       dot = FSM.to_dot(fsm, theme: theme)
       assert String.contains?(dot, "fillcolor=\"#ff0000\"")
     end
+
+    test "to_mermaid/1 produces a Mermaid string" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "go")
+
+      mermaid = FSM.to_mermaid(fsm)
+      assert String.contains?(mermaid, "graph LR")
+      assert String.contains?(mermaid, "a")
+      assert String.contains?(mermaid, "b")
+      assert String.contains?(mermaid, "go")
+    end
+
+    test "to_mermaid/1 renders left-to-right" do
+      fsm = FSM.new() |> FSM.add_state(:a)
+      mermaid = FSM.to_mermaid(fsm)
+      assert String.contains?(mermaid, "graph LR")
+    end
+
+    test "to_mermaid/1 marks final states with thick stroke" do
+      fsm = FSM.new() |> FSM.add_final_state(:done)
+      mermaid = FSM.to_mermaid(fsm)
+      assert String.contains?(mermaid, "done")
+      assert String.contains?(mermaid, "stroke-width:3px")
+    end
+
+    test "to_mermaid/1 injects entry point for initial states" do
+      fsm = FSM.new() |> FSM.add_initial_state(:idle)
+      mermaid = FSM.to_mermaid(fsm)
+      assert String.contains?(mermaid, "__start_idle")
+      assert String.contains?(mermaid, "__start_idle --> idle")
+    end
+
+    test "to_mermaid/1 does not inject entry point when no initial state" do
+      fsm = FSM.new() |> FSM.add_state(:idle)
+      mermaid = FSM.to_mermaid(fsm)
+      refute String.contains?(mermaid, "__start")
+    end
+
+    test "to_mermaid/2 supports dark theme" do
+      fsm = FSM.new() |> FSM.add_state(:a)
+      mermaid = FSM.to_mermaid(fsm, theme: :dark)
+      assert String.contains?(mermaid, "a")
+    end
+
+    test "to_mermaid/2 supports custom theme colors" do
+      fsm = FSM.new() |> FSM.add_state(:a)
+
+      theme =
+        Choreo.Theme.custom(
+          colors: %{normal: "#ff0000"},
+          node_fontcolor: "white"
+        )
+
+      mermaid = FSM.to_mermaid(fsm, theme: theme)
+      assert String.contains?(mermaid, "#ff0000")
+    end
+
+    test "to_mermaid/1 renders initial+final state with thick stroke" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:both, type: :initial)
+        |> FSM.add_state(:both, type: :final)
+
+      mermaid = FSM.to_mermaid(fsm)
+      assert String.contains?(mermaid, "both")
+      assert String.contains?(mermaid, "stroke-width:3px")
+    end
   end
 
   describe "transforms" do

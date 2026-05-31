@@ -9,7 +9,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Kino.Mermaid` for Mermaid.js output. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
 
 ---
 
@@ -44,6 +44,7 @@ legend =
   |> DecisionTree.add_outcome(:outcome, label: "Outcome", class: "class_a")
 
 Kino.VizJS.render(DecisionTree.to_dot(legend))
+Kino.Mermaid.new(DecisionTree.to_mermaid(legend))
 ```
 
 ---
@@ -70,6 +71,7 @@ troubleshooting =
   |> DecisionTree.branch(:has_internet, :check_dns, "no")
 
 Kino.VizJS.render(DecisionTree.to_dot(troubleshooting))
+Kino.Mermaid.new(DecisionTree.to_mermaid(troubleshooting))
 ```
 
 ### Evaluating a Decision
@@ -133,6 +135,7 @@ iris =
   |> DecisionTree.branch(:petal_width, :virginica, ">= 1.75")
 
 Kino.VizJS.render(DecisionTree.to_dot(iris))
+Kino.Mermaid.new(DecisionTree.to_mermaid(iris))
 ```
 
 ### Path Enumeration
@@ -198,6 +201,7 @@ loan =
   |> DecisionTree.branch(:employment, :manual_review_employment, "self-employed")
 
 Kino.VizJS.render(DecisionTree.to_dot(loan), height: "500px")
+Kino.Mermaid.new(DecisionTree.to_mermaid(loan))
 ```
 
 ### Inconsistent Path Detection
@@ -266,6 +270,7 @@ ec2_selector =
   |> DecisionTree.branch(:budget, :m6i_xlarge, "flexible")
 
 Kino.VizJS.render(DecisionTree.to_dot(ec2_selector), height: "500px")
+Kino.Mermaid.new(DecisionTree.to_mermaid(ec2_selector))
 ```
 
 ### Interactive Evaluation
@@ -324,6 +329,7 @@ redundant =
 
 IO.puts("Before pruning:")
 Kino.VizJS.render(DecisionTree.to_dot(redundant))
+Kino.Mermaid.new(DecisionTree.to_mermaid(redundant))
 ```
 
 ```elixir
@@ -332,6 +338,7 @@ pruned = Analysis.prune_redundant(redundant)
 IO.puts("After pruning:")
 IO.puts("Depth: #{Analysis.depth(pruned)} (was #{Analysis.depth(redundant)})")
 Kino.VizJS.render(DecisionTree.to_dot(pruned))
+Kino.Mermaid.new(DecisionTree.to_mermaid(pruned))
 ```
 
 The `:color` and `:size` decisions were both redundant because every path ended at `Stop`. After pruning, the tree collapses to a single outcome node — the simplest possible representation.
@@ -428,6 +435,7 @@ brand_theme =
   )
 
 Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme), height: "500px")
+Kino.Mermaid.new(DecisionTree.to_mermaid(iris, theme: brand_theme))
 ```
 
 ---
@@ -468,6 +476,7 @@ decision_view = View.zoom(zoom_tree, level: 1)
 
 IO.puts("Zoom Level 1 (Decisions Only)")
 Kino.VizJS.render(DecisionTree.to_dot(decision_view), height: "200px")
+Kino.Mermaid.new(DecisionTree.to_mermaid(decision_view))
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
@@ -478,6 +487,7 @@ full_view = View.zoom(zoom_tree, level: 2)
 
 IO.puts("Zoom Level 2 (Full Tree)")
 Kino.VizJS.render(DecisionTree.to_dot(full_view), height: "400px")
+Kino.Mermaid.new(DecisionTree.to_mermaid(full_view))
 ```
 
 ---
@@ -496,5 +506,6 @@ Kino.VizJS.render(DecisionTree.to_dot(full_view), height: "400px")
 | "Can I simplify the tree?"              | `Analysis.prune_redundant/1`       |
 | "Is the tree structurally valid?"       | `Analysis.validate/1`              |
 | "Render to DOT"                         | `DecisionTree.to_dot/2`            |
+| "Render to Mermaid"                     | `DecisionTree.to_mermaid/2`        |
 
 Decision trees as code mean your business rules, troubleshooting guides, and ML models are version-controlled, diffable, and automatically validated. Every branch addition is checked for cycles, duplicate conditions, and logical inconsistencies — before it ever reaches production.

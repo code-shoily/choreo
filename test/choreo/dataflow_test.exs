@@ -3,6 +3,7 @@ defmodule Choreo.DataflowTest do
 
   doctest Choreo.Dataflow
   doctest Choreo.Dataflow.Render.DOT
+  doctest Choreo.Dataflow.Render.Mermaid
 
   alias Choreo.Dataflow
 
@@ -276,6 +277,110 @@ defmodule Choreo.DataflowTest do
 
       dot = Dataflow.to_dot(flow)
       assert String.contains?(dot, "1000 evt/s")
+    end
+  end
+
+  describe "to_mermaid/2" do
+    test "renders a non-empty Mermaid string" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:in, label: "Input")
+        |> Dataflow.add_transform(:proc, label: "Process")
+        |> Dataflow.add_sink(:out, label: "Output")
+        |> Dataflow.connect(:in, :proc, data_type: "raw")
+        |> Dataflow.connect(:proc, :out, data_type: "result")
+
+      mermaid = Dataflow.to_mermaid(flow)
+      assert String.contains?(mermaid, "graph TD")
+      assert String.contains?(mermaid, "Input")
+      assert String.contains?(mermaid, "Process")
+      assert String.contains?(mermaid, "Output")
+    end
+
+    test "renders error paths in red" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_transform(:a)
+        |> Dataflow.add_sink(:b)
+        |> Dataflow.add_sink(:c)
+        |> Dataflow.connect(:a, :b)
+        |> Dataflow.add_error_path(:a, :c)
+
+      mermaid = Dataflow.to_mermaid(flow)
+      assert String.contains?(mermaid, "#ef4444")
+      assert String.contains?(mermaid, "stroke-dasharray")
+    end
+
+    test "renders clusters as subgraphs" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_cluster("ingest", label: "Ingestion")
+        |> Dataflow.add_source(:in, cluster: "ingest")
+        |> Dataflow.add_sink(:out)
+        |> Dataflow.connect(:in, :out)
+
+      mermaid = Dataflow.to_mermaid(flow)
+      assert String.contains?(mermaid, "subgraph")
+      assert String.contains?(mermaid, "Ingestion")
+    end
+
+    test "renders with dark theme" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:in)
+        |> Dataflow.add_sink(:out)
+        |> Dataflow.connect(:in, :out)
+
+      mermaid = Dataflow.to_mermaid(flow, theme: :dark)
+      assert String.contains?(mermaid, "graph TD")
+    end
+
+    test "renders with all standard themes" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:in)
+        |> Dataflow.add_transform(:proc)
+        |> Dataflow.add_sink(:out)
+        |> Dataflow.connect(:in, :proc)
+        |> Dataflow.connect(:proc, :out)
+
+      for theme <- [:default, :dark, :warm, :forest, :ocean] do
+        mermaid = Dataflow.to_mermaid(flow, theme: theme)
+        assert String.contains?(mermaid, "graph TD"), "Theme #{theme} should produce graph TD"
+      end
+    end
+
+    test "renders rate on source nodes" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:in, rate: 1000)
+        |> Dataflow.add_sink(:out)
+        |> Dataflow.connect(:in, :out)
+
+      mermaid = Dataflow.to_mermaid(flow)
+      assert String.contains?(mermaid, "1000 evt/s")
+    end
+
+    test "renders edge labels with data_type" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:in)
+        |> Dataflow.add_sink(:out)
+        |> Dataflow.connect(:in, :out, data_type: "metrics")
+
+      mermaid = Dataflow.to_mermaid(flow)
+      assert String.contains?(mermaid, "metrics")
+    end
+
+    test "protocol implementation works" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:in)
+        |> Dataflow.add_sink(:out)
+        |> Dataflow.connect(:in, :out)
+
+      mermaid = Choreo.Mermaid.to_mermaid(flow, [])
+      assert String.contains?(mermaid, "graph TD")
     end
   end
 end

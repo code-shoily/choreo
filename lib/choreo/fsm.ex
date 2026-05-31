@@ -31,6 +31,7 @@ defmodule Choreo.FSM do
         |> Choreo.FSM.add_transition(:running, :idle, label: "pause")
 
       dot = Choreo.FSM.to_dot(fsm)
+      mermaid = Choreo.FSM.to_mermaid(fsm)
 
   ## Diagram
 
@@ -58,6 +59,7 @@ defmodule Choreo.FSM do
   Use `:default`, `:dark`, or a custom `Choreo.Theme` struct:
 
       dot = Choreo.FSM.to_dot(fsm, theme: :dark)
+      mermaid = Choreo.FSM.to_mermaid(fsm, theme: :dark)
   """
 
   @type t :: %__MODULE__{
@@ -620,6 +622,28 @@ defmodule Choreo.FSM do
   end
 
   @doc """
+  Renders the FSM to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt`
+
+  ## Examples
+
+      iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_state(:a)
+      iex> mermaid = Choreo.FSM.to_mermaid(fsm)
+      iex> String.contains?(mermaid, "graph LR")
+      true
+      iex> String.contains?(mermaid, "a")
+      true
+  """
+  @spec to_mermaid(t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = fsm, opts \\ []) do
+    Choreo.FSM.Render.Mermaid.to_mermaid(fsm, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.FSM`.
 
   ## Examples
@@ -636,4 +660,8 @@ end
 
 defimpl Choreo.DOT, for: Choreo.FSM do
   def to_dot(fsm, opts), do: Choreo.FSM.Render.DOT.to_dot(fsm, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo.FSM do
+  def to_mermaid(fsm, opts), do: Choreo.FSM.Render.Mermaid.to_mermaid(fsm, opts)
 end

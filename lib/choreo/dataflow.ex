@@ -44,6 +44,7 @@ defmodule Choreo.Dataflow do
         |> Choreo.Dataflow.connect(:aggregate, :db, data_type: "metrics")
 
       dot = Choreo.Dataflow.to_dot(pipeline)
+      mermaid = Choreo.Dataflow.to_mermaid(pipeline)
 
   ## Diagram
 
@@ -713,6 +714,36 @@ defmodule Choreo.Dataflow do
   end
 
   @doc """
+  Renders the dataflow pipeline to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_source(:in, label: "Input")
+      ...>   |> Choreo.Dataflow.add_transform(:proc, label: "Process")
+      ...>   |> Choreo.Dataflow.add_sink(:out, label: "Output")
+      ...>   |> Choreo.Dataflow.connect(:in, :proc, data_type: "raw")
+      ...>   |> Choreo.Dataflow.connect(:proc, :out, data_type: "result")
+      iex> mermaid = Choreo.Dataflow.to_mermaid(flow)
+      iex> String.contains?(mermaid, "graph TD")
+      true
+      iex> String.contains?(mermaid, "Input")
+      true
+      iex> String.contains?(mermaid, "Output")
+      true
+  """
+  @spec to_mermaid(t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = flow, opts \\ []) do
+    Choreo.Dataflow.Render.Mermaid.to_mermaid(flow, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.Dataflow`.
 
   ## Examples
@@ -753,6 +784,10 @@ end
 
 defimpl Choreo.DOT, for: Choreo.Dataflow do
   def to_dot(flow, opts), do: Choreo.Dataflow.Render.DOT.to_dot(flow, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo.Dataflow do
+  def to_mermaid(flow, opts), do: Choreo.Dataflow.Render.Mermaid.to_mermaid(flow, opts)
 end
 
 defimpl Choreo.Viewable, for: Choreo.Dataflow do
