@@ -198,7 +198,7 @@ graph LR
   running(("running"))
   idle(("idle"))
   done(("done"))
-  __start_idle((""))
+  __start_idle((" "))
   style running fill:#e2e8f0,stroke:#c4cad2
   style idle fill:#10b981,stroke:#009b63
   style done fill:#e2e8f0,stroke:#c4cad2,stroke-width:3px
