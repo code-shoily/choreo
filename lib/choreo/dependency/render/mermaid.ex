@@ -20,7 +20,6 @@ defmodule Choreo.Dependency.Render.Mermaid do
   Layout is top-to-bottom by default so dependencies point downward.
   """
 
-  alias Choreo.Dependency
   alias Choreo.Theme
 
   @doc """
@@ -287,25 +286,6 @@ defmodule Choreo.Dependency.Render.Mermaid do
               {:fill, dep_color(theme, :module)},
               {:stroke, Choreo.Internal.darken(dep_color(theme, :module))}
             ]
-        end
-
-      base =
-        if shape = data[:shape] do
-          # Map overrides
-          shape_attr =
-            case shape do
-              :box3d -> :subroutine
-              :cylinder -> :cylinder
-              :box -> :rounded_rect
-              :diamond -> :rhombus
-              :note -> :rounded_rect
-              _ -> :rounded_rect
-            end
-
-          # Note: Yog.Multi.Mermaid uses node_shape_fn for basic shape, but custom overrides can be defined
-          base
-        else
-          base
         end
 
       base =

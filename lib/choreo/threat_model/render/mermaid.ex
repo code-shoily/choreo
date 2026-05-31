@@ -334,4 +334,65 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
       true -> ""
     end
   end
+
+  @doc """
+  Renders the data flows in a threat model to a Mermaid sequence diagram string.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_external_entity(model, :user, label: "Customer")
+      iex> model = Choreo.ThreatModel.add_process(model, :web_api, label: "Web API")
+      iex> model = Choreo.ThreatModel.data_flow(model, :user, :web_api, label: "HTTPS login")
+      iex> Choreo.ThreatModel.Render.Mermaid.to_sequence(model)
+      "sequenceDiagram\\n    actor user as Customer\\n    participant web_api as Web API\\n    user->>web_api: HTTPS login\\n"
+  """
+  @spec to_sequence(ThreatModel.t(), keyword()) :: String.t()
+  def to_sequence(%ThreatModel{} = model, _opts \\ []) do
+    nodes_decl =
+      model.graph.nodes
+      |> Enum.sort_by(fn {id, _node_data} -> id end)
+      |> Enum.map_join("\n", fn {id, node_data} ->
+        label = Map.get(node_data, :label, to_string(id))
+        type = Map.get(node_data, :element_type, :process)
+
+        case type do
+          :external_entity ->
+            "    actor #{id} as #{label}"
+
+          _ ->
+            "    participant #{id} as #{label}"
+        end
+      end)
+
+    flows_decl =
+      ThreatModel.edges_with_meta(model)
+      |> Enum.sort_by(fn {from, to, _weight, _meta} -> {from, to} end)
+      |> Enum.map_join("\n", fn {from, to, _weight, meta} ->
+        label =
+          cond do
+            l = meta[:label] -> to_string(l)
+            p = meta[:protocol] -> to_string(p)
+            true -> "flow"
+          end
+
+        crosses = ThreatModel.crosses_boundary?(model, from, to)
+        encrypted = Map.get(meta, :encrypted, false)
+
+        arrow =
+          if crosses and not encrypted do
+            "-->"
+          else
+            "->>"
+          end
+
+        "    #{from}#{arrow}#{to}: #{label}"
+      end)
+
+    """
+    sequenceDiagram
+    #{nodes_decl}
+    #{flows_decl}
+    """
+  end
 end

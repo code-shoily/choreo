@@ -429,5 +429,4 @@ defmodule Choreo.Workflow.Render.Mermaid do
 
     if label = meta[:label], do: to_string(label), else: ""
   end
-
 end
