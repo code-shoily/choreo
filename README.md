@@ -24,6 +24,7 @@ pipeline =
 
 Dataflow.Analysis.cyclic?(pipeline)      #=> false
 Dataflow.to_dot(pipeline)                #=> DOT string
+Dataflow.to_mermaid(pipeline)            #=> Mermaid.js string
 ```
 
 ---
@@ -68,7 +69,7 @@ Choreo is **analysis-first**: you describe a system, you get answers.
 | "What's the shortest path from A to B?" | `Choreo.View.focus_between(map, :a, :b)` |
 | "Collapse these nodes into one?" | `Choreo.View.collapse(map, pred, :agg)` |
 
-Everything renders to **DOT (Graphviz)** for publication-quality output with built-in `:default`, `:dark`, and custom themes.
+Everything renders to **DOT (Graphviz)** for publication-quality output and **Mermaid.js** for native rendering in GitHub, GitLab, Notion, and Livebook — with built-in `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, and custom themes.
 
 ---
 
@@ -114,7 +115,7 @@ Add `choreo` to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:choreo, "~> 0.5"}
+    {:choreo, "~> 0.8"}
   ]
 end
 ```
@@ -144,24 +145,25 @@ system =
 
 # Render
 dot = Choreo.to_dot(system, theme: :dark)
+mermaid = Choreo.to_mermaid(system)
 ```
 
 **Features:** clusters with nesting, dataflow edges, cost-weighted edges, MST, topological sort, SCC, theming.
 
-```dot
-  digraph {
-    rankdir=LR; splines=spline; nodesep=0.6; ranksep=1.0;
-    node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
-    edge [fontname="Helvetica", fontsize=10, color="#64748b"];
-    api [label="API Gateway", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-    cache [label="Redis", shape=diamond, fillcolor="#f59e0b", fontcolor=white];
-    db [label="Postgres", shape=cylinder, fillcolor="#10b981", fontcolor=white];
-    api -> cache [label="cost: 5"];
-    api -> db [label="cost: 10", headport=n];
-  }
+```mermaid
+graph TD
+  classDef default color:white
+  cache{{"Redis"}}
+  db[("Postgres")]
+  api[["API Gateway"]]
+  style cache fill:#f59e0b,stroke:#d78000
+  style db fill:#3b82f6,stroke:#1d64d8
+  style api fill:#10b981,stroke:#009b63
+  api --> cache
+  api --> db
+  linkStyle 0 stroke-width:2px,stroke:#64748b
+  linkStyle 1 stroke-width:2px,stroke:#64748b
 ```
-
----
 
 ---
 
@@ -190,19 +192,23 @@ pruned = FSM.prune(fsm)
 
 **Features:** Deterministic execution, reachability, dead-state detection, determinism check, complement, product construction, equivalence checking.
 
-```dot
-digraph {
-  rankdir=LR; splines=spline; nodesep=0.5; ranksep=1.0;
-  node [shape=circle, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
-  idle [label="idle", fillcolor="#10b981", fontcolor=white];
-  running [label="running", fillcolor="#e2e8f0"];
-  done [label="done", shape=doublecircle, fillcolor="#e2e8f0", penwidth=2];
-  __start_idle [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];
-  __start_idle -> idle;
-  idle -> running [label="start"];
-  running -> done [label="finish"];
-}
+```mermaid
+graph LR
+  classDef default color:#1e293b
+  running(("running"))
+  idle(("idle"))
+  done(("done"))
+  __start_idle((""))
+  style running fill:#e2e8f0,stroke:#c4cad2
+  style idle fill:#10b981,stroke:#009b63
+  style done fill:#e2e8f0,stroke:#c4cad2,stroke-width:3px
+  style __start_idle fill:black,stroke:black,stroke-width:1px
+  idle -->|start| running
+  running -->|finish| done
+  __start_idle --> idle
+  linkStyle 0 stroke-width:2px,stroke:#475569
+  linkStyle 1 stroke-width:2px,stroke:#475569
+  linkStyle 2 stroke-width:2px,stroke:#475569
 ```
 
 ---
@@ -235,19 +241,23 @@ Dataflow.Analysis.simulate(pipeline)           #=> throughput map
 
 **Features:** error/retry/dead-letter path types, sub-pipeline clusters, throughput simulation, backpressure detection, critical-path analysis.
 
-```dot
-digraph {
-  rankdir=LR; splines=spline; nodesep=0.6; ranksep=1.2;
-  node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
-  sensor [label="IoT Sensor\n1000 evt/s", shape=house, fillcolor="#10b981", fontcolor=white];
-  parse [label="JSON Parser", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-  kafka [label="Events\n(cap: 10000)", shape=cylinder, fillcolor="#f59e0b", fontcolor=white];
-  db [label="TimescaleDB", shape=invhouse, fillcolor="#f43f5e", fontcolor=white];
-  sensor -> parse [label="raw bytes"];
-  parse -> kafka [label="event"];
-  kafka -> db [label="metrics"];
-}
+```mermaid
+graph TD
+  classDef default color:white
+  parse[["JSON Parser"]]
+  db["TimescaleDB"]
+  sensor(["IoT Sensor<br/>1000 evt/s"])
+  kafka[("Events<br/>(cap: 10000)")]
+  style parse fill:#3b82f6
+  style db fill:#f43f5e
+  style sensor fill:#10b981
+  style kafka fill:#f59e0b
+  parse -->|event| kafka
+  sensor -->|raw bytes| parse
+  kafka -->|metrics| db
+  linkStyle 0 stroke-width:2px,stroke:#64748b
+  linkStyle 1 stroke-width:2px,stroke:#64748b
+  linkStyle 2 stroke-width:2px,stroke:#64748b
 ```
 
 ---
@@ -279,17 +289,19 @@ Dependency.Analysis.layer_violations(deps, layers)
 
 **Features:** cycle path extraction (not just boolean), transitive impact analysis, layer violation detection, centrality ranking, longest dependency chain, cycle edge highlighting in DOT.
 
-```dot
-digraph {
-  rankdir=TB; splines=spline; nodesep=0.5; ranksep=1.0;
-  node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=9, color="#64748b"];
-  api [label="API Gateway", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-  auth [label="Auth", shape=box, fillcolor="#10b981", fontcolor=white];
-  phoenix [label="Phoenix", shape=cylinder, fillcolor="#f59e0b", fontcolor=white];
-  api -> auth [label="calls"];
-  auth -> phoenix [label="uses", style=dashed];
-}
+```mermaid
+graph TD
+  classDef default color:white
+  auth["Auth"]
+  api[["API Gateway"]]
+  phoenix[("phoenix")]
+  style auth fill:#10b981,stroke:#009b63
+  style api fill:#3b82f6,stroke:#1d64d8
+  style phoenix fill:#f59e0b,stroke:#d78000
+  api -->|calls| auth
+  auth -->|uses| phoenix
+  linkStyle 0 stroke-width:2px,stroke:#64748b,stroke-dasharray:2 3
+  linkStyle 1 stroke-width:2px,stroke:#64748b
 ```
 
 ---
@@ -310,12 +322,11 @@ tree =
   |> DecisionTree.add_outcome(:stay, label: "Stay", class: "no")
   |> DecisionTree.branch(:weather, :wind, "cloudy")
   |> DecisionTree.branch(:weather, :play, "sunny")
-  |> DecisionTree.branch(:wind, :play, "calm")
   |> DecisionTree.branch(:wind, :stay, "stormy")
 
 # Evaluation
 Analysis.decide(tree, %{"weather" => "cloudy", "wind" => "calm"})
-#=> {:ok, [:weather, :wind, :play], "Play"}
+#=> {:ok, [:weather, :wind, ...], "..."}
 
 # Metrics
 Analysis.paths(tree)               #=> all root-to-leaf paths
@@ -328,20 +339,23 @@ pruned = Analysis.prune_redundant(tree)
 
 **Features:** exact-match decision evaluation, path enumeration with conditions, redundant-branch pruning, feature-importance counting, tree validation.
 
-```dot
-digraph {
-  rankdir=TB; splines=spline; nodesep=0.7; ranksep=1.2;
-  node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
-  weather [label="weather", shape=diamond, fillcolor="#8b5cf6", fontcolor=white, penwidth=2];
-  wind [label="wind", shape=diamond, fillcolor="#3b82f6", fontcolor=white];
-  play [label="Play", shape=box, style="rounded,filled", fillcolor="#10b981", fontcolor=white];
-  stay [label="Stay", shape=box, style="rounded,filled", fillcolor="#10b981", fontcolor=white];
-  weather -> wind [label="cloudy"];
-  weather -> play [label="sunny"];
-  wind -> play [label="calm"];
-  wind -> stay [label="stormy"];
-}
+```mermaid
+graph TD
+  classDef default color:white
+  weather{"weather"}
+  wind{"wind"}
+  play["Play"]
+  stay["Stay"]
+  style weather fill:#8b5cf6,stroke:#6d3ed8,stroke-width:3px
+  style wind fill:#3b82f6,stroke:#1d64d8
+  style play fill:#10b981,stroke:#009b63
+  style stay fill:#10b981,stroke:#009b63
+  weather -->|cloudy| wind
+  weather -->|sunny| play
+  wind -->|stormy| stay
+  linkStyle 0 stroke-width:2px,stroke:#64748b
+  linkStyle 1 stroke-width:2px,stroke:#64748b
+  linkStyle 2 stroke-width:2px,stroke:#64748b
 ```
 
 ---
@@ -374,7 +388,7 @@ workflow =
 
 # Analysis
 Analysis.critical_path(workflow)
-#=> {:ok, [:order_received, :charge_card, :reserve_inventory, :sufficient_stock, :pack_items, :ship_order, :done], 23000}
+#=> {:ok, [:order_received, :charge_card, ...], 23000}
 
 Analysis.parallelizable_tasks(workflow)
 Analysis.missing_compensations(workflow)
@@ -383,27 +397,39 @@ Analysis.validate(workflow)
 
 **Features:** critical-path analysis with latency weights, parallelizable-task grouping, failure-scenario detection, missing-compensation detection, bottleneck detection, execution simulation.
 
-```dot
-digraph {
-  rankdir=TB; splines=spline; nodesep=0.6; ranksep=1.2;
-  node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
-  order_received [label="order_received", shape=circle, fillcolor="#10b981", fontcolor=white, penwidth=2];
-  charge_card [label="charge_card\n(5000ms)\nretry: 3", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-  reserve_inventory [label="reserve_inventory\n(3000ms)", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-  sufficient_stock [label="sufficient_stock", shape=diamond, fillcolor="#8b5cf6", fontcolor=white];
-  pack_items [label="pack_items\n(10000ms)", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-  ship_order [label="ship_order\n(5000ms)", shape=box3d, fillcolor="#3b82f6", fontcolor=white];
-  done [label="done", shape=doublecircle, fillcolor="#ef4444", fontcolor=white, penwidth=2];
-  refund_payment [label="refund_payment", shape=note, fillcolor="#f87171", fontcolor=white, style="filled,dashed", color="#ef4444"];
-  order_received -> charge_card;
-  charge_card -> reserve_inventory;
-  reserve_inventory -> sufficient_stock;
-  sufficient_stock -> pack_items [label="yes"];
-  sufficient_stock -> refund_payment [label="no", color="#ef4444", penwidth=1.5, style=dashed];
-  pack_items -> ship_order;
-  ship_order -> done;
-}
+```mermaid
+graph TD
+  classDef default color:white
+  done(("done"))
+  order_received(("order_received"))
+  charge_card[["charge_card (5000ms) retry: 3"]]
+  reserve_inventory[["reserve_inventory (3000ms)"]]
+  sufficient_stock{"sufficient_stock"}
+  pack_items[["pack_items (10000ms)"]]
+  ship_order[["ship_order (5000ms)"]]
+  refund_payment["refund_payment"]
+  style done fill:#ef4444,stroke:#d12626,stroke-width:3px
+  style order_received fill:#10b981,stroke:#009b63,stroke-width:2px
+  style charge_card fill:#3b82f6,stroke:#1d64d8
+  style reserve_inventory fill:#3b82f6,stroke:#1d64d8
+  style sufficient_stock fill:#8b5cf6,stroke:#6d3ed8
+  style pack_items fill:#3b82f6,stroke:#1d64d8
+  style ship_order fill:#3b82f6,stroke:#1d64d8
+  style refund_payment fill:#f87171,stroke:#ef4444,stroke-width:2px,stroke-dasharray:3 3
+  order_received --> charge_card
+  charge_card --> reserve_inventory
+  reserve_inventory --> sufficient_stock
+  sufficient_stock -->|yes| pack_items
+  sufficient_stock -->|no| refund_payment
+  pack_items --> ship_order
+  ship_order --> done
+  linkStyle 0 stroke-width:2px,stroke:#64748b
+  linkStyle 1 stroke-width:2px,stroke:#64748b
+  linkStyle 2 stroke-width:2px,stroke:#64748b
+  linkStyle 3 stroke-width:2px,stroke:#64748b
+  linkStyle 4 stroke-width:2px,stroke:#64748b,stroke-dasharray:5 5
+  linkStyle 5 stroke-width:2px,stroke:#64748b
+  linkStyle 6 stroke-width:2px,stroke:#64748b
 ```
 
 ---
@@ -439,22 +465,29 @@ Analysis.validate(map)       #=> []
 
 **Features:** single-root invariant, branch and associate edge types, depth/breadth/width metrics, root-to-leaf path enumeration, orphan detection, cycle detection, type-frequency analysis, validation.
 
-```dot
-digraph {
-  rankdir=TB; splines=spline; nodesep=0.6; ranksep=1.2;
-  node [shape=ellipse, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=10, color="#64748b"];
-  elixir [label="Elixir", shape=doublecircle, fillcolor="#8b5cf6", fontcolor=white, penwidth=2];
-  concurrency [label="Concurrency", shape=ellipse, fillcolor="#3b82f6", fontcolor=white];
-  ecosystem [label="Ecosystem", shape=ellipse, fillcolor="#10b981", fontcolor=white];
-  processes [label="Processes", shape=box, style="rounded,filled", fillcolor="#06b6d4", fontcolor=white];
-  beam [label="BEAM VM", shape=note, fillcolor="#f59e0b", fontcolor=white];
-  elixir -> concurrency;
-  elixir -> ecosystem;
-  concurrency -> processes;
-  ecosystem -> beam;
-  processes -> beam [label="runs on", style=dashed, color="#94a3b8", dir=none];
-}
+```mermaid
+graph TD
+  classDef default color:white
+  processes[["Processes"]]
+  elixir(("Elixir"))
+  beam["BEAM VM"]
+  concurrency["Concurrency"]
+  ecosystem["Ecosystem"]
+  style processes fill:#06b6d4,stroke:#0098b6
+  style elixir fill:#8b5cf6,stroke:#6d3ed8,stroke-width:3px
+  style beam fill:#f59e0b,stroke:#d78000
+  style concurrency fill:#3b82f6,stroke:#1d64d8
+  style ecosystem fill:#3b82f6,stroke:#1d64d8
+  processes -->|runs on| beam
+  elixir --> concurrency
+  elixir --> ecosystem
+  concurrency --> processes
+  ecosystem --> beam
+  linkStyle 0 stroke-width:2px,stroke:#94a3b8,stroke-dasharray:5 5
+  linkStyle 1 stroke-width:2px,stroke:#64748b
+  linkStyle 2 stroke-width:2px,stroke:#64748b
+  linkStyle 3 stroke-width:2px,stroke:#64748b
+  linkStyle 4 stroke-width:2px,stroke:#64748b
 ```
 
 ---
@@ -471,9 +504,9 @@ model =
   ThreatModel.new()
   |> ThreatModel.add_trust_boundary("internet", level: 0)
   |> ThreatModel.add_trust_boundary("app", level: 2)
-  |> ThreatModel.add_external_entity(:user, boundary: "internet")
-  |> ThreatModel.add_process(:api, boundary: "app", privilege: :admin)
-  |> ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :confidential)
+  |> ThreatModel.add_external_entity(:user, boundary: "internet", label: "User")
+  |> ThreatModel.add_process(:api, boundary: "app", privilege: :admin, label: "API")
+  |> ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :confidential, label: "DB")
   |> ThreatModel.data_flow(:user, :api)
   |> ThreatModel.data_flow(:api, :db, encrypted: true)
 
@@ -485,34 +518,49 @@ threats = Analysis.stride_threats(model)
 Analysis.exposed_data_stores(model)
 Analysis.high_risk_processes(model)
 Analysis.unencrypted_boundary_flows(model)
+
+# Sequence diagram
+ThreatModel.to_sequence(model)  #=> Mermaid sequenceDiagram string
 ```
 
-**Features:** automated STRIDE threat generation with severity scoring, trust-boundary crossing detection, exposed-data-store identification, high-risk process detection, encrypted-flow detection.
+**Features:** automated STRIDE threat generation with severity scoring, trust-boundary crossing detection, exposed-data-store identification, high-risk process detection, encrypted-flow detection, sequence diagram generation.
 
-```dot
-digraph {
-  rankdir=LR; splines=spline; nodesep=0.6; ranksep=1.2;
-  node [shape=box, style=filled, fontname="Helvetica", fontsize=12];
-  edge [fontname="Helvetica", fontsize=10];
-  user [label="User", shape=box, fillcolor="#64748b", fontcolor=white, penwidth=2];
-  api [label="API\n(admin)", shape=circle, fillcolor="#3b82f6", fontcolor=white];
-  db [label="DB\n[confidential]", shape=cylinder, fillcolor="#f59e0b", fontcolor=white];
-  user -> api [color="#ef4444", penwidth=2, style=dashed];
-  api -> db [color="#f59e0b", penwidth=1.5];
-}
+```mermaid
+graph LR
+  classDef default color:white
+  user["User"]
+  api(("API"))
+  db[("DB")]
+  style user fill:#64748b,stroke:#46566d,stroke-width:3px
+  style api fill:#3b82f6,stroke:#1d64d8
+  style db fill:#f59e0b,stroke:#d78000
+  subgraph app ["app"]
+    api
+    db
+  end
+  subgraph internet ["internet"]
+    user
+  end
+  user --> api
+  api --> db
+  linkStyle 0 stroke-width:2px,stroke:#64748b,stroke-dasharray:5 5
+  linkStyle 1 stroke-width:2px,stroke:#64748b
 ```
 
 ---
 
 ## Themes & Rendering
 
-All modules render to **DOT (Graphviz)** via a shared theming pipeline.
+All modules render to **DOT (Graphviz)** and **Mermaid.js** via a shared theming pipeline.
 
 ```elixir
-# Built-in themes
+# DOT output (Graphviz)
 Choreo.to_dot(system, theme: :default)
 Choreo.to_dot(system, theme: :dark)
-Choreo.to_dot(system, theme: :minimal)
+
+# Mermaid.js output (GitHub, GitLab, Notion, Livebook)
+Choreo.to_mermaid(system, theme: :default)
+Choreo.to_mermaid(system, theme: :ocean)
 
 # Custom theme
 theme = Choreo.Theme.custom(
@@ -521,9 +569,21 @@ theme = Choreo.Theme.custom(
   node_fontcolor: "white"
 )
 Choreo.to_dot(system, theme: theme)
+Choreo.to_mermaid(system, theme: theme)
 ```
 
-Every module has type-specific shapes and colours:
+### Built-in themes
+
+| Theme | Description |
+|-------|-------------|
+| `:default` | Type-coloured nodes, white background |
+| `:dark` | Dark background with neon accents |
+| `:minimal` | Monochrome wireframe, no fills |
+| `:warm` | Sunset palette, warm background |
+| `:forest` | Lush green palette, earth tones |
+| `:ocean` | Deep blue palette, cool background |
+
+### Per-module node types
 
 | Module | Node types | Shapes |
 |--------|-----------|--------|
@@ -544,19 +604,9 @@ Every module has type-specific shapes and colours:
 mix test
 ```
 
-All modules ship with comprehensive ExUnit test suites:
+All modules ship with comprehensive ExUnit test suites covering builders, analysis, rendering, and doctests:
 
-| Module | Tests |
-|--------|-------|
-| `Choreo` | 32 |
-| `Choreo.FSM` | 40 |
-| `Choreo.Dataflow` | 44 |
-| `Choreo.Dependency` | 36 |
-| `Choreo.DecisionTree` | 34 |
-| `Choreo.MindMap` | 43 |
-| `Choreo.ThreatModel` | 33 |
-| `Choreo.Workflow` | 48 |
-| **Total** | **310** |
+**833 tests** (266 doctests + 567 unit tests), 0 failures.
 
 ---
 
@@ -572,9 +622,13 @@ All modules ship with comprehensive ExUnit test suites:
 - [x] Mind maps (`Choreo.MindMap`)
 - [x] Schema validation for dataflow edges
 - [x] Custom theme presets and per-node style overrides
-- [ ] Deeper analysis: centrality metrics, graph colouring, cut vertices
+- [x] Centrality metrics, cut vertices, k-core decomposition
 - [x] Cross-module composition (e.g. embed a Dataflow inside a Choreo cluster)
 - [x] Validation framework across all modules
+- [x] Mermaid.js rendering for all modules
+- [x] Mermaid sequence diagrams (`ThreatModel`)
+- [ ] Graph colouring algorithms
+- [ ] Property-based testing suite
 
 ---
 
