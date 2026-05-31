@@ -466,28 +466,12 @@ Analysis.validate(map)       #=> []
 **Features:** single-root invariant, branch and associate edge types, depth/breadth/width metrics, root-to-leaf path enumeration, orphan detection, cycle detection, type-frequency analysis, validation.
 
 ```mermaid
-graph TD
-  classDef default color:white
-  processes[["Processes"]]
-  elixir(("Elixir"))
-  beam["BEAM VM"]
-  concurrency["Concurrency"]
-  ecosystem["Ecosystem"]
-  style processes fill:#06b6d4,stroke:#0098b6
-  style elixir fill:#8b5cf6,stroke:#6d3ed8,stroke-width:3px
-  style beam fill:#f59e0b,stroke:#d78000
-  style concurrency fill:#3b82f6,stroke:#1d64d8
-  style ecosystem fill:#3b82f6,stroke:#1d64d8
-  processes -->|runs on| beam
-  elixir --> concurrency
-  elixir --> ecosystem
-  concurrency --> processes
-  ecosystem --> beam
-  linkStyle 0 stroke-width:2px,stroke:#94a3b8,stroke-dasharray:5 5
-  linkStyle 1 stroke-width:2px,stroke:#64748b
-  linkStyle 2 stroke-width:2px,stroke:#64748b
-  linkStyle 3 stroke-width:2px,stroke:#64748b
-  linkStyle 4 stroke-width:2px,stroke:#64748b
+mindmap
+elixir((Elixir))
+  concurrency(Concurrency)
+    processes[Processes]
+  ecosystem(Ecosystem)
+    beam)BEAM VM(
 ```
 
 ---

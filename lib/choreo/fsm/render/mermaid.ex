@@ -52,7 +52,9 @@ defmodule Choreo.FSM.Render.Mermaid do
 
     base =
       Yog.Multi.Mermaid.default_options()
-      |> Map.put(:node_label, fn _id, data -> if data[:label] == "", do: " ", else: data[:label] || "" end)
+      |> Map.put(:node_label, fn _id, data ->
+        if data[:label] == "", do: " ", else: data[:label] || ""
+      end)
       |> Map.put(:edge_label, fn _edge_id, weight -> weight || "" end)
       |> Map.put(:node_shape, :circle)
       |> Map.put(:node_attributes, node_attributes_fn(theme, fsm, hl_nodes))
