@@ -661,6 +661,30 @@ defmodule Choreo.Dependency do
   end
 
   @doc """
+  Renders the dependency graph to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api, label: "API")
+      ...>   |> Choreo.Dependency.add_module(:auth, label: "Auth")
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      iex> mermaid = Choreo.Dependency.to_mermaid(deps)
+      iex> String.contains?(mermaid, "graph TD")
+      true
+  """
+  @spec to_mermaid(t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = deps, opts \\ []) do
+    Choreo.Dependency.Render.Mermaid.to_mermaid(deps, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.Dependency`.
 
   ## Examples
@@ -744,4 +768,8 @@ end
 
 defimpl Choreo.DOT, for: Choreo.Dependency do
   def to_dot(deps, opts), do: Choreo.Dependency.Render.DOT.to_dot(deps, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo.Dependency do
+  def to_mermaid(deps, opts), do: Choreo.Dependency.Render.Mermaid.to_mermaid(deps, opts)
 end

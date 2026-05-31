@@ -95,31 +95,38 @@ defmodule Choreo.MixProject do
         ],
         "State Machines": [
           Choreo.FSM,
-          Choreo.FSM.Render.DOT
+          Choreo.FSM.Render.DOT,
+          Choreo.FSM.Render.Mermaid
         ],
         "Dataflow & Pipelines": [
           Choreo.Dataflow,
-          Choreo.Dataflow.Render.DOT
+          Choreo.Dataflow.Render.DOT,
+          Choreo.Dataflow.Render.Mermaid
         ],
         "Dependency Graphs": [
           Choreo.Dependency,
-          Choreo.Dependency.Render.DOT
+          Choreo.Dependency.Render.DOT,
+          Choreo.Dependency.Render.Mermaid
         ],
         "Decision Trees": [
           Choreo.DecisionTree,
-          Choreo.DecisionTree.Render.DOT
+          Choreo.DecisionTree.Render.DOT,
+          Choreo.DecisionTree.Render.Mermaid
         ],
         "Threat Modeling": [
           Choreo.ThreatModel,
-          Choreo.ThreatModel.Render.DOT
+          Choreo.ThreatModel.Render.DOT,
+          Choreo.ThreatModel.Render.Mermaid
         ],
         "Workflow & Orchestration": [
           Choreo.Workflow,
-          Choreo.Workflow.Render.DOT
+          Choreo.Workflow.Render.DOT,
+          Choreo.Workflow.Render.Mermaid
         ],
         "Mind Maps": [
           Choreo.MindMap,
-          Choreo.MindMap.Render.DOT
+          Choreo.MindMap.Render.DOT,
+          Choreo.MindMap.Render.Mermaid
         ],
         Analysis: [
           Choreo.FSM.Analysis,

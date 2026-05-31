@@ -639,6 +639,30 @@ defmodule Choreo.ThreatModel do
   end
 
   @doc """
+  Renders the threat model to Mermaid.js flowchart syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt`
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = model
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, label: "User")
+      ...>   |> Choreo.ThreatModel.add_process(:api, label: "API")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api, label: "HTTPS")
+      iex> mermaid = Choreo.ThreatModel.to_mermaid(model)
+      iex> String.contains?(mermaid, "graph LR")
+      true
+  """
+  @spec to_mermaid(t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = model, opts \\ []) do
+    Choreo.ThreatModel.Render.Mermaid.to_mermaid(model, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.ThreatModel`.
 
   ## Examples
@@ -712,4 +736,8 @@ end
 
 defimpl Choreo.DOT, for: Choreo.ThreatModel do
   def to_dot(model, opts), do: Choreo.ThreatModel.Render.DOT.to_dot(model, opts)
+end
+
+defimpl Choreo.Mermaid, for: Choreo.ThreatModel do
+  def to_mermaid(model, opts), do: Choreo.ThreatModel.Render.Mermaid.to_mermaid(model, opts)
 end

@@ -3,6 +3,7 @@ defmodule Choreo.RenderCoverageTest do
 
   alias Choreo
   alias Choreo.Dataflow
+  alias Choreo.DecisionTree
   alias Choreo.Dependency
   alias Choreo.FSM
   alias Choreo.MindMap
@@ -43,6 +44,23 @@ defmodule Choreo.RenderCoverageTest do
     assert Choreo.to_mermaid(custom) =~ "((\"custom\"))"
   end
 
+  test "decision_tree renderer comprehensive" do
+    tree =
+      DecisionTree.new()
+      |> DecisionTree.set_root(:root, feature: "root")
+      |> DecisionTree.add_decision(:d1, feature: "d1")
+      |> DecisionTree.add_outcome(:o1, label: "O1")
+      |> DecisionTree.add_outcome(:o2, label: "O2")
+      |> DecisionTree.branch(:root, :d1, "yes")
+      |> DecisionTree.branch(:d1, :o1, "a")
+      |> DecisionTree.branch(:d1, :o2, "b")
+
+    for theme <- [:default, :dark, :warm, :forest, :ocean] do
+      assert DecisionTree.to_dot(tree, theme: theme) =~ "digraph"
+      assert DecisionTree.to_mermaid(tree, theme: theme) =~ "graph TD"
+    end
+  end
+
   test "workflow renderer comprehensive" do
     wf =
       Workflow.new()
@@ -67,6 +85,7 @@ defmodule Choreo.RenderCoverageTest do
     # Hit all themes
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert Workflow.to_dot(wf, theme: theme) =~ "digraph"
+      assert Workflow.to_mermaid(wf, theme: theme) =~ "graph TD"
     end
 
     # Hit custom attributes
@@ -95,6 +114,7 @@ defmodule Choreo.RenderCoverageTest do
 
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert Dataflow.to_dot(df, theme: theme) =~ "digraph"
+      assert Dataflow.to_mermaid(df, theme: theme) =~ "graph TD"
     end
   end
 
@@ -110,6 +130,7 @@ defmodule Choreo.RenderCoverageTest do
 
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert MindMap.to_dot(mm, theme: theme) =~ "digraph"
+      assert MindMap.to_mermaid(mm, theme: theme) =~ "graph TD"
     end
   end
 
@@ -123,6 +144,7 @@ defmodule Choreo.RenderCoverageTest do
 
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert FSM.to_dot(fsm, theme: theme) =~ "digraph"
+      assert FSM.to_mermaid(fsm, theme: theme) =~ "graph LR"
     end
   end
 
@@ -137,6 +159,7 @@ defmodule Choreo.RenderCoverageTest do
 
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert Dependency.to_dot(dep, theme: theme) =~ "digraph"
+      assert Dependency.to_mermaid(dep, theme: theme) =~ "graph TD"
     end
   end
 
@@ -150,6 +173,7 @@ defmodule Choreo.RenderCoverageTest do
 
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
       assert ThreatModel.to_dot(tm, theme: theme) =~ "digraph"
+      assert ThreatModel.to_mermaid(tm, theme: theme) =~ "graph LR"
     end
   end
 end
