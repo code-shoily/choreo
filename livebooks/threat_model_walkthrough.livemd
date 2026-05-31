@@ -9,7 +9,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. If you prefer PlantUML, copy any DOT output into [PlantText](https://www.planttext.com/), [PlantUML Online Server](https://www.plantuml.com/plantuml/), or use the VS Code PlantUML extension. You can also install Graphviz locally and run `dot -Tpng diagram.dot -o diagram.png`.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
 ---
 
@@ -71,6 +71,10 @@ web_app =
   )
 
 Kino.VizJS.render(ThreatModel.to_dot(web_app))
+```
+
+```elixir
+Kino.Mermaid.new(ThreatModel.to_mermaid(web_app))
 ```
 
 Notice the color coding:
@@ -162,6 +166,10 @@ microservices =
   |> ThreatModel.data_flow(:payment_webhook, :order_service, label: "Event bus")
 
 Kino.VizJS.render(ThreatModel.to_dot(microservices))
+```
+
+```elixir
+Kino.Mermaid.new(ThreatModel.to_mermaid(microservices))
 ```
 
 ### Cross-Boundary Analysis

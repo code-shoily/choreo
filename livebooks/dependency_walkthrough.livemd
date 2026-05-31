@@ -9,7 +9,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
 ---
 
@@ -64,6 +64,10 @@ legend =
 Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")
 ```
 
+```elixir
+Kino.Mermaid.new(Dependency.to_mermaid(legend))
+```
+
 ---
 
 ## Example 1: Simple Microservice Dependencies
@@ -98,6 +102,10 @@ microservices =
   |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
 
 Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")
+```
+
+```elixir
+Kino.Mermaid.new(Dependency.to_mermaid(microservices))
 ```
 
 ### Impact Analysis
@@ -471,6 +479,10 @@ IO.puts("Zoom Level 0 (System Context)")
 Kino.VizJS.render(Dependency.to_dot(system_view), height: "200px")
 ```
 
+```elixir
+Kino.Mermaid.new(Dependency.to_mermaid(system_view))
+```
+
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
 
 ```elixir
@@ -479,6 +491,10 @@ component_view = View.zoom(system, level: 2)
 
 IO.puts("Zoom Level 2 (Component Level)")
 Kino.VizJS.render(Dependency.to_dot(component_view), height: "400px")
+```
+
+```elixir
+Kino.Mermaid.new(Dependency.to_mermaid(component_view))
 ```
 
 ---

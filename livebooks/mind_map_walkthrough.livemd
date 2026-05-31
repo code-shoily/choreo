@@ -9,7 +9,7 @@ Mix.install([
 ])
 ```
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
 ---
 
@@ -53,6 +53,10 @@ Kino.VizJS.render(
 )
 ```
 
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(legend))
+```
+
 ---
 
 ## Example 1: Brainstorming a Talk Outline
@@ -89,6 +93,10 @@ talk =
   |> MindMap.associate(:circuit_breaker, :telemetry, label: "improves")
 
 Kino.VizJS.render(MindMap.to_dot(talk), height: "800px")
+```
+
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(talk))
 ```
 
 ### Structural Metrics
