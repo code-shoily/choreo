@@ -176,8 +176,8 @@ defmodule Choreo.RenderCoverageTest do
       assert ThreatModel.to_mermaid(tm, theme: theme) =~ "graph LR"
     end
 
-    assert Choreo.ThreatModel.Render.Mermaid.to_sequence(tm) =~ "sequenceDiagram"
-    assert Choreo.ThreatModel.Render.Mermaid.to_sequence(tm) =~ "actor u"
-    assert Choreo.ThreatModel.Render.Mermaid.to_sequence(tm) =~ "participant p"
+    assert ThreatModel.to_sequence(tm) =~ "sequenceDiagram"
+    assert ThreatModel.to_sequence(tm) =~ "actor u"
+    assert ThreatModel.to_sequence(tm) =~ "participant p"
   end
 end

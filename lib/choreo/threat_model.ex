@@ -663,6 +663,34 @@ defmodule Choreo.ThreatModel do
   end
 
   @doc """
+  Renders the data flows in a threat model to a Mermaid sequence diagram string.
+
+  External entities render as `actor`, processes and data stores as `participant`.
+  Unencrypted flows crossing trust boundaries use dashed arrows (`-->`) to
+  visually flag insecure communication.
+
+  ## Options
+
+  No options are currently used, but the argument is reserved for future use.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_external_entity(model, :user, label: "Customer")
+      iex> model = Choreo.ThreatModel.add_process(model, :web_api, label: "Web API")
+      iex> model = Choreo.ThreatModel.data_flow(model, :user, :web_api, label: "HTTPS login")
+      iex> seq = Choreo.ThreatModel.to_sequence(model)
+      iex> String.contains?(seq, "sequenceDiagram")
+      true
+      iex> String.contains?(seq, "actor user")
+      true
+  """
+  @spec to_sequence(t(), keyword()) :: String.t()
+  def to_sequence(%__MODULE__{} = model, opts \\ []) do
+    Choreo.ThreatModel.Render.Mermaid.to_sequence(model, opts)
+  end
+
+  @doc """
   Returns a theme for `Choreo.ThreatModel`.
 
   ## Examples
