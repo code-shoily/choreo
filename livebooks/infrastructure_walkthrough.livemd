@@ -127,6 +127,8 @@ end
 
 Real systems span availability zones and regions. Choreo's cluster system supports nesting — a region contains AZs, which contain services.
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 multi_region =
   Choreo.new()
@@ -652,7 +654,7 @@ Kino.VizJS.render(Choreo.to_dot(data_view), height: "400px")
 
 ```elixir
 data_view
-|> Choreo.to_mermaid(theme: :ocean, direction: :lrF)
+|> Choreo.to_mermaid(theme: :ocean, direction: :lr)
 |> Kino.Mermaid.new()
 ```
 
