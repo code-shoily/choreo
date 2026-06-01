@@ -64,8 +64,13 @@ legend =
 Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")
 ```
 
-```elixir
+# By default, renders to a styled Mermaid flowchart
 Kino.Mermaid.new(Dependency.to_mermaid(legend))
+```
+
+```elixir
+# Alternatively, render to a native Mermaid Class Diagram
+Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))
 ```
 
 ---

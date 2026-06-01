@@ -271,26 +271,26 @@ Dependency.Analysis.cyclic_dependencies(deps)     #=> []
 Dependency.Analysis.affected_by(deps, :auth)       #=> [:api]
 Dependency.Analysis.depends_on(deps, :api)         #=> [:auth, :phoenix]
 
-# Layer enforcement
-layers = %{repo: 1, service: 2, api: 3}
-Dependency.Analysis.layer_violations(deps, layers)
+# Render to native class diagram
+Dependency.to_mermaid(deps, syntax: :class_diagram)
 ```
 
 **Features:** cycle path extraction (not just boolean), transitive impact analysis, layer violation detection, centrality ranking, longest dependency chain, cycle edge highlighting in DOT.
 
 ```mermaid
-graph TD
-  classDef default color:white
-  auth["Auth"]
-  api[["API Gateway"]]
-  phoenix[("phoenix")]
-  style auth fill:#10b981,stroke:#009b63
-  style api fill:#3b82f6,stroke:#1d64d8
-  style phoenix fill:#f59e0b,stroke:#d78000
-  api -->|calls| auth
-  auth -->|uses| phoenix
-  linkStyle 0 stroke-width:2px,stroke:#64748b,stroke-dasharray:2 3
-  linkStyle 1 stroke-width:2px,stroke:#64748b
+classDiagram
+  direction TD
+  class api["API Gateway"] {
+    <<application>>
+  }
+  class auth["Auth"] {
+    <<module>>
+  }
+  class phoenix["phoenix"] {
+    <<library>>
+  }
+  api ..> auth : calls
+  auth --> phoenix : uses
 ```
 
 ---

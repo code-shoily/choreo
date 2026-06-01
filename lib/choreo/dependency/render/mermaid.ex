@@ -23,14 +23,15 @@ defmodule Choreo.Dependency.Render.Mermaid do
   alias Choreo.Theme
 
   @doc """
-  Renders a dependency graph to a Mermaid flowchart string.
+  Renders a dependency graph to a Mermaid diagram string.
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:syntax` — `:flowchart` (default) or `:class_diagram` (native `classDiagram` syntax)
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
-    * `:highlighted_nodes` — list of node IDs to highlight
-    * `:highlighted_edges` — list of edge IDs/tuples to highlight
+    * `:highlighted_nodes` — list of node IDs to highlight (for `:flowchart` syntax)
+    * `:highlighted_edges` — list of edge IDs/tuples to highlight (for `:flowchart` syntax)
 
   ## Examples
 
@@ -46,33 +47,100 @@ defmodule Choreo.Dependency.Render.Mermaid do
       true
       iex> String.contains?(mermaid, "Auth")
       true
+
+      iex> deps = Choreo.Dependency.new() |> Choreo.Dependency.add_application(:api)
+      iex> mermaid = Choreo.Dependency.Render.Mermaid.to_mermaid(deps, syntax: :class_diagram)
+      iex> String.contains?(mermaid, "classDiagram")
+      true
+      iex> String.contains?(mermaid, "class api")
+      true
   """
   @spec to_mermaid(Choreo.Dependency.t(), keyword()) :: String.t()
   def to_mermaid(%Choreo.Dependency{} = deps, opts \\ []) do
-    theme = resolve_theme(Keyword.get(opts, :theme, :default))
+    case Keyword.get(opts, :syntax, :flowchart) do
+      :class_diagram ->
+        to_native_class_diagram(deps, opts)
+
+      :flowchart ->
+        theme = resolve_theme(Keyword.get(opts, :theme, :default))
+        direction = Keyword.get(opts, :direction, :td)
+        subgraphs = Choreo.Internal.build_mermaid_subgraphs(deps)
+        cycle_edges = cycle_edge_set(deps)
+
+        hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+        hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
+        base_opts =
+          Yog.Multi.Mermaid.default_options()
+          |> Map.put(:direction, direction)
+          |> Map.put(:node_shape, &node_shape_fn/2)
+          |> Map.put(:node_label, &node_label/2)
+          |> Map.put(:edge_label, fn edge_id, _weight -> edge_label(deps, edge_id) end)
+          |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
+          |> Map.put(:edge_attributes, edge_attributes_fn(deps, cycle_edges, theme, hl_edges))
+          |> Map.put(:default_font_color, theme.node_fontcolor)
+          |> Map.put(:default_link_stroke, theme.edge_color)
+          |> Map.merge(Map.new(opts))
+
+        base_opts =
+          if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
+
+        Yog.Multi.Mermaid.to_mermaid(deps.graph, base_opts)
+        |> String.replace("stroke_dasharray", "stroke-dasharray")
+    end
+  end
+
+  defp to_native_class_diagram(deps, opts) do
     direction = Keyword.get(opts, :direction, :td)
-    subgraphs = Choreo.Internal.build_mermaid_subgraphs(deps)
-    cycle_edges = cycle_edge_set(deps)
+    direction_part = "  direction #{String.upcase(to_string(direction))}\n"
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    class_defs =
+      deps.graph.nodes
+      |> Enum.sort_by(fn {id, _data} -> id end)
+      |> Enum.map_join("\n", fn {id, data} ->
+        label = data[:label] || to_string(id)
 
-    base_opts =
-      Yog.Multi.Mermaid.default_options()
-      |> Map.put(:direction, direction)
-      |> Map.put(:node_shape, &node_shape_fn/2)
-      |> Map.put(:node_label, &node_label/2)
-      |> Map.put(:edge_label, fn edge_id, _weight -> edge_label(deps, edge_id) end)
-      |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(deps, cycle_edges, theme, hl_edges))
-      |> Map.put(:default_font_color, theme.node_fontcolor)
-      |> Map.put(:default_link_stroke, theme.edge_color)
-      |> Map.merge(Map.new(opts))
+        stereotype =
+          case data[:node_type] do
+            :application -> "<<application>>"
+            :library -> "<<library>>"
+            :module -> "<<module>>"
+            :interface -> "<<interface>>"
+            :test -> "<<test>>"
+            _ -> ""
+          end
 
-    base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
+        if stereotype != "" do
+          "  class #{id}[\"#{label}\"] {\n    #{stereotype}\n  }"
+        else
+          "  class #{id}[\"#{label}\"]"
+        end
+      end)
 
-    Yog.Multi.Mermaid.to_mermaid(deps.graph, base_opts)
-    |> String.replace("stroke_dasharray", "stroke-dasharray")
+    relations =
+      deps.graph.edges
+      |> Map.keys()
+      |> Enum.sort()
+      |> Enum.map_join("\n", fn edge_id ->
+        {from, to, _weight} = Map.get(deps.graph.edges, edge_id)
+        meta = Map.get(deps.edge_meta, edge_id, %{})
+        type = meta[:type] || :uses
+
+        arrow =
+          case type do
+            :inherits -> "--|>"
+            :imports -> "..>"
+            :calls -> "..>"
+            :uses -> "-->"
+            :dev -> "..>"
+            _ -> "-->"
+          end
+
+        label = meta[:label] || to_string(type)
+        "  #{from} #{arrow} #{to} : #{label}"
+      end)
+
+    "classDiagram\n" <> direction_part <> class_defs <> "\n" <> relations <> "\n"
   end
 
   # ============================================================================

@@ -175,6 +175,12 @@ defmodule Choreo.RenderCoverageTest do
       assert Dependency.to_dot(dep, theme: theme) =~ "digraph"
       assert Dependency.to_mermaid(dep, theme: theme) =~ "graph TD"
     end
+
+    native = Dependency.to_mermaid(dep, syntax: :class_diagram)
+    assert native =~ "classDiagram"
+    assert native =~ "  class a[\"a\"] {\n    <<application>>\n  }"
+    assert native =~ "  class b[\"b\"] {\n    <<library>>\n  }"
+    assert native =~ "  a --> b : uses"
   end
 
   test "threat_model renderer comprehensive" do
