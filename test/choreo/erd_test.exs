@@ -66,7 +66,7 @@ defmodule Choreo.ERDTest do
     dot = ERD.to_dot(erd)
 
     # HTML table wrapping check
-    assert dot =~ "label=<TABLE"
+    assert dot =~ "label=<<TABLE"
     assert dot =~ "users"
     assert dot =~ "posts"
     assert dot =~ "comments"
@@ -86,13 +86,13 @@ defmodule Choreo.ERDTest do
 
   test "to_dot custom themes", %{erd: erd} do
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
-      assert ERD.to_dot(erd, theme: theme) =~ "label=<TABLE"
+      assert ERD.to_dot(erd, theme: theme) =~ "label=<<TABLE"
     end
   end
 
   test "to_dot highlighting", %{erd: erd} do
     dot = ERD.to_dot(erd, highlighted_nodes: [:users], highlighted_edges: [0])
-    assert dot =~ "users [label=<TABLE"
+    assert dot =~ "users [label=<<TABLE"
     assert dot =~ "color=\"#ef4444\""
   end
 

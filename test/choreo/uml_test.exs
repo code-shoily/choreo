@@ -61,7 +61,7 @@ defmodule Choreo.UMLTest do
     dot = UML.to_dot(uml)
 
     # Compartments check
-    assert dot =~ "label=<TABLE"
+    assert dot =~ "label=<<TABLE"
     assert dot =~ "User Model"
     assert dot =~ "«struct»"
     assert dot =~ "auth_provider"
@@ -79,13 +79,13 @@ defmodule Choreo.UMLTest do
 
   test "to_dot custom themes", %{uml: uml} do
     for theme <- [:default, :dark, :warm, :forest, :ocean] do
-      assert UML.to_dot(uml, theme: theme) =~ "label=<TABLE"
+      assert UML.to_dot(uml, theme: theme) =~ "label=<<TABLE"
     end
   end
 
   test "to_dot highlighting", %{uml: uml} do
     dot = UML.to_dot(uml, highlighted_nodes: [:user], highlighted_edges: [0])
-    assert dot =~ "user [label=<TABLE"
+    assert dot =~ "user [label=<<TABLE"
     assert dot =~ "color=\"#ef4444\""
   end
 

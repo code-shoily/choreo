@@ -59,7 +59,7 @@ defmodule Choreo.UML.Render.DOT do
         |> String.slice(7..-2//1)
         |> String.replace(~r/\\"/, "\"")
 
-      "label=#{html}"
+      "label=<#{html}>"
     end)
   end
 
