@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, "~> 0.8"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
