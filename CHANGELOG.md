@@ -9,7 +9,13 @@
   - Implemented themed HTML-like table record visualization (`Choreo.ERD.Render.DOT`) supporting standard crow's foot multiplicities and post-rendering unquoting.
   - Implemented native Mermaid `erDiagram` visual syntax rendering (`Choreo.ERD.Render.Mermaid`).
   - Implemented a topological analysis suite (`Choreo.ERD.Analysis`) including undirected BFS join path discovery, DFS circular foreign key cycle detection, isolated orphan entity tracking, and table coupling metrics.
+  - Implemented `Choreo.Viewable` protocol for `Choreo.ERD` to enable standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
   - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/erd_walkthrough.livemd`).
+
+- **Native Mermaid Visualizers & Syntaxes**:
+  - **`Choreo.FSM`**: Added native `:state_diagram` (`stateDiagram-v2`) syntax support mapping initial/final states to entry/acceptance targets (`[*] --> state` and `state --> [*]`) and mapping custom labels.
+  - **`Choreo.Dependency`**: Added native `:class_diagram` (`classDiagram`) syntax support mapping application/module/library types to standard UML stereotypes (e.g. `<<module>>`) and mapping relationships to standard UML connectors (`..>`, `--|>`, `-->`).
+  - Updated all walkthrough Livebooks and the `README.md` to demonstrate and utilize these alternative syntaxes.
 
 - **Structural & Heatmap Analysis Suite**:
   - Implemented `Choreo.Analysis.heatmap/2` for automatic, data-driven diagram coloring using configurable color scales.
