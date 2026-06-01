@@ -311,7 +311,7 @@ defmodule Choreo.UML.Render.DOT do
     # 1. Header Compartment
     stereotype_part =
       if type != :class do
-        "&laquo;#{type}&raquo;<br/>"
+        "«#{type}»<BR/>"
       else
         ""
       end

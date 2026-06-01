@@ -118,7 +118,7 @@ defmodule Choreo.UML.Render.Mermaid do
 
     stereotype_part =
       if type != :class do
-        "&laquo;#{type}&raquo;<br/>"
+        "«#{type}»<br/>"
       else
         ""
       end

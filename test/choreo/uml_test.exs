@@ -63,9 +63,9 @@ defmodule Choreo.UMLTest do
     # Compartments check
     assert dot =~ "label=<TABLE"
     assert dot =~ "User Model"
-    assert dot =~ "&laquo;struct&raquo;"
+    assert dot =~ "«struct»"
     assert dot =~ "auth_provider"
-    assert dot =~ "&laquo;behavior&raquo;"
+    assert dot =~ "«behavior»"
 
     # Visibility symbols
     assert dot =~ "+ id : integer"
@@ -94,7 +94,7 @@ defmodule Choreo.UMLTest do
 
     assert mermaid =~ "graph TD"
     assert mermaid =~ "User Model"
-    assert mermaid =~ "&laquo;struct&raquo;"
+    assert mermaid =~ "«struct»"
     assert mermaid =~ "authenticate"
   end
 
