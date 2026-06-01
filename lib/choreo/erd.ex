@@ -200,3 +200,33 @@ end
 defimpl Choreo.Mermaid, for: Choreo.ERD do
   def to_mermaid(erd, opts), do: Choreo.ERD.Render.Mermaid.to_mermaid(erd, opts)
 end
+
+defimpl Choreo.Viewable, for: Choreo.ERD do
+  def rebuild(erd, new_graph) do
+    edge_ids = Map.keys(new_graph.edges)
+    edge_meta = Map.take(erd.edge_meta, edge_ids)
+
+    edge_meta =
+      Enum.reduce(edge_ids, edge_meta, fn edge_id, acc ->
+        if Map.has_key?(acc, edge_id) do
+          acc
+        else
+          Map.put(acc, edge_id, virtual_edge_meta(erd))
+        end
+      end)
+
+    %Choreo.ERD{erd | graph: new_graph, edge_meta: edge_meta}
+  end
+
+  def zoom_predicate(_erd, _level) do
+    fn _data -> true end
+  end
+
+  def virtual_edge_meta(_erd) do
+    %{
+      type: :uses,
+      cardinality: :one_to_many,
+      label: "virtual"
+    }
+  end
+end

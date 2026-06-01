@@ -153,4 +153,14 @@ defmodule Choreo.ERDTest do
     assert degrees[:posts] == %{in: 1, out: 1, total: 2}
     assert degrees[:comments] == %{in: 1, out: 0, total: 1}
   end
+
+  test "viewable protocol implementation", %{erd: erd} do
+    assert Choreo.Viewable.zoom_predicate(erd, 1) != nil
+    assert Choreo.Viewable.virtual_edge_meta(erd) != nil
+
+    # Rebuild
+    rebuilt = Choreo.Viewable.rebuild(erd, erd.graph)
+    assert rebuilt.graph == erd.graph
+    assert rebuilt.edge_meta == erd.edge_meta
+  end
 end
