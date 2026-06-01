@@ -152,6 +152,53 @@ UML.to_dot(focused_uml)
 
 ---
 
+## Topological & Static Code Analysis
+
+`Choreo.UML.Analysis` provides a comprehensive static analysis suite to verify system integrity, calculate coupling, and flag behavior/protocol realization issues:
+
+### 1. Dependency Cycle Detection
+
+Circular references between Elixir modules slow down compilation because they trigger massive recompilation cascades. Detect them instantly:
+
+```elixir
+# Introducing a circular dependency: user -> auth_provider -> cache -> user
+circular_uml = 
+  uml
+  |> UML.add_relationship(:cache, :user, type: :depends, label: "references")
+
+Choreo.UML.Analysis.cycles(circular_uml)
+#=> [[:user, :auth_provider, :cache]]
+```
+
+### 2. Broken Behavior & Protocol Contracts
+
+Flag if a struct/class claims to implement a behavior contract but forgets some methods or has arity mismatches:
+
+```elixir
+# Struct 'broken_user' claims to implement 'auth_provider' but is missing the 'verify/1' function
+broken_uml =
+  UML.new()
+  |> UML.add_class(:auth_provider,
+    type: :behavior,
+    functions: [%{name: "verify", arity: 1}]
+  )
+  |> UML.add_class(:broken_user, type: :struct)
+  |> UML.add_relationship(:broken_user, :auth_provider, type: :realizes)
+
+Choreo.UML.Analysis.broken_contracts(broken_uml)
+#=> [{:broken_user, :auth_provider, [%{name: "verify", arity: 1}]}]
+```
+
+### 3. Coupling & Stability Metrics (Robert C. Martin's Metrics)
+
+Evaluate Afferent Coupling ($C_a$), Efferent Coupling ($C_e$), and Instability ($I$):
+
+```elixir
+Choreo.UML.Analysis.coupling_metrics(uml)
+```
+
+---
+
 ## Cheat Sheet
 
 | Task / Feature                 | Command                                                                 |
@@ -162,3 +209,6 @@ UML.to_dot(focused_uml)
 | Render Styled DOT Graphviz     | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)     |
 | Render Native Mermaid Class    | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)       |
 | Filter Graph via Lens focus    | `Choreo.View.focus/2`                                                   |
+| Detect circular cycles         | `Choreo.UML.Analysis.cycles/1`                                          |
+| Verify behavior contracts      | `Choreo.UML.Analysis.broken_contracts/1`                                |
+| Compute coupling metrics       | `Choreo.UML.Analysis.coupling_metrics/1`                                |

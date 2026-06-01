@@ -146,7 +146,8 @@ defmodule Choreo.MixProject do
           Choreo.MindMap.Analysis,
           Choreo.ThreatModel.Analysis,
           Choreo.Workflow.Analysis,
-          Choreo.ERD.Analysis
+          Choreo.ERD.Analysis,
+          Choreo.UML.Analysis
         ]
       ],
       groups_for_extras: [

@@ -17,6 +17,7 @@
   - Implemented themed three-compartment HTML record table visualization (`Choreo.UML.Render.DOT`) supporting standard class/struct/interface/behavior/protocol types, visibilities (`+`, `-`, `#`), and proper hollow/solid arrowhead line layouts.
   - Implemented Mermaid visual syntax rendering (`Choreo.UML.Render.Mermaid`) supporting both flowchart layouts and native `classDiagram` rendering.
   - Implemented `Choreo.Viewable` protocol for standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
+  - Implemented a static analysis suite (`Choreo.UML.Analysis`) including circular dependency detection, behavior contract validation, and Robert C. Martin's coupling & stability metrics.
   - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/uml_walkthrough.livemd`).
 
 - **Native Mermaid Visualizers & Syntaxes**:
