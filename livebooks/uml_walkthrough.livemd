@@ -58,8 +58,8 @@ uml =
 Graphviz DOT rendering constructs high-fidelity **three-compartment HTML-like tables** standard in UML tools:
 
 ```elixir
-UML.to_dot(uml) |> IO.puts
-# |> Kino.VizJS.render()
+UML.to_dot(uml)
+|> Kino.VizJS.render()
 ```
 
 ### Native Mermaid.js classDiagram Rendering

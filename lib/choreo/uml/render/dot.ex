@@ -328,13 +328,13 @@ defmodule Choreo.UML.Render.DOT do
       else
         rows =
           fields
-          |> Enum.map_join("<BR ALIGN=\"LEFT\"/>", fn f ->
+          |> Enum.map_join("<BR/>", fn f ->
             vis = visibility_symbol(f[:visibility])
             type_part = if f[:type], do: " : #{f[:type]}", else: ""
             "#{vis} #{f[:name]}#{type_part}"
           end)
 
-        ~s(<TR><TD BGCOLOR="#{bg_color}" ALIGN="LEFT"><FONT COLOR="#{text_color}">#{rows}<BR ALIGN="LEFT"/></FONT></TD></TR>)
+        ~s(<TR><TD BGCOLOR="#{bg_color}" ALIGN="LEFT"><FONT COLOR="#{text_color}">#{rows}</FONT></TD></TR>)
       end
 
     # 3. Functions Compartment
@@ -346,14 +346,14 @@ defmodule Choreo.UML.Render.DOT do
       else
         rows =
           functions
-          |> Enum.map_join("<BR ALIGN=\"LEFT\"/>", fn func ->
+          |> Enum.map_join("<BR/>", fn func ->
             vis = visibility_symbol(func[:visibility])
             arity = if func[:arity], do: "(#{func[:arity]})", else: "()"
             ret_part = if func[:return], do: " : #{func[:return]}", else: ""
             "#{vis} #{func[:name]}#{arity}#{ret_part}"
           end)
 
-        ~s(<TR><TD BGCOLOR="#{bg_color}" ALIGN="LEFT"><FONT COLOR="#{text_color}">#{rows}<BR ALIGN="LEFT"/></FONT></TD></TR>)
+        ~s(<TR><TD BGCOLOR="#{bg_color}" ALIGN="LEFT"><FONT COLOR="#{text_color}">#{rows}</FONT></TD></TR>)
       end
 
     ~s(<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" PORT="f0" COLOR="#{border_color}">) <>
