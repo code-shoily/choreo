@@ -231,16 +231,16 @@ defmodule Choreo.ERD.Render.DOT do
           if col[:comment], do: " &lt;#{col[:comment]}&gt;", else: ""
 
         "<TR>" <>
-          "<TD ALIGN='LEFT' BORDER='1' COLOR='#{border}'><FONT COLOR='#{text_color}'>#{col[:name]}</FONT></TD>" <>
-          "<TD ALIGN='LEFT' BORDER='1' COLOR='#{border}'><FONT COLOR='#{text_color}'><i>#{col[:type]}</i></FONT></TD>" <>
-          "<TD ALIGN='CENTER' BORDER='1' COLOR='#{border}'><FONT COLOR='#{text_color}'>#{key_marker}#{comment_suffix}</FONT></TD>" <>
+          ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border}"><FONT COLOR="#{text_color}">#{col[:name]}</FONT></TD>) <>
+          ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border}"><FONT COLOR="#{text_color}"><i>#{col[:type]}</i></FONT></TD>) <>
+          ~s(<TD ALIGN="CENTER" BORDER="1" COLOR="#{border}"><FONT COLOR="#{text_color}">#{key_marker}#{comment_suffix}</FONT></TD>) <>
           "</TR>"
       end)
 
     # Full HTML table label
-    "<TABLE BORDER='0' CELLBORDER='1' CELLSPACING='0' CELLPADDING='6' COLOR='#{border}'>" <>
-      "<TR><TD COLSPAN='3' BGCOLOR='#{header_bg}' ALIGN='CENTER' BORDER='1' COLOR='#{border}'>" <>
-      "<FONT COLOR='#{header_fg}'><B>#{table_name}</B></FONT>" <>
+    ~s(<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#{border}">) <>
+      ~s(<TR><TD COLSPAN="3" BGCOLOR="#{header_bg}" ALIGN="CENTER" BORDER="1" COLOR="#{border}">) <>
+      ~s(<FONT COLOR="#{header_fg}"><B>#{table_name}</B></FONT>) <>
       "</TD></TR>" <>
       rows <>
       "</TABLE>"
