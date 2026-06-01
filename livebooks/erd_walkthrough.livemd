@@ -2,14 +2,14 @@
 
 ```elixir
 Mix.install([
-  {:choreo, path: ".."},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
 ## Introduction
 
-`Choreo.ERD` is a database schema modeler that supports **Entity-Relationship Diagrams (ERDs)**. It allows database engineers and system architects to dynamically build out database tables, model exact relationships (with standard cardinalities), automatically validate constraints, and run advanced topological analysis on schemas. 
+`Choreo.ERD` is a database schema modeler that supports **Entity-Relationship Diagrams (ERDs)**. It allows database engineers and system architects to dynamically build out database tables, model exact relationships (with standard cardinalities), automatically validate constraints, and run advanced topological analysis on schemas.
 
 Everything renders flawlessly to **DOT (Graphviz)** for styled HTML record tables or **Mermaid.js** native `erDiagram` representation.
 
@@ -70,10 +70,10 @@ ERD.to_mermaid(schema)
 
 Every column in `add_table/3` is validated against a rigorous schema, supporting parameters:
 
-*   `:name` — (Required) Atom or String column name.
-*   `:type` — (Required) Data type representation (e.g. `:integer`, `:varchar`, `:numeric`).
-*   `:key` — (Optional) Key constraint, either `:pk` (Primary Key), `:fk` (Foreign Key), or `nil`.
-*   `:comment` — (Optional) Explanatory comment displayed in tooltips/captions.
+* `:name` — (Required) Atom or String column name.
+* `:type` — (Required) Data type representation (e.g. `:integer`, `:varchar`, `:numeric`).
+* `:key` — (Optional) Key constraint, either `:pk` (Primary Key), `:fk` (Foreign Key), or `nil`.
+* `:comment` — (Optional) Explanatory comment displayed in tooltips/captions.
 
 ```elixir
 # This will fail because column fields are missing/invalid
@@ -91,13 +91,13 @@ end
 
 Relationships support standard crow's foot multiplicities via the `:cardinality` option:
 
-| Cardinality Identifier  | DOT Arrow Style             | Mermaid Syntax Shape |
-| ----------------------- | --------------------------- | -------------------- |
-| `:one_to_one`           | `teetee` / `teetee`         | `||--||`             |
-| `:one_to_many`          | `teetee` / `crowodot`       | `||--o{`             |
-| `:zero_or_one_to_many`  | `odot` / `crowodot`         | `|o--o{`             |
-| `:exactly_one_to_many`  | `teetee` / `crowtee`        | `||--|{`             |
-| `:many_to_many`         | `crowodot` / `crowodot`     | `}|--|{`             |
+| Cardinality Identifier | DOT Arrow Style         | Mermaid Syntax Shape |
+| ---------------------- | ----------------------- | -------------------- |
+| `:one_to_one`          | `teetee` / `teetee`     | `||--||`             |
+| `:one_to_many`         | `teetee` / `crowodot`   | `||--o{`             |
+| `:zero_or_one_to_many` | `odot` / `crowodot`     | `|o--o{`             |
+| `:exactly_one_to_many` | `teetee` / `crowtee`    | `||--|{`             |
+| `:many_to_many`        | `crowodot` / `crowodot` | `}|--|{`             |
 
 ```elixir
 # Example of a one-to-one profile link
@@ -197,14 +197,14 @@ Analysis.table_degrees(schema)
 
 ## Cheat Sheet Cheat Sheet
 
-| Task / Feature                 | Command                                                                 |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| Create ERD                     | `ERD.new/0`                                                             |
-| Add Database Table             | `ERD.add_table/3` (Opts: `:label`, `:columns`)                          |
-| Add Relationship               | `ERD.add_relationship/4` (Opts: `:label`, `:cardinality`)               |
-| Render Styled DOT Graphviz     | `ERD.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)     |
-| Render Native Mermaid          | `ERD.to_mermaid/2` (Opts: `:theme`)                                     |
-| Discover Join Sequence         | `Analysis.shortest_join_path/3`                                         |
-| Detect FK Circular Cycles      | `Analysis.cycles/1`                                                     |
-| Find Disconnected Tables       | `Analysis.orphans/1`                                                    |
-| Compute Coupling Centrality    | `Analysis.table_degrees/1`                                              |
+| Task / Feature              | Command                                                             |
+| --------------------------- | ------------------------------------------------------------------- |
+| Create ERD                  | `ERD.new/0`                                                         |
+| Add Database Table          | `ERD.add_table/3` (Opts: `:label`, `:columns`)                      |
+| Add Relationship            | `ERD.add_relationship/4` (Opts: `:label`, `:cardinality`)           |
+| Render Styled DOT Graphviz  | `ERD.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`) |
+| Render Native Mermaid       | `ERD.to_mermaid/2` (Opts: `:theme`)                                 |
+| Discover Join Sequence      | `Analysis.shortest_join_path/3`                                     |
+| Detect FK Circular Cycles   | `Analysis.cycles/1`                                                 |
+| Find Disconnected Tables    | `Analysis.orphans/1`                                                |
+| Compute Coupling Centrality | `Analysis.table_degrees/1`                                          |

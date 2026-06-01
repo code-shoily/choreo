@@ -215,6 +215,7 @@ defmodule Choreo.ERD.Render.DOT do
     header_bg = theme.colors[:header_bg] || "#3b82f6"
     header_fg = theme.colors[:header_fg] || "#ffffff"
     border = theme.colors[:border] || "#cbd5e1"
+    text_color = theme.node_fontcolor || "#1e293b"
 
     # Build the HTML Table markup
     rows =
@@ -230,9 +231,9 @@ defmodule Choreo.ERD.Render.DOT do
           if col[:comment], do: " &lt;#{col[:comment]}&gt;", else: ""
 
         "<TR>" <>
-          "<TD ALIGN='LEFT' BORDER='1' COLOR='#{border}'>#{col[:name]}</TD>" <>
-          "<TD ALIGN='LEFT' BORDER='1' COLOR='#{border}'><i>#{col[:type]}</i></TD>" <>
-          "<TD ALIGN='CENTER' BORDER='1' COLOR='#{border}'>#{key_marker}#{comment_suffix}</TD>" <>
+          "<TD ALIGN='LEFT' BORDER='1' COLOR='#{border}'><FONT COLOR='#{text_color}'>#{col[:name]}</FONT></TD>" <>
+          "<TD ALIGN='LEFT' BORDER='1' COLOR='#{border}'><FONT COLOR='#{text_color}'><i>#{col[:type]}</i></FONT></TD>" <>
+          "<TD ALIGN='CENTER' BORDER='1' COLOR='#{border}'><FONT COLOR='#{text_color}'>#{key_marker}#{comment_suffix}</FONT></TD>" <>
           "</TR>"
       end)
 
