@@ -28,8 +28,16 @@ Kino.VizJS.render(FSM.to_dot(fsm))
 
 ### Mermaid Rendering
 
+By default, FSM renders to a styled Mermaid flowchart:
+
 ```elixir
 Kino.Mermaid.new(FSM.to_mermaid(fsm))
+```
+
+Alternatively, you can render to a native Mermaid **State Diagram** using the `syntax: :state_diagram` option:
+
+```elixir
+Kino.Mermaid.new(FSM.to_mermaid(fsm, syntax: :state_diagram))
 ```
 
 ## State Types

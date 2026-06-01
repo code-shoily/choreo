@@ -154,6 +154,12 @@ defmodule Choreo.RenderCoverageTest do
       assert FSM.to_dot(fsm, theme: theme) =~ "digraph"
       assert FSM.to_mermaid(fsm, theme: theme) =~ "graph LR"
     end
+
+    native = FSM.to_mermaid(fsm, syntax: :state_diagram)
+    assert native =~ "stateDiagram-v2"
+    assert native =~ "  [*] --> idle"
+    assert native =~ "  idle --> active : start"
+    assert native =~ "  failed --> [*]"
   end
 
   test "dependency renderer comprehensive" do

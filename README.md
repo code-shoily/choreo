@@ -186,29 +186,18 @@ fsm =
 FSM.Analysis.accepts?(fsm, ["start", "finish"])  #=> true
 FSM.Analysis.deterministic?(fsm)                  #=> true
 FSM.Analysis.shortest_accepting_path(fsm)         #=> {:ok, ["start", "finish"]}
-# Transforms
-pruned = FSM.prune(fsm)
+# Render to native state diagram
+FSM.to_mermaid(fsm, syntax: :state_diagram)
 ```
 
 **Features:** Deterministic execution, reachability, dead-state detection, determinism check, complement, product construction, equivalence checking.
 
 ```mermaid
-graph LR
-  classDef default color:#1e293b
-  running(("running"))
-  idle(("idle"))
-  done(("done"))
-  __start_idle((" "))
-  style running fill:#e2e8f0,stroke:#c4cad2
-  style idle fill:#10b981,stroke:#009b63
-  style done fill:#e2e8f0,stroke:#c4cad2,stroke-width:3px
-  style __start_idle fill:black,stroke:black,stroke-width:1px
-  idle -->|start| running
-  running -->|finish| done
-  __start_idle --> idle
-  linkStyle 0 stroke-width:2px,stroke:#475569
-  linkStyle 1 stroke-width:2px,stroke:#475569
-  linkStyle 2 stroke-width:2px,stroke:#475569
+stateDiagram-v2
+  [*] --> idle
+  idle --> running : start
+  running --> done : finish
+  done --> [*]
 ```
 
 ---
