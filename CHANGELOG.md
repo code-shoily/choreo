@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Choreo.ERD — Database Entity-Relationship Modeling**:
+  - Implemented `Choreo.ERD` schema builder with strict `NimbleOptions` column and relationship constraint validation.
+  - Implemented themed HTML-like table record visualization (`Choreo.ERD.Render.DOT`) supporting standard crow's foot multiplicities and post-rendering unquoting.
+  - Implemented native Mermaid `erDiagram` visual syntax rendering (`Choreo.ERD.Render.Mermaid`).
+  - Implemented a topological analysis suite (`Choreo.ERD.Analysis`) including undirected BFS join path discovery, DFS circular foreign key cycle detection, isolated orphan entity tracking, and table coupling metrics.
+  - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/erd_walkthrough.livemd`).
+
 - **Structural & Heatmap Analysis Suite**:
   - Implemented `Choreo.Analysis.heatmap/2` for automatic, data-driven diagram coloring using configurable color scales.
   - **Structural Analysis Suite**:

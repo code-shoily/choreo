@@ -128,6 +128,11 @@ defmodule Choreo.MixProject do
           Choreo.MindMap.Render.DOT,
           Choreo.MindMap.Render.Mermaid
         ],
+        "Database Design": [
+          Choreo.ERD,
+          Choreo.ERD.Render.DOT,
+          Choreo.ERD.Render.Mermaid
+        ],
         Analysis: [
           Choreo.FSM.Analysis,
           Choreo.Dataflow.Analysis,
@@ -135,7 +140,8 @@ defmodule Choreo.MixProject do
           Choreo.DecisionTree.Analysis,
           Choreo.MindMap.Analysis,
           Choreo.ThreatModel.Analysis,
-          Choreo.Workflow.Analysis
+          Choreo.Workflow.Analysis,
+          Choreo.ERD.Analysis
         ]
       ],
       groups_for_extras: [

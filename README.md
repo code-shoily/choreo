@@ -533,6 +533,64 @@ graph LR
 
 ---
 
+### Choreo.ERD — Database Entity-Relationship Modeling
+
+Model database schemas, validate data integrity constraints, render beautiful HTML-like tables or native Mermaid `erDiagram` syntaxes, and run advanced topological analysis.
+
+```elixir
+alias Choreo.ERD
+alias Choreo.ERD.Analysis
+
+erd =
+  ERD.new()
+  |> ERD.add_table(:users, columns: [
+    %{name: :id, type: :integer, key: :pk},
+    %{name: :email, type: :varchar, comment: "unique email"}
+  ])
+  |> ERD.add_table(:posts, columns: [
+    %{name: :id, type: :integer, key: :pk},
+    %{name: :user_id, type: :integer, key: :fk},
+    %{name: :title, type: :varchar}
+  ])
+  |> ERD.add_table(:comments, columns: [
+    %{name: :id, type: :integer, key: :pk},
+    %{name: :post_id, type: :integer, key: :fk},
+    %{name: :body, type: :text}
+  ])
+  |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many, label: "writes")
+  |> ERD.add_relationship(:posts, :comments, cardinality: :one_to_many, label: "has")
+
+# Topological Analysis
+Analysis.shortest_join_path(erd, :users, :comments) #=> {:ok, [:users, :posts, :comments]}
+Analysis.cycles(erd)                              #=> [] (no circular foreign keys!)
+Analysis.orphans(erd)                             #=> []
+Analysis.table_degrees(erd)                       #=> %{users: %{in: 0, out: 1, total: 1}, ...}
+```
+
+**Features:** strict columns and relationship validation, customizable themed HTML record labels in DOT output, native Mermaid `erDiagram` generation, undirected BFS join path solver, DFS circular foreign key cycle detection, orphan and coupling metrics.
+
+```mermaid
+erDiagram
+  users {
+    integer id PK
+    varchar email "unique email"
+  }
+  posts {
+    integer id PK
+    integer user_id FK
+    varchar title
+  }
+  comments {
+    integer id PK
+    integer post_id FK
+    text body
+  }
+  users ||--o{ posts : "writes"
+  posts ||--o{ comments : "has"
+```
+
+---
+
 ## Themes & Rendering
 
 All modules render to **DOT (Graphviz)** and **Mermaid.js** via a shared theming pipeline.
