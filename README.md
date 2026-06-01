@@ -295,6 +295,52 @@ classDiagram
 
 ---
 
+### Choreo.UML — Class & Struct Diagrams
+
+Model software module contracts, behaviors, protocols, structs, their fields, arities, and visibilities, and declare exact structural relations with visual parity.
+
+```elixir
+alias Choreo.UML
+
+uml =
+  UML.new()
+  |> UML.add_class(:user,
+    type: :struct,
+    label: "User Model",
+    fields: [
+      %{name: :id, type: :integer, visibility: :public},
+      %{name: :email, type: :string, visibility: :private}
+    ],
+    functions: [
+      %{name: "authenticate", arity: 2, return: :boolean, visibility: :public}
+    ]
+  )
+  |> UML.add_class(:auth_provider, type: :behavior)
+  |> UML.add_relationship(:user, :auth_provider, type: :realizes, label: "implements")
+
+# Render to native Mermaid class diagram
+UML.to_mermaid(uml, syntax: :class_diagram)
+```
+
+**Features:** multi-compartment record tables, standard visibility markers (`+`, `-`, `#`), functional contracts, protocol realization, behavior adoption, lens focusing via `Choreo.View`.
+
+```mermaid
+classDiagram
+  direction TD
+  class user["User Model"] {
+    <<struct>>
+    +id integer
+    -email string
+    +authenticate(2) boolean
+  }
+  class auth_provider["auth_provider"] {
+    <<behavior>>
+  }
+  user ..|> auth_provider : implements
+```
+
+---
+
 ### Choreo.DecisionTree — Classification Trees
 
 Build decision trees with enforced tree invariants (single root, single parent, no cycles).

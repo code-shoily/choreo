@@ -12,6 +12,13 @@
   - Implemented `Choreo.Viewable` protocol for `Choreo.ERD` to enable standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
   - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/erd_walkthrough.livemd`).
 
+- **Choreo.UML — Class & Struct Diagrams**:
+  - Implemented `Choreo.UML` schema builder with strict `NimbleOptions` field, arity, visibility, and relationship constraint validation.
+  - Implemented themed three-compartment HTML record table visualization (`Choreo.UML.Render.DOT`) supporting standard class/struct/interface/behavior/protocol types, visibilities (`+`, `-`, `#`), and proper hollow/solid arrowhead line layouts.
+  - Implemented Mermaid visual syntax rendering (`Choreo.UML.Render.Mermaid`) supporting both flowchart layouts and native `classDiagram` rendering.
+  - Implemented `Choreo.Viewable` protocol for standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
+  - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/uml_walkthrough.livemd`).
+
 - **Native Mermaid Visualizers & Syntaxes**:
   - **`Choreo.FSM`**: Added native `:state_diagram` (`stateDiagram-v2`) syntax support mapping initial/final states to entry/acceptance targets (`[*] --> state` and `state --> [*]`) and mapping custom labels.
   - **`Choreo.Dependency`**: Added native `:class_diagram` (`classDiagram`) syntax support mapping application/module/library types to standard UML stereotypes (e.g. `<<module>>`) and mapping relationships to standard UML connectors (`..>`, `--|>`, `-->`).

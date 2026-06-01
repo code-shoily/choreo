@@ -133,6 +133,11 @@ defmodule Choreo.MixProject do
           Choreo.ERD.Render.DOT,
           Choreo.ERD.Render.Mermaid
         ],
+        "UML Design": [
+          Choreo.UML,
+          Choreo.UML.Render.DOT,
+          Choreo.UML.Render.Mermaid
+        ],
         Analysis: [
           Choreo.FSM.Analysis,
           Choreo.Dataflow.Analysis,
