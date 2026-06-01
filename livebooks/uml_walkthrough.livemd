@@ -2,14 +2,14 @@
 
 ```elixir
 Mix.install([
-  {:choreo, path: ".."},
+  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
 ## Introduction
 
-`Choreo.UML` is a software component and class modeler designed to represent **UML Class Diagrams** natively in Elixir. Even though Elixir is a functional language, large systems are heavily composed of structural blocks like **Structs, Behaviors, and Protocols**. 
+`Choreo.UML` is a software component and class modeler designed to represent **UML Class Diagrams** natively in Elixir. Even though Elixir is a functional language, large systems are heavily composed of structural blocks like **Structs, Behaviors, and Protocols**.
 
 `Choreo.UML` lets you model these components directly in code, declare exact fields/attributes (with optional types and visibilities), define functions/operations, specify standard structural relationships, and visually render them beautifully to **Graphviz/DOT** (using 3-compartment HTML record tables) or **Mermaid.js** (supporting both flowchart layouts and native `classDiagram` blocks).
 
@@ -80,8 +80,8 @@ Every class, struct, behavior, or interface is rigorously validated via `NimbleO
 
 ### Fields and Functions Validation
 
-*   **Fields**: Supports `:name` (Required), `:type` (Optional), and `:visibility` (Optional: `:public` (`+`), `:private` (`-`), `:protected` (`#`), or `nil`).
-*   **Functions**: Supports `:name` (Required), `:arity` (Optional), `:return` (Optional), and `:visibility` (Optional).
+* **Fields**: Supports `:name` (Required), `:type` (Optional), and `:visibility` (Optional: `:public` (`+`), `:private` (`-`), `:protected` (`#`), or `nil`).
+* **Functions**: Supports `:name` (Required), `:arity` (Optional), `:return` (Optional), and `:visibility` (Optional).
 
 ```elixir
 # Validation will trigger a clean schema error if fields are invalid
@@ -101,10 +101,12 @@ Relationships between software blocks map exactly to standard UML connectors:
 
 | Relationship Type | Arrow Style | Connector Style | Intended Semantics |
 | ----------------- | ----------- | --------------- | ------------------ |
-| `:inherits`       | Hollow      | Solid (`--|>`)  | Class inheritance or adopting a behavior. |
-| `:realizes`       | Hollow      | Dashed (`..|>`) | Adopting/implementing an Elixir protocol. |
-| `:associates`     | Solid       | Solid (`-->`)   | Composition (e.g. struct nesting/embedding). |
-| `:depends`        | Open        | Dashed (`..>`)  | Run-time dependency or function calling invocation. |
+
+| `:inherits` | Hollow | Solid (`--  | >`) | Class inheritance or adopting a behavior. |
+| `:realizes` | Hollow | Dashed (`.. | >`) | Adopting/implementing an Elixir protocol. |
+
+| `:associates` | Solid | Solid (`-->`)  | Composition (e.g. struct nesting/embedding).        |
+| `:depends`    | Open  | Dashed (`..>`) | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance
@@ -201,14 +203,14 @@ Choreo.UML.Analysis.coupling_metrics(uml)
 
 ## Cheat Sheet
 
-| Task / Feature                 | Command                                                                 |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| Create UML Diagram             | `UML.new/0`                                                             |
-| Add Struct/Behavior/Class      | `UML.add_class/3` (Opts: `:type`, `:fields`, `:functions`, `:label`)    |
-| Add Connection Relationship    | `UML.add_relationship/4` (Opts: `:type`, `:label`)                      |
-| Render Styled DOT Graphviz     | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)     |
-| Render Native Mermaid Class    | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)       |
-| Filter Graph via Lens focus    | `Choreo.View.focus/2`                                                   |
-| Detect circular cycles         | `Choreo.UML.Analysis.cycles/1`                                          |
-| Verify behavior contracts      | `Choreo.UML.Analysis.broken_contracts/1`                                |
-| Compute coupling metrics       | `Choreo.UML.Analysis.coupling_metrics/1`                                |
+| Task / Feature              | Command                                                              |
+| --------------------------- | -------------------------------------------------------------------- |
+| Create UML Diagram          | `UML.new/0`                                                          |
+| Add Struct/Behavior/Class   | `UML.add_class/3` (Opts: `:type`, `:fields`, `:functions`, `:label`) |
+| Add Connection Relationship | `UML.add_relationship/4` (Opts: `:type`, `:label`)                   |
+| Render Styled DOT Graphviz  | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)  |
+| Render Native Mermaid Class | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)    |
+| Filter Graph via Lens focus | `Choreo.View.focus/2`                                                |
+| Detect circular cycles      | `Choreo.UML.Analysis.cycles/1`                                       |
+| Verify behavior contracts   | `Choreo.UML.Analysis.broken_contracts/1`                             |
+| Compute coupling metrics    | `Choreo.UML.Analysis.coupling_metrics/1`                             |

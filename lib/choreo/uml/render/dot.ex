@@ -97,7 +97,10 @@ defmodule Choreo.UML.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 9,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#ffffff"
+      graph_bgcolor: "#ffffff",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -122,7 +125,10 @@ defmodule Choreo.UML.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 9,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#0f172a"
+      graph_bgcolor: "#0f172a",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -147,7 +153,10 @@ defmodule Choreo.UML.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 9,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#fffbeb"
+      graph_bgcolor: "#fffbeb",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -172,7 +181,10 @@ defmodule Choreo.UML.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 9,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#f0fdf4"
+      graph_bgcolor: "#f0fdf4",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -197,7 +209,10 @@ defmodule Choreo.UML.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 9,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#f0f9ff"
+      graph_bgcolor: "#f0f9ff",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -301,9 +316,8 @@ defmodule Choreo.UML.Render.DOT do
         ""
       end
 
-    header_html = """
-    <TR><TD BGCOLOR="#{header_bg}"><FONT COLOR="#{header_fg}"><B>#{stereotype_part}#{label}</B></FONT></TD></TR>
-    """
+    header_html =
+      "<TR><TD BGCOLOR=\"#{header_bg}\"><FONT COLOR=\"#{header_fg}\"><B>#{stereotype_part}#{label}</B></FONT></TD></TR>"
 
     # 2. Fields Compartment
     fields = data[:fields] || []

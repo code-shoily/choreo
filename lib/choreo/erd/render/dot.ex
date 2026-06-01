@@ -87,7 +87,10 @@ defmodule Choreo.ERD.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 10,
       edge_penwidth: 1.0,
-      graph_bgcolor: nil
+      graph_bgcolor: nil,
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -106,7 +109,10 @@ defmodule Choreo.ERD.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 10,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#0f172a"
+      graph_bgcolor: "#0f172a",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -125,7 +131,10 @@ defmodule Choreo.ERD.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 10,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#fffbeb"
+      graph_bgcolor: "#fffbeb",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -144,7 +153,10 @@ defmodule Choreo.ERD.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 10,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#f0fdf4"
+      graph_bgcolor: "#f0fdf4",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
@@ -163,7 +175,10 @@ defmodule Choreo.ERD.Render.DOT do
       edge_fontname: "Helvetica",
       edge_fontsize: 10,
       edge_penwidth: 1.0,
-      graph_bgcolor: "#f0f9ff"
+      graph_bgcolor: "#f0f9ff",
+      graph_splines: :ortho,
+      graph_nodesep: 1.2,
+      graph_ranksep: 1.2
     }
   end
 
