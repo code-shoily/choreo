@@ -30,8 +30,8 @@ defmodule Choreo.UML.Render.DOT do
     base_opts =
       Yog.Render.DOT.default_options()
       |> Map.put(:rankdir, direction)
-      |> Map.put(:splines, :spline)
-      |> Map.put(:nodesep, 0.6)
+      |> Map.put(:splines, :ortho)
+      |> Map.put(:nodesep, 1.2)
       |> Map.put(:ranksep, 1.2)
       |> Map.put(:node_shape, :plain)
       |> Map.put(:node_style, :filled)
@@ -201,12 +201,16 @@ defmodule Choreo.UML.Render.DOT do
     }
   end
 
-  defp theme_graph_overrides(theme) do
-    if theme.graph_bgcolor do
-      %{graph_bgcolor: theme.graph_bgcolor}
-    else
-      %{}
-    end
+  defp theme_graph_overrides(%Theme{} = theme) do
+    %{
+      rankdir: theme.graph_rankdir,
+      bgcolor: theme.graph_bgcolor,
+      splines: theme.graph_splines,
+      nodesep: theme.graph_nodesep,
+      ranksep: theme.graph_ranksep
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
   end
 
   # ============================================================================

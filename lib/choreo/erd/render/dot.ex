@@ -24,8 +24,8 @@ defmodule Choreo.ERD.Render.DOT do
     base_opts =
       Yog.Render.DOT.default_options()
       |> Map.put(:rankdir, direction)
-      |> Map.put(:splines, :spline)
-      |> Map.put(:nodesep, 0.6)
+      |> Map.put(:splines, :ortho)
+      |> Map.put(:nodesep, 1.2)
       |> Map.put(:ranksep, 1.2)
       # HTML tables render best on plain/transparent nodes
       |> Map.put(:node_shape, :plain)
@@ -168,8 +168,15 @@ defmodule Choreo.ERD.Render.DOT do
   end
 
   defp theme_graph_overrides(%Theme{} = theme) do
-    base = if theme.graph_rankdir != nil, do: %{rankdir: theme.graph_rankdir}, else: %{}
-    if theme.graph_bgcolor != nil, do: Map.put(base, :bgcolor, theme.graph_bgcolor), else: base
+    %{
+      rankdir: theme.graph_rankdir,
+      bgcolor: theme.graph_bgcolor,
+      splines: theme.graph_splines,
+      nodesep: theme.graph_nodesep,
+      ranksep: theme.graph_ranksep
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
   end
 
   # ============================================================================
