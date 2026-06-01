@@ -43,6 +43,8 @@ Dataflow.to_mermaid(pipeline)            #=> Mermaid.js string
   - [Choreo.MindMap — Concept Mapping](#choreomindmap--concept-mapping)
   - [Choreo.ThreatModel — STRIDE Threat Modeling](#choreothreatmodel--stride-threat-modeling)
   - [Choreo.Workflow — Task Orchestration](#choreoworkflow--task-orchestration)
+  - [Choreo.ERD — Database Entity-Relationship Modeling](#choreoerd--database-entity-relationship-modeling)
+  - [Choreo.UML — Class & Struct Diagrams](#choreouml--class--struct-diagrams)
 - [Themes & Rendering](#themes--rendering)
 - [Testing](#testing)
 - [Roadmap](#roadmap)
@@ -66,6 +68,8 @@ Choreo is **analysis-first**: you describe a system, you get answers.
 | "Which feature drives the most splits?" | `Choreo.DecisionTree.Analysis.feature_importance(tree)` |
 | "How deep is this mind map?" | `Choreo.MindMap.Analysis.depth(map)` |
 | "Which ideas are orphaned?" | `Choreo.MindMap.Analysis.orphan_nodes(map)` |
+| "What is the shortest join path from A to B?" | `Choreo.ERD.Analysis.shortest_join_path(erd, :a, :b)` |
+| "Does this struct satisfy its behavior contract?" | `Choreo.UML.Analysis.broken_contracts(uml)` |
 | "What's the shortest path from A to B?" | `Choreo.View.focus_between(map, :a, :b)` |
 | "Collapse these nodes into one?" | `Choreo.View.collapse(map, pred, :agg)` |
 
