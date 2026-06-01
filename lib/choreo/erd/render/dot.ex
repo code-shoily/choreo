@@ -231,9 +231,9 @@ defmodule Choreo.ERD.Render.DOT do
           if col[:comment], do: " &lt;#{col[:comment]}&gt;", else: ""
 
         "<TR>" <>
-          ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border}"><FONT COLOR="#{text_color}">#{col[:name]}</FONT></TD>) <>
-          ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border}"><FONT COLOR="#{text_color}"><i>#{col[:type]}</i></FONT></TD>) <>
-          ~s(<TD ALIGN="CENTER" BORDER="1" COLOR="#{border}"><FONT COLOR="#{text_color}">#{key_marker}#{comment_suffix}</FONT></TD>) <>
+          ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border}">#{wrap_font(to_string(col[:name]), text_color)}</TD>) <>
+          ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border}">#{wrap_font("<i>" <> to_string(col[:type]) <> "</i>", text_color)}</TD>) <>
+          ~s(<TD ALIGN="CENTER" BORDER="1" COLOR="#{border}">#{wrap_font(key_marker <> comment_suffix, text_color)}</TD>) <>
           "</TR>"
       end)
 
@@ -244,6 +244,14 @@ defmodule Choreo.ERD.Render.DOT do
       "</TD></TR>" <>
       rows <>
       "</TABLE>"
+  end
+
+  defp wrap_font(text, color) do
+    if text == "" or is_nil(text) do
+      ""
+    else
+      ~s(<FONT COLOR="#{color}">#{text}</FONT>)
+    end
   end
 
   # ============================================================================
