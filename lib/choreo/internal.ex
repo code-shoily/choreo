@@ -251,7 +251,7 @@ defmodule Choreo.Internal do
   @doc """
   Converts a simple `Yog.Graph` to a `Yog.Multi.Graph`, returning `{multi_graph, edge_id_map}`.
   """
-  @spec to_multi_graph(Yog.graph()) :: {Yog.Multi.graph(), map()}
+  @spec to_multi_graph(Yog.graph()) :: {Yog.Multi.Graph.t(), map()}
   def to_multi_graph(%Yog.Graph{} = graph) do
     multi = Yog.Multi.new(graph.kind)
 

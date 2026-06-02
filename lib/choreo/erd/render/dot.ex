@@ -247,7 +247,7 @@ defmodule Choreo.ERD.Render.DOT do
   end
 
   defp wrap_font(text, color) do
-    if text == "" or is_nil(text) do
+    if text == "" do
       ""
     else
       ~s(<FONT COLOR="#{color}">#{text}</FONT>)

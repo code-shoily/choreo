@@ -18,8 +18,8 @@ defmodule Choreo.UML do
 
   @type class_id :: Yog.node_id()
   @type t :: %__MODULE__{
-          graph: Yog.Multi.graph(),
-          edge_meta: %{optional(Yog.Multi.edge_id()) => map()},
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           strict_contract_validation: boolean()
         }
 
