@@ -62,6 +62,60 @@ defmodule Choreo.ERDTest do
     end
   end
 
+  test "add_relationship strict_column_matching validations" do
+    # When strict_column_matching is active, from_column and to_column must be supplied
+    erd_strict =
+      ERD.new(strict_column_matching: true)
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:posts, columns: [%{name: :user_id, type: :integer}])
+
+    assert_raise ArgumentError, ~r/strict_column_matching is enabled/, fn ->
+      ERD.add_relationship(erd_strict, :users, :posts, cardinality: :one_to_many)
+    end
+
+    # Should raise if column does not exist
+    assert_raise ArgumentError, ~r/column :nonexistent does not exist/, fn ->
+      ERD.add_relationship(erd_strict, :users, :posts,
+        cardinality: :one_to_many,
+        from_column: :nonexistent,
+        to_column: :user_id
+      )
+    end
+
+    # Should raise if column in destination table does not exist
+    assert_raise ArgumentError, ~r/column :nonexistent does not exist/, fn ->
+      ERD.add_relationship(erd_strict, :users, :posts,
+        cardinality: :one_to_many,
+        from_column: :id,
+        to_column: :nonexistent
+      )
+    end
+
+    # Should raise if datatype mismatch
+    erd_mismatch =
+      ERD.new()
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:posts, columns: [%{name: :user_uuid, type: :varchar}])
+
+    assert_raise ArgumentError, ~r/type mismatch/, fn ->
+      ERD.add_relationship(erd_mismatch, :users, :posts,
+        cardinality: :one_to_many,
+        from_column: :id,
+        to_column: :user_uuid
+      )
+    end
+
+    # Should succeed if columns exist and types match
+    erd_ok =
+      ERD.add_relationship(erd_strict, :users, :posts,
+        cardinality: :one_to_many,
+        from_column: :id,
+        to_column: :user_id
+      )
+
+    assert %ERD{} = erd_ok
+  end
+
   test "to_dot rendering and HTML unquoting", %{erd: erd} do
     dot = ERD.to_dot(erd)
 

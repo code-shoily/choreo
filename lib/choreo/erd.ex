@@ -37,11 +37,12 @@ defmodule Choreo.ERD do
 
   @type table_id :: Yog.node_id()
   @type t :: %__MODULE__{
-          graph: Yog.Multi.graph(),
-          edge_meta: %{optional(Yog.Multi.edge_id()) => map()}
+          graph: Yog.Multi.Graph.t(),
+          edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
+          strict_column_matching: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}
+  defstruct graph: nil, edge_meta: %{}, strict_column_matching: false
 
   @column_schema [
     name: [
@@ -98,17 +99,30 @@ defmodule Choreo.ERD do
       required: true,
       doc:
         "Multiplicity constraint: :one_to_one, :one_to_many, :zero_or_one_to_many, :exactly_one_to_many, or :many_to_many."
+    ],
+    from_column: [
+      type: :any,
+      required: false,
+      doc: "The name of the column in the source table (atom or string)."
+    ],
+    to_column: [
+      type: :any,
+      required: false,
+      doc: "The name of the column in the destination table (atom or string)."
     ]
   ]
 
   @doc """
   Initializes a new, empty ERD.
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
+    strict = Keyword.get(opts, :strict_column_matching, false)
+
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
-      edge_meta: %{}
+      edge_meta: %{},
+      strict_column_matching: strict
     }
   end
 
@@ -158,6 +172,46 @@ defmodule Choreo.ERD do
 
     if not Map.has_key?(erd.graph.nodes, to) do
       raise ArgumentError, "table #{inspect(to)} does not exist in the diagram"
+    end
+
+    if erd.strict_column_matching do
+      if is_nil(opts[:from_column]) or is_nil(opts[:to_column]) do
+        raise ArgumentError,
+              "strict_column_matching is enabled; both :from_column and :to_column must be provided"
+      end
+    end
+
+    from_col_name = opts[:from_column]
+    to_col_name = opts[:to_column]
+
+    if from_col_name && to_col_name do
+      from_data = Map.get(erd.graph.nodes, from)
+      to_data = Map.get(erd.graph.nodes, to)
+
+      from_col =
+        Enum.find(from_data[:columns], fn col ->
+          to_string(col[:name]) == to_string(from_col_name)
+        end)
+
+      to_col =
+        Enum.find(to_data[:columns], fn col ->
+          to_string(col[:name]) == to_string(to_col_name)
+        end)
+
+      if is_nil(from_col) do
+        raise ArgumentError,
+              "column #{inspect(from_col_name)} does not exist in table #{inspect(from)}"
+      end
+
+      if is_nil(to_col) do
+        raise ArgumentError,
+              "column #{inspect(to_col_name)} does not exist in table #{inspect(to)}"
+      end
+
+      if to_string(from_col[:type]) != to_string(to_col[:type]) do
+        raise ArgumentError,
+              "type mismatch: column #{inspect(from_col_name)} in table #{inspect(from)} has type #{inspect(from_col[:type])}, but column #{inspect(to_col_name)} in table #{inspect(to)} has type #{inspect(to_col[:type])}"
+      end
     end
 
     meta = Map.new(opts)

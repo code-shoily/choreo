@@ -45,43 +45,13 @@ defmodule Choreo.ERD.Analysis do
     if start == dest do
       {:ok, [start]}
     else
-      q = :queue.in({start, []}, :queue.new())
+      simple_graph = Yog.Multi.to_simple_graph(erd.graph)
+      undirected_graph = Yog.Transform.to_undirected(simple_graph, fn w1, w2 -> min(w1, w2) end)
 
-      case do_undirected_bfs(erd.graph, q, MapSet.new([start]), dest) do
-        {:ok, path} -> {:ok, Enum.reverse([dest | path])}
-        :error -> :error
+      case Yog.Traversal.find_path(undirected_graph, start, dest) do
+        nil -> :error
+        path -> {:ok, path}
       end
-    end
-  end
-
-  defp do_undirected_bfs(graph, q, visited, dest) do
-    case :queue.out(q) do
-      {{:value, {current, path}}, rest_q} ->
-        if current == dest do
-          {:ok, path}
-        else
-          succs =
-            Yog.Multi.successors(graph, current) |> Enum.map(fn {node, _eid, _w} -> node end)
-
-          preds =
-            Yog.Multi.predecessors(graph, current) |> Enum.map(fn {node, _eid, _w} -> node end)
-
-          all_neighbors = Enum.uniq(succs ++ preds)
-
-          {new_q, new_visited} =
-            Enum.reduce(all_neighbors, {rest_q, visited}, fn nbr, {q_acc, v_acc} ->
-              if MapSet.member?(v_acc, nbr) do
-                {q_acc, v_acc}
-              else
-                {:queue.in({nbr, [current | path]}, q_acc), MapSet.put(v_acc, nbr)}
-              end
-            end)
-
-          do_undirected_bfs(graph, new_q, new_visited, dest)
-        end
-
-      {:empty, _rest_q} ->
-        :error
     end
   end
 
@@ -171,8 +141,7 @@ defmodule Choreo.ERD.Analysis do
     erd.graph.nodes
     |> Map.keys()
     |> Enum.filter(fn node_id ->
-      Yog.Multi.successors(erd.graph, node_id) == [] and
-        Yog.Multi.predecessors(erd.graph, node_id) == []
+      Yog.Multi.degree(erd.graph, node_id) == 0
     end)
     |> Enum.sort()
   end
@@ -188,8 +157,8 @@ defmodule Choreo.ERD.Analysis do
         }
   def table_degrees(%Choreo.ERD{} = erd) do
     Map.new(erd.graph.nodes, fn {id, _data} ->
-      out_deg = length(Yog.Multi.successors(erd.graph, id))
-      in_deg = length(Yog.Multi.predecessors(erd.graph, id))
+      in_deg = Yog.Multi.in_degree(erd.graph, id)
+      out_deg = Yog.Multi.out_degree(erd.graph, id)
       {id, %{in: in_deg, out: out_deg, total: in_deg + out_deg}}
     end)
   end
