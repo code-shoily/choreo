@@ -2,6 +2,7 @@ defmodule Choreo.UMLTest do
   use ExUnit.Case, async: true
 
   alias Choreo.UML
+  doctest Choreo.UML
 
   setup do
     uml =

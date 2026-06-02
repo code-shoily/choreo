@@ -86,7 +86,7 @@ defmodule Choreo.UML.Analysis do
       ...>   # Struct missing the arity 1 verify function:
       ...>   |> Choreo.UML.add_class(:provider, type: :struct, functions: [%{name: "verify", arity: 2}])
       ...>   |> Choreo.UML.add_relationship(:provider, :auth, type: :realizes)
-      iex> [{:provider, :auth, [%{name: "verify", arity: 1}]}] = Choreo.UML.Analysis.broken_contracts(contract)
+      iex> [{:provider, :auth, [[visibility: :public, arity: 1, name: "verify"]]}] = Choreo.UML.Analysis.broken_contracts(contract)
   """
   @spec broken_contracts(Choreo.UML.t()) :: [
           {Choreo.UML.class_id(), Choreo.UML.class_id(), [map()]}

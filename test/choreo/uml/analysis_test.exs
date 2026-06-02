@@ -3,6 +3,7 @@ defmodule Choreo.UML.AnalysisTest do
 
   alias Choreo.UML
   alias Choreo.UML.Analysis
+  doctest Choreo.UML.Analysis
 
   test "cycles/1 detects circular dependency loops" do
     uml =
