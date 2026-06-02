@@ -31,7 +31,6 @@ defmodule Choreo.Analysis do
   """
 
   alias Choreo
-  alias Yog.Pathfinding.Dijkstra
 
   # ============================================================================
   # Existing algorithms
@@ -72,14 +71,10 @@ defmodule Choreo.Analysis do
     algorithm = Keyword.get(opts, :algorithm, :kruskal)
 
     # Collapse parallel edges and ensure we work on an undirected graph
-    graph = Choreo.to_simple_graph(system)
-
     graph =
-      if graph.kind == :directed do
-        Yog.Transform.to_undirected(graph, &min/2)
-      else
-        graph
-      end
+      system
+      |> Choreo.to_simple_graph()
+      |> ensure_undirected()
 
     case algorithm do
       :kruskal -> Yog.MST.kruskal(graph, opts[:compare] || (&Yog.Utils.compare/2))
@@ -113,12 +108,9 @@ defmodule Choreo.Analysis do
   """
   @spec topological_sort(Choreo.t()) :: {:ok, [Yog.node_id()]} | {:error, String.t()}
   def topological_sort(%Choreo{} = system) do
-    graph = Choreo.to_simple_graph(system)
-
-    case Yog.Traversal.Sort.topological_sort(graph) do
-      {:ok, order} -> {:ok, order}
-      {:error, reason} -> {:error, reason}
-    end
+    system
+    |> Choreo.to_simple_graph()
+    |> Yog.Traversal.topological_sort()
   end
 
   @doc """
@@ -235,8 +227,8 @@ defmodule Choreo.Analysis do
     graph = Choreo.to_simple_graph(system)
     transposed = Yog.transpose(graph)
 
-    Choreo.Internal.bfs_reachable(transposed, [target])
-    |> MapSet.to_list()
+    transposed
+    |> Yog.Traversal.walk(target, :breadth_first)
     |> List.delete(target)
   end
 
@@ -282,13 +274,13 @@ defmodule Choreo.Analysis do
   def shortest_path(system, from, to, opts \\ []) do
     graph = Choreo.to_simple_graph(system)
 
-    Dijkstra.shortest_path(
-      graph,
-      from,
-      to,
-      opts[:zero] || 0,
-      opts[:add] || (&Kernel.+/2),
-      opts[:compare] || (&Yog.Utils.compare/2)
+    Yog.Pathfinding.shortest_path(
+      in: graph,
+      from: from,
+      to: to,
+      zero: opts[:zero] || 0,
+      add: opts[:add] || (&Kernel.+/2),
+      compare: opts[:compare] || (&Yog.Utils.compare/2)
     )
   end
 
@@ -476,18 +468,8 @@ defmodule Choreo.Analysis do
   @spec cut_vertices(struct()) :: [Yog.node_id()]
   def cut_vertices(diagram) do
     graph = get_simple_graph(diagram)
-    # Articulation points are defined on the underlying undirected graph
-    undirected = Yog.Transform.to_undirected(graph, fn a, _b -> a end)
-    initial_components = length(Yog.Connectivity.Components.connected_components(undirected))
-
-    nodes = Map.keys(undirected.nodes)
-
-    Enum.filter(nodes, fn id ->
-      subgraph =
-        Yog.Transform.filter_nodes_indexed(undirected, fn node_id, _data -> node_id != id end)
-
-      length(Yog.Connectivity.Components.connected_components(subgraph)) > initial_components
-    end)
+    undirected = ensure_undirected(graph)
+    Yog.Connectivity.analyze(undirected).articulation_points
   end
 
   @doc """
@@ -502,8 +484,8 @@ defmodule Choreo.Analysis do
   def core_numbers(diagram) do
     graph = get_simple_graph(diagram)
     # K-Core decomposition works best on undirected graphs for architecture
-    undirected = Yog.Transform.to_undirected(graph, fn a, _b -> a end)
-    Yog.Connectivity.KCore.core_numbers(undirected)
+    undirected = Yog.to_undirected(graph, fn a, _b -> a end)
+    Yog.Connectivity.core_numbers(undirected)
   end
 
   @doc """
@@ -588,38 +570,45 @@ defmodule Choreo.Analysis do
 
     case measure do
       :shortest ->
-        Dijkstra.shortest_path(graph, from, to)
+        Yog.Pathfinding.shortest_path(in: graph, from: from, to: to)
 
       :latency ->
         weighted = transform_to_weighted_graph(diagram, :latency)
-        Dijkstra.shortest_path(weighted, from, to)
+        Yog.Pathfinding.shortest_path(in: weighted, from: from, to: to)
 
       :throughput ->
         weighted = transform_to_weighted_graph(diagram, :throughput)
-        Dijkstra.widest_path(weighted, from, to)
+        Yog.Pathfinding.widest_path(weighted, from, to)
 
       :risk ->
         weighted = transform_to_weighted_graph(diagram, :risk)
-        Dijkstra.shortest_path(weighted, from, to)
+        Yog.Pathfinding.shortest_path(in: weighted, from: from, to: to)
 
       :weighted ->
         algorithm = opts[:algorithm] || :dijkstra
         weighted = transform_to_weighted_graph(diagram, :weighted, opts)
 
         if algorithm == :widest do
-          Dijkstra.widest_path(weighted, from, to)
+          Yog.Pathfinding.widest_path(weighted, from, to)
         else
-          Dijkstra.shortest_path(weighted, from, to)
+          Yog.Pathfinding.shortest_path(
+            in: weighted,
+            from: from,
+            to: to,
+            zero: opts[:zero] || 0,
+            add: opts[:add] || (&Kernel.+/2),
+            compare: opts[:compare] || (&Yog.Utils.compare/2)
+          )
         end
 
       custom when is_atom(custom) ->
         # Convenience: if custom atom, treat as weight_key
         opts = Keyword.put(opts, :weight_key, custom)
         weighted = transform_to_weighted_graph(diagram, :weighted, opts)
-        Dijkstra.shortest_path(weighted, from, to)
+        Yog.Pathfinding.shortest_path(in: weighted, from: from, to: to)
 
       _ ->
-        Dijkstra.shortest_path(graph, from, to)
+        Yog.Pathfinding.shortest_path(in: graph, from: from, to: to)
     end
   end
 
@@ -779,11 +768,13 @@ defmodule Choreo.Analysis do
   """
   @spec validate(Choreo.t()) :: [{:error | :warning, String.t()}]
   def validate(%Choreo{} = system) do
+    spof = single_points_of_failure(system)
+
     []
     |> check_isolated(system)
-    |> check_spof(system)
+    |> check_spof(spof)
     |> check_cycles(system)
-    |> check_bridges(system)
+    |> check_bridges(spof)
   end
 
   # ============================================================================
@@ -792,7 +783,7 @@ defmodule Choreo.Analysis do
 
   defp ensure_undirected(graph) do
     if graph.kind == :directed do
-      Yog.Transform.to_undirected(graph, &min/2)
+      Yog.to_undirected(graph, &min/2)
     else
       graph
     end
@@ -805,9 +796,7 @@ defmodule Choreo.Analysis do
     end
   end
 
-  defp check_spof(acc, system) do
-    %{nodes: spof_nodes} = single_points_of_failure(system)
-
+  defp check_spof(acc, %{nodes: spof_nodes}) do
     case spof_nodes do
       [] -> acc
       nodes -> [{:warning, "Single points of failure: #{inspect(nodes)}"} | acc]
@@ -824,9 +813,7 @@ defmodule Choreo.Analysis do
     end
   end
 
-  defp check_bridges(acc, system) do
-    %{edges: bridges} = single_points_of_failure(system)
-
+  defp check_bridges(acc, %{edges: bridges}) do
     case bridges do
       [] -> acc
       edges -> [{:warning, "Bridge edges: #{inspect(edges)}"} | acc]
