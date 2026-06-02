@@ -3,6 +3,8 @@ defmodule Choreo.ERDTest do
 
   alias Choreo.ERD
   alias Choreo.ERD.Analysis
+  doctest Choreo.ERD
+  doctest Choreo.ERD.Analysis
 
   setup do
     erd =

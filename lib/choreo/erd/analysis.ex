@@ -23,9 +23,9 @@ defmodule Choreo.ERD.Analysis do
 
       iex> erd =
       ...>   Choreo.ERD.new()
-      ...>   |> Choreo.ERD.add_table(:users, columns: [id: :integer])
-      ...>   |> Choreo.ERD.add_table(:posts, columns: [id: :integer, user_id: :integer])
-      ...>   |> Choreo.ERD.add_table(:comments, columns: [id: :integer, post_id: :integer])
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}, %{name: :user_id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:comments, columns: [%{name: :id, type: :integer}, %{name: :post_id, type: :integer}])
       ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
       ...>   |> Choreo.ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
       iex> Choreo.ERD.Analysis.shortest_join_path(erd, :users, :comments)
@@ -68,8 +68,8 @@ defmodule Choreo.ERD.Analysis do
 
       iex> erd =
       ...>   Choreo.ERD.new()
-      ...>   |> Choreo.ERD.add_table(:a, columns: [id: :integer])
-      ...>   |> Choreo.ERD.add_table(:b, columns: [id: :integer])
+      ...>   |> Choreo.ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
       ...>   |> Choreo.ERD.add_relationship(:a, :b, cardinality: :one_to_one)
       ...>   |> Choreo.ERD.add_relationship(:b, :a, cardinality: :one_to_one)
       iex> Choreo.ERD.Analysis.cycles(erd)
@@ -131,8 +131,8 @@ defmodule Choreo.ERD.Analysis do
 
       iex> erd =
       ...>   Choreo.ERD.new()
-      ...>   |> Choreo.ERD.add_table(:a, columns: [id: :integer])
-      ...>   |> Choreo.ERD.add_table(:b, columns: [id: :integer])
+      ...>   |> Choreo.ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
       iex> Choreo.ERD.Analysis.orphans(erd)
       [:a, :b]
   """
@@ -151,6 +151,19 @@ defmodule Choreo.ERD.Analysis do
 
   Highly coupled tables with high degree counts (e.g. `users`) serve as central hubs,
   while tables with low degree counts represent leaves.
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+      iex> Choreo.ERD.Analysis.table_degrees(erd)
+      %{
+        users: %{in: 0, out: 1, total: 1},
+        posts: %{in: 1, out: 0, total: 1}
+      }
   """
   @spec table_degrees(Choreo.ERD.t()) :: %{
           Choreo.ERD.table_id() => %{in: integer(), out: integer(), total: integer()}

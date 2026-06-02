@@ -33,6 +33,21 @@ defmodule Choreo.ERD do
 
       dot = Choreo.ERD.to_dot(erd)
       mermaid = Choreo.ERD.to_mermaid(erd)
+
+  ## Diagram
+
+  <div class="graphviz">
+    digraph G {
+      graph [rankdir=LR, splines=spline, nodesep=1.2, ranksep=1.2];
+      node [shape=plain, style=filled, fillcolor="transparent", fontname="Helvetica", fontsize=12, fontcolor="#1e293b"];
+      edge [color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
+
+      users [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1"><TR><TD COLSPAN="3" BGCOLOR="#3b82f6" ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#ffffff"><B>users</B></FONT></TD></TR><TR><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b">id</FONT></TD><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><i>integer</i></FONT></TD><TD ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><b>[PK]</b></FONT></TD></TR><TR><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b">email</FONT></TD><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><i>varchar</i></FONT></TD><TD ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"></TD></TR></TABLE>>];
+      posts [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1"><TR><TD COLSPAN="3" BGCOLOR="#3b82f6" ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#ffffff"><B>posts</B></FONT></TD></TR><TR><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b">id</FONT></TD><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><i>integer</i></FONT></TD><TD ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><b>[PK]</b></FONT></TD></TR><TR><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b">user_id</FONT></TD><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><i>integer</i></FONT></TD><TD ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><i>[FK]</i></FONT></TD></TR><TR><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b">title</FONT></TD><TD ALIGN="LEFT" BORDER="1" COLOR="#cbd5e1"><FONT COLOR="#1e293b"><i>varchar</i></FONT></TD><TD ALIGN="CENTER" BORDER="1" COLOR="#cbd5e1"></TD></TR></TABLE>>];
+
+      users -> posts [penwidth="1.0", color="#64748b", dir="both", arrowhead="crowodot", arrowtail="teetee", label="writes"];
+    }
+  </div>
   """
 
   @type table_id :: Yog.node_id()
@@ -114,6 +129,17 @@ defmodule Choreo.ERD do
 
   @doc """
   Initializes a new, empty ERD.
+
+  ## Options
+
+    * `:strict_column_matching` - if `true`, validates that any foreign key columns mapped between tables exist and have matching types (default: `false`).
+
+  ## Examples
+
+      iex> erd = Choreo.ERD.new()
+      iex> %Choreo.ERD{} = erd
+      iex> erd.strict_column_matching
+      false
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -131,6 +157,14 @@ defmodule Choreo.ERD do
 
   ## Options
   #{NimbleOptions.docs(@add_table_schema)}
+
+  ## Examples
+
+      iex> erd = Choreo.ERD.new()
+      ...> |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer, key: :pk}])
+      iex> %Choreo.ERD{} = erd
+      iex> Map.has_key?(erd.graph.nodes, :users)
+      true
   """
   @spec add_table(t(), table_id(), keyword()) :: t()
   def add_table(%__MODULE__{} = erd, id, opts \\ []) do
@@ -160,6 +194,16 @@ defmodule Choreo.ERD do
 
   ## Options
   #{NimbleOptions.docs(@add_relationship_schema)}
+
+  ## Examples
+
+      iex> erd = Choreo.ERD.new()
+      ...> |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...> |> Choreo.ERD.add_table(:posts, columns: [%{name: :user_id, type: :integer}])
+      ...> |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+      iex> %Choreo.ERD{} = erd
+      iex> map_size(erd.graph.edges)
+      1
   """
   @spec add_relationship(t(), table_id(), table_id(), keyword()) :: t()
   def add_relationship(%__MODULE__{} = erd, from, to, opts \\ []) do
@@ -224,6 +268,13 @@ defmodule Choreo.ERD do
 
   @doc """
   Renders the ERD to Graphviz DOT syntax.
+
+  ## Examples
+
+      iex> erd = Choreo.ERD.new() |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      iex> dot = Choreo.ERD.to_dot(erd)
+      iex> dot =~ "digraph"
+      true
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = erd, opts \\ []) do
@@ -232,6 +283,12 @@ defmodule Choreo.ERD do
 
   @doc """
   Renders the ERD to Mermaid.js native erDiagram syntax.
+
+  ## Examples
+
+      iex> erd = Choreo.ERD.new() |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      iex> Choreo.ERD.to_mermaid(erd) =~ "erDiagram"
+      true
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
   def to_mermaid(%__MODULE__{} = erd, opts \\ []) do
@@ -240,6 +297,12 @@ defmodule Choreo.ERD do
 
   @doc """
   Returns a theme for the ERD diagram.
+
+  ## Examples
+
+      iex> theme = Choreo.ERD.theme(:dark)
+      iex> theme.graph_bgcolor
+      "#0f172a"
   """
   @spec theme(atom(), keyword()) :: Choreo.Theme.t()
   def theme(name \\ :default, overrides \\ []) do
