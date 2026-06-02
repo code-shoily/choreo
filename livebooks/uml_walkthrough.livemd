@@ -120,6 +120,40 @@ UML.to_mermaid(inheritance_uml, syntax: :class_diagram)
 |> Kino.Mermaid.new()
 ```
 
+### Strict Contract Validation
+
+By default, Choreo validates behavior contracts during static analysis via `Analysis.broken_contracts/1`. However, if you want to actively prevent invalid relationships from being added during schema construction, you can enable the `:strict_contract_validation` flag upon initialization:
+
+```elixir
+# This will fail because strict_contract_validation is active and user missing the verify/1 function
+try do
+  UML.new(strict_contract_validation: true)
+  |> UML.add_class(:auth_provider,
+    type: :behavior,
+    functions: [%{name: "verify", arity: 1}]
+  )
+  |> UML.add_class(:provider, type: :struct)
+  |> UML.add_relationship(:provider, :auth_provider, type: :realizes)
+rescue
+  e -> e
+end
+```
+
+```elixir
+# This succeeds perfectly because the contract is fully satisfied
+uml_ok =
+  UML.new(strict_contract_validation: true)
+  |> UML.add_class(:auth_provider,
+    type: :behavior,
+    functions: [%{name: "verify", arity: 1}]
+  )
+  |> UML.add_class(:provider,
+    type: :struct,
+    functions: [%{name: "verify", arity: 1}]
+  )
+  |> UML.add_relationship(:provider, :auth_provider, type: :realizes)
+```
+
 ---
 
 ## Themed Visualizations

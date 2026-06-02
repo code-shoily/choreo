@@ -57,6 +57,49 @@ defmodule Choreo.UMLTest do
     end
   end
 
+  test "add_relationship strict_contract_validation checks" do
+    # When strict_contract_validation is true, realizing a behavior must implement all functions
+    uml_strict =
+      UML.new(strict_contract_validation: true)
+      |> UML.add_class(:auth_behavior,
+        type: :behavior,
+        functions: [
+          %{name: "verify", arity: 1},
+          %{name: "cleanup", arity: 0}
+        ]
+      )
+      |> UML.add_class(:provider,
+        type: :struct,
+        functions: [
+          %{name: "verify", arity: 1}
+        ]
+      )
+
+    # Should raise contract violation because cleanup/0 is missing
+    assert_raise ArgumentError, ~r/contract violation.*cleanup\/0/, fn ->
+      UML.add_relationship(uml_strict, :provider, :auth_behavior, type: :realizes)
+    end
+
+    # Should pass when all functions are implemented
+    uml_ok =
+      UML.new(strict_contract_validation: true)
+      |> UML.add_class(:auth_behavior,
+        type: :behavior,
+        functions: [
+          %{name: "verify", arity: 1}
+        ]
+      )
+      |> UML.add_class(:provider,
+        type: :struct,
+        functions: [
+          %{name: "verify", arity: 1}
+        ]
+      )
+      |> UML.add_relationship(:provider, :auth_behavior, type: :realizes)
+
+    assert %UML{} = uml_ok
+  end
+
   test "to_dot rendering with 3-compartment HTML table", %{uml: uml} do
     dot = UML.to_dot(uml)
 

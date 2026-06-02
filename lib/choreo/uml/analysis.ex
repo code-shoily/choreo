@@ -158,23 +158,14 @@ defmodule Choreo.UML.Analysis do
           }
         }
   def coupling_metrics(%Choreo.UML{} = uml) do
-    graph = uml.graph
-    nodes = Map.keys(graph.nodes)
+    # Collapse multigraph to simple graph to get unique connections and remove parallel relationships
+    simple_graph = Yog.Multi.to_simple_graph(uml.graph)
+    nodes = Map.keys(uml.graph.nodes)
 
     nodes
     |> Enum.reduce(%{}, fn node_id, acc ->
-      succs =
-        Yog.Multi.successors(graph, node_id)
-        |> Enum.map(fn {dest, _eid, _w} -> dest end)
-        |> Enum.uniq()
-
-      preds =
-        Yog.Multi.predecessors(graph, node_id)
-        |> Enum.map(fn {src, _eid, _w} -> src end)
-        |> Enum.uniq()
-
-      ce = length(succs)
-      ca = length(preds)
+      ca = length(Yog.predecessors(simple_graph, node_id))
+      ce = length(Yog.successors(simple_graph, node_id))
 
       instability =
         if ce + ca == 0 do

@@ -114,6 +114,56 @@ ERD.to_mermaid(profile_schema)
 |> Kino.Mermaid.new()
 ```
 
+### Strict Column & Datatype Verification
+
+To ensure that your relationships point to valid columns and don't introduce mismatching datatypes, `Choreo.ERD` supports column-level mapping checks via `:from_column` and `:to_column` options.
+
+Additionally, you can toggle a global `:strict_column_matching` flag when initializing your diagram:
+
+```elixir
+# This will fail because strict_column_matching is active but we did not provide column mappings
+try do
+  ERD.new(strict_column_matching: true)
+  |> ERD.add_table(:users, columns: [%{name: :id, type: :integer, key: :pk}])
+  |> ERD.add_table(:posts, columns: [%{name: :user_id, type: :integer, key: :fk}])
+  |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+rescue
+  e -> e
+end
+```
+
+```elixir
+# This will fail because the datatypes of the joined columns mismatch (integer vs varchar)
+try do
+  ERD.new()
+  |> ERD.add_table(:users, columns: [%{name: :id, type: :integer, key: :pk}])
+  |> ERD.add_table(:posts, columns: [%{name: :user_uuid, type: :varchar, key: :fk}])
+  |> ERD.add_relationship(:users, :posts,
+    cardinality: :one_to_many,
+    from_column: :id,
+    to_column: :user_uuid
+  )
+rescue
+  e -> e
+end
+```
+
+```elixir
+# This succeeds perfectly because columns exist and datatypes match
+strict_schema =
+  ERD.new(strict_column_matching: true)
+  |> ERD.add_table(:users, columns: [%{name: :id, type: :integer, key: :pk}])
+  |> ERD.add_table(:posts, columns: [
+    %{name: :id, type: :integer, key: :pk},
+    %{name: :user_id, type: :integer, key: :fk}
+  ])
+  |> ERD.add_relationship(:users, :posts,
+    cardinality: :one_to_many,
+    from_column: :id,
+    to_column: :user_id
+  )
+```
+
 ---
 
 ## Themed Visualizations

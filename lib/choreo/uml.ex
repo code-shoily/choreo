@@ -19,10 +19,11 @@ defmodule Choreo.UML do
   @type class_id :: Yog.node_id()
   @type t :: %__MODULE__{
           graph: Yog.Multi.graph(),
-          edge_meta: %{optional(Yog.Multi.edge_id()) => map()}
+          edge_meta: %{optional(Yog.Multi.edge_id()) => map()},
+          strict_contract_validation: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}
+  defstruct graph: nil, edge_meta: %{}, strict_contract_validation: false
 
   @field_schema [
     name: [
@@ -109,11 +110,14 @@ defmodule Choreo.UML do
   @doc """
   Initializes a new, empty UML diagram.
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
+    strict = Keyword.get(opts, :strict_contract_validation, false)
+
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
-      edge_meta: %{}
+      edge_meta: %{},
+      strict_contract_validation: strict
     }
   end
 
@@ -161,6 +165,7 @@ defmodule Choreo.UML do
   def add_relationship(%__MODULE__{} = uml, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_relationship_schema)
 
+    # Validate that both classes exist in the graph
     if not Map.has_key?(uml.graph.nodes, from) do
       raise ArgumentError, "class #{inspect(from)} does not exist in the diagram"
     end
@@ -170,6 +175,33 @@ defmodule Choreo.UML do
     end
 
     meta = Map.new(opts)
+
+    if uml.strict_contract_validation and meta[:type] in [:realizes, :inherits] do
+      from_node = Map.get(uml.graph.nodes, from)
+      to_node = Map.get(uml.graph.nodes, to)
+
+      if to_node[:type] in [:behavior, :protocol, :interface] do
+        target_funcs = to_node[:functions] || []
+        source_funcs = from_node[:functions] || []
+
+        missing =
+          Enum.filter(target_funcs, fn tf ->
+            not Enum.any?(source_funcs, fn sf ->
+              sf[:name] == tf[:name] and (is_nil(tf[:arity]) or sf[:arity] == tf[:arity])
+            end)
+          end)
+
+        if missing != [] do
+          missing_strs =
+            Enum.map_join(missing, ", ", fn f ->
+              "#{f[:name]}/#{f[:arity] || "any"}"
+            end)
+
+          raise ArgumentError,
+                "contract violation: class #{inspect(from)} does not implement required functions from #{inspect(to)}: #{missing_strs}"
+        end
+      end
+    end
 
     {graph, edge_id} = Yog.Multi.add_edge(uml.graph, from, to, 1)
     edge_meta = Map.put(uml.edge_meta, edge_id, meta)
