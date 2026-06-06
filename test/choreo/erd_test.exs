@@ -248,4 +248,90 @@ defmodule Choreo.ERDTest do
       assert String.contains?(mermaid, "another-table!")
     end
   end
+
+  describe "normalization_score/2" do
+    test "perfect schema receives a score of 100" do
+      erd =
+        ERD.new()
+        |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+
+      result = Analysis.normalization_score(erd)
+      assert result.score == 100
+      assert result.smells == []
+    end
+
+    test "detects orphans, one-to-one, and large columns" do
+      columns = Enum.map(1..18, fn i -> %{name: :"col_#{i}", type: :integer} end)
+
+      erd =
+        ERD.new()
+        # Large column count table
+        |> ERD.add_table(:god_table, columns: columns)
+        # Orphan table
+        |> ERD.add_table(:lonely_table, columns: [%{name: :id, type: :integer}])
+        # One-to-one relationship tables
+        |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:a, :b, cardinality: :one_to_one)
+
+      result = Analysis.normalization_score(erd)
+      # Deductions:
+      # :god_table has 18 columns (> 15) -> -15 points
+      # :lonely_table is orphan -> -10 points
+      # :god_table is orphan -> -10 points
+      # :a -> :b is :one_to_one -> -5 points
+      # Total: 100 - (15 + 10 + 10 + 5) = 60
+      assert result.score == 60
+      assert length(result.smells) == 4
+
+      assert Enum.at(result.smells, 0) ==
+               "One-to-one relationship between 'a' and 'b' suggests a potential split entity."
+
+      assert Enum.at(result.smells, 1) ==
+               "Table 'god_table' has 18 columns, exceeding the threshold of 15."
+
+      assert Enum.at(result.smells, 2) == "Table 'god_table' is orphaned (has no relationships)."
+
+      assert Enum.at(result.smells, 3) ==
+               "Table 'lonely_table' is orphaned (has no relationships)."
+    end
+
+    test "respects custom weights and thresholds" do
+      columns = Enum.map(1..6, fn i -> %{name: :"col_#{i}", type: :integer} end)
+
+      erd =
+        ERD.new()
+        |> ERD.add_table(:users, columns: columns)
+        |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:users, :posts, cardinality: :many_to_many)
+
+      # Test custom column threshold and custom many-to-many weight
+      result =
+        Analysis.normalization_score(erd,
+          column_threshold: 5,
+          weights: [large_column: 40, many_to_many: 25]
+        )
+
+      # Deductions:
+      # :users has 6 columns (> 5) -> -40 points
+      # :many_to_many relationship -> -25 points
+      # Total: 100 - 65 = 35
+      assert result.score == 35
+      assert length(result.smells) == 2
+    end
+
+    test "score is capped at 0" do
+      erd =
+        ERD.new()
+        |> ERD.add_table(:a, columns: [])
+        |> ERD.add_table(:b, columns: [])
+        |> ERD.add_relationship(:a, :b, cardinality: :many_to_many)
+
+      # 1 many_to_many (120) = 120 points deduction
+      result = Analysis.normalization_score(erd, weights: [many_to_many: 120])
+      assert result.score == 0
+    end
+  end
 end

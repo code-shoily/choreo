@@ -175,4 +175,100 @@ defmodule Choreo.ERD.Analysis do
       {id, %{in: in_deg, out: out_deg, total: in_deg + out_deg}}
     end)
   end
+
+  @doc """
+  Calculates a database normalization and schema quality score.
+
+  The score starts at 100 and is reduced by:
+    * `:large_column` — Tables with more than 15 columns (default: -15)
+    * `:many_to_many` — Direct `:many_to_many` relationships without a junction table (default: -10)
+    * `:one_to_one` — `:one_to_one` relationships indicating potential split entities (default: -5)
+    * `:orphan` — Tables with no relationships (default: -10)
+
+  The score is capped at a minimum of 0.
+
+  ## Options
+
+    * `:weights` — Keyword list of custom penalties (e.g., `[large_column: 20, orphan: 5]`)
+    * `:column_threshold` — Threshold for column count (default: 15)
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :many_to_many)
+      iex> Choreo.ERD.Analysis.normalization_score(erd)
+      %{
+        score: 90,
+        smells: ["Direct many-to-many relationship between 'users' and 'posts'."]
+      }
+  """
+  @spec normalization_score(Choreo.ERD.t(), keyword()) :: %{
+          score: number(),
+          smells: [String.t()]
+        }
+  def normalization_score(%Choreo.ERD{} = erd, opts \\ []) do
+    weights = Keyword.get(opts, :weights, [])
+    large_column_penalty = Keyword.get(weights, :large_column, 15)
+    many_to_many_penalty = Keyword.get(weights, :many_to_many, 10)
+    one_to_one_penalty = Keyword.get(weights, :one_to_one, 5)
+    orphan_penalty = Keyword.get(weights, :orphan, 10)
+
+    column_threshold = Keyword.get(opts, :column_threshold, 15)
+
+    {column_deductions, column_smells} =
+      Enum.reduce(erd.graph.nodes, {0, []}, fn {table_id, data}, {deductions, smells} ->
+        columns = Map.get(data, :columns, [])
+
+        if length(columns) > column_threshold do
+          {deductions + large_column_penalty,
+           [
+             "Table '#{table_id}' has #{length(columns)} columns, exceeding the threshold of #{column_threshold}."
+             | smells
+           ]}
+        else
+          {deductions, smells}
+        end
+      end)
+
+    {relationship_deductions, relationship_smells} =
+      Enum.reduce(erd.graph.edges, {0, []}, fn {edge_id, {from, to, _weight}},
+                                               {deductions, smells} ->
+        meta = Map.get(erd.edge_meta, edge_id, %{})
+        cardinality = meta[:cardinality]
+
+        cond do
+          cardinality == :many_to_many ->
+            {deductions + many_to_many_penalty,
+             ["Direct many-to-many relationship between '#{from}' and '#{to}'." | smells]}
+
+          cardinality == :one_to_one ->
+            {deductions + one_to_one_penalty,
+             [
+               "One-to-one relationship between '#{from}' and '#{to}' suggests a potential split entity."
+               | smells
+             ]}
+
+          true ->
+            {deductions, smells}
+        end
+      end)
+
+    {orphan_deductions, orphan_smells} =
+      Enum.reduce(orphans(erd), {0, []}, fn table_id, {deductions, smells} ->
+        {deductions + orphan_penalty,
+         ["Table '#{table_id}' is orphaned (has no relationships)." | smells]}
+      end)
+
+    total_deductions = column_deductions + relationship_deductions + orphan_deductions
+    score = max(0, 100 - total_deductions)
+
+    all_smells =
+      (column_smells ++ relationship_smells ++ orphan_smells)
+      |> Enum.sort()
+
+    %{score: score, smells: all_smells}
+  end
 end
