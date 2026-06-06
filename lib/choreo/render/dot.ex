@@ -45,23 +45,40 @@ defmodule Choreo.Render.DOT do
   def to_dot(system, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
-    subgraphs = Choreo.Internal.build_cluster_subgraphs(system, theme)
+    states_list = Map.keys(system.graph.nodes)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = Choreo.Internal.make_multi_graph_safe(system.graph, id_map)
+    safe_system = %{system | graph: safe_graph}
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    subgraphs = Choreo.Internal.build_cluster_subgraphs(safe_system, theme)
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     base =
       Yog.Multi.DOT.default_options()
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, weight -> edge_label(weight) end)
-      |> Map.put(:node_attributes, node_attributes_fn(system, theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(system, hl_edges))
+      |> Map.put(:node_attributes, node_attributes_fn(safe_system, theme, hl_nodes))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_system, hl_edges))
       |> Map.merge(theme_graph_attrs(theme))
       |> Map.merge(Map.new(opts))
 
     base = if subgraphs != [], do: Map.put(base, :subgraphs, subgraphs), else: base
 
-    Yog.Multi.DOT.to_dot(system.graph, base)
+    Yog.Multi.DOT.to_dot(safe_graph, base)
   end
 
   # ============================================================================
@@ -213,5 +230,20 @@ defmodule Choreo.Render.DOT do
 
   defp edge_label(_) do
     ""
+  end
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
   end
 end

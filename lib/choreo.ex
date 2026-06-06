@@ -687,6 +687,20 @@ defmodule Choreo do
     opts = NimbleOptions.validate!(opts, @connect_schema)
     cost = opts[:cost]
 
+    system =
+      if Map.has_key?(system.graph.nodes, from) do
+        system
+      else
+        add_node(system, from, name: to_string(from))
+      end
+
+    system =
+      if Map.has_key?(system.graph.nodes, to) do
+        system
+      else
+        add_node(system, to, name: to_string(to))
+      end
+
     meta =
       opts
       |> Map.new()

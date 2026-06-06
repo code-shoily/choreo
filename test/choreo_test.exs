@@ -99,6 +99,17 @@ defmodule ChoreoTest do
       assert [{:a, :b, 5, meta}] = Choreo.edges_with_meta(system)
       assert meta.type == :dataflow
     end
+
+    test "implicitly registers missing nodes as generic nodes" do
+      system =
+        Choreo.new()
+        |> Choreo.connect(:api, :db)
+
+      assert :api in Map.keys(Choreo.nodes(system))
+      assert :db in Map.keys(Choreo.nodes(system))
+      assert Choreo.nodes(system)[:api].type == :generic
+      assert Choreo.nodes(system)[:db].type == :generic
+    end
   end
 
   describe "rendering" do
@@ -115,6 +126,16 @@ defmodule ChoreoTest do
       assert String.contains?(dot, "db")
       assert String.contains?(dot, "shape=\"cylinder\"")
       assert String.contains?(dot, "shape=\"box3d\"")
+    end
+
+    test "renders node IDs containing spaces or special characters without syntax errors in DOT" do
+      system =
+        Choreo.new()
+        |> Choreo.connect("my service", "my cache")
+
+      dot = Choreo.to_dot(system)
+      assert String.contains?(dot, "\"my service\"")
+      assert String.contains?(dot, "\"my cache\"")
     end
 
     test "to_dot/2 supports dark theme" do
