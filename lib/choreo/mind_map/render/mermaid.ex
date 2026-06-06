@@ -101,17 +101,9 @@ defmodule Choreo.MindMap.Render.Mermaid do
     data = Map.get(map.graph.nodes, node_id, %{})
     label = data[:label] || to_string(node_id)
 
-    {open, close} =
-      case data[:node_type] do
-        :root -> {"((", "))"}
-        :topic -> {"(", ")"}
-        :subtopic -> {"[", "]"}
-        :note -> {")", "("}
-        _ -> {"", ""}
-      end
-
     indent = String.duplicate("  ", depth)
-    line = "#{indent}#{node_id}#{open}#{label}#{close}"
+    safe_label = sanitize_mindmap_label(label)
+    line = "#{indent}#{safe_label}"
 
     children =
       map.graph
@@ -125,6 +117,12 @@ defmodule Choreo.MindMap.Render.Mermaid do
     children_lines = Enum.map(children, &render_mindmap_node(map, &1, depth + 1))
 
     Enum.join([line | children_lines], "\n")
+  end
+
+  defp sanitize_mindmap_label(label) do
+    label
+    |> to_string()
+    |> String.replace("\n", " ")
   end
 
   @doc """

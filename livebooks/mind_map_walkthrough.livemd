@@ -4,12 +4,18 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7.1"},
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
+> 
+> MindMap supports two Mermaid syntaxes:
+> 
+> * `:flowchart` (default) — standard Mermaid flowchart with styled shapes and colours
+> * `:mindmap` — native Mermaid `mindmap` syntax (requires Mermaid ≥9.2)
 
 ---
 
@@ -96,7 +102,7 @@ Kino.VizJS.render(MindMap.to_dot(talk), height: "800px")
 ```
 
 ```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(talk))
+Kino.Mermaid.new(MindMap.to_mermaid(talk, syntax: :mindmap))
 ```
 
 ### Structural Metrics
@@ -154,6 +160,16 @@ domain =
   |> MindMap.associate(:raft, :replication, label: "uses")
 
 Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "600px", width: "100%")
+```
+
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :flowchart))
+```
+
+Or use the native Mermaid mindmap syntax:
+
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :mindmap))
 ```
 
 ### Validation
@@ -214,7 +230,15 @@ roadmap =
 Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
 ```
 
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :flowchart))
+```
+
 ### Detect Orphans
+
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :mindmap))
+```
 
 ```elixir
 Analysis.orphan_nodes(roadmap)
@@ -266,6 +290,10 @@ IO.puts("Depth: #{Analysis.depth(deep)}")
 IO.puts("Max width: #{Analysis.max_width(deep)}")
 IO.inspect(Analysis.leaves(deep), label: "Leaves")
 Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px", engine: "twopi")
+```
+
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(deep, syntax: :mindmap))
 ```
 
 ---
@@ -333,6 +361,10 @@ alias Choreo.View
 
 overview = View.zoom(talk, level: 1)
 Kino.VizJS.render(MindMap.to_dot(overview), engine: "circo")
+```
+
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(overview, syntax: :mindmap))
 ```
 
 Show root, topics, and subtopics (hide notes):
@@ -430,6 +462,10 @@ brand_theme =
 Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "600px")
 ```
 
+```elixir
+Kino.Mermaid.new(MindMap.to_mermaid(talk, theme: brand_theme, syntax: :flowchart))
+```
+
 ---
 
 ## Summary
@@ -451,5 +487,6 @@ Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "600px")
 | "Filter nodes"                     | `View.filter/3`               |
 | "Collapse into aggregate"          | `View.collapse/4`             |
 | "Render to DOT"                    | `MindMap.to_dot/2`            |
+| "Render to Mermaid"                | `MindMap.to_mermaid/2`        |
 
 Mind maps as code mean your brainstorming sessions, documentation, and planning artefacts are version-controlled, diffable, and automatically validated. Every addition is checked for reachability from the root and structural soundness — before it ever becomes a static diagram.

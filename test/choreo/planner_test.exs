@@ -1,0 +1,310 @@
+defmodule Choreo.PlannerTest do
+  use ExUnit.Case
+
+  alias Choreo.Planner
+
+  describe "construction" do
+    test "new/1 creates an empty planner" do
+      planner = Planner.new("Test Project")
+      assert planner.name == "Test Project"
+      assert planner.graph != nil
+      assert Planner.tasks(planner) == []
+    end
+
+    test "add_task/3 with defaults" do
+      planner = Planner.new() |> Planner.add_task(:t1)
+      assert [{:t1, data}] = Planner.tasks(planner)
+      assert data.node_type == :task
+      assert data.status == :backlog
+      assert data.priority == :medium
+    end
+
+    test "add_task/3 with options" do
+      planner =
+        Planner.new() |> Planner.add_task(:t1, title: "Design", status: :done, priority: :high)
+
+      assert [{:t1, data}] = Planner.tasks(planner)
+      assert data.title == "Design"
+      assert data.status == :done
+      assert data.priority == :high
+    end
+
+    test "add_milestone/3" do
+      planner = Planner.new() |> Planner.add_milestone(:v1, title: "V1")
+      assert [{:v1, data}] = Planner.milestones(planner)
+      assert data.node_type == :milestone
+      assert data.title == "V1"
+    end
+
+    test "add_user/3" do
+      planner = Planner.new() |> Planner.add_user(:alice, name: "Alice")
+      assert [{:alice, data}] = Planner.users(planner)
+      assert data.node_type == :user
+      assert data.name == "Alice"
+    end
+
+    test "add_label/3" do
+      planner = Planner.new() |> Planner.add_label(:frontend, title: "Frontend")
+      assert [{:frontend, data}] = Planner.labels(planner)
+      assert data.node_type == :label
+      assert data.title == "Frontend"
+    end
+  end
+
+  describe "builder — edges" do
+    test "contains/3 links milestone to task" do
+      planner =
+        Planner.new()
+        |> Planner.add_milestone(:v1)
+        |> Planner.add_task(:t1)
+        |> Planner.contains(:v1, :t1)
+
+      assert Planner.children(planner, :v1) == [:t1]
+      assert Planner.parent(planner, :t1) == :v1
+    end
+
+    test "depends_on/3 creates dependency edge" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a)
+        |> Planner.add_task(:b)
+        |> Planner.depends_on(:b, :a)
+
+      assert Planner.dependencies(planner, :b) == [:a]
+      assert Planner.dependents(planner, :a) == [:b]
+    end
+
+    test "blocks/3 creates blocker edge" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a)
+        |> Planner.add_task(:b)
+        |> Planner.blocks(:a, :b)
+
+      assert Planner.dependencies(planner, :b) == [:a]
+    end
+
+    test "assign/3 links task to user" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:t1)
+        |> Planner.add_user(:alice)
+        |> Planner.assign(:t1, :alice)
+
+      assert Planner.assignee(planner, :t1) == :alice
+      assert Planner.assigned_tasks(planner, :alice) == [:t1]
+    end
+
+    test "tag/3 links task to label" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:t1)
+        |> Planner.add_label(:frontend)
+        |> Planner.tag(:t1, :frontend)
+
+      assert [{t1_id, frontend_id, 1, %{type: :tagged_with}}] =
+               Planner.edges_with_meta(planner)
+               |> Enum.filter(fn {_, _, _, m} -> m[:type] == :tagged_with end)
+
+      assert t1_id == :t1
+      assert frontend_id == :frontend
+    end
+
+    test "relates/3 creates bidirectional edge" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a)
+        |> Planner.add_task(:b)
+        |> Planner.relates(:a, :b)
+
+      assert length(Planner.edges_with_meta(planner)) == 2
+    end
+
+    test "update_task/3 merges properties" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:t1, title: "Old")
+        |> Planner.update_task(:t1, title: "New", status: :in_progress)
+
+      assert [{:t1, data}] = Planner.tasks(planner)
+      assert data.title == "New"
+      assert data.status == :in_progress
+    end
+
+    test "remove_task/2 removes node and edges" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a)
+        |> Planner.add_task(:b)
+        |> Planner.depends_on(:b, :a)
+        |> Planner.remove_task(:a)
+
+      assert length(Planner.tasks(planner)) == 1
+      assert Planner.dependencies(planner, :b) == []
+    end
+
+    test "contains/3 validates node types" do
+      assert_raise ArgumentError, fn ->
+        Planner.new()
+        |> Planner.add_task(:a)
+        |> Planner.add_task(:b)
+        |> Planner.contains(:a, :b)
+      end
+    end
+  end
+
+  describe "queries" do
+    test "tasks_by_status/2" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, status: :done)
+        |> Planner.add_task(:b, status: :backlog)
+
+      assert [{:a, _}] = Planner.tasks_by_status(planner, :done)
+      assert [{:b, _}] = Planner.tasks_by_status(planner, :backlog)
+    end
+
+    test "edges_with_meta/1" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a)
+        |> Planner.add_task(:b)
+        |> Planner.depends_on(:b, :a)
+
+      assert [{_, _, _, meta}] = Planner.edges_with_meta(planner)
+      assert meta[:type] == :depends_on
+    end
+  end
+
+  describe "mermaid rendering" do
+    test "to_mermaid with kanban syntax" do
+      planner =
+        Planner.new("Test")
+        |> Planner.add_task(:a, title: "Task A", status: :done)
+        |> Planner.add_task(:b, title: "Task B", status: :backlog)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :kanban)
+      assert mermaid =~ "kanban"
+      assert mermaid =~ "Task A"
+      assert mermaid =~ "Task B"
+      assert mermaid =~ "Done"
+      assert mermaid =~ "Backlog"
+    end
+
+    test "to_mermaid with gantt syntax" do
+      planner =
+        Planner.new("Test")
+        |> Planner.add_task(:a, title: "Task A", status: :done, estimate_hours: 16)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :gantt)
+      assert mermaid =~ "gantt"
+      assert mermaid =~ "Test"
+      assert mermaid =~ "Task A"
+    end
+
+    test "to_mermaid with flowchart syntax" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.depends_on(:b, :a)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :flowchart)
+      assert mermaid =~ "graph TD"
+      assert mermaid =~ "Task A"
+      assert mermaid =~ "Task B"
+    end
+
+    test "kanban filters by milestone" do
+      planner =
+        Planner.new()
+        |> Planner.add_milestone(:v1)
+        |> Planner.add_task(:a, title: "A", status: :done)
+        |> Planner.add_task(:b, title: "B", status: :backlog)
+        |> Planner.contains(:v1, :a)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :kanban, milestone: :v1)
+      assert mermaid =~ "A"
+      refute mermaid =~ "B"
+    end
+
+    test "to_mermaid with kanban_compat syntax" do
+      planner =
+        Planner.new("Test")
+        |> Planner.add_task(:a, title: "Task A", status: :done)
+        |> Planner.add_task(:b, title: "Task B", status: :backlog)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :kanban_compat)
+      assert mermaid =~ "flowchart LR"
+      assert mermaid =~ "Task A"
+      assert mermaid =~ "Task B"
+      assert mermaid =~ "Done"
+      assert mermaid =~ "Backlog"
+      assert mermaid =~ "subgraph"
+    end
+
+    test "kanban_compat applies status colours" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "A", status: :done)
+        |> Planner.add_task(:b, title: "B", status: :in_progress)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :kanban_compat)
+      assert mermaid =~ "fill:#4ade80"
+      assert mermaid =~ "fill:#60a5fa"
+    end
+
+    test "kanban_compat filters by milestone" do
+      planner =
+        Planner.new()
+        |> Planner.add_milestone(:v1)
+        |> Planner.add_task(:a, title: "A", status: :done)
+        |> Planner.add_task(:b, title: "B", status: :backlog)
+        |> Planner.contains(:v1, :a)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :kanban_compat, milestone: :v1)
+      assert mermaid =~ "A"
+      refute mermaid =~ "b[\"B\"]"
+    end
+
+    test "kanban_compat filters by assignee" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "A", status: :done)
+        |> Planner.add_task(:b, title: "B", status: :backlog)
+        |> Planner.add_user(:alice)
+        |> Planner.assign(:a, :alice)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :kanban_compat, assignee: :alice)
+      assert mermaid =~ "A"
+      refute mermaid =~ "b[\"B\"]"
+    end
+  end
+
+  describe "dot rendering" do
+    test "to_dot renders a graph" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.depends_on(:b, :a)
+
+      dot = Planner.to_dot(planner)
+      assert dot =~ "digraph G"
+      assert dot =~ "Task A"
+      assert dot =~ "Task B"
+    end
+  end
+
+  describe "protocols" do
+    test "Choreo.Mermaid protocol" do
+      planner = Planner.new() |> Planner.add_task(:a, title: "A")
+      assert Choreo.to_mermaid(planner) =~ "kanban"
+    end
+
+    test "Choreo.DOT protocol" do
+      planner = Planner.new() |> Planner.add_task(:a, title: "A")
+      assert Choreo.to_dot(planner) =~ "digraph G"
+    end
+  end
+end

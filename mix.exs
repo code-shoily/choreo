@@ -123,6 +123,12 @@ defmodule Choreo.MixProject do
           Choreo.Workflow.Render.DOT,
           Choreo.Workflow.Render.Mermaid
         ],
+        "Planning & Task Management": [
+          Choreo.Planner,
+          Choreo.Planner.Render.DOT,
+          Choreo.Planner.Render.Mermaid,
+          Choreo.Planner.Analysis
+        ],
         "Mind Maps": [
           Choreo.MindMap,
           Choreo.MindMap.Render.DOT,

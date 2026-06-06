@@ -4,8 +4,8 @@
 
 ```elixir
 Mix.install([
-  # {:choreo, "~> 0.7.1"},
-  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -192,8 +192,7 @@ Kino.VizJS.render(
   height: "800px"
 )
 Kino.Mermaid.new(
-  Dataflow.to_mermaid(resilient, theme: Dataflow.theme(:default)),
-  height: "800px"
+  Dataflow.to_mermaid(resilient, theme: Dataflow.theme(:default))
 )
 ```
 
@@ -292,8 +291,7 @@ Kino.VizJS.render(
   engine: "twopi"
 )
 Kino.Mermaid.new(
-  Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)),
-  height: "800px"
+  Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default))
 )
 ```
 
@@ -395,7 +393,7 @@ brand_theme =
   )
 
 Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme), height: "800px", engine: "twopi")
-Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: brand_theme), height: "800px")
+Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: brand_theme))
 ```
 
 ---

@@ -1,19 +1,22 @@
 # Choreo Dependency: Comprehensive Walkthrough
 
+## Section
+
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7.1"},
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
-## Section
+### Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
 ---
 
-## What is Choreo.Dependency?
+### What is Choreo.Dependency?
 
 `Choreo.Dependency` maps software component relationships — applications, libraries, modules, interfaces, and tests — to help you visualise coupling, detect cycles, enforce architectural layers, and measure instability.
 
@@ -25,7 +28,7 @@ Unlike static dependency graphs drawn by hand, Choreo dependency graphs are **an
 * "Which components are the most coupled?"
 * "What's the deepest dependency chain?"
 
-### Node Types
+#### Node Types
 
 | Type          | Shape            | Purpose                    |
 | ------------- | ---------------- | -------------------------- |
@@ -35,7 +38,7 @@ Unlike static dependency graphs drawn by hand, Choreo dependency graphs are **an
 | `interface`   | 💎 diamond     | API, contract, or protocol |
 | `test`        | 📝 note        | Test suite or spec         |
 
-### Edge Types
+#### Edge Types
 
 | Type        | Style       | Meaning                      |
 | ----------- | ----------- | ---------------------------- |
@@ -64,18 +67,21 @@ legend =
 Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")
 ```
 
-# By default, renders to a styled Mermaid flowchart
+By default, renders to a styled Mermaid flowchart:
+
+```elixir
 Kino.Mermaid.new(Dependency.to_mermaid(legend))
 ```
 
+Alternatively, render to a native Mermaid Class Diagram:
+
 ```elixir
-# Alternatively, render to a native Mermaid Class Diagram
 Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))
 ```
 
 ---
 
-## Example 1: Simple Microservice Dependencies
+### Example 1: Simple Microservice Dependencies
 
 A classic three-service architecture: API Gateway, Auth Service, and User Service. Each depends on shared libraries and infrastructure.
 
@@ -107,9 +113,6 @@ microservices =
   |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
 
 Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")
-```
-
-```elixir
 Kino.Mermaid.new(Dependency.to_mermaid(microservices))
 ```
 
@@ -133,7 +136,7 @@ Analysis.depends_on(microservices, :api_gateway)
 
 ---
 
-## Example 2: Layered Architecture with Violations
+### Example 2: Layered Architecture with Violations
 
 A well-designed system has layers: Repository (data access) → Service (business logic) → API (HTTP handlers). But during refactoring, layers can get crossed.
 
@@ -201,7 +204,7 @@ Removing redundant edges simplifies the diagram without losing information.
 
 ---
 
-## Example 3: Circular Dependencies
+### Example 3: Circular Dependencies
 
 The most dangerous pattern in dependency graphs. Let's model a messy codebase and find the cycles.
 
@@ -261,7 +264,7 @@ end)
 
 ---
 
-## Example 4: Instability and Coupling Metrics
+### Example 4: Instability Metrics
 
 Robert C. Martin's instability metric measures how likely a component is to change. A component with many outgoing dependencies (efferent) and few incoming (afferent) is unstable — it depends on the world but the world doesn't depend on it.
 
@@ -318,7 +321,7 @@ IO.inspect(Analysis.roots(metrics), label: "Components with no dependencies (fou
 
 ---
 
-## Example 5: Deep Dependency Chain
+### Example 5: Longest Dependency Chain
 
 Long dependency chains slow down builds, tests, and deployments. Let's find the longest one.
 
@@ -356,7 +359,7 @@ end
 
 ---
 
-## Example 6: Fixing a Broken Dependency Graph
+### Example 6: Fixing a Broken Pipeline
 
 Start with a graph that has structural issues and use analysis as a checklist.
 
@@ -408,7 +411,9 @@ Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px")
 
 ---
 
-## Advanced: Custom Theming
+### Example 7: Custom Theming
+
+Build a theme that matches your organisation's brand colours.
 
 ```elixir
 brand_theme =
@@ -430,7 +435,7 @@ Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: 
 
 ---
 
-## Example 7: Multigraph (Parallel Dependencies)
+### Example 8: Parallel Dependencies
 
 A component can depend on another for multiple distinct reasons (e.g., both an explicit `:uses` runtime dependency and a `:dev` testing harness mock).
 
@@ -448,7 +453,7 @@ Kino.VizJS.render(Dependency.to_dot(parallel_deps))
 
 ---
 
-## Example 8: Zooming and Architectural Views
+### Example 9: Zooming and Architectural Views
 
 When dealing with large systems, displaying every module and interface can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
 
@@ -476,29 +481,27 @@ system =
   |> Dependency.depends_on(:frontend, :router, type: :calls)
   |> Dependency.depends_on(:backend, :auth, type: :calls)
   |> Dependency.depends_on(:auth_test, :auth, type: :dev)
+```
 
-# Zoom out to Level 0 (System Context: Applications only)
+#### Zoom out to Level 0 (System Context: Applications only)
+
+```elixir
 system_view = View.zoom(system, level: 0)
 
 IO.puts("Zoom Level 0 (System Context)")
 Kino.VizJS.render(Dependency.to_dot(system_view), height: "200px")
-```
-
-```elixir
 Kino.Mermaid.new(Dependency.to_mermaid(system_view))
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
 
+#### Zoom in to Level 2 (Component Level: Apps, Libs, Modules)
+
 ```elixir
-# Zoom in to Level 2 (Component Level: Apps, Libs, Modules)
 component_view = View.zoom(system, level: 2)
 
 IO.puts("Zoom Level 2 (Component Level)")
 Kino.VizJS.render(Dependency.to_dot(component_view), height: "400px")
-```
-
-```elixir
 Kino.Mermaid.new(Dependency.to_mermaid(component_view))
 ```
 

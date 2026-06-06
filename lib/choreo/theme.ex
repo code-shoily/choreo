@@ -424,4 +424,21 @@ defmodule Choreo.Theme do
   def color(%Theme{colors: colors}, type) do
     Map.get(colors, type) || Map.get(@default_colors, type, "#9ca3af")
   end
+
+  @doc """
+  Extracts graph-level DOT attribute overrides from a theme,
+  dropping any nil values.
+  """
+  @spec graph_overrides(t()) :: map()
+  def graph_overrides(%Theme{} = theme) do
+    %{
+      rankdir: theme.graph_rankdir,
+      bgcolor: theme.graph_bgcolor,
+      splines: theme.graph_splines,
+      nodesep: theme.graph_nodesep,
+      ranksep: theme.graph_ranksep
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+  end
 end

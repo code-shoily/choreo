@@ -136,10 +136,10 @@ defmodule Choreo.RenderCoverageTest do
 
     native = MindMap.to_mermaid(mm, syntax: :mindmap)
     assert native =~ "mindmap"
-    assert native =~ "r((Root))"
-    assert native =~ "  t(Topic)"
-    assert native =~ "    s[Subtopic]"
-    assert native =~ "    n)Note("
+    assert native =~ "Root"
+    assert native =~ "  Topic"
+    assert native =~ "    Subtopic"
+    assert native =~ "    Note"
   end
 
   test "fsm renderer comprehensive" do

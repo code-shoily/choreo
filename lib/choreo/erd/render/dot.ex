@@ -48,15 +48,9 @@ defmodule Choreo.ERD.Render.DOT do
     # Render multigraph
     dot = Yog.Multi.DOT.to_dot(erd.graph, base_opts)
 
-    # Post-process generated DOT to unwrap HTML-like labels from quotes
-    String.replace(dot, ~r/label="<TABLE.*?<\/TABLE>"/is, fn match ->
-      html =
-        match
-        |> String.slice(7..-2//1)
-        |> String.replace(~r/\\"/, "\"")
-
-      "label=<#{html}>"
-    end)
+    # Post-process generated DOT to convert HTML-like labels to Graphviz-compatible
+    # double-angle-bracket syntax (required by Viz.js and older Graphviz versions).
+    String.replace(dot, ~r/label=<(TABLE.*?)<\/TABLE>/s, "label=<<\\1</TABLE>>")
   end
 
   @doc false
@@ -182,17 +176,7 @@ defmodule Choreo.ERD.Render.DOT do
     }
   end
 
-  defp theme_graph_overrides(%Theme{} = theme) do
-    %{
-      rankdir: theme.graph_rankdir,
-      bgcolor: theme.graph_bgcolor,
-      splines: theme.graph_splines,
-      nodesep: theme.graph_nodesep,
-      ranksep: theme.graph_ranksep
-    }
-    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-    |> Map.new()
-  end
+  defp theme_graph_overrides(%Theme{} = theme), do: Choreo.Theme.graph_overrides(theme)
 
   # ============================================================================
   # Node label & attributes

@@ -582,7 +582,7 @@ defmodule Choreo.MindMap do
       iex> native = Choreo.MindMap.to_mermaid(map, syntax: :mindmap)
       iex> String.contains?(native, "mindmap")
       true
-      iex> String.contains?(native, "ideas((Ideas))")
+      iex> String.contains?(native, "Ideas")
       true
   """
   @spec to_mermaid(t(), keyword()) :: String.t()

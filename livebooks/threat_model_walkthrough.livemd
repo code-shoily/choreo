@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.7.1"},
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -410,9 +411,9 @@ Kino.VizJS.render(ThreatModel.to_dot(microservices))
 ```
 
 ### Export to PlantUML / Mermaid
- 
+
 To generate Sequence Diagrams in PlantUML or Mermaid.js format, use the dedicated sequence renderers:
- 
+
 ```elixir
 # PlantUML
 plantuml = Choreo.ThreatModel.Render.PlantUML.to_sequence(microservices)
@@ -422,9 +423,9 @@ IO.puts(plantuml)
 mermaid_seq = Choreo.ThreatModel.Render.Mermaid.to_sequence(microservices)
 IO.puts(mermaid_seq)
 ```
- 
+
 You can copy these payloads directly into [PlantText](https://www.planttext.com/), Mermaid Live Editor, or your Confluence macro blocks securely.
- 
+
 ---
 
 ## Example 4: Multigraph (Parallel Data Flows)

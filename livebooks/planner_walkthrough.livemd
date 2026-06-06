@@ -1,0 +1,405 @@
+# Choreo Planner: Comprehensive Walkthrough
+
+```elixir
+Mix.install([
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:kino_vizjs, "~> 0.8.0"}
+])
+```
+
+## Section
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally. Since version 0.8.0, Choreo also supports **Mermaid.js** output for GitHub, GitLab, Notion, and any Markdown-based documentation.
+
+---
+
+## What is Choreo.Planner?
+
+`Choreo.Planner` models **projects, tasks, milestones, users, and labels** as a typed multigraph. Unlike a static task list, Choreo Planner is a **computable project model** — you can analyse it for readiness, blocked work, critical paths, and bottlenecks, then render the same data as a Kanban board, Gantt chart, or dependency flowchart.
+
+Common use cases:
+
+* Sprint planning and backlog grooming
+* Release milestone tracking
+* Cross-team dependency mapping
+* Resource allocation and bottleneck analysis
+
+### Node Types
+
+| Type         | Shape            | Purpose                                      |
+| ------------ | ---------------- | -------------------------------------------- |
+| `:task`      | ▭ rounded rect | Unit of work with status, priority, estimate |
+| `:milestone` | ◇ diamond      | Temporal checkpoint or release target        |
+| `:user`      | ● circle       | Team member who can be assigned tasks        |
+| `:label`     | 🏟 stadium     | Categorical tag (e.g. "frontend", "bug")     |
+
+### Edge Types
+
+| Type           | Builder        | Direction           | Meaning                        |
+| -------------- | -------------- | ------------------- | ------------------------------ |
+| `:contains`    | `contains/3`   | milestone → task  | Task belongs to milestone      |
+| `:depends_on`  | `depends_on/3` | dependency → task | Must finish before task starts |
+| `:blocks`      | `blocks/3`     | blocker → blocked | Semantic blocker               |
+| `:assigned_to` | `assign/3`     | task → user       | Ownership                      |
+| `:tagged_with` | `tag/3`        | task → label      | Categorisation                 |
+| `:relates_to`  | `relates/3`    | bidirectional       | Loose association              |
+
+```elixir
+alias Choreo.Planner
+alias Choreo.Planner.Analysis
+
+legend =
+  Planner.new("Legend")
+  |> Planner.add_milestone(:m1, title: "Milestone")
+  |> Planner.add_task(:t1, title: "Task", status: :in_progress)
+  |> Planner.add_user(:u1, name: "User")
+  |> Planner.add_label(:l1, title: "Label")
+  |> Planner.contains(:m1, :t1)
+  |> Planner.assign(:t1, :u1)
+  |> Planner.tag(:t1, :l1)
+
+Kino.VizJS.render(Planner.to_dot(legend))
+```
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(legend, syntax: :flowchart))
+```
+
+---
+
+## Example 1: Simple Sprint
+
+Let's model a small two-week sprint with a milestone, a few tasks, and one dependency.
+
+```elixir
+sprint =
+  Planner.new("Sprint 42")
+  |> Planner.add_milestone(:sprint_42, title: "Sprint 42")
+  |> Planner.add_task(:design, title: "Design API", status: :done, estimate_hours: 16)
+  |> Planner.add_task(:impl, title: "Implement API", status: :in_progress, estimate_hours: 24)
+  |> Planner.add_task(:test, title: "Write Tests", status: :backlog, estimate_hours: 8)
+  |> Planner.add_task(:docs, title: "Update Docs", status: :backlog, estimate_hours: 4)
+  |> Planner.add_user(:alice, name: "Alice")
+  |> Planner.add_user(:bob, name: "Bob")
+  |> Planner.contains(:sprint_42, :design)
+  |> Planner.contains(:sprint_42, :impl)
+  |> Planner.contains(:sprint_42, :test)
+  |> Planner.contains(:sprint_42, :docs)
+  |> Planner.depends_on(:impl, :design)
+  |> Planner.depends_on(:test, :impl)
+  |> Planner.assign(:design, :alice)
+  |> Planner.assign(:impl, :alice)
+  |> Planner.assign(:test, :bob)
+```
+
+### Query the Project
+
+```elixir
+IO.puts("Tasks: #{Enum.map_join(Planner.tasks(sprint), ", ", fn {id, _} -> to_string(id) end)}")
+IO.puts("Users: #{Enum.map_join(Planner.users(sprint), ", ", fn {_, d} -> d.name end)}")
+IO.puts("Alice's tasks: #{Enum.join(Planner.assigned_tasks(sprint, :alice), ", ")}")
+IO.puts("Impl depends on: #{Enum.join(Planner.dependencies(sprint, :impl), ", ")}")
+```
+
+### Kanban Board
+
+Render the sprint as a Kanban diagram. Tasks are grouped by status into columns.
+
+> **Note:** Livebook's bundled Mermaid renderer may not support the native `kanban` syntax (requires Mermaid ≥11.4). Use `:kanban_compat` for a flowchart-based Kanban that works everywhere, or `:kanban` for native syntax in newer environments like GitHub.
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :kanban_compat))
+```
+
+### Gantt Chart
+
+Render the same sprint as a Gantt chart. Tasks are auto-scheduled based on dependencies and estimate hours (8 hours = 1 day). Done tasks show green, in-progress tasks show blue.
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-06-02]))
+```
+
+### Dependency Flowchart
+
+See the task network as a flowchart with color-coded status.
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :flowchart))
+```
+
+```elixir
+Kino.VizJS.render(Planner.to_dot(sprint))
+```
+
+---
+
+## Example 2: Cross-Team Release
+
+A larger project with multiple milestones, cross-team dependencies, and labels for categorisation.
+
+```elixir
+release =
+  Planner.new("Q3 Release")
+  |> Planner.add_milestone(:backend, title: "Backend Work")
+  |> Planner.add_milestone(:frontend, title: "Frontend Work")
+  |> Planner.add_milestone(:launch, title: "Launch Day")
+  |> Planner.add_task(:auth_api, title: "Auth API", status: :done, estimate_hours: 16, priority: :high)
+  |> Planner.add_task(:user_api, title: "User API", status: :in_progress, estimate_hours: 24, priority: :high)
+  |> Planner.add_task(:payment_api, title: "Payment API", status: :backlog, estimate_hours: 32, priority: :critical)
+  |> Planner.add_task(:login_ui, title: "Login UI", status: :backlog, estimate_hours: 12)
+  |> Planner.add_task(:dashboard_ui, title: "Dashboard UI", status: :backlog, estimate_hours: 20)
+  |> Planner.add_task(:marketing_site, title: "Marketing Site", status: :backlog, estimate_hours: 16)
+  |> Planner.add_task(:load_test, title: "Load Testing", status: :backlog, estimate_hours: 8)
+  |> Planner.add_task(:deploy, title: "Deploy to Prod", status: :backlog, estimate_hours: 4)
+  |> Planner.add_user(:alice, name: "Alice")
+  |> Planner.add_user(:bob, name: "Bob")
+  |> Planner.add_user(:carol, name: "Carol")
+  |> Planner.add_label(:backend_label, title: "backend")
+  |> Planner.add_label(:frontend_label, title: "frontend")
+  |> Planner.contains(:backend, :auth_api)
+  |> Planner.contains(:backend, :user_api)
+  |> Planner.contains(:backend, :payment_api)
+  |> Planner.contains(:frontend, :login_ui)
+  |> Planner.contains(:frontend, :dashboard_ui)
+  |> Planner.contains(:launch, :marketing_site)
+  |> Planner.contains(:launch, :load_test)
+  |> Planner.contains(:launch, :deploy)
+  |> Planner.depends_on(:user_api, :auth_api)
+  |> Planner.depends_on(:payment_api, :user_api)
+  |> Planner.depends_on(:login_ui, :auth_api)
+  |> Planner.depends_on(:dashboard_ui, :user_api)
+  |> Planner.depends_on(:load_test, :payment_api)
+  |> Planner.depends_on(:deploy, :load_test)
+  |> Planner.depends_on(:deploy, :marketing_site)
+  |> Planner.assign(:auth_api, :alice)
+  |> Planner.assign(:user_api, :alice)
+  |> Planner.assign(:payment_api, :bob)
+  |> Planner.assign(:login_ui, :carol)
+  |> Planner.assign(:dashboard_ui, :carol)
+  |> Planner.assign(:marketing_site, :bob)
+  |> Planner.assign(:load_test, :alice)
+  |> Planner.assign(:deploy, :alice)
+  |> Planner.tag(:auth_api, :backend_label)
+  |> Planner.tag(:user_api, :backend_label)
+  |> Planner.tag(:payment_api, :backend_label)
+  |> Planner.tag(:login_ui, :frontend_label)
+  |> Planner.tag(:dashboard_ui, :frontend_label)
+```
+
+### Full Dependency Graph
+
+```elixir
+Kino.VizJS.render(Planner.to_dot(release), height: "700px")
+```
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :flowchart, direction: :lr))
+```
+
+### Per-Milestone Kanban
+
+View only the launch milestone tasks:
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: :launch))
+```
+
+### Per-Assignee Kanban
+
+See what Carol is working on:
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :carol))
+```
+
+### Gantt by Assignee
+
+Group the Gantt chart sections by team member instead of milestone:
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02]))
+```
+
+---
+
+## Analysis
+
+### Ready Work
+
+What can be started right now? Tasks whose dependencies are all `:done`.
+
+```elixir
+Analysis.ready(release)
+|> Enum.each(fn {id, data} ->
+  IO.puts("  • #{data.title} (#{id})")
+end)
+```
+
+### Blocked Work
+
+Tasks with unresolved dependencies or blockers.
+
+```elixir
+Analysis.blocked(release)
+|> Enum.each(fn {id, data} ->
+  deps = Planner.dependencies(release, id) |> Enum.join(", ")
+  IO.puts("  • #{data.title} — waiting on: #{deps}")
+end)
+```
+
+### Orphans
+
+Tasks not in any milestone.
+
+```elixir
+Analysis.orphans(release)
+```
+
+### Critical Path
+
+The longest dependency chain by estimated hours. This is the theoretical minimum time to complete the project if every task starts immediately after its prerequisites finish.
+
+```elixir
+{:ok, path, total_estimate: hours} = Analysis.critical_path(release)
+
+IO.puts("Critical path: #{Enum.join(path, " → ")}")
+IO.puts("Total estimate: #{hours} hours (~#{Float.ceil(hours / 8)} days)")
+```
+
+Scoped to a single milestone:
+
+```elixir
+{:ok, path, total_estimate: hours} = Analysis.critical_path(release, milestone: :backend)
+
+IO.puts("Backend critical path: #{Enum.join(path, " → ")}")
+IO.puts("Backend estimate: #{hours} hours")
+```
+
+### Bottlenecks
+
+Tasks ranked by how much downstream work depends on them. High count = delay this task and you delay everything after it.
+
+```elixir
+Analysis.bottlenecks(release)
+|> Enum.each(fn {id, count} ->
+  title = release.graph.nodes[id][:title] || id
+  IO.puts("  • #{title}: #{count} downstream tasks")
+end)
+```
+
+### Validation
+
+Check for structural problems: dependency cycles, unassigned in-progress work, etc.
+
+```elixir
+Analysis.validate(release)
+```
+
+Let's introduce a cycle to see validation in action:
+
+```elixir
+cyclic =
+  release
+  |> Planner.depends_on(:auth_api, :deploy)
+
+Analysis.validate(cyclic)
+```
+
+---
+
+## Example 3: Incident Response Plan
+
+A different flavour of planner — tracking an active incident with blockers and semantic relationships.
+
+```elixir
+incident =
+  Planner.new("INC-2026-0042")
+  |> Planner.add_task(:detect, title: "Detect Issue", status: :done, estimate_hours: 1)
+  |> Planner.add_task(:triage, title: "Triage Severity", status: :done, estimate_hours: 1)
+  |> Planner.add_task(:isolate, title: "Isolate Affected Service", status: :in_progress, estimate_hours: 2)
+  |> Planner.add_task(:fix, title: "Deploy Fix", status: :backlog, estimate_hours: 4)
+  |> Planner.add_task(:verify, title: "Verify in Prod", status: :backlog, estimate_hours: 1)
+  |> Planner.add_task(:postmortem, title: "Write Postmortem", status: :backlog, estimate_hours: 4)
+  |> Planner.add_task(:notify_customers, title: "Notify Customers", status: :backlog, estimate_hours: 1)
+  |> Planner.add_user(:oncall, name: "On-Call Engineer")
+  |> Planner.depends_on(:triage, :detect)
+  |> Planner.depends_on(:isolate, :triage)
+  |> Planner.depends_on(:fix, :isolate)
+  |> Planner.depends_on(:verify, :fix)
+  |> Planner.depends_on(:postmortem, :verify)
+  |> Planner.depends_on(:notify_customers, :verify)
+  |> Planner.blocks(:isolate, :fix)
+  |> Planner.assign(:detect, :oncall)
+  |> Planner.assign(:triage, :oncall)
+  |> Planner.assign(:isolate, :oncall)
+```
+
+### Incident Kanban
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(incident, syntax: :kanban_compat))
+```
+
+### Incident Gantt
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(incident, syntax: :gantt, start_date: Date.utc_today()))
+```
+
+### What's Blocking the Fix?
+
+```elixir
+Analysis.blocked(incident)
+|> Enum.each(fn {id, data} ->
+  blockers = Planner.dependencies(incident, id)
+  blocker_names = Enum.map_join(blockers, ", ", fn b -> incident.graph.nodes[b][:title] || b end)
+  IO.puts("#{data.title} is blocked by: #{blocker_names}")
+end)
+```
+
+---
+
+## Themes
+
+All built-in themes work across every render target.
+
+```elixir
+for theme <- [:default, :dark, :warm, :forest, :ocean] do
+  dot = Planner.to_dot(sprint, theme: theme)
+  IO.puts("Theme: #{theme}")
+  # In a real notebook you'd render each one
+end
+
+:ok
+```
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :flowchart, theme: :dark))
+```
+
+---
+
+## Exporting
+
+Planner structs are plain data. Serialize them however you want:
+
+```elixir
+# As an Erlang term (fastest, zero deps)
+:erlang.term_to_binary(sprint)
+```
+
+Render to Mermaid and paste into GitHub issues, pull request descriptions, Notion pages, or Obsidian notes:
+
+```elixir
+IO.puts(Planner.to_mermaid(sprint, syntax: :kanban))
+```
+
+---
+
+## Further Reading
+
+* [Mermaid Kanban Syntax](https://mermaid.js.org/syntax/kanban.html)
+* [Mermaid Gantt Syntax](https://mermaid.js.org/syntax/gantt.html)
+* [Critical Path Method (Wikipedia)](https://en.wikipedia.org/wiki/Critical_path_method)
+* [Elixir `Date` module](https://hexdocs.pm/elixir/Date.html) — for `start_date` and `due_date` values
