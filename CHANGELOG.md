@@ -26,6 +26,31 @@
   - Implemented a static analysis suite (`Choreo.UML.Analysis`) including circular dependency detection, behavior contract validation, and Robert C. Martin's coupling & stability metrics.
   - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/uml_walkthrough.livemd`).
 
+- **Choreo.Planner — Project Planning Diagrams**:
+  - Implemented `Choreo.Planner` builder for project planning with tasks, milestones, users, and labels.
+  - Implemented relationship builders: `contains/3` (milestone hierarchy), `depends_on/3` (finish-to-start), `blocks/3` (semantic blocker), `assign/3` (ownership), `tag/3` (categorization), and `relates/3` (association).
+  - Implemented native Mermaid rendering (`Choreo.Planner.Render.Mermaid`) supporting `:kanban`, `:kanban_compat`, `:gantt`, and `:flowchart` syntaxes with status columns, color coding, and dependency scheduling.
+  - Implemented themed DOT flowchart rendering (`Choreo.Planner.Render.DOT`) via `Yog.Multi.DOT`.
+  - Implemented a planning analysis suite (`Choreo.Planner.Analysis`) including `ready/1`, `blocked/1`, `critical_path/2`, `bottlenecks/1`, and `validate/1`.
+  - Added a full interactive Livebook walkthrough guide (`livebooks/planner_walkthrough.livemd`).
+
+- **Choreo.C4 — C4 Model Architecture Diagrams**:
+  - Implemented `Choreo.C4` schema builder for L1–L3 C4 modeling with `add_person/3`, `add_software_system/3`, `add_container/3`, and `add_component/3`.
+  - Implemented parent/child clustering with automatic container assignment from `:parent` references.
+  - Implemented zoom-aware rendering via `Choreo.Viewable` protocol, enabling level-based filtering (System Context, Containers, Components).
+  - Implemented themed DOT rendering (`Choreo.C4.Render.DOT`) with C4-specific visual conventions: persons as ellipses, systems as boxes, containers as rounded boxes, and components as dashed boxes.
+  - Implemented native Mermaid rendering (`Choreo.C4.Render.Mermaid`) with matching shapes and built-in theme support.
+  - Implemented a structural analysis suite (`Choreo.C4.Analysis`) including missing parent detection, missing description/technology detection, isolated node detection, missing relationship labels, and general `validate/1`.
+  - Added a full interactive Livebook walkthrough guide (`livebooks/c4_walkthrough.livemd`).
+
+- **Choreo.Sequence — Sequence Diagrams**:
+  - Implemented `Choreo.Sequence` builder for ordered participant interactions with `add_actor/3`, `add_participant/3`, `message/4`, `async/4`, `return/4`, and `self_message/3`.
+  - Implemented activation boxes via `activate/2` and `deactivate/2`, plus notes (`note/3`) and fragments (`loop`, `opt`, `alt`/`else`, `par`, `break`, `critical`).
+  - Implemented native Mermaid `sequenceDiagram` rendering (`Choreo.Sequence.Render.Mermaid`) with actors, participants, activation boxes, notes, and fragments.
+  - Implemented a best-effort DOT timeline fallback (`Choreo.Sequence.Render.DOT`) for static image and PDF pipelines.
+  - Implemented a quality analysis suite (`Choreo.Sequence.Analysis`) including missing labels, unknown participants, isolated participants, unbalanced activations, unclosed fragments, and general `validate/1`.
+  - Added a full interactive Livebook walkthrough guide (`livebooks/sequence_walkthrough.livemd`).
+
 - **Native Mermaid Visualizers & Syntaxes**:
   - **`Choreo.FSM`**: Added native `:state_diagram` (`stateDiagram-v2`) syntax support mapping initial/final states to entry/acceptance targets (`[*] --> state` and `state --> [*]`) and mapping custom labels.
   - **`Choreo.Dependency`**: Added native `:class_diagram` (`classDiagram`) syntax support mapping application/module/library types to standard UML stereotypes (e.g. `<<module>>`) and mapping relationships to standard UML connectors (`..>`, `--|>`, `-->`).
