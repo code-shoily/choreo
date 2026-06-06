@@ -310,4 +310,23 @@ defmodule Choreo.Internal do
     name = to_string(name)
     String.replace_prefix(name, "cluster_", "")
   end
+
+  @doc """
+  Rebuilds a multigraph to use mapped, safe node IDs.
+  """
+  @spec make_multi_graph_safe(Yog.Multi.Graph.t(), %{Yog.node_id() => String.t()}) ::
+          Yog.Multi.Graph.t()
+  def make_multi_graph_safe(graph, id_map) do
+    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
+
+    new_edges =
+      Map.new(graph.edges, fn {edge_id, {from, to, weight}} ->
+        {edge_id, {Map.fetch!(id_map, from), Map.fetch!(id_map, to), weight}}
+      end)
+
+    new_out = Map.new(graph.out_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
+    new_in = Map.new(graph.in_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
+
+    %{graph | nodes: new_nodes, edges: new_edges, out_edge_ids: new_out, in_edge_ids: new_in}
+  end
 end

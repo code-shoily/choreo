@@ -561,6 +561,20 @@ defmodule Choreo.Workflow do
     edge_type = Keyword.get(opts, :edge_type, :sequence)
     condition = opts[:condition]
 
+    workflow =
+      if Map.has_key?(workflow.graph.nodes, from) do
+        workflow
+      else
+        add_task(workflow, from, label: to_string(from))
+      end
+
+    workflow =
+      if Map.has_key?(workflow.graph.nodes, to) do
+        workflow
+      else
+        add_task(workflow, to, label: to_string(to))
+      end
+
     weight =
       opts[:weight] || default_weight(workflow.graph, to, edge_type)
 

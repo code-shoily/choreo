@@ -55,10 +55,28 @@ defmodule Choreo.Workflow.Render.DOT do
   @spec to_dot(Choreo.Workflow.t(), keyword()) :: String.t()
   def to_dot(%Choreo.Workflow{} = workflow, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
-    subgraphs = Choreo.Internal.build_cluster_subgraphs(workflow, theme)
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = Choreo.Workflow.nodes(workflow)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = Choreo.Internal.make_multi_graph_safe(workflow.graph, id_map)
+    safe_workflow = %{workflow | graph: safe_graph}
+
+    subgraphs = Choreo.Internal.build_cluster_subgraphs(safe_workflow, theme)
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     base_opts =
       Yog.Render.DOT.default_options()
@@ -80,13 +98,13 @@ defmodule Choreo.Workflow.Render.DOT do
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, weight -> edge_label(weight) end)
       |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(workflow, hl_edges))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_workflow, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
     base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
 
-    Yog.Multi.DOT.to_dot(workflow.graph, base_opts)
+    Yog.Multi.DOT.to_dot(safe_graph, base_opts)
   end
 
   # ============================================================================
@@ -439,4 +457,19 @@ defmodule Choreo.Workflow.Render.DOT do
   end
 
   defp edge_label(_), do: ""
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
 end

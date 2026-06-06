@@ -44,7 +44,7 @@ defmodule Choreo.FSM.Render.DOT do
 
     states_list = FSM.states(fsm)
     id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
-    safe_graph = make_graph_safe(fsm.graph, id_map)
+    safe_graph = Choreo.Internal.make_multi_graph_safe(fsm.graph, id_map)
 
     hl_nodes =
       Keyword.get(opts, :highlighted_nodes, [])
@@ -371,19 +371,5 @@ defmodule Choreo.FSM.Render.DOT do
     else
       "\"" <> String.replace(str, "\"", "\\\"") <> "\""
     end
-  end
-
-  defp make_graph_safe(graph, id_map) do
-    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
-
-    new_edges =
-      Map.new(graph.edges, fn {edge_id, {from, to, weight}} ->
-        {edge_id, {Map.fetch!(id_map, from), Map.fetch!(id_map, to), weight}}
-      end)
-
-    new_out = Map.new(graph.out_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
-    new_in = Map.new(graph.in_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
-
-    %{graph | nodes: new_nodes, edges: new_edges, out_edge_ids: new_out, in_edge_ids: new_in}
   end
 end

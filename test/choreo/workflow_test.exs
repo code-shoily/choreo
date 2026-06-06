@@ -490,4 +490,42 @@ defmodule Choreo.WorkflowTest do
       assert String.contains?(dot, "#cbd5e1")
     end
   end
+
+  describe "hardened edge cases" do
+    test "connect/4 implicitly defines missing from/to stages as task nodes" do
+      workflow =
+        Workflow.new()
+        |> Workflow.connect(:a, :b)
+
+      assert Enum.sort(Workflow.nodes(workflow)) == [:a, :b]
+      assert Map.get(workflow.graph.nodes, :a).node_type == :task
+      assert Map.get(workflow.graph.nodes, :b).node_type == :task
+      assert Map.get(workflow.graph.nodes, :a).label == "a"
+      assert Map.get(workflow.graph.nodes, :b).label == "b"
+    end
+
+    test "to_dot/2 handles node names with spaces and special characters" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start("my start")
+        |> Workflow.add_end("another-end!")
+        |> Workflow.connect("my start", "another-end!")
+
+      dot = Workflow.to_dot(workflow)
+      assert String.contains?(dot, "\"my start\"")
+      assert String.contains?(dot, "\"another-end!\"")
+    end
+
+    test "to_mermaid/2 handles node names with spaces and special characters" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start("my start")
+        |> Workflow.add_end("another-end!")
+        |> Workflow.connect("my start", "another-end!")
+
+      mermaid = Workflow.to_mermaid(workflow)
+      assert String.contains?(mermaid, "my start")
+      assert String.contains?(mermaid, "another-end!")
+    end
+  end
 end
