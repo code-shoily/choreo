@@ -288,7 +288,7 @@ defmodule Choreo.C4.Render.Mermaid do
     tech = data[:technology]
 
     if tech && tech != "" do
-      "#{label}\\n[#{tech}]"
+      "#{label}\n[#{tech}]"
     else
       label
     end
