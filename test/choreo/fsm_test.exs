@@ -428,4 +428,46 @@ defmodule Choreo.FSMTest do
       end
     end
   end
+
+  describe "hardened edge cases" do
+    test "add_transition/4 implicitly defines missing from/to states" do
+      fsm =
+        FSM.new()
+        |> FSM.add_transition(:a, :b, label: "go")
+
+      assert Enum.sort(FSM.states(fsm)) == [:a, :b]
+      assert fsm.graph.nodes[:a].type == :state
+      assert fsm.graph.nodes[:b].type == :state
+    end
+
+    test "to_dot/1 handles state names with spaces and special characters" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state("my state")
+        |> FSM.add_final_state("another-state!")
+        |> FSM.add_transition("my state", "another-state!", label: "go")
+
+      dot = FSM.to_dot(fsm)
+      assert String.contains?(dot, "\"my state\"")
+      assert String.contains?(dot, "\"another-state!\"")
+      assert String.contains?(dot, "\"__start_my state\"")
+      assert String.contains?(dot, "\"__start_my state\" -> \"my state\"")
+    end
+
+    test "to_mermaid/1 with syntax: :state_diagram handles state names with spaces and special characters" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state("my state")
+        |> FSM.add_final_state("another-state!")
+        |> FSM.add_transition("my state", "another-state!", label: "go")
+
+      mermaid = FSM.to_mermaid(fsm, syntax: :state_diagram)
+      assert String.contains?(mermaid, "stateDiagram-v2")
+      assert String.contains?(mermaid, "state \"my state\" as my_state")
+      assert String.contains?(mermaid, "state \"another-state!\" as another_state_")
+      assert String.contains?(mermaid, "[*] --> my_state")
+      assert String.contains?(mermaid, "my_state --> another_state_ : go")
+      assert String.contains?(mermaid, "another_state_ --> [*]")
+    end
+  end
 end

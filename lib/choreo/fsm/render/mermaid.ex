@@ -87,9 +87,10 @@ defmodule Choreo.FSM.Render.Mermaid do
       |> Enum.sort_by(fn {id, _data} -> id end)
       |> Enum.map(fn {id, data} ->
         label = data[:label] || to_string(id)
+        m_id = mermaid_id(id)
 
-        if label != to_string(id) do
-          "  state \"#{label}\" as #{id}"
+        if label != m_id or to_string(id) != m_id do
+          "  state \"#{label}\" as #{m_id}"
         else
           nil
         end
@@ -103,7 +104,7 @@ defmodule Choreo.FSM.Render.Mermaid do
       FSM.initial_states(fsm)
       |> Enum.sort()
       |> Enum.map_join("\n", fn id ->
-        "  [*] --> #{id}"
+        "  [*] --> #{mermaid_id(id)}"
       end)
 
     initial_part = if initial_transitions == "", do: "", else: initial_transitions <> "\n"
@@ -116,10 +117,13 @@ defmodule Choreo.FSM.Render.Mermaid do
         {from, to, weight} = Map.get(fsm.graph.edges, edge_id)
         label = weight || ""
 
+        m_from = mermaid_id(from)
+        m_to = mermaid_id(to)
+
         if label != "" do
-          "  #{from} --> #{to} : #{label}"
+          "  #{m_from} --> #{m_to} : #{label}"
         else
-          "  #{from} --> #{to}"
+          "  #{m_from} --> #{m_to}"
         end
       end)
 
@@ -129,13 +133,34 @@ defmodule Choreo.FSM.Render.Mermaid do
       FSM.final_states(fsm)
       |> Enum.sort()
       |> Enum.map_join("\n", fn id ->
-        "  #{id} --> [*]"
+        "  #{mermaid_id(id)} --> [*]"
       end)
 
     final_part = if final_transitions == "", do: "", else: final_transitions <> "\n"
 
     "stateDiagram-v2\n" <>
       state_defs_part <> platform_part(initial_part, transitions_part, final_part)
+  end
+
+  defp mermaid_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      sanitized = String.replace(str, ~r/[^a-zA-Z0-9_]/, "_")
+
+      if sanitized =~ ~r/^[0-9]/ do
+        "s_" <> sanitized
+      else
+        sanitized
+      end
+    end
   end
 
   defp platform_part(initial_part, transitions_part, final_part) do

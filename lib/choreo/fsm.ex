@@ -389,6 +389,20 @@ defmodule Choreo.FSM do
             "epsilon transitions (empty labels) are not supported in DFAs"
     end
 
+    fsm =
+      if Map.has_key?(fsm.graph.nodes, from) do
+        fsm
+      else
+        add_state(fsm, from, type: :normal)
+      end
+
+    fsm =
+      if Map.has_key?(fsm.graph.nodes, to) do
+        fsm
+      else
+        add_state(fsm, to, type: :normal)
+      end
+
     existing = Yog.Multi.successors(fsm.graph, from)
 
     existing_labels = Enum.map(existing, fn {_dest, _eid, lbl} -> lbl end)

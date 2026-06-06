@@ -178,6 +178,15 @@ defmodule Choreo.FSM.AnalysisTest do
 
       assert :error = Analysis.shortest_accepting_path(fsm)
     end
+
+    test "returns empty list when initial state is final" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:a)
+
+      assert {:ok, []} = Analysis.shortest_accepting_path(fsm)
+    end
   end
 
   describe "accepted_strings/2" do

@@ -42,8 +42,27 @@ defmodule Choreo.FSM.Render.DOT do
   def to_dot(%Choreo.FSM{} = fsm, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = FSM.states(fsm)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = make_graph_safe(fsm.graph, id_map)
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
+
+    initials_safe = FSM.initial_states(fsm) |> Enum.map(&dot_id/1) |> MapSet.new()
+    finals_safe = FSM.final_states(fsm) |> Enum.map(&dot_id/1) |> MapSet.new()
 
     base_opts =
       Yog.Multi.DOT.default_options()
@@ -64,12 +83,15 @@ defmodule Choreo.FSM.Render.DOT do
       |> Map.put(:arrowhead, :normal)
       |> Map.put(:node_label, fn _id, data -> data[:label] || "" end)
       |> Map.put(:edge_label, fn _edge_id, weight -> weight || "" end)
-      |> Map.put(:node_attributes, node_attributes_fn(theme, fsm, hl_nodes))
+      |> Map.put(
+        :node_attributes,
+        node_attributes_fn(theme, initials_safe, finals_safe, hl_nodes)
+      )
       |> Map.put(:edge_attributes, edge_attributes_fn(theme, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
-    dot = Yog.Multi.DOT.to_dot(fsm.graph, base_opts)
+    dot = Yog.Multi.DOT.to_dot(safe_graph, base_opts)
 
     # Inject invisible entry-point nodes for initial states
     initial_nodes = build_initial_nodes(fsm)
@@ -206,10 +228,10 @@ defmodule Choreo.FSM.Render.DOT do
   # Node styling
   # ============================================================================
 
-  defp node_attributes_fn(theme, fsm, hl_nodes) do
+  defp node_attributes_fn(theme, initials, finals, hl_nodes) do
     fn id, data ->
-      is_initial = id in FSM.initial_states(fsm)
-      is_final = id in FSM.final_states(fsm)
+      is_initial = id in initials
+      is_final = id in finals
 
       base =
         cond do
@@ -311,8 +333,21 @@ defmodule Choreo.FSM.Render.DOT do
     fsm
     |> FSM.initial_states()
     |> Enum.map_join("\n", fn id ->
-      start_id = "__start_#{safe_id(id)}"
-      target = safe_id(id)
+      str =
+        cond do
+          is_atom(id) -> Atom.to_string(id)
+          is_binary(id) -> id
+          true -> inspect(id)
+        end
+
+      start_id =
+        if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+          "__start_#{str}"
+        else
+          "\"__start_#{String.replace(str, "\"", "\\\"")}\""
+        end
+
+      target = dot_id(id)
 
       "  #{start_id} [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];\n" <>
         "  #{start_id} -> #{target};"
@@ -323,7 +358,32 @@ defmodule Choreo.FSM.Render.DOT do
     String.replace(dot, ~r/\n\}\z/, "\n#{extra}\n}")
   end
 
-  defp safe_id(id) when is_atom(id), do: Atom.to_string(id)
-  defp safe_id(id) when is_binary(id), do: id
-  defp safe_id(id), do: inspect(id)
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
+
+  defp make_graph_safe(graph, id_map) do
+    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
+
+    new_edges =
+      Map.new(graph.edges, fn {edge_id, {from, to, weight}} ->
+        {edge_id, {Map.fetch!(id_map, from), Map.fetch!(id_map, to), weight}}
+      end)
+
+    new_out = Map.new(graph.out_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
+    new_in = Map.new(graph.in_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
+
+    %{graph | nodes: new_nodes, edges: new_edges, out_edge_ids: new_out, in_edge_ids: new_in}
+  end
 end
