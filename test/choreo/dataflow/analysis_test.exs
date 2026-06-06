@@ -26,6 +26,36 @@ defmodule Choreo.Dataflow.AnalysisTest do
     end
   end
 
+  describe "data lineage and downstream impact" do
+    test "upstream_lineage/2 and upstream_sources/2 trace source/stage provenance" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:s1)
+        |> Dataflow.add_source(:s2)
+        |> Dataflow.add_transform(:b)
+        |> Dataflow.add_sink(:c)
+        |> Dataflow.connect(:s1, :b)
+        |> Dataflow.connect(:b, :c)
+
+      assert Enum.sort(Analysis.upstream_lineage(flow, :c)) == [:b, :c, :s1]
+      assert Enum.sort(Analysis.upstream_sources(flow, :c)) == [:s1]
+    end
+
+    test "downstream_impact/2 and downstream_sinks/2 trace blast radius and destinations" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:a)
+        |> Dataflow.add_transform(:b)
+        |> Dataflow.add_sink(:k1)
+        |> Dataflow.add_sink(:k2)
+        |> Dataflow.connect(:a, :b)
+        |> Dataflow.connect(:b, :k1)
+
+      assert Enum.sort(Analysis.downstream_impact(flow, :a)) == [:a, :b, :k1]
+      assert Enum.sort(Analysis.downstream_sinks(flow, :a)) == [:k1]
+    end
+  end
+
   describe "cyclic?/1" do
     test "true when cycle exists" do
       flow =

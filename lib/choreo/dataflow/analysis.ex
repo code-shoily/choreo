@@ -11,6 +11,8 @@ defmodule Choreo.Dataflow.Analysis do
     * Where are the bottlenecks? (high fan-in / fan-out)
     * What is the critical path? (longest source→sink chain)
     * Where does back-pressure build up? (throughput simulation)
+    * What is the data lineage for a stage/sink? (upstream_lineage / upstream_sources)
+    * What is the downstream impact of a stage/source? (downstream_impact / downstream_sinks)
 
   ## Further reading
 
@@ -458,6 +460,94 @@ defmodule Choreo.Dataflow.Analysis do
       meta = Map.get(edge_meta, {from, to}, %{})
       meta[:path_type] == path_type
     end)
+  end
+
+  @doc """
+  Returns all ancestors (upstream stages) of the given target node.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      ...>   |> Choreo.Dataflow.add_sink(:c)
+      ...>   |> Choreo.Dataflow.connect(:a, :b)
+      ...>   |> Choreo.Dataflow.connect(:b, :c)
+      iex> Choreo.Dataflow.Analysis.upstream_lineage(flow, :c)
+      [:a, :b, :c]
+  """
+  @spec upstream_lineage(Dataflow.t(), Yog.node_id()) :: [Yog.node_id()]
+  def upstream_lineage(%Dataflow{} = flow, target) do
+    transposed = Yog.transpose(flow.graph)
+
+    Choreo.Internal.bfs_reachable(transposed, [target])
+    |> MapSet.to_list()
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns only the source nodes that transitively feed into the given target node.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      ...>   |> Choreo.Dataflow.add_source(:s1)
+      ...>   |> Choreo.Dataflow.add_source(:s2)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      ...>   |> Choreo.Dataflow.add_sink(:c)
+      ...>   |> Choreo.Dataflow.connect(:s1, :b)
+      ...>   |> Choreo.Dataflow.connect(:b, :c)
+      iex> Choreo.Dataflow.Analysis.upstream_sources(flow, :c)
+      [:s1]
+  """
+  @spec upstream_sources(Dataflow.t(), Yog.node_id()) :: [Yog.node_id()]
+  def upstream_sources(%Dataflow{} = flow, target) do
+    ancestors = MapSet.new(upstream_lineage(flow, target))
+    source_set = MapSet.new(sources(flow))
+    MapSet.intersection(ancestors, source_set) |> MapSet.to_list() |> Enum.sort()
+  end
+
+  @doc """
+  Returns all descendants (downstream stages) reachable from the given source node.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      ...>   |> Choreo.Dataflow.add_sink(:c)
+      ...>   |> Choreo.Dataflow.connect(:a, :b)
+      ...>   |> Choreo.Dataflow.connect(:b, :c)
+      iex> Choreo.Dataflow.Analysis.downstream_impact(flow, :a)
+      [:a, :b, :c]
+  """
+  @spec downstream_impact(Dataflow.t(), Yog.node_id()) :: [Yog.node_id()]
+  def downstream_impact(%Dataflow{} = flow, source) do
+    Choreo.Internal.bfs_reachable(flow.graph, [source])
+    |> MapSet.to_list()
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns only the sink nodes that are transitively fed by the given source node.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      ...>   |> Choreo.Dataflow.add_source(:a)
+      ...>   |> Choreo.Dataflow.add_transform(:b)
+      ...>   |> Choreo.Dataflow.add_sink(:k1)
+      ...>   |> Choreo.Dataflow.add_sink(:k2)
+      ...>   |> Choreo.Dataflow.connect(:a, :b)
+      ...>   |> Choreo.Dataflow.connect(:b, :k1)
+      iex> Choreo.Dataflow.Analysis.downstream_sinks(flow, :a)
+      [:k1]
+  """
+  @spec downstream_sinks(Dataflow.t(), Yog.node_id()) :: [Yog.node_id()]
+  def downstream_sinks(%Dataflow{} = flow, source) do
+    descendants = MapSet.new(downstream_impact(flow, source))
+    sink_set = MapSet.new(sinks(flow))
+    MapSet.intersection(descendants, sink_set) |> MapSet.to_list() |> Enum.sort()
   end
 
   @doc """
