@@ -175,6 +175,80 @@ defmodule Choreo.ThreatModel.Analysis do
   end
 
   @doc """
+  Calculates a total risk score and qualitative risk rating for the threat model.
+
+  Each threat's severity is mapped to a numeric score. The total score is the sum
+  of all individual threat scores.
+
+  ## Severity Weights (Default)
+
+    * `:low` — 1
+    * `:medium` — 3
+    * `:high` — 6
+    * `:critical` — 10
+
+  ## Qualitative Ratings (Default)
+
+    * `0` — `:none`
+    * `1..10` — `:low`
+    * `11..30` — `:medium`
+    * `31..70` — `:high`
+    * `>70` — `:critical`
+
+  ## Options
+
+    * `:weights` — keyword list of custom severity weights (e.g., `[low: 2, medium: 4, ...]`)
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      iex> %{score: score, rating: rating} = Choreo.ThreatModel.Analysis.risk_score(model)
+      iex> is_number(score)
+      true
+      iex> rating in [:none, :low, :medium, :high, :critical]
+      true
+
+  This analysis answers the question: "What is the overall security risk rating of the architecture?"
+  """
+  @spec risk_score(ThreatModel.t(), keyword()) :: %{score: number(), rating: atom()}
+  def risk_score(%ThreatModel{} = model, opts \\ []) do
+    weights = Keyword.get(opts, :weights, low: 1, medium: 3, high: 6, critical: 10)
+    low_w = Keyword.get(weights, :low, 1)
+    medium_w = Keyword.get(weights, :medium, 3)
+    high_w = Keyword.get(weights, :high, 6)
+    critical_w = Keyword.get(weights, :critical, 10)
+
+    threats = stride_threats(model)
+
+    score =
+      Enum.reduce(threats, 0, fn threat, acc ->
+        weight =
+          case threat.severity do
+            :low -> low_w
+            :medium -> medium_w
+            :high -> high_w
+            :critical -> critical_w
+            _ -> 0
+          end
+
+        acc + weight
+      end)
+
+    rating =
+      cond do
+        score == 0 -> :none
+        score <= 10 -> :low
+        score <= 30 -> :medium
+        score <= 70 -> :high
+        true -> :critical
+      end
+
+    %{score: score, rating: rating}
+  end
+
+  @doc """
   Returns all data flows that cross a trust boundary.
 
   Each result is `{from, to, from_boundary, to_boundary}`.

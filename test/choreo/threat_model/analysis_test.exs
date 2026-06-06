@@ -278,6 +278,24 @@ defmodule Choreo.ThreatModel.AnalysisTest do
     end
   end
 
+  describe "risk_score/2" do
+    test "calculates a numeric risk score and rating" do
+      model = simple_model()
+      %{score: score, rating: rating} = Analysis.risk_score(model)
+
+      assert is_number(score)
+      assert score > 0
+      assert rating in [:none, :low, :medium, :high, :critical]
+    end
+
+    test "respects custom weights" do
+      model = simple_model()
+      result = Analysis.risk_score(model, weights: [low: 0, medium: 0, high: 0, critical: 0])
+      assert result.score == 0
+      assert result.rating == :none
+    end
+  end
+
   describe "stride_threats/2 — custom rules" do
     defmodule CustomRule do
       @behaviour Analysis.Rule
