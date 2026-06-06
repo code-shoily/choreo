@@ -443,7 +443,7 @@ defmodule ChoreoTest do
       theme = Choreo.Theme.custom(shapes: %{database: :circle})
       mermaid = Choreo.to_mermaid(system, theme: theme)
 
-      assert String.contains?(mermaid, "db((\"db\"))")
+      assert String.contains?(mermaid, "((\"db\"))")
     end
 
     test "to_mermaid renders dataflow edges with dashed style" do
@@ -454,7 +454,9 @@ defmodule ChoreoTest do
         |> Choreo.add_dataflow(:a, :b)
 
       mermaid = Choreo.to_mermaid(system)
-      assert String.contains?(mermaid, "a --> b")
+      assert String.contains?(mermaid, "[[\"a\"]]")
+      assert String.contains?(mermaid, "[[\"b\"]]")
+      assert mermaid =~ ~r/n_\d+ --> n_\d+/
       assert String.contains?(mermaid, "stroke-dasharray")
     end
 
@@ -466,7 +468,7 @@ defmodule ChoreoTest do
         |> Choreo.connect(:a, :b, protocol: :https)
 
       mermaid = Choreo.to_mermaid(system)
-      assert String.contains?(mermaid, "a -->|https| b")
+      assert mermaid =~ ~r/n_\d+ -->\|https\| n_\d+/
     end
 
     test "to_mermaid renders explicit edge labels" do
@@ -477,7 +479,7 @@ defmodule ChoreoTest do
         |> Choreo.connect(:a, :b, label: "Custom")
 
       mermaid = Choreo.to_mermaid(system)
-      assert String.contains?(mermaid, "a -->|Custom| b")
+      assert mermaid =~ ~r/n_\d+ -->\|Custom\| n_\d+/
     end
 
     test "to_mermaid styles virtual edges lightly" do
@@ -527,7 +529,7 @@ defmodule ChoreoTest do
           edge_label: fn _edge_id, weight -> "cost=#{weight}" end
         )
 
-      assert String.contains?(mermaid, "a -->|cost=42| b")
+      assert mermaid =~ ~r/n_\d+ -->\|cost=42\| n_\d+/
     end
 
     test "exhaustive mermaid theme coverage" do

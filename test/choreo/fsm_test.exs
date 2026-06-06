@@ -268,8 +268,10 @@ defmodule Choreo.FSMTest do
     test "to_mermaid/1 injects entry point for initial states" do
       fsm = FSM.new() |> FSM.add_initial_state(:idle)
       mermaid = FSM.to_mermaid(fsm)
-      assert String.contains?(mermaid, "__start_idle")
-      assert String.contains?(mermaid, "__start_idle --> idle")
+      assert String.contains?(mermaid, "((\" \"))")
+      assert String.contains?(mermaid, "((\"idle\"))")
+      assert String.contains?(mermaid, "fill:black,stroke:black")
+      assert mermaid =~ ~r/n_\d+ --> n_\d+/
     end
 
     test "to_mermaid/1 does not inject entry point when no initial state" do

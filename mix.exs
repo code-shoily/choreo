@@ -51,7 +51,7 @@ defmodule Choreo.MixProject do
 
   defp deps do
     [
-      {:yog_ex, "~> 0.98"},
+      {:yog_ex, "~> 0.98.2"},
       {:nimble_options, "~> 1.1"},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

@@ -2,6 +2,12 @@
 
 ## [0.8.0] - UNRELEASED
 
+### Changed
+
+- Bumped `yog_ex` requirement to `~> 0.98.2`.
+  - **Mermaid rendering**: Node IDs are now sanitized to `n_0`, `n_1`, etc. by Yog for Mermaid compatibility. Labels and styles remain unchanged.
+  - **DOT rendering**: HTML-like labels are now emitted with proper single-angle bracket syntax (`label=<TABLE...>`) instead of the previous double-angle bracket form.
+
 ### Added
 
 - **Choreo.ERD — Database Entity-Relationship Modeling**:
