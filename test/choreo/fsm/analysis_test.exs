@@ -79,6 +79,39 @@ defmodule Choreo.FSM.AnalysisTest do
     end
   end
 
+  describe "livelock_states/1" do
+    test "finds reachable states trapped in non-accepting loops" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:start)
+        |> FSM.add_final_state(:ok)
+        |> FSM.add_state(:l1)
+        |> FSM.add_state(:l2)
+        |> FSM.add_transition(:start, :ok, label: "yes")
+        |> FSM.add_transition(:start, :l1, label: "fail")
+        |> FSM.add_transition(:l1, :l2, label: "loop")
+        |> FSM.add_transition(:l2, :l1, label: "back")
+        # a dead-end state with no cycles
+        |> FSM.add_state(:dead_end)
+        |> FSM.add_transition(:start, :dead_end, label: "trap")
+
+      assert Enum.sort(Analysis.livelock_states(fsm)) == [:l1, :l2]
+    end
+
+    test "does not find cycles that are not dead (can reach final)" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:start)
+        |> FSM.add_final_state(:ok)
+        |> FSM.add_state(:l1)
+        |> FSM.add_transition(:start, :l1, label: "go")
+        |> FSM.add_transition(:l1, :l1, label: "self")
+        |> FSM.add_transition(:l1, :ok, label: "exit")
+
+      assert Analysis.livelock_states(fsm) == []
+    end
+  end
+
   describe "deterministic?/1" do
     test "true when no duplicate labels from any state" do
       fsm =
@@ -372,6 +405,25 @@ defmodule Choreo.FSM.AnalysisTest do
 
       assert Enum.any?(issues, fn {_sev, msg} ->
                String.contains?(msg, "incomplete")
+             end)
+    end
+
+    test "warns on livelock states" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:start)
+        |> FSM.add_final_state(:ok)
+        |> FSM.add_state(:l1)
+        |> FSM.add_state(:l2)
+        |> FSM.add_transition(:start, :ok, label: "yes")
+        |> FSM.add_transition(:start, :l1, label: "fail")
+        |> FSM.add_transition(:l1, :l2, label: "loop")
+        |> FSM.add_transition(:l2, :l1, label: "back")
+
+      issues = Analysis.validate(fsm)
+
+      assert Enum.any?(issues, fn {_sev, msg} ->
+               String.contains?(msg, "Livelock")
              end)
     end
 

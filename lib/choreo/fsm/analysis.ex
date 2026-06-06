@@ -11,6 +11,7 @@ defmodule Choreo.FSM.Analysis do
   |----------|----------|
   | `reachable_states/1` | Which states can I reach from the start? |
   | `dead_states/1` | Which states are traps (can never accept)? |
+  | `livelock_states/1` | Which reachable states can get stuck in a loop forever? |
   | `deterministic?/1` | Is this a DFA? |
   | `nondeterministic_states/1` | Which states break determinism? |
   | `alphabet/1` | What are the distinct input symbols? |
@@ -89,6 +90,67 @@ defmodule Choreo.FSM.Analysis do
       predecessors = build_predecessors(fsm.graph)
       can_reach_final = bfs_reachable_reverse(predecessors, finals)
       MapSet.difference(all, can_reach_final) |> MapSet.to_list()
+    end
+  end
+
+  @doc """
+    Returns all reachable states that are part of a cycle of dead states (livelock).
+
+    A state is in a livelock when it is reachable from the start, has no path
+    to any final/accepting state, and is part of a cycle (can reach itself).
+
+    ## Examples
+
+        iex> fsm =
+        ...>   Choreo.FSM.new()
+        ...>   |> Choreo.FSM.add_initial_state(:start)
+        ...>   |> Choreo.FSM.add_final_state(:ok)
+        ...>   |> Choreo.FSM.add_state(:l1)
+        ...>   |> Choreo.FSM.add_state(:l2)
+        ...>   |> Choreo.FSM.add_transition(:start, :ok, label: "yes")
+        ...>   |> Choreo.FSM.add_transition(:start, :l1, label: "fail")
+        ...>   |> Choreo.FSM.add_transition(:l1, :l2, label: "loop")
+        ...>   |> Choreo.FSM.add_transition(:l2, :l1, label: "back")
+        ...>   |> Choreo.FSM.add_state(:dead_end)
+        ...>   |> Choreo.FSM.add_transition(:start, :dead_end, label: "trap")
+        iex> Enum.sort(Choreo.FSM.Analysis.livelock_states(fsm))
+        [:l1, :l2]
+
+    This analysis answers the question: "Which states can get trapped in infinite non-accepting loops?"
+  """
+  @spec livelock_states(FSM.t()) :: [Yog.node_id()]
+  def livelock_states(%FSM{} = fsm) do
+    reachable = MapSet.new(reachable_states(fsm))
+    dead = MapSet.new(dead_states(fsm))
+
+    reachable_dead = MapSet.intersection(reachable, dead)
+
+    reachable_dead
+    |> Enum.filter(fn state ->
+      successors = Yog.Multi.successors(fsm.graph, state) |> Enum.map(fn {to, _, _} -> to end)
+      bfs_reaches_self?(fsm.graph, successors, state, MapSet.new(successors))
+    end)
+    |> Enum.sort()
+  end
+
+  defp bfs_reaches_self?(_graph, [], _target, _visited), do: false
+
+  defp bfs_reaches_self?(graph, [h | t], target, visited) do
+    if h == target do
+      true
+    else
+      neighbors =
+        graph
+        |> Yog.Multi.successors(h)
+        |> Enum.map(fn {to, _, _} -> to end)
+        |> Enum.reject(&MapSet.member?(visited, &1))
+
+      bfs_reaches_self?(
+        graph,
+        t ++ neighbors,
+        target,
+        MapSet.union(visited, MapSet.new(neighbors))
+      )
     end
   end
 
@@ -408,6 +470,7 @@ defmodule Choreo.FSM.Analysis do
     |> check_no_final(fsm)
     |> check_unreachable(fsm)
     |> check_dead(fsm)
+    |> check_livelock(fsm)
     |> check_nondeterminism(fsm)
     |> check_completeness(fsm)
   end
@@ -448,6 +511,13 @@ defmodule Choreo.FSM.Analysis do
     case dead_states(fsm) do
       [] -> acc
       dead -> [{:warning, "Dead states: #{inspect(dead)}"} | acc]
+    end
+  end
+
+  defp check_livelock(acc, fsm) do
+    case livelock_states(fsm) do
+      [] -> acc
+      livelock -> [{:warning, "Livelock states: #{inspect(livelock)}"} | acc]
     end
   end
 
