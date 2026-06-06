@@ -270,6 +270,63 @@ defmodule Choreo.MindMap.Analysis do
     |> check_multiple_parents(map)
   end
 
+  @doc """
+  Suggests candidate node pairs for merging based on neighborhood Jaccard similarity.
+
+  Two nodes are similar if they share a high percentage of neighbors (parents,
+  children, and associates).
+
+  Returns a list of tuples `[{node_a, node_b, similarity}]` sorted by similarity descending.
+
+  ## Options
+
+    * `:threshold` — minimum Jaccard similarity index to suggest (default: `0.5`)
+
+  ## Examples
+
+      iex> map = Choreo.MindMap.new()
+      ...>   |> Choreo.MindMap.set_root(:root)
+      ...>   |> Choreo.MindMap.add_topic(:a)
+      ...>   |> Choreo.MindMap.add_topic(:b)
+      ...>   |> Choreo.MindMap.add_subtopic(:c)
+      ...>   |> Choreo.MindMap.branch(:root, :a)
+      ...>   |> Choreo.MindMap.branch(:root, :b)
+      ...>   |> Choreo.MindMap.branch(:a, :c)
+      ...>   |> Choreo.MindMap.branch(:b, :c)
+      iex> {:a, :b, 1.0} in Choreo.MindMap.Analysis.suggest_merges(map)
+      true
+  """
+  @spec suggest_merges(MindMap.t(), keyword()) :: [{Yog.node_id(), Yog.node_id(), float()}]
+  def suggest_merges(%MindMap{} = map, opts \\ []) do
+    threshold = Keyword.get(opts, :threshold, 0.5)
+    nodes = MindMap.nodes(map) |> Enum.sort()
+
+    # Calculate all neighbors for each node (both predecessors and successors)
+    neighbors_map =
+      Map.new(nodes, fn id ->
+        preds = Yog.predecessors(map.graph, id) |> Enum.map(fn {pred, _w} -> pred end)
+        succs = Yog.successor_ids(map.graph, id)
+        {id, MapSet.new(preds ++ succs)}
+      end)
+
+    # Calculate Jaccard similarity for all distinct pairs
+    pairs = for n1 <- nodes, n2 <- nodes, n1 < n2, do: {n1, n2}
+
+    pairs
+    |> Enum.map(fn {n1, n2} ->
+      set1 = Map.fetch!(neighbors_map, n1)
+      set2 = Map.fetch!(neighbors_map, n2)
+
+      intersection = MapSet.intersection(set1, set2) |> MapSet.size()
+      union = MapSet.union(set1, set2) |> MapSet.size()
+
+      similarity = if union == 0, do: 0.0, else: intersection / union
+      {n1, n2, similarity}
+    end)
+    |> Enum.filter(fn {_n1, _n2, similarity} -> similarity >= threshold end)
+    |> Enum.sort_by(fn {_, _, similarity} -> -similarity end)
+  end
+
   # ============================================================================
   # Private helpers — depth
   # ============================================================================

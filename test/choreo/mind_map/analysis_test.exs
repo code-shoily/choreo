@@ -179,6 +179,42 @@ defmodule Choreo.MindMap.AnalysisTest do
     end
   end
 
+  describe "suggest_merges/2" do
+    test "suggests candidate node pairs for merging based on Jaccard similarity" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:root)
+        |> MindMap.add_topic(:a)
+        |> MindMap.add_topic(:b)
+        |> MindMap.add_subtopic(:c)
+        |> MindMap.branch(:root, :a)
+        |> MindMap.branch(:root, :b)
+        |> MindMap.branch(:a, :c)
+        |> MindMap.branch(:b, :c)
+
+      results = Analysis.suggest_merges(map)
+      assert {:a, :b, 1.0} in results
+    end
+
+    test "respects threshold" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:root)
+        |> MindMap.add_topic(:a)
+        |> MindMap.add_topic(:b)
+        |> MindMap.add_subtopic(:c)
+        |> MindMap.branch(:root, :a)
+        |> MindMap.branch(:root, :b)
+        |> MindMap.branch(:a, :c)
+
+      # a and b now share root, but not c.
+      # Neighbors of a: root, c. Neighbors of b: root.
+      # Intersection: root (size 1). Union: root, c (size 2). Jaccard = 0.5.
+      assert {:a, :b, 0.5} in Analysis.suggest_merges(map, threshold: 0.5)
+      assert {:a, :b, 0.5} not in Analysis.suggest_merges(map, threshold: 0.6)
+    end
+  end
+
   describe "validate/1" do
     test "returns empty for valid map" do
       map =
