@@ -329,4 +329,31 @@ defmodule Choreo.Internal do
 
     %{graph | nodes: new_nodes, edges: new_edges, out_edge_ids: new_out, in_edge_ids: new_in}
   end
+
+  @doc """
+  Rebuilds a simple graph to use mapped, safe node IDs.
+  """
+  @spec make_simple_graph_safe(Yog.Graph.t(), %{Yog.node_id() => String.t()}) ::
+          Yog.Graph.t()
+  def make_simple_graph_safe(graph, id_map) do
+    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
+
+    new_out =
+      Map.new(graph.out_edges, fn {from, targets} ->
+        new_targets =
+          Map.new(targets, fn {to, weight} -> {Map.fetch!(id_map, to), weight} end)
+
+        {Map.fetch!(id_map, from), new_targets}
+      end)
+
+    new_in =
+      Map.new(graph.in_edges, fn {to, sources} ->
+        new_sources =
+          Map.new(sources, fn {from, weight} -> {Map.fetch!(id_map, from), weight} end)
+
+        {Map.fetch!(id_map, to), new_sources}
+      end)
+
+    %{graph | nodes: new_nodes, out_edges: new_out, in_edges: new_in}
+  end
 end

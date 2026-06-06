@@ -47,11 +47,33 @@ defmodule Choreo.Dependency.Render.DOT do
   @spec to_dot(Choreo.Dependency.t(), keyword()) :: String.t()
   def to_dot(%Choreo.Dependency{} = deps, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
-    subgraphs = Choreo.Internal.build_cluster_subgraphs(deps, theme)
-    cycle_edges = cycle_edge_set(deps)
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = Choreo.Dependency.nodes(deps)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = Choreo.Internal.make_multi_graph_safe(deps.graph, id_map)
+    safe_deps = %{deps | graph: safe_graph}
+
+    subgraphs = Choreo.Internal.build_cluster_subgraphs(safe_deps, theme)
+
+    cycle_edges =
+      cycle_edge_set(deps)
+      |> Enum.map(fn {from, to} -> {Map.fetch!(id_map, from), Map.fetch!(id_map, to)} end)
+      |> MapSet.new()
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     base_opts =
       Yog.Render.DOT.default_options()
@@ -73,13 +95,13 @@ defmodule Choreo.Dependency.Render.DOT do
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, label -> edge_label(label) end)
       |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(deps, cycle_edges, hl_edges))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_deps, cycle_edges, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
     base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
 
-    Yog.Multi.DOT.to_dot(deps.graph, base_opts)
+    Yog.Multi.DOT.to_dot(safe_graph, base_opts)
   end
 
   # ============================================================================
@@ -397,4 +419,19 @@ defmodule Choreo.Dependency.Render.DOT do
   defp dep_type_attrs(_), do: []
 
   defp edge_label(_), do: ""
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
 end

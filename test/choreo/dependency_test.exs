@@ -92,6 +92,27 @@ defmodule Choreo.DependencyTest do
 
       assert length(Dependency.edges(deps)) == 2
     end
+
+    test "implicitly registers missing nodes as module nodes" do
+      deps =
+        Dependency.new()
+        |> Dependency.depends_on(:api, :auth)
+
+      assert :api in Dependency.nodes(deps)
+      assert :auth in Dependency.nodes(deps)
+      assert Map.get(deps.graph.nodes, :api).node_type == :module
+      assert Map.get(deps.graph.nodes, :auth).node_type == :module
+    end
+
+    test "renders node IDs containing spaces or special characters without syntax errors" do
+      deps =
+        Dependency.new()
+        |> Dependency.depends_on("my api", "my auth module")
+
+      dot = Dependency.to_dot(deps)
+      assert String.contains?(dot, "\"my api\"")
+      assert String.contains?(dot, "\"my auth module\"")
+    end
   end
 
   describe "clusters" do

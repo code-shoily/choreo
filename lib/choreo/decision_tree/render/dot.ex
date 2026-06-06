@@ -42,8 +42,32 @@ defmodule Choreo.DecisionTree.Render.DOT do
   def to_dot(%Choreo.DecisionTree{} = tree, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = Choreo.DecisionTree.nodes(tree)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = Choreo.Internal.make_simple_graph_safe(tree.graph, id_map)
+    safe_root = if tree.root, do: Map.fetch!(id_map, tree.root), else: nil
+
+    safe_edge_meta =
+      Map.new(tree.edge_meta, fn {{from, to}, meta} ->
+        {{Map.fetch!(id_map, from), Map.fetch!(id_map, to)}, meta}
+      end)
+
+    safe_tree = %{tree | graph: safe_graph, root: safe_root, edge_meta: safe_edge_meta}
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     base_opts =
       Yog.Render.DOT.default_options()
@@ -65,14 +89,14 @@ defmodule Choreo.DecisionTree.Render.DOT do
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, &edge_label/1)
       |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(tree, theme, hl_edges))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_tree, theme, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
-    dot = Yog.Render.DOT.to_dot(tree.graph, base_opts)
+    dot = Yog.Render.DOT.to_dot(safe_graph, base_opts)
 
     # Force same-rank alignment for siblings at each depth level
-    rank_groups = build_rank_groups(tree)
+    rank_groups = build_rank_groups(safe_tree)
 
     if rank_groups != "" do
       inject_before_closing(dot, rank_groups)
@@ -362,4 +386,19 @@ defmodule Choreo.DecisionTree.Render.DOT do
   defp safe_id(id) when is_atom(id), do: Atom.to_string(id)
   defp safe_id(id) when is_binary(id), do: id
   defp safe_id(id), do: inspect(id)
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
 end

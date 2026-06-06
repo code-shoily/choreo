@@ -342,13 +342,21 @@ defmodule Choreo.DecisionTree do
   """
   @spec branch(t(), Yog.node_id(), Yog.node_id(), String.t()) :: t()
   def branch(%__MODULE__{} = tree, parent, child, condition) do
+    tree =
+      if Yog.has_node?(tree.graph, parent) do
+        tree
+      else
+        add_decision(tree, parent, label: to_string(parent))
+      end
+
+    tree =
+      if Yog.has_node?(tree.graph, child) do
+        tree
+      else
+        add_decision(tree, child, label: to_string(child))
+      end
+
     cond do
-      not Yog.has_node?(tree.graph, parent) ->
-        raise ArgumentError, "Parent node #{inspect(parent)} does not exist"
-
-      not Yog.has_node?(tree.graph, child) ->
-        raise ArgumentError, "Child node #{inspect(child)} does not exist"
-
       has_parent?(tree, child) ->
         raise ArgumentError, "Node #{inspect(child)} already has a parent"
 

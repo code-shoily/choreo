@@ -11,18 +11,10 @@ defmodule Choreo.DecisionTreeCoverageTest do
   end
 
   test "branch error cases" do
-    tree =
+    _tree =
       DecisionTree.new()
       |> DecisionTree.set_root(:r)
       |> DecisionTree.add_outcome(:o)
-
-    assert_raise ArgumentError, "Parent node :missing does not exist", fn ->
-      DecisionTree.branch(tree, :missing, :o, "value")
-    end
-
-    assert_raise ArgumentError, "Child node :missing does not exist", fn ->
-      DecisionTree.branch(tree, :r, :missing, "value")
-    end
 
     # DecisionTree.new()
     # |> DecisionTree.set_root(:r)

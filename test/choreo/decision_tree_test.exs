@@ -91,20 +91,28 @@ defmodule Choreo.DecisionTreeTest do
       end
     end
 
-    test "rejects missing parent" do
+    test "implicitly registers missing parent node" do
       tree = DecisionTree.new() |> DecisionTree.add_outcome(:x)
+      tree = DecisionTree.branch(tree, :a, :x, "1")
 
-      assert_raise ArgumentError, "Parent node :a does not exist", fn ->
-        DecisionTree.branch(tree, :a, :x, "1")
-      end
+      assert :a in DecisionTree.nodes(tree)
+      assert Yog.node(tree.graph, :a).node_type == :decision
     end
 
-    test "rejects missing child" do
+    test "implicitly registers missing child node" do
       tree = DecisionTree.new() |> DecisionTree.set_root(:a, feature: "a")
+      tree = DecisionTree.branch(tree, :a, :x, "1")
 
-      assert_raise ArgumentError, "Child node :x does not exist", fn ->
-        DecisionTree.branch(tree, :a, :x, "1")
-      end
+      assert :x in DecisionTree.nodes(tree)
+      assert Yog.node(tree.graph, :x).node_type == :decision
+    end
+
+    test "renders node IDs containing spaces or special characters without syntax errors in DOT" do
+      tree = DecisionTree.new() |> DecisionTree.branch("my parent", "my child", "yes")
+      dot = DecisionTree.to_dot(tree)
+
+      assert String.contains?(dot, "\"my parent\"")
+      assert String.contains?(dot, "\"my child\"")
     end
   end
 

@@ -520,6 +520,20 @@ defmodule Choreo.Dependency do
     type = Keyword.get(opts, :type, :uses)
     label = opts[:label] || type_to_label(type)
 
+    deps =
+      if Map.has_key?(deps.graph.nodes, from) do
+        deps
+      else
+        add_module(deps, from, label: to_string(from))
+      end
+
+    deps =
+      if Map.has_key?(deps.graph.nodes, to) do
+        deps
+      else
+        add_module(deps, to, label: to_string(to))
+      end
+
     meta =
       opts
       |> Map.new()

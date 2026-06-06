@@ -58,7 +58,7 @@ defmodule Choreo.Dataflow.Render.DOT do
 
     states_list = Choreo.Dataflow.nodes(flow)
     id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
-    safe_graph = make_graph_safe(flow.graph, id_map)
+    safe_graph = Choreo.Internal.make_simple_graph_safe(flow.graph, id_map)
 
     safe_edge_meta =
       Map.new(flow.edge_meta, fn {{from, to}, meta} ->
@@ -460,25 +460,5 @@ defmodule Choreo.Dataflow.Render.DOT do
     else
       "\"" <> String.replace(str, "\"", "\\\"") <> "\""
     end
-  end
-
-  defp make_graph_safe(graph, id_map) do
-    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
-
-    new_out =
-      Map.new(graph.out_edges, fn {from, targets} ->
-        new_targets = Map.new(targets, fn {to, weight} -> {Map.fetch!(id_map, to), weight} end)
-        {Map.fetch!(id_map, from), new_targets}
-      end)
-
-    new_in =
-      Map.new(graph.in_edges, fn {to, sources} ->
-        new_sources =
-          Map.new(sources, fn {from, weight} -> {Map.fetch!(id_map, from), weight} end)
-
-        {Map.fetch!(id_map, to), new_sources}
-      end)
-
-    %{graph | nodes: new_nodes, out_edges: new_out, in_edges: new_in}
   end
 end
