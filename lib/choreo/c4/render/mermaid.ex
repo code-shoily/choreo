@@ -326,10 +326,15 @@ defmodule Choreo.C4.Render.Mermaid do
     label = meta[:label] || ""
     tech = meta[:technology]
 
-    if tech && tech != "" do
-      "#{label} [#{tech}]"
-    else
-      label
+    cond do
+      tech && tech != "" ->
+        "\"#{label} [#{tech}]\""
+
+      label != "" ->
+        "\"#{label}\""
+
+      true ->
+        ""
     end
   end
 end
