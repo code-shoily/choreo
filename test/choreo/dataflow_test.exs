@@ -383,4 +383,42 @@ defmodule Choreo.DataflowTest do
       assert String.contains?(mermaid, "graph TD")
     end
   end
+
+  describe "hardened edge cases" do
+    test "connect/4 implicitly defines missing from/to stages as transform nodes" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.connect(:a, :b, label: "data")
+
+      assert Enum.sort(Dataflow.nodes(flow)) == [:a, :b]
+      assert Yog.node(flow.graph, :a).node_type == :transform
+      assert Yog.node(flow.graph, :b).node_type == :transform
+      assert Yog.node(flow.graph, :a).label == "a"
+      assert Yog.node(flow.graph, :b).label == "b"
+    end
+
+    test "to_dot/2 handles stage names with spaces and special characters" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source("my source")
+        |> Dataflow.add_sink("another-sink!")
+        |> Dataflow.connect("my source", "another-sink!", label: "flow")
+
+      dot = Dataflow.to_dot(flow)
+      assert String.contains?(dot, "\"my source\"")
+      assert String.contains?(dot, "\"another-sink!\"")
+    end
+
+    test "to_mermaid/2 handles stage names with spaces and special characters" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source("my source")
+        |> Dataflow.add_sink("another-sink!")
+        |> Dataflow.connect("my source", "another-sink!", label: "flow")
+
+      mermaid = Dataflow.to_mermaid(flow)
+      assert String.contains?(mermaid, "my source")
+      assert String.contains?(mermaid, "another-sink!")
+    end
+  end
 end

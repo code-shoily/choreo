@@ -327,6 +327,8 @@ IO.puts(plantuml_string)
 
 ### Mermaid.js format (natively rendered in Livebook)
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 Kino.Mermaid.new(Choreo.ThreatModel.Render.Mermaid.to_sequence(microservices))
 ```

@@ -55,10 +55,34 @@ defmodule Choreo.Dataflow.Render.DOT do
   @spec to_dot(Choreo.Dataflow.t(), keyword()) :: String.t()
   def to_dot(%Choreo.Dataflow{} = flow, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
-    subgraphs = Choreo.Internal.build_cluster_subgraphs(flow, theme)
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = Choreo.Dataflow.nodes(flow)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = make_graph_safe(flow.graph, id_map)
+
+    safe_edge_meta =
+      Map.new(flow.edge_meta, fn {{from, to}, meta} ->
+        {{Map.fetch!(id_map, from), Map.fetch!(id_map, to)}, meta}
+      end)
+
+    safe_flow = %{flow | graph: safe_graph, edge_meta: safe_edge_meta}
+
+    subgraphs = Choreo.Internal.build_cluster_subgraphs(safe_flow, theme)
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     base_opts =
       Yog.Render.DOT.default_options()
@@ -80,13 +104,13 @@ defmodule Choreo.Dataflow.Render.DOT do
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, &edge_label/1)
       |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(flow, hl_edges))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_flow, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
     base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
 
-    Yog.Render.DOT.to_dot(flow.graph, base_opts)
+    Yog.Render.DOT.to_dot(safe_graph, base_opts)
   end
 
   # ============================================================================
@@ -422,4 +446,39 @@ defmodule Choreo.Dataflow.Render.DOT do
   end
 
   defp edge_label(_), do: ""
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
+
+  defp make_graph_safe(graph, id_map) do
+    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
+
+    new_out =
+      Map.new(graph.out_edges, fn {from, targets} ->
+        new_targets = Map.new(targets, fn {to, weight} -> {Map.fetch!(id_map, to), weight} end)
+        {Map.fetch!(id_map, from), new_targets}
+      end)
+
+    new_in =
+      Map.new(graph.in_edges, fn {to, sources} ->
+        new_sources =
+          Map.new(sources, fn {from, weight} -> {Map.fetch!(id_map, from), weight} end)
+
+        {Map.fetch!(id_map, to), new_sources}
+      end)
+
+    %{graph | nodes: new_nodes, out_edges: new_out, in_edges: new_in}
+  end
 end

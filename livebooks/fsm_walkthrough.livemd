@@ -222,7 +222,7 @@ Kino.Mermaid.new(FSM.to_mermaid(pruned))
 Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
 
 ```elixir
-dot_dark = FSM.to_dot(order_flow, theme: :presentation)
+dot_dark = FSM.to_dot(order_flow, theme: :dark)
 Kino.VizJS.render(dot_dark)
 ```
 

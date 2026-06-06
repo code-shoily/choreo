@@ -525,6 +525,20 @@ defmodule Choreo.Dataflow do
     data_type = opts[:data_type]
     label = opts[:label] || data_type
 
+    flow =
+      if Map.has_key?(flow.graph.nodes, from) do
+        flow
+      else
+        add_transform(flow, from, label: to_string(from))
+      end
+
+    flow =
+      if Map.has_key?(flow.graph.nodes, to) do
+        flow
+      else
+        add_transform(flow, to, label: to_string(to))
+      end
+
     meta =
       opts
       |> Map.new()
