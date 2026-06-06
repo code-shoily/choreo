@@ -307,4 +307,60 @@ defmodule Choreo.PlannerTest do
       assert Choreo.to_dot(planner) =~ "digraph G"
     end
   end
+
+  describe "hardened edge cases" do
+    test "relationship builders implicitly register missing nodes" do
+      planner =
+        Planner.new()
+        |> Planner.contains(:v1, :t1)
+        |> Planner.depends_on(:t2, :t1)
+        |> Planner.blocks(:t2, :t3)
+        |> Planner.assign(:t1, :alice)
+        |> Planner.tag(:t1, :frontend)
+        |> Planner.relates(:t1, :t4)
+
+      # Check contains implicitly created v1 (milestone) and t1 (task)
+      assert Map.get(planner.graph.nodes, :v1).node_type == :milestone
+      assert Map.get(planner.graph.nodes, :t1).node_type == :task
+
+      # Check depends_on implicitly created t2 (task)
+      assert Map.get(planner.graph.nodes, :t2).node_type == :task
+
+      # Check blocks implicitly created t3 (task)
+      assert Map.get(planner.graph.nodes, :t3).node_type == :task
+
+      # Check assign implicitly created alice (user)
+      assert Map.get(planner.graph.nodes, :alice).node_type == :user
+
+      # Check tag implicitly created frontend (label)
+      assert Map.get(planner.graph.nodes, :frontend).node_type == :label
+
+      # Check relates implicitly created t4 (task)
+      assert Map.get(planner.graph.nodes, :t4).node_type == :task
+    end
+
+    test "to_dot/2 handles node names with spaces and special characters" do
+      planner =
+        Planner.new()
+        |> Planner.add_milestone("my milestone", title: "my milestone")
+        |> Planner.add_task("another-task!", title: "another-task!")
+        |> Planner.contains("my milestone", "another-task!")
+
+      dot = Planner.to_dot(planner)
+      assert String.contains?(dot, "\"my milestone\"")
+      assert String.contains?(dot, "\"another-task!\"")
+    end
+
+    test "to_mermaid/2 handles node names with spaces and special characters" do
+      planner =
+        Planner.new()
+        |> Planner.add_milestone("my milestone", title: "my milestone")
+        |> Planner.add_task("another-task!", title: "another-task!")
+        |> Planner.contains("my milestone", "another-task!")
+
+      mermaid = Planner.to_mermaid(planner, syntax: :flowchart)
+      assert String.contains?(mermaid, "my milestone")
+      assert String.contains?(mermaid, "another-task!")
+    end
+  end
 end

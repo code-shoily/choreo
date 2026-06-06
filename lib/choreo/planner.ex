@@ -182,9 +182,12 @@ defmodule Choreo.Planner do
   The parent must be a milestone and the child must be a task.
   """
   @spec contains(t(), Yog.node_id(), Yog.node_id()) :: t()
-  def contains(%__MODULE__{graph: g} = planner, parent, child) do
-    require_node!(g, parent, :milestone, "contains")
-    require_node!(g, child, :task, "contains")
+  def contains(%__MODULE__{} = planner, parent, child) do
+    planner =
+      planner
+      |> ensure_node(parent, :milestone)
+      |> ensure_node(child, :task)
+
     add_edge(planner, parent, child, %{type: :contains})
   end
 
@@ -195,9 +198,12 @@ defmodule Choreo.Planner do
   before task can start*. Both must be tasks.
   """
   @spec depends_on(t(), Yog.node_id(), Yog.node_id()) :: t()
-  def depends_on(%__MODULE__{graph: g} = planner, task, dependency) do
-    require_node!(g, task, :task, "depends_on")
-    require_node!(g, dependency, :task, "depends_on")
+  def depends_on(%__MODULE__{} = planner, task, dependency) do
+    planner =
+      planner
+      |> ensure_node(task, :task)
+      |> ensure_node(dependency, :task)
+
     add_edge(planner, dependency, task, %{type: :depends_on})
   end
 
@@ -208,9 +214,12 @@ defmodule Choreo.Planner do
   Both must be tasks.
   """
   @spec blocks(t(), Yog.node_id(), Yog.node_id()) :: t()
-  def blocks(%__MODULE__{graph: g} = planner, blocker, blocked) do
-    require_node!(g, blocker, :task, "blocks")
-    require_node!(g, blocked, :task, "blocks")
+  def blocks(%__MODULE__{} = planner, blocker, blocked) do
+    planner =
+      planner
+      |> ensure_node(blocker, :task)
+      |> ensure_node(blocked, :task)
+
     add_edge(planner, blocker, blocked, %{type: :blocks})
   end
 
@@ -218,9 +227,12 @@ defmodule Choreo.Planner do
   Assigns a task to a user. Edge: task -> user.
   """
   @spec assign(t(), Yog.node_id(), Yog.node_id()) :: t()
-  def assign(%__MODULE__{graph: g} = planner, task, user) do
-    require_node!(g, task, :task, "assign")
-    require_node!(g, user, :user, "assign")
+  def assign(%__MODULE__{} = planner, task, user) do
+    planner =
+      planner
+      |> ensure_node(task, :task)
+      |> ensure_node(user, :user)
+
     add_edge(planner, task, user, %{type: :assigned_to})
   end
 
@@ -228,9 +240,12 @@ defmodule Choreo.Planner do
   Tags a task with a label. Edge: task -> label.
   """
   @spec tag(t(), Yog.node_id(), Yog.node_id()) :: t()
-  def tag(%__MODULE__{graph: g} = planner, task, label) do
-    require_node!(g, task, :task, "tag")
-    require_node!(g, label, :label, "tag")
+  def tag(%__MODULE__{} = planner, task, label) do
+    planner =
+      planner
+      |> ensure_node(task, :task)
+      |> ensure_node(label, :label)
+
     add_edge(planner, task, label, %{type: :tagged_with})
   end
 
@@ -238,11 +253,13 @@ defmodule Choreo.Planner do
   Creates a bidirectional `:relates_to` relationship between two nodes.
   """
   @spec relates(t(), Yog.node_id(), Yog.node_id()) :: t()
-  def relates(%__MODULE__{graph: g} = planner, a, b) do
-    require_existing!(g, a, "relates")
-    require_existing!(g, b, "relates")
+  def relates(%__MODULE__{} = planner, a, b) do
+    planner =
+      planner
+      |> ensure_existing_node(a)
+      |> ensure_existing_node(b)
 
-    {g1, eid1} = Yog.Multi.add_edge(g, a, b, 1)
+    {g1, eid1} = Yog.Multi.add_edge(planner.graph, a, b, 1)
     meta1 = Map.put(planner.edge_meta, eid1, %{type: :relates_to})
 
     {g2, eid2} = Yog.Multi.add_edge(g1, b, a, 1)
@@ -478,9 +495,33 @@ defmodule Choreo.Planner do
     end
   end
 
-  defp require_existing!(g, id, caller) do
-    unless Map.has_key?(g.nodes, id) do
-      raise ArgumentError, "#{caller}: node #{inspect(id)} does not exist"
+  defp ensure_node(planner, id, expected_type) do
+    case Map.get(planner.graph.nodes, id) do
+      nil ->
+        case expected_type do
+          :task -> add_task(planner, id, title: to_string(id))
+          :milestone -> add_milestone(planner, id, title: to_string(id))
+          :user -> add_user(planner, id, name: to_string(id))
+          :label -> add_label(planner, id, title: to_string(id))
+        end
+
+      data ->
+        actual = data[:node_type]
+
+        if actual != expected_type do
+          raise ArgumentError,
+                "expected #{inspect(id)} to be a #{expected_type}, got #{actual}"
+        end
+
+        planner
+    end
+  end
+
+  defp ensure_existing_node(planner, id) do
+    if Map.has_key?(planner.graph.nodes, id) do
+      planner
+    else
+      add_task(planner, id, title: to_string(id))
     end
   end
 
