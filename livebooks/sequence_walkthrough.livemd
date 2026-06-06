@@ -1,0 +1,280 @@
+# Choreo Sequence Diagrams: Walkthrough
+
+```elixir
+Mix.install([
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Section
+
+> **Rendering diagrams:** This livebook uses `Kino.Mermaid` to render Mermaid sequence diagrams inline. Sequence diagrams are Mermaid's native strength; Choreo also provides a best-effort DOT renderer for static image or PDF pipelines.
+
+---
+
+## What is a Sequence Diagram?
+
+A **sequence diagram** shows how participants (actors, systems, components) interact with each other **over time**. It is one of the most effective ways to document:
+
+* API call flows
+* Authentication handshakes
+* Database transactions
+* Event-driven choreography
+* Error handling and retry paths
+
+Unlike other Choreo modules, `Choreo.Sequence` leans heavily into **Mermaid's native `sequenceDiagram` syntax**. GraphViz has no native sequence-diagram concept, so the DOT renderer produces a readable, timeline-style approximation rather than a formal UML sequence layout.
+
+---
+
+## Building a Basic Sequence
+
+```elixir
+alias Choreo.Sequence
+
+login =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:web, label: "Web App")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.add_participant(:db, label: "Database")
+  |> Sequence.message(:user, :web, label: "Enter credentials")
+  |> Sequence.message(:web, :api, label: "POST /login")
+  |> Sequence.activate(:api)
+  |> Sequence.message(:api, :db, label: "SELECT user_hash")
+  |> Sequence.return(:db, :api, label: "hash + salt")
+  |> Sequence.message(:api, :api, label: "Verify password")
+  |> Sequence.return(:api, :web, label: "200 + JWT")
+  |> Sequence.deactivate(:api)
+  |> Sequence.message(:web, :user, label: "Redirect to dashboard")
+
+Kino.Mermaid.new(Sequence.to_mermaid(login))
+```
+
+---
+
+## Message Types
+
+Choreo.Sequence supports several message styles:
+
+| Type      | Mermaid Arrow | Use case                        |
+| --------- | ------------- | ------------------------------- |
+| `:sync`   | `->>`         | Synchronous call (default)      |
+| `:async`  | `-->>`        | Asynchronous / fire-and-forget  |
+| `:return` | `-->>`        | Response message                |
+| `:self`   | `->>`         | Message to self (auto-detected) |
+
+```elixir
+messages =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.add_participant(:queue, label: "Queue")
+  |> Sequence.message(:user, :api, label: "Submit order")
+  |> Sequence.async(:api, :queue, label: "Enqueue job")
+  |> Sequence.return(:api, :user, label: "Order accepted")
+  |> Sequence.self_message(:queue, label: "Retry on failure")
+
+Kino.Mermaid.new(Sequence.to_mermaid(messages))
+```
+
+---
+
+## Activation Boxes
+
+Use `activate/2` and `deactivate/2` to show when a participant is actively processing.
+
+```elixir
+activation =
+  Sequence.new()
+  |> Sequence.add_actor(:client, label: "Client")
+  |> Sequence.add_participant(:server, label: "Server")
+  |> Sequence.add_participant(:cache, label: "Cache")
+  |> Sequence.message(:client, :server, label: "GET /items/42")
+  |> Sequence.activate(:server)
+  |> Sequence.message(:server, :cache, label: "GET items:42")
+  |> Sequence.return(:cache, :server, label: "cached JSON")
+  |> Sequence.return(:server, :client, label: "200 OK")
+  |> Sequence.deactivate(:server)
+
+Kino.Mermaid.new(Sequence.to_mermaid(activation))
+```
+
+---
+
+## Notes
+
+Add explanatory notes anywhere in the diagram.
+
+```elixir
+notes =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.message(:user, :api, label: "Sign up")
+  |> Sequence.note({:over, :api}, "Rate limit: 5 req/min")
+  |> Sequence.return(:api, :user, label: "201 Created")
+  |> Sequence.note({:right, :user}, "User receives welcome email")
+
+Kino.Mermaid.new(Sequence.to_mermaid(notes))
+```
+
+Note positions:
+
+* `{:over, :participant}`
+* `{:left, :participant}`
+* `{:right, :participant}`
+* `{:between, :a, :b}`
+
+---
+
+## Fragments: Loops, Alts, and Options
+
+Use fragments to model control flow.
+
+### Loop
+
+```elixir
+loop_example =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.fragment(:loop, "until page empty")
+  |> Sequence.message(:api, :api, label: "Fetch next page")
+  |> Sequence.end_fragment()
+  |> Sequence.return(:api, :user, label: "All pages")
+
+Kino.Mermaid.new(Sequence.to_mermaid(loop_example))
+```
+
+### Alt / Else
+
+```elixir
+alt_example =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.message(:user, :api, label: "GET /account")
+  |> Sequence.fragment(:alt, "account exists")
+  |> Sequence.return(:api, :user, label: "200 OK")
+  |> Sequence.fragment(:else, "account not found")
+  |> Sequence.return(:api, :user, label: "404 Not Found")
+  |> Sequence.end_fragment()
+
+Kino.Mermaid.new(Sequence.to_mermaid(alt_example))
+```
+
+### Optional
+
+```elixir
+opt_example =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.message(:user, :api, label: "Place order")
+  |> Sequence.fragment(:opt, "promo code provided")
+  |> Sequence.message(:api, :api, label: "Apply discount")
+  |> Sequence.end_fragment()
+  |> Sequence.return(:api, :user, label: "Order confirmed")
+
+Kino.Mermaid.new(Sequence.to_mermaid(opt_example))
+```
+
+---
+
+## Complete Example: OAuth2 Authorization Code Flow
+
+```elixir
+oauth =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:browser, label: "Browser")
+  |> Sequence.add_participant(:client, label: "Client App")
+  |> Sequence.add_participant(:auth, label: "Auth Server")
+  |> Sequence.add_participant(:resource, label: "Resource Server")
+
+  # Step 1: User initiates login
+  |> Sequence.message(:user, :browser, label: "Click 'Sign in with OAuth'")
+  |> Sequence.message(:browser, :client, label: "Request authorization")
+  |> Sequence.message(:client, :browser, label: "Redirect to /authorize")
+  |> Sequence.message(:browser, :auth, label: "GET /authorize?client_id=...")
+
+  # Step 2: User authenticates and consents
+  |> Sequence.activate(:auth)
+  |> Sequence.message(:auth, :browser, label: "Render login + consent")
+  |> Sequence.message(:browser, :user, label: "Prompt credentials")
+  |> Sequence.message(:user, :browser, label: "Submit credentials")
+  |> Sequence.message(:browser, :auth, label: "POST consent")
+  |> Sequence.return(:auth, :browser, label: "Redirect with code")
+  |> Sequence.deactivate(:auth)
+
+  # Step 3: Exchange code for tokens
+  |> Sequence.message(:browser, :client, label: "Callback with code")
+  |> Sequence.activate(:client)
+  |> Sequence.message(:client, :auth, label: "POST /token (code + secret)")
+  |> Sequence.return(:auth, :client, label: "access_token + refresh_token")
+  |> Sequence.deactivate(:client)
+
+  # Step 4: Use access token
+  |> Sequence.activate(:client)
+  |> Sequence.message(:client, :resource, label: "GET /profile (Bearer)")
+  |> Sequence.return(:resource, :client, label: "User profile")
+  |> Sequence.deactivate(:client)
+  |> Sequence.return(:client, :browser, label: "Render dashboard")
+  |> Sequence.message(:browser, :user, label: "Show dashboard")
+
+Kino.Mermaid.new(Sequence.to_mermaid(oauth))
+```
+
+---
+
+## Analysis
+
+Choreo.Sequence includes analysis helpers to catch common diagram problems.
+
+```elixir
+alias Choreo.Sequence.Analysis
+
+problematic =
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.add_participant(:ghost, label: "Ghost Service")
+  |> Sequence.message(:user, :api)
+  |> Sequence.activate(:api)
+
+Analysis.validate(problematic)
+```
+
+Available checks:
+
+* `missing_labels/1` — messages without labels
+* `unknown_participants/1` — messages referencing undefined participants
+* `isolated_participants/1` — participants with no messages
+* `unbalanced_activations/1` — activate without deactivate, or vice versa
+* `unclosed_fragments/1` — fragments opened but never ended
+* `validate/1` — runs all checks and returns a list of `{severity, message}` tuples
+
+---
+
+## DOT Fallback
+
+If you need a static image, PDF, or GraphViz pipeline, use `to_dot/2`. It renders a timeline-style digraph rather than a formal sequence diagram.
+
+```elixir
+Sequence.to_dot(login) |> IO.puts()
+```
+
+---
+
+## When to Use What
+
+| Goal                              | Use                        |
+| --------------------------------- | -------------------------- |
+| Native Markdown / GitHub / Notion | `Sequence.to_mermaid/2`    |
+| LiveBook inline rendering         | `Kino.Mermaid.new(...)`    |
+| Static PDF / image pipeline       | `Sequence.to_dot/2`        |
+| Validate diagram quality          | `Choreo.Sequence.Analysis` |
+
+Sequence diagrams shine when you need to communicate **order and responsibility**. Pair them with `Choreo.C4` container diagrams for a complete architectural story.
