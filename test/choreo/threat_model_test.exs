@@ -354,4 +354,45 @@ defmodule Choreo.ThreatModelTest do
       assert String.contains?(dot, "#cbd5e1")
     end
   end
+
+  describe "hardened edge cases" do
+    test "data_flow/4 implicitly defines missing from/to elements as processes" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.data_flow(:a, :b, label: "request")
+
+      assert Enum.sort(ThreatModel.elements(model)) == [:a, :b]
+      assert Map.get(model.graph.nodes, :a).element_type == :process
+      assert Map.get(model.graph.nodes, :b).element_type == :process
+    end
+
+    test "renderers handle element names with spaces and special characters" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet")
+        |> ThreatModel.add_external_entity("my user", boundary: "internet")
+        |> ThreatModel.add_process("my-api!")
+        |> ThreatModel.data_flow("my user", "my-api!", label: "HTTPS")
+
+      # 1. DOT
+      dot = ThreatModel.to_dot(model)
+      assert String.contains?(dot, "\"my user\"")
+      assert String.contains?(dot, "\"my-api!\"")
+
+      # 2. Mermaid flowchart
+      mermaid = ThreatModel.to_mermaid(model)
+      assert String.contains?(mermaid, "my user")
+      assert String.contains?(mermaid, "my-api!")
+
+      # 3. Mermaid sequence
+      seq = ThreatModel.to_sequence(model)
+      assert String.contains?(seq, "actor my_user as my user")
+      assert String.contains?(seq, "participant my_api_ as my-api!")
+      assert String.contains?(seq, "my_user-->my_api_: HTTPS")
+
+      # 4. PlantUML
+      puml = Choreo.ThreatModel.Render.PlantUML.to_sequence(model)
+      assert String.contains?(puml, "\"my user\" -> \"my-api!\" : HTTPS")
+    end
+  end
 end

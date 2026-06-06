@@ -355,13 +355,14 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
       |> Enum.map_join("\n", fn {id, node_data} ->
         label = Map.get(node_data, :label, to_string(id))
         type = Map.get(node_data, :element_type, :process)
+        m_id = mermaid_id(id)
 
         case type do
           :external_entity ->
-            "    actor #{id} as #{label}"
+            "    actor #{m_id} as #{label}"
 
           _ ->
-            "    participant #{id} as #{label}"
+            "    participant #{m_id} as #{label}"
         end
       end)
 
@@ -386,7 +387,7 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
             "->>"
           end
 
-        "    #{from}#{arrow}#{to}: #{label}"
+        "    #{mermaid_id(from)}#{arrow}#{mermaid_id(to)}: #{label}"
       end)
 
     """
@@ -394,5 +395,26 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
     #{nodes_decl}
     #{flows_decl}
     """
+  end
+
+  defp mermaid_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      sanitized = String.replace(str, ~r/[^a-zA-Z0-9_]/, "_")
+
+      if sanitized =~ ~r/^[0-9]/ do
+        "s_" <> sanitized
+      else
+        sanitized
+      end
+    end
   end
 end

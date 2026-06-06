@@ -400,6 +400,20 @@ defmodule Choreo.ThreatModel do
     opts = NimbleOptions.validate!(opts, @data_flow_schema)
     label = opts[:label] || ""
 
+    model =
+      if Map.has_key?(model.graph.nodes, from) do
+        model
+      else
+        add_process(model, from, label: to_string(from))
+      end
+
+    model =
+      if Map.has_key?(model.graph.nodes, to) do
+        model
+      else
+        add_process(model, to, label: to_string(to))
+      end
+
     meta =
       opts
       |> Map.new()

@@ -25,7 +25,7 @@ defmodule Choreo.ThreatModel.Render.PlantUML do
       flows
       |> Enum.map(fn {from, to, label} ->
         label = if label == "" or is_nil(label), do: "flow", else: to_string(label)
-        "#{from} -> #{to} : #{label}"
+        "#{plantuml_id(from)} -> #{plantuml_id(to)} : #{label}"
       end)
 
     """
@@ -33,5 +33,20 @@ defmodule Choreo.ThreatModel.Render.PlantUML do
     #{Enum.join(lines, "\n")}
     @enduml
     """
+  end
+
+  defp plantuml_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
   end
 end

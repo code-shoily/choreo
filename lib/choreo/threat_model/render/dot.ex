@@ -45,10 +45,28 @@ defmodule Choreo.ThreatModel.Render.DOT do
   @spec to_dot(Choreo.ThreatModel.t(), keyword()) :: String.t()
   def to_dot(%Choreo.ThreatModel{} = model, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
-    subgraphs = Choreo.Internal.build_cluster_subgraphs(model, theme)
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = ThreatModel.elements(model)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = make_graph_safe(model.graph, id_map)
+    safe_model = %{model | graph: safe_graph}
+
+    subgraphs = Choreo.Internal.build_cluster_subgraphs(safe_model, theme)
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     base_opts =
       Yog.Render.DOT.default_options()
@@ -70,13 +88,13 @@ defmodule Choreo.ThreatModel.Render.DOT do
       |> Map.put(:node_label, &node_label/2)
       |> Map.put(:edge_label, fn _edge_id, label -> edge_label(label) end)
       |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(model, hl_edges))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_model, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(opts))
 
     base_opts = if subgraphs != [], do: Map.put(base_opts, :subgraphs, subgraphs), else: base_opts
 
-    Yog.Multi.DOT.to_dot(model.graph, base_opts)
+    Yog.Multi.DOT.to_dot(safe_graph, base_opts)
   end
 
   # ============================================================================
@@ -365,4 +383,33 @@ defmodule Choreo.ThreatModel.Render.DOT do
 
   defp edge_label(weight) when is_binary(weight) and weight != "", do: weight
   defp edge_label(_), do: ""
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
+
+  defp make_graph_safe(graph, id_map) do
+    new_nodes = Map.new(graph.nodes, fn {id, data} -> {Map.fetch!(id_map, id), data} end)
+
+    new_edges =
+      Map.new(graph.edges, fn {edge_id, {from, to, weight}} ->
+        {edge_id, {Map.fetch!(id_map, from), Map.fetch!(id_map, to), weight}}
+      end)
+
+    new_out = Map.new(graph.out_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
+    new_in = Map.new(graph.in_edge_ids, fn {id, set} -> {Map.fetch!(id_map, id), set} end)
+
+    %{graph | nodes: new_nodes, edges: new_edges, out_edge_ids: new_out, in_edge_ids: new_in}
+  end
 end
