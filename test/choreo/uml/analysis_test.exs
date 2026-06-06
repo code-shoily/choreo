@@ -77,4 +77,21 @@ defmodule Choreo.UML.AnalysisTest do
     # C: Ca = 1, Ce = 0 -> I = 0.0
     assert metrics[:c] == %{afferent: 1, efferent: 0, instability: 0.0}
   end
+
+  test "law_of_demeter_violations/1 detects bypass relationships" do
+    uml =
+      UML.new()
+      |> UML.add_class(:a)
+      |> UML.add_class(:b)
+      |> UML.add_class(:c)
+      |> UML.add_class(:d)
+      # a -> b -> c (and a -> c directly = violation!)
+      |> UML.add_relationship(:a, :b, type: :depends)
+      |> UML.add_relationship(:b, :c, type: :depends)
+      |> UML.add_relationship(:a, :c, type: :depends)
+      # a -> d, but no d -> c, so no violation here
+      |> UML.add_relationship(:a, :d, type: :depends)
+
+    assert Analysis.law_of_demeter_violations(uml) == [{:a, :b, :c}]
+  end
 end

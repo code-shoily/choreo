@@ -6,6 +6,7 @@ defmodule Choreo.UML.Analysis do
     * `cycles/1` — identifies circular dependency loops.
     * `broken_contracts/1` — flags incomplete behavior/protocol realizations.
     * `coupling_metrics/1` — computes Afferent/Efferent coupling and Instability.
+    * `law_of_demeter_violations/1` — identifies structural Law of Demeter violations.
   """
 
   @doc """
@@ -180,5 +181,52 @@ defmodule Choreo.UML.Analysis do
         instability: Float.round(instability, 3)
       })
     end)
+  end
+
+  @doc """
+  Identifies all Law of Demeter violations in the UML class diagram.
+
+  A violation occurs when a class `A` has a direct relationship to a class `C`,
+  but also has a path through an intermediate class `B` (i.e., `A -> B`, `B -> C`,
+  and `A -> C`).
+
+  Returns a list of triplets `[{class_a, class_b, class_c}]` representing the violations.
+
+  ## Examples
+
+      iex> uml =
+      ...>   Choreo.UML.new()
+      ...>   |> Choreo.UML.add_class(:a)
+      ...>   |> Choreo.UML.add_class(:b)
+      ...>   |> Choreo.UML.add_class(:c)
+      ...>   |> Choreo.UML.add_relationship(:a, :b, type: :associates)
+      ...>   |> Choreo.UML.add_relationship(:b, :c, type: :associates)
+      ...>   |> Choreo.UML.add_relationship(:a, :c, type: :associates)
+      iex> Choreo.UML.Analysis.law_of_demeter_violations(uml)
+      [{:a, :b, :c}]
+  """
+  @spec law_of_demeter_violations(Choreo.UML.t()) :: [
+          {Choreo.UML.class_id(), Choreo.UML.class_id(), Choreo.UML.class_id()}
+        ]
+  def law_of_demeter_violations(%Choreo.UML{} = uml) do
+    # Convert multigraph to simple graph to simplify path/successor checks
+    graph = Yog.Multi.to_simple_graph(uml.graph)
+    nodes = Map.keys(graph.nodes)
+
+    # Pre-calculate adjacent successors (distance = 1) for efficiency
+    successors_map =
+      Map.new(nodes, fn node ->
+        {node, MapSet.new(Yog.successor_ids(graph, node))}
+      end)
+
+    # Find all triplets {A, B, C} where A -> B, B -> C, and A -> C
+    for a <- nodes,
+        b <- Map.fetch!(successors_map, a),
+        c <- Map.fetch!(successors_map, b),
+        a != b and b != c and a != c,
+        MapSet.member?(Map.fetch!(successors_map, a), c) do
+      {a, b, c}
+    end
+    |> Enum.sort()
   end
 end
