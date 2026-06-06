@@ -87,6 +87,17 @@ defmodule Choreo.MindMapTest do
 
       assert map.edge_meta[{:a, :b}].label == "leads to"
     end
+
+    test "implicitly registers missing nodes as topic nodes" do
+      map =
+        MindMap.new()
+        |> MindMap.branch(:a, :b)
+
+      assert :a in MindMap.nodes(map)
+      assert :b in MindMap.nodes(map)
+      assert Yog.node(map.graph, :a).node_type == :topic
+      assert Yog.node(map.graph, :b).node_type == :topic
+    end
   end
 
   describe "associate/4" do
@@ -115,6 +126,17 @@ defmodule Choreo.MindMapTest do
         |> MindMap.associate(:b, :c, label: "related")
 
       assert map.edge_meta[{:b, :c}].label == "related"
+    end
+
+    test "implicitly registers missing nodes as topic nodes" do
+      map =
+        MindMap.new()
+        |> MindMap.associate(:a, :b)
+
+      assert :a in MindMap.nodes(map)
+      assert :b in MindMap.nodes(map)
+      assert Yog.node(map.graph, :a).node_type == :topic
+      assert Yog.node(map.graph, :b).node_type == :topic
     end
   end
 
@@ -214,6 +236,16 @@ defmodule Choreo.MindMapTest do
 
       dot = MindMap.to_dot(map)
       assert String.contains?(dot, "dashed")
+    end
+
+    test "renders node IDs containing spaces or special characters without syntax errors" do
+      map =
+        MindMap.new()
+        |> MindMap.branch("my central idea", "my sub topic")
+
+      dot = MindMap.to_dot(map)
+      assert String.contains?(dot, "\"my central idea\"")
+      assert String.contains?(dot, "\"my sub topic\"")
     end
   end
 end

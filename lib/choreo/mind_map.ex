@@ -351,6 +351,20 @@ defmodule Choreo.MindMap do
     opts = NimbleOptions.validate!(opts, @connect_schema)
     label = opts[:label]
 
+    map =
+      if Map.has_key?(map.graph.nodes, parent) do
+        map
+      else
+        add_topic(map, parent, label: to_string(parent))
+      end
+
+    map =
+      if Map.has_key?(map.graph.nodes, child) do
+        map
+      else
+        add_topic(map, child, label: to_string(child))
+      end
+
     meta =
       opts
       |> Map.new()
@@ -392,6 +406,20 @@ defmodule Choreo.MindMap do
   def associate(%__MODULE__{} = map, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @connect_schema)
     label = opts[:label]
+
+    map =
+      if Map.has_key?(map.graph.nodes, from) do
+        map
+      else
+        add_topic(map, from, label: to_string(from))
+      end
+
+    map =
+      if Map.has_key?(map.graph.nodes, to) do
+        map
+      else
+        add_topic(map, to, label: to_string(to))
+      end
 
     meta =
       opts
