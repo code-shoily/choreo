@@ -235,14 +235,19 @@ defmodule Choreo.UML do
   def add_relationship(%__MODULE__{} = uml, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_relationship_schema)
 
-    # Validate that both classes exist in the graph
-    if not Map.has_key?(uml.graph.nodes, from) do
-      raise ArgumentError, "class #{inspect(from)} does not exist in the diagram"
-    end
+    uml =
+      if Map.has_key?(uml.graph.nodes, from) do
+        uml
+      else
+        add_class(uml, from, type: :class, label: to_string(from))
+      end
 
-    if not Map.has_key?(uml.graph.nodes, to) do
-      raise ArgumentError, "class #{inspect(to)} does not exist in the diagram"
-    end
+    uml =
+      if Map.has_key?(uml.graph.nodes, to) do
+        uml
+      else
+        add_class(uml, to, type: :class, label: to_string(to))
+      end
 
     meta = Map.new(opts)
 

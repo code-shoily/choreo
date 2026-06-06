@@ -209,14 +209,19 @@ defmodule Choreo.ERD do
   def add_relationship(%__MODULE__{} = erd, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_relationship_schema)
 
-    # Validate that both tables exist in the graph
-    if not Map.has_key?(erd.graph.nodes, from) do
-      raise ArgumentError, "table #{inspect(from)} does not exist in the diagram"
-    end
+    erd =
+      if Map.has_key?(erd.graph.nodes, from) do
+        erd
+      else
+        add_table(erd, from, columns: [], label: to_string(from))
+      end
 
-    if not Map.has_key?(erd.graph.nodes, to) do
-      raise ArgumentError, "table #{inspect(to)} does not exist in the diagram"
-    end
+    erd =
+      if Map.has_key?(erd.graph.nodes, to) do
+        erd
+      else
+        add_table(erd, to, columns: [], label: to_string(to))
+      end
 
     if erd.strict_column_matching do
       if is_nil(opts[:from_column]) or is_nil(opts[:to_column]) do

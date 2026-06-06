@@ -12,8 +12,25 @@ defmodule Choreo.ERD.Render.DOT do
   def to_dot(%Choreo.ERD{} = erd, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
 
-    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
-    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+    states_list = Map.keys(erd.graph.nodes)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    safe_graph = Choreo.Internal.make_multi_graph_safe(erd.graph, id_map)
+    safe_erd = %{erd | graph: safe_graph}
+
+    hl_nodes =
+      Keyword.get(opts, :highlighted_nodes, [])
+      |> Kernel.||([])
+      |> Enum.map(&dot_id/1)
+      |> MapSet.new()
+
+    hl_edges =
+      Keyword.get(opts, :highlighted_edges, [])
+      |> Kernel.||([])
+      |> Enum.map(fn
+        {from, to} -> {dot_id(from), dot_id(to)}
+        other -> other
+      end)
+      |> MapSet.new()
 
     direction =
       Keyword.get(opts, :direction, :lr)
@@ -41,12 +58,12 @@ defmodule Choreo.ERD.Render.DOT do
       |> Map.put(:node_label, fn id, data -> node_label(id, data, theme) end)
       |> Map.put(:edge_label, fn _edge_id, _weight -> "" end)
       |> Map.put(:node_attributes, node_attributes_fn(theme, hl_nodes))
-      |> Map.put(:edge_attributes, edge_attributes_fn(erd, theme, hl_edges))
+      |> Map.put(:edge_attributes, edge_attributes_fn(safe_erd, theme, hl_edges))
       |> Map.merge(theme_graph_overrides(theme))
       |> Map.merge(Map.new(Keyword.drop(opts, [:theme, :direction])))
 
     # Render multigraph
-    dot = Yog.Multi.DOT.to_dot(erd.graph, base_opts)
+    dot = Yog.Multi.DOT.to_dot(safe_graph, base_opts)
 
     # Post-process generated DOT to convert HTML-like labels to Graphviz-compatible
     # double-angle-bracket syntax (required by Viz.js and older Graphviz versions).
@@ -273,6 +290,21 @@ defmodule Choreo.ERD.Render.DOT do
       else
         base
       end
+    end
+  end
+
+  defp dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
     end
   end
 end

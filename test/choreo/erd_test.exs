@@ -51,15 +51,18 @@ defmodule Choreo.ERDTest do
     end
   end
 
-  test "add_relationship validates existing nodes and options" do
-    erd = ERD.new() |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+  test "add_relationship implicitly registers missing tables and validates options" do
+    erd =
+      ERD.new()
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
 
-    assert_raise ArgumentError, ~r/does not exist/, fn ->
-      ERD.add_relationship(erd, :users, :posts, cardinality: :one_to_many)
-    end
+    assert Map.has_key?(erd.graph.nodes, :posts)
+    assert Map.get(erd.graph.nodes, :posts).type == :table
+    assert Map.get(erd.graph.nodes, :posts).columns == []
+    assert Map.get(erd.graph.nodes, :posts).label == "posts"
 
     assert_raise NimbleOptions.ValidationError, fn ->
-      erd = ERD.add_table(erd, :posts, columns: [%{name: :id, type: :integer}])
       ERD.add_relationship(erd, :users, :posts, cardinality: :invalid)
     end
   end
@@ -218,5 +221,31 @@ defmodule Choreo.ERDTest do
     rebuilt = Choreo.Viewable.rebuild(erd, erd.graph)
     assert rebuilt.graph == erd.graph
     assert rebuilt.edge_meta == erd.edge_meta
+  end
+
+  describe "hardened edge cases" do
+    test "to_dot/2 handles table names with spaces and special characters" do
+      erd =
+        ERD.new()
+        |> ERD.add_table("my table", columns: [])
+        |> ERD.add_table("another-table!", columns: [])
+        |> ERD.add_relationship("my table", "another-table!", cardinality: :one_to_many)
+
+      dot = ERD.to_dot(erd)
+      assert String.contains?(dot, "\"my table\"")
+      assert String.contains?(dot, "\"another-table!\"")
+    end
+
+    test "to_mermaid/2 handles table names with spaces and special characters" do
+      erd =
+        ERD.new()
+        |> ERD.add_table("my table", columns: [])
+        |> ERD.add_table("another-table!", columns: [])
+        |> ERD.add_relationship("my table", "another-table!", cardinality: :one_to_many)
+
+      mermaid = ERD.to_mermaid(erd)
+      assert String.contains?(mermaid, "my table")
+      assert String.contains?(mermaid, "another-table!")
+    end
   end
 end

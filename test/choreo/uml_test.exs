@@ -45,15 +45,17 @@ defmodule Choreo.UMLTest do
     end
   end
 
-  test "add_relationship validates existing nodes and type options" do
-    uml = UML.new() |> UML.add_class(:a)
+  test "add_relationship implicitly registers missing classes and validates type options" do
+    uml =
+      UML.new()
+      |> UML.add_class(:a)
+      |> UML.add_relationship(:a, :b, type: :inherits)
 
-    assert_raise ArgumentError, ~r/does not exist/, fn ->
-      UML.add_relationship(uml, :a, :b, type: :inherits)
-    end
+    assert Map.has_key?(uml.graph.nodes, :b)
+    assert Map.get(uml.graph.nodes, :b).type == :class
+    assert Map.get(uml.graph.nodes, :b).label == "b"
 
     assert_raise NimbleOptions.ValidationError, fn ->
-      uml = UML.add_class(uml, :b)
       UML.add_relationship(uml, :a, :b, type: :invalid)
     end
   end
@@ -161,5 +163,31 @@ defmodule Choreo.UMLTest do
     rebuilt = Choreo.Viewable.rebuild(uml, uml.graph)
     assert rebuilt.graph == uml.graph
     assert rebuilt.edge_meta == uml.edge_meta
+  end
+
+  describe "hardened edge cases" do
+    test "to_dot/2 handles class names with spaces and special characters" do
+      uml =
+        UML.new()
+        |> UML.add_class("my class")
+        |> UML.add_class("another-class!")
+        |> UML.add_relationship("my class", "another-class!", type: :inherits)
+
+      dot = UML.to_dot(uml)
+      assert String.contains?(dot, "\"my class\"")
+      assert String.contains?(dot, "\"another-class!\"")
+    end
+
+    test "to_mermaid/2 handles class names with spaces and special characters" do
+      uml =
+        UML.new()
+        |> UML.add_class("my class")
+        |> UML.add_class("another-class!")
+        |> UML.add_relationship("my class", "another-class!", type: :inherits)
+
+      mermaid = UML.to_mermaid(uml)
+      assert String.contains?(mermaid, "my class")
+      assert String.contains?(mermaid, "another-class!")
+    end
   end
 end
