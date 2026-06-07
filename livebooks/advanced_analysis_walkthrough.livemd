@@ -272,8 +272,8 @@ alias Choreo.Dependency
 deploy_deps = 
   Dependency.new()
   |> Dependency.add_application(:api_gateway)
-  |> Dependency.add_service(:auth_service)
-  |> Dependency.add_service(:user_database)
+  |> Dependency.add_application(:auth_service)
+  |> Dependency.add_application(:user_database)
   
   # Declare dependencies
   |> Dependency.depends_on(:api_gateway, :auth_service)
