@@ -25,6 +25,7 @@ alias Choreo.Sequence
 In Strategic Domain-Driven Design (DDD), we divide a large system into distinct partitions called **Bounded Contexts**. We then map how these contexts communicate.
 
 Below, we model a complete strategic context map for our **Order Placement & Fulfillment Stream** modeled after the core workflow in *Domain Modeling Made Functional*:
+
 * **Order Taking** (Core Bounded Context)
 * **Billing** (Supporting Context)
 * **Shipping** (Generic Context)
@@ -79,6 +80,7 @@ Kino.Layout.tabs([
 During an Event Storming session, we explore the flow of business actions. We place colored "sticky notes" to map how users/actors initiate **Commands**, which target **Aggregates**, which then emit **Domain Events** that trigger reaction **Policies**.
 
 Here we model the full Order fulfillment flow:
+
 1. A **Customer** places an order, updating the **Order Aggregate**, emitting `Order Placed`.
 2. The `Payment Saga Policy` reacts to `Order Placed` by issuing `Request Payment` to the **Billing Aggregate**, which emits `Payment Received`.
 3. The `Allocation Saga Policy` reacts to `Payment Received` by issuing `Reserve Inventory` to the **Inventory Aggregate**, which emits `Inventory Reserved`.
@@ -300,6 +302,7 @@ Kino.Layout.tabs([
 An **Entity** has a persistent identity that spans time and state, while an **Aggregate** represents a transactional consistency boundary wrapping one or more entities and value objects.
 
 Below, we detail the internal schemas of our **Order Aggregate** boundary. Inside the aggregate, we have:
+
 * The **Order Entity** (its root)
 * An **Order Line Entity** (representing selected items)
 * A **Customer Info Value Object** (representing client details)

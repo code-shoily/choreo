@@ -257,11 +257,22 @@ defmodule Choreo.Render.Mermaid do
   defp edge_label(system, edge_id) do
     meta = Map.get(system.edge_meta, edge_id, %{})
 
-    cond do
-      meta[:edge_type] == :trace -> to_string(meta[:type] || "trace")
-      label = meta[:label] -> to_string(label)
-      protocol = meta[:protocol] -> to_string(protocol)
-      true -> ""
+    label =
+      cond do
+        meta[:edge_type] == :trace -> to_string(meta[:type] || "trace")
+        label = meta[:label] -> to_string(label)
+        protocol = meta[:protocol] -> to_string(protocol)
+        true -> ""
+      end
+
+    if label != "" do
+      if String.contains?(label, ["<", ">", "[", "]", "(", ")", "-"]) do
+        "\"" <> String.replace(label, "\"", "\\\"") <> "\""
+      else
+        label
+      end
+    else
+      ""
     end
   end
 
