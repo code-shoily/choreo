@@ -27,7 +27,17 @@ The four levels are:
 | **L3** | **Components**     | Developers | How is a container decomposed?              |
 | **L4** | **Code**           | Developers | What do the classes/interfaces look like?   |
 
-`Choreo.C4` lets you model all four levels in a single graph and then **zoom** to generate the diagram you need. Because it's built on Yog, you also get analysis: find orphaned containers, missing descriptions, and structural inconsistencies.
+### The Choreo Approach: One Model, Multiple Views
+
+Unlike other drawing tools where you have to manually draw and maintain separate, redundant diagrams for each level (which quickly go out of sync), `Choreo.C4` lets you model your **entire architecture in a single, unified graph**.
+
+Once modeled, you use **view lenses** (`Choreo.View.zoom/2` and `Choreo.View.focus/3`) to automatically generate System Context, Container, and Component diagrams.
+
+Choreo automatically handles:
+
+* **Relationship Roll-up**: Detailed component-level connections roll up to container-level and system-level connections when you zoom out.
+* **Diagram Scoping**: Zooming in automatically expands only the software system or container in scope, collapsing other components and external entities.
+* **Auto-Clustering**: Automatically groups elements inside visual boundaries (clusters) using parent metadata.
 
 ---
 
@@ -51,328 +61,323 @@ legend =
   |> C4.add_container(:container, label: "Container", technology: "Elixir", parent: :system)
   |> C4.add_component(:component, label: "Component", technology: "GenServer", parent: :container)
 
+# Render DOT (Graphviz)
 Kino.VizJS.render(C4.to_dot(legend))
 ```
 
 ```elixir
+# Render Mermaid.js
 Kino.Mermaid.new(C4.to_mermaid(legend))
 ```
 
 ---
 
-## Example 1: System Context Diagram (L1)
+## Step 1: Defining the Unified Architecture Model
 
-Let's start with the simplest useful C4 diagram: a customer using an internet banking system, which talks to a mainframe.
+Let's construct a complete model for an **Internet Banking Application**. We define people, systems, containers, and components, and connect them at their most specific level.
 
 ```elixir
-context =
+alias Choreo.C4
+
+model =
   C4.new()
+  # 1. Persons
   |> C4.add_person(:customer,
-    label: "Customer",
-    description: "A retail banking customer"
+    label: "Personal Banking Customer",
+    description: "A customer of the bank who wants to view balances and make payments."
   )
+  # 2. Software Systems
   |> C4.add_software_system(:banking,
-    label: "Internet Banking",
-    description: "Allows customers to view balances and make payments",
+    label: "Internet Banking System",
+    description: "Allows customers to view financial info and make payments.",
     scope: :in
   )
   |> C4.add_software_system(:mainframe,
-    label: "Mainframe Banking",
-    description: "Core banking system of record",
+    label: "Mainframe Banking System",
+    description: "Stores all core bank account, transaction, and customer details.",
     scope: :out
   )
   |> C4.add_software_system(:email,
     label: "E-mail System",
-    description: "Sends notification emails to customers",
+    description: "The internal Microsoft Exchange e-mail system.",
     scope: :out
   )
-  |> C4.add_relationship(:customer, :banking,
-    label: "Views balances and makes payments using"
-  )
-  |> C4.add_relationship(:banking, :mainframe,
-    label: "Gets account info from"
-  )
-  |> C4.add_relationship(:banking, :email,
-    label: "Sends e-mail using"
-  )
-  |> C4.add_relationship(:customer, :email,
-    label: "Reads e-mail from"
-  )
-
-Kino.VizJS.render(C4.to_dot(context))
-```
-
-```elixir
-Kino.Mermaid.new(C4.to_mermaid(context))
-```
-
----
-
-## Example 2: Container Diagram (L2)
-
-Now we zoom into the in-scope system to reveal its containers: a Single-Page Application, an API, and a database.
-
-```elixir
-container =
-  context
+  # 3. L2 Containers (parent: :banking)
   |> C4.add_container(:web_app,
-    label: "Single-Page App",
-    technology: "JavaScript / React",
-    description: "Provides banking functionality via a web browser",
+    label: "Single-Page Application",
+    technology: "React & TypeScript",
+    description: "Provides internet banking features to customers via their web browser.",
     parent: :banking
   )
   |> C4.add_container(:api,
     label: "API Application",
-    technology: "Elixir / Phoenix",
-    description: "Provides banking functionality via a JSON API",
+    technology: "Elixir & Phoenix",
+    description: "Provides internet banking functionality via a JSON API.",
     parent: :banking
   )
   |> C4.add_container(:db,
     label: "Database",
     technology: "PostgreSQL",
-    description: "Stores user registration, authentication, and banking data",
+    description: "Stores user credentials, hashed passwords, and audit logs.",
     parent: :banking
   )
-  |> C4.add_relationship(:customer, :web_app,
-    label: "Uses",
-    technology: "HTTPS"
-  )
-  |> C4.add_relationship(:web_app, :api,
-    label: "Makes API calls to",
-    technology: "JSON / HTTPS"
-  )
-  |> C4.add_relationship(:api, :db,
-    label: "Reads from and writes to",
-    technology: "TCP / SQL"
-  )
-  |> C4.add_relationship(:api, :mainframe,
-    label: "Makes RPC calls to",
-    technology: "gRPC"
-  )
-  |> C4.add_relationship(:api, :email,
-    label: "Sends e-mail using",
-    technology: "SMTP"
-  )
-
-Kino.VizJS.render(C4.to_dot(container))
-```
-
-```elixir
-Kino.Mermaid.new(C4.to_mermaid(container))
-```
-
----
-
-## Example 3: Component Diagram (L3)
-
-Zooming one level deeper into the API container, we see its internal components.
-
-```elixir
-component =
-  container
+  # 4. L3 Components (parent: :api)
   |> C4.add_component(:signin_controller,
     label: "Sign In Controller",
     technology: "Phoenix Controller",
-    description: "Allows users to sign in",
+    description: "Authenticates users and generates JWT sessions.",
     parent: :api
   )
   |> C4.add_component(:accounts_controller,
     label: "Accounts Controller",
     technology: "Phoenix Controller",
-    description: "Serves account summaries and transaction lists",
+    description: "Fetches summaries and transactions for bank accounts.",
     parent: :api
   )
   |> C4.add_component(:accounts_context,
     label: "Accounts Context",
     technology: "Elixir Module",
-    description: "Business logic for accounts and transactions",
+    description: "Coordinates access to account summaries and mainframe calls.",
     parent: :api
   )
-  |> C4.add_component(:auth_context,
-    label: "Auth Context",
+  |> C4.add_component(:auth_service,
+    label: "Security Service",
     technology: "Elixir Module",
-    description: "Authentication and authorization logic",
+    description: "Provides token generation, verification, and credentials checking.",
     parent: :api
   )
   |> C4.add_component(:mailer,
     label: "Mailer",
-    technology: "Swoosh Adapter",
-    description: "Sends transactional e-mails",
+    technology: "Swoosh / SMTP Adapter",
+    description: "Formats and sends transactional e-mails.",
     parent: :api
   )
-  |> C4.add_relationship(:signin_controller, :auth_context,
+  # 5. Relationships (defined at their most detailed/specific levels)
+  |> C4.add_relationship(:customer, :web_app,
+    label: "Visits banking site using",
+    technology: "HTTPS"
+  )
+  |> C4.add_relationship(:web_app, :signin_controller,
+    label: "Submits credentials to",
+    technology: "JSON / HTTPS"
+  )
+  |> C4.add_relationship(:web_app, :accounts_controller,
+    label: "Requests account details from",
+    technology: "JSON / HTTPS"
+  )
+  |> C4.add_relationship(:signin_controller, :auth_service,
     label: "Authenticates via"
   )
-  |> C4.add_relationship(:accounts_controller, :accounts_context,
-    label: "Uses"
+  |> C4.add_relationship(:accounts_controller, :auth_service,
+    label: "Authorizes requests using"
   )
-  |> C4.add_relationship(:accounts_controller, :auth_context,
-    label: "Authorizes via"
+  |> C4.add_relationship(:accounts_controller, :accounts_context,
+    label: "Fetches summaries from"
+  )
+  |> C4.add_relationship(:auth_service, :db,
+    label: "Verifies hashes in",
+    technology: "SQL / TCP"
   )
   |> C4.add_relationship(:accounts_context, :db,
-    label: "Reads from and writes to"
+    label: "Reads transactions from",
+    technology: "SQL / TCP"
   )
   |> C4.add_relationship(:accounts_context, :mainframe,
-    label: "Gets account info from"
+    label: "Fetches core ledger data from",
+    technology: "gRPC"
+  )
+  |> C4.add_relationship(:signin_controller, :mailer,
+    label: "Requests alert email from"
   )
   |> C4.add_relationship(:mailer, :email,
-    label: "Sends e-mail using"
+    label: "Dispatches SMTP traffic to",
+    technology: "SMTP"
   )
-
-Kino.VizJS.render(C4.to_dot(component))
-```
-
-```elixir
-Kino.Mermaid.new(C4.to_mermaid(component))
+  |> C4.add_relationship(:email, :customer,
+    label: "Delivers notifications to",
+    technology: "Exchange Protocol"
+  )
 ```
 
 ---
 
-## Zooming with Choreo.View
+## Step 2: L1 System Context Diagram
 
-Because the entire C4 model lives in one graph, you can generate **any level diagram** from the same data using `Choreo.View.zoom/2`.
+By zooming to `level: 0`, Choreo hides all containers and components, collapsing them up to their parent software systems. Relationships are rolled up automatically:
 
-### Level 0 — System Context
+* `:customer -> :web_app` rolls up to `:customer -> :banking`
+* `:mailer -> :email` and `:auth_service -> :db` are rolled up, ignoring self-loops on `:banking`.
 
 ```elixir
-context_view = Choreo.View.zoom(component, level: 0)
+# Render DOT (Graphviz)
+context_view = Choreo.View.zoom(model, level: 0)
 Kino.VizJS.render(Choreo.C4.to_dot(context_view))
 ```
 
-### Level 1 — Container
+```elixir
+# Render Mermaid.js
+Kino.Mermaid.new(Choreo.C4.to_mermaid(context_view))
+```
+
+---
+
+## Step 3: L2 Container Diagram
+
+Zooming to `level: 1` automatically targets the in-scope software system (`:banking`), expanding it to show its containers (`:web_app`, `:api`, and `:db`) inside a boundary cluster, while keeping external systems (`:mainframe`, `:email`) and people collapsed.
+
+All component-level relationships inside the API application roll up to target the `:api` container itself.
 
 ```elixir
-container_view = Choreo.View.zoom(component, level: 1)
+# Render DOT (Graphviz)
+container_view = Choreo.View.zoom(model, level: 1)
 Kino.VizJS.render(Choreo.C4.to_dot(container_view))
 ```
 
-### Level 2 — Component
+```elixir
+# Render Mermaid.js
+Kino.Mermaid.new(Choreo.C4.to_mermaid(container_view))
+```
+
+---
+
+## Step 4: L3 Component Diagram
+
+To view components, we zoom to `level: 2`. We set the active scope to the container we want to expand (`:api`).
+
+Choreo expands `:api` to show all of its internal components (`:signin_controller`, `:auth_service`, etc.) inside a dashed container boundary, while keeping other containers (`:web_app`, `:db`) collapsed at the container level!
 
 ```elixir
-component_view = Choreo.View.zoom(component, level: 2)
+# Render DOT (Graphviz)
+component_view =
+  model
+  |> C4.set_scope(:api)
+  |> Choreo.View.zoom(level: 2)
+
 Kino.VizJS.render(Choreo.C4.to_dot(component_view))
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Mermaid.new(Choreo.C4.to_mermaid(component_view))
 ```
 
 ---
 
 ## Focus Views
 
-Sometimes you only want to show a node and its immediate neighbourhood.
+Sometimes you only want to show a specific node and its immediate neighborhood rather than a complete level view.
+
+### 1-Hop Neighborhood around API
 
 ```elixir
-# Show only the API and its direct neighbours
-focused = Choreo.View.focus(component, :api, radius: 1)
-Kino.VizJS.render(Choreo.C4.to_dot(focused))
+# Render DOT (Graphviz)
+focused = Choreo.View.focus(model, :api, radius: 1)
+Kino.VizJS.render(C4.to_dot(focused))
 ```
 
 ```elixir
-# Show the shortest path from customer to database
-path_view = Choreo.View.focus_between(component, :customer, :db)
-Kino.VizJS.render(Choreo.C4.to_dot(path_view))
+# Render Mermaid.js
+Kino.Mermaid.new(C4.to_mermaid(focused))
+```
+
+### Shortest Path from Customer to Database
+
+```elixir
+# Render DOT (Graphviz)
+path_view = Choreo.View.focus_between(model, :customer, :db)
+Kino.VizJS.render(C4.to_dot(path_view))
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Mermaid.new(C4.to_mermaid(path_view))
 ```
 
 ---
 
-## Analysis
+## Themes & Customizations
 
-### Structural Validation
+Choreo supports standard theme overrides to produce professional and clean layouts. Let's render the component view in different styles.
+
+### Warm Theme
 
 ```elixir
-Analysis.validate(component)
+# Render DOT (Graphviz)
+Kino.VizJS.render(C4.to_dot(component_view, theme: :warm))
 ```
 
-### Isolated Nodes
-
-Which elements have no relationships at all?
-
 ```elixir
-Analysis.isolated_nodes(component)
+# Render Mermaid.js
+Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :warm))
 ```
 
-### Missing Parents
-
-Containers and components should always have a parent.
+### Ocean Theme
 
 ```elixir
-# Deliberately broken example
-broken =
-  C4.new()
-  |> C4.add_container(:orphan_container, label: "Orphan")
-  |> C4.add_component(:orphan_component, label: "Orphan")
-
-Analysis.missing_parents(broken)
+# Render DOT (Graphviz)
+Kino.VizJS.render(C4.to_dot(component_view, theme: :ocean))
 ```
 
-### Missing Descriptions
-
-Every element in C4 should have a description.
-
 ```elixir
-Analysis.missing_descriptions(component)
+# Render Mermaid.js
+Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :ocean))
 ```
 
-### Missing Technology Labels
-
-Containers and components should indicate their technology stack.
+### Dark Theme
 
 ```elixir
- Analysis.missing_technology(component)
+# Render DOT (Graphviz)
+Kino.VizJS.render(C4.to_dot(component_view, theme: :dark))
 ```
 
-### Missing Relationship Labels
-
-Every arrow should say *how* or *what* one element does with another.
-
 ```elixir
-Analysis.missing_relationship_labels(component)
-```
-
-### Parents Without Relationships
-
-Parent nodes that have children but no edges of their own may indicate an incomplete model.
-
-```elixir
-Analysis.parents_without_relationships(component)
+# Render Mermaid.js
+Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :dark))
 ```
 
 ---
 
-## Themes
+## Model Verification & Quality Analysis
 
-Choreo.C4 supports all built-in themes.
+Using the `Choreo.C4.Analysis` suite, we can run static analysis checks on our model to find typical architectural diagram design flaws.
+
+### Validate Structural Soundness
+
+Checks for isolated nodes, missing parents, missing descriptions, missing technology labels, and blank relationships.
 
 ```elixir
-Kino.VizJS.render(Choreo.C4.to_dot(component, theme: :dark))
+Analysis.validate(model)
 ```
 
-```elixir
-Kino.VizJS.render(Choreo.C4.to_dot(component, theme: :warm))
-```
+### Detect Missing Technology Labels
+
+Containers and components should indicate their technology stack. Let's see what is missing in our model (it should be empty, since our model is complete!).
 
 ```elixir
-Kino.VizJS.render(Choreo.C4.to_dot(component, theme: :ocean))
+Analysis.missing_technology(model)
+```
+
+### Detect Missing Descriptions
+
+```elixir
+Analysis.missing_descriptions(model)
+```
+
+### Detect Parents Without Relationships
+
+This finds systems or containers that have children, but do not have any relationships connecting them, indicating that you might have forgotten to connect their children to other elements.
+
+```elixir
+Analysis.parents_without_relationships(model)
 ```
 
 ---
 
-## Exporting to Markdown
+## Exporting to Markdown (Mermaid.js)
 
-All diagrams can be rendered to Mermaid.js for embedding in GitHub, GitLab, Notion, or documentation.
-
-````markdown
-```mermaid
-<%= Choreo.C4.to_mermaid(component) %>
-```
-````
+You can output native Mermaid flowchart syntax to embed your diagrams directly in markdown pages (like GitHub readmes, wikis, or Notion).
 
 ```elixir
-IO.puts(Choreo.C4.to_mermaid(component))
+# Let's print out the Mermaid syntax for the Container diagram
+IO.puts(C4.to_mermaid(container_view))
 ```
-
----
-
-## Further Reading
-
-* [C4 Model](https://c4model.com/) — Official site
-* [Software Architecture for Developers](https://softwarearchitecturefordevelopers.com/) — Simon Brown's book
-* [Choreo.C4 module documentation](https://hexdocs.pm/choreo/Choreo.C4.html)

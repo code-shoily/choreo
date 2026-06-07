@@ -226,5 +226,120 @@ defmodule Choreo.C4Test do
       zoomed = Choreo.View.zoom(c4, level: 2)
       assert Enum.sort(Choreo.C4.nodes(zoomed)) == [:api, :auth, :banking, :user]
     end
+
+    test "scoped level 0 (System Context) rolls up container and component relationships" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:customer)
+        |> C4.add_software_system(:banking, scope: :in)
+        |> C4.add_software_system(:mainframe, scope: :out)
+        |> C4.add_container(:web_app, parent: :banking)
+        |> C4.add_container(:api, parent: :banking)
+        |> C4.add_component(:auth, parent: :api)
+        |> C4.add_relationship(:customer, :web_app, label: "Uses")
+        |> C4.add_relationship(:web_app, :auth, label: "Calls")
+        |> C4.add_relationship(:auth, :mainframe, label: "Queries")
+
+      zoomed = Choreo.View.zoom(c4, level: 0)
+
+      # In System Context, we expect only people and systems
+      assert Enum.sort(C4.nodes(zoomed)) == [:banking, :customer, :mainframe]
+
+      # Edges should roll up to the systems
+      edges = C4.edges_with_meta(zoomed)
+      assert length(edges) == 2
+
+      # :customer -> :web_app rolls up to :customer -> :banking
+      assert Enum.any?(edges, fn {from, to, _, meta} ->
+               from == :customer and to == :banking and meta.label == "Uses"
+             end)
+
+      # :auth -> :mainframe rolls up to :banking -> :mainframe
+      assert Enum.any?(edges, fn {from, to, _, meta} ->
+               from == :banking and to == :mainframe and meta.label == "Queries"
+             end)
+    end
+
+    test "scoped level 1 (Container diagram) zooms into the scoped system" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:customer)
+        |> C4.add_software_system(:banking, scope: :in)
+        |> C4.add_software_system(:mainframe, scope: :out)
+        |> C4.add_container(:web_app, parent: :banking)
+        |> C4.add_container(:api, parent: :banking)
+        |> C4.add_component(:auth, parent: :api)
+        |> C4.add_relationship(:customer, :web_app, label: "Uses")
+        |> C4.add_relationship(:web_app, :auth, label: "Calls")
+        |> C4.add_relationship(:auth, :mainframe, label: "Queries")
+
+      zoomed = Choreo.View.zoom(c4, level: 1)
+
+      # In Container diagram, we expect customer, mainframe, and containers of :banking
+      # :banking system itself is removed (it's the boundary)
+      assert Enum.sort(C4.nodes(zoomed)) == [:api, :customer, :mainframe, :web_app]
+
+      edges = C4.edges_with_meta(zoomed)
+      assert length(edges) == 3
+
+      # :customer -> :web_app remains
+      assert Enum.any?(edges, fn {from, to, _, meta} ->
+               from == :customer and to == :web_app and meta.label == "Uses"
+             end)
+
+      # :web_app -> :auth rolls up to :web_app -> :api (since :auth is in :api)
+      assert Enum.any?(edges, fn {from, to, _, meta} ->
+               from == :web_app and to == :api and meta.label == "Calls"
+             end)
+
+      # :auth -> :mainframe rolls up to :api -> :mainframe
+      assert Enum.any?(edges, fn {from, to, _, meta} ->
+               from == :api and to == :mainframe and meta.label == "Queries"
+             end)
+
+      # Check auto-clustering: cluster should be set on the nodes and registered in c4.clusters
+      assert Map.get(zoomed.graph.nodes, :api).cluster == "cluster_banking"
+      assert Map.get(zoomed.graph.nodes, :web_app).cluster == "cluster_banking"
+      assert Map.has_key?(zoomed.clusters, "cluster_banking")
+      assert zoomed.clusters["cluster_banking"].label == "banking"
+    end
+
+    test "scoped level 2 (Component diagram) zooms into the scoped container" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:customer)
+        |> C4.add_software_system(:banking, scope: :in)
+        |> C4.add_software_system(:mainframe, scope: :out)
+        |> C4.add_container(:web_app, parent: :banking)
+        |> C4.add_container(:api, parent: :banking)
+        |> C4.add_component(:auth, parent: :api)
+        |> C4.add_component(:accounts, parent: :api)
+        |> C4.add_relationship(:customer, :web_app, label: "Uses")
+        |> C4.add_relationship(:web_app, :auth, label: "Calls")
+        |> C4.add_relationship(:auth, :mainframe, label: "Queries")
+
+      # Set active scope to container :api
+      c4 = C4.set_scope(c4, :api)
+      zoomed = Choreo.View.zoom(c4, level: 2)
+
+      # We expect customer, mainframe, web_app (other container), and components of :api
+      # :api itself and :banking are removed
+      assert Enum.sort(C4.nodes(zoomed)) == [:accounts, :auth, :customer, :mainframe, :web_app]
+
+      edges = C4.edges_with_meta(zoomed)
+      assert length(edges) == 3
+
+      assert Enum.any?(edges, fn {from, to, _, _} -> from == :customer and to == :web_app end)
+      assert Enum.any?(edges, fn {from, to, _, _} -> from == :web_app and to == :auth end)
+      assert Enum.any?(edges, fn {from, to, _, _} -> from == :auth and to == :mainframe end)
+
+      # Check auto-clustering for nested components
+      assert Map.get(zoomed.graph.nodes, :auth).cluster == "cluster_api"
+      assert Map.get(zoomed.graph.nodes, :web_app).cluster == "cluster_banking"
+      assert Map.has_key?(zoomed.clusters, "cluster_api")
+      assert Map.has_key?(zoomed.clusters, "cluster_banking")
+      assert zoomed.clusters["cluster_api"].label == "api"
+      assert zoomed.clusters["cluster_api"].parent == "cluster_banking"
+    end
   end
 end

@@ -693,47 +693,216 @@ end
 
 defimpl Choreo.Viewable, for: Choreo.C4 do
   def rebuild(c4, new_graph) do
-    new_edge_meta = Map.take(c4.edge_meta, Map.keys(new_graph.edges))
+    kept_ids = MapSet.new(Map.keys(new_graph.nodes))
+    empty_edges_graph = %{new_graph | edges: %{}, out_edge_ids: %{}, in_edge_ids: %{}}
 
-    existing_ids = MapSet.new(Map.keys(new_edge_meta))
+    # Rebuild edges with roll-up/rewiring from original graph
+    {final_graph, final_edge_meta} =
+      Enum.reduce(c4.graph.edges, {empty_edges_graph, %{}}, fn {edge_id, {from, to, weight}},
+                                                               {g_acc, meta_acc} ->
+        src_target = visible_target(c4, from, kept_ids)
+        dst_target = visible_target(c4, to, kept_ids)
 
-    new_edge_meta =
-      Enum.reduce(Map.keys(new_graph.edges), new_edge_meta, fn eid, acc ->
-        if MapSet.member?(existing_ids, eid) do
-          acc
+        if src_target && dst_target && src_target != dst_target do
+          {g_acc, new_edge_id} = Yog.Multi.add_edge(g_acc, src_target, dst_target, weight)
+          orig_meta = Map.get(c4.edge_meta, edge_id, %{})
+          {g_acc, Map.put(meta_acc, new_edge_id, orig_meta)}
         else
-          Map.put(acc, eid, virtual_edge_meta(c4))
+          {g_acc, meta_acc}
         end
       end)
 
     new_scope =
-      if c4.scope && Map.has_key?(new_graph.nodes, c4.scope) do
+      if c4.scope && Map.has_key?(final_graph.nodes, c4.scope) do
         c4.scope
       else
         nil
       end
 
-    %{c4 | graph: new_graph, edge_meta: new_edge_meta, scope: new_scope}
+    # Auto-generate clusters for parents of visible nodes
+    parent_ids =
+      final_graph.nodes
+      |> Enum.map(fn {_id, data} -> data[:parent] end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    new_clusters =
+      Enum.reduce(parent_ids, c4.clusters, fn pid, acc ->
+        cluster_name = Choreo.Internal.ensure_cluster_prefix(pid)
+
+        if Map.has_key?(acc, cluster_name) do
+          acc
+        else
+          orig_parent_node = Map.get(c4.graph.nodes, pid)
+          label = (orig_parent_node && orig_parent_node[:label]) || to_string(pid)
+
+          cluster_opts = [label: label]
+
+          cluster_opts =
+            if orig_parent_node && orig_parent_node[:parent] do
+              Keyword.put(
+                cluster_opts,
+                :parent,
+                Choreo.Internal.ensure_cluster_prefix(orig_parent_node[:parent])
+              )
+            else
+              cluster_opts
+            end
+
+          Map.put(acc, cluster_name, Map.new(cluster_opts))
+        end
+      end)
+
+    # Ensure each visible node's cluster matches its parent's cluster prefix
+    final_nodes =
+      Map.new(final_graph.nodes, fn {id, data} ->
+        if parent = data[:parent] do
+          {id, Map.put(data, :cluster, Choreo.Internal.ensure_cluster_prefix(parent))}
+        else
+          {id, data}
+        end
+      end)
+
+    final_graph = %{final_graph | nodes: final_nodes}
+
+    %{
+      c4
+      | graph: final_graph,
+        edge_meta: final_edge_meta,
+        clusters: new_clusters,
+        scope: new_scope
+    }
+  end
+
+  defp visible_target(c4, id, kept_ids) do
+    if MapSet.member?(kept_ids, id) do
+      id
+    else
+      case Map.fetch(c4.graph.nodes, id) do
+        {:ok, %{parent: parent_id}} when not is_nil(parent_id) ->
+          visible_target(c4, parent_id, kept_ids)
+
+        _ ->
+          nil
+      end
+    end
   end
 
   # Level 0 — System Context: people and software systems only
-  def zoom_predicate(_c4, 0),
-    do: fn _id, data -> data[:node_type] in [:person, :software_system] end
+  def zoom_predicate(c4, 0) do
+    _active_scope = resolve_active_scope(c4)
+    fn _id, data -> data[:node_type] in [:person, :software_system] end
+  end
 
   # Level 1 — Container: context + containers
-  def zoom_predicate(_c4, 1),
-    do: fn _id, data -> data[:node_type] in [:person, :software_system, :container] end
+  def zoom_predicate(c4, 1) do
+    case resolve_system_scope(c4) do
+      nil ->
+        fn _id, data -> data[:node_type] in [:person, :software_system, :container] end
+
+      s_id ->
+        fn id, data ->
+          case data[:node_type] do
+            :person -> true
+            :software_system -> id != s_id
+            :container -> data[:parent] == s_id
+            _ -> false
+          end
+        end
+    end
+  end
 
   # Level 2 — Component: context + containers + components
-  def zoom_predicate(_c4, 2),
-    do: fn _id, data ->
-      data[:node_type] in [:person, :software_system, :container, :component]
+  def zoom_predicate(c4, 2) do
+    case resolve_container_scope(c4) do
+      nil ->
+        fn _id, data ->
+          data[:node_type] in [:person, :software_system, :container, :component]
+        end
+
+      c_id ->
+        s_id =
+          case Map.fetch(c4.graph.nodes, c_id) do
+            {:ok, %{parent: parent_id}} -> parent_id
+            _ -> nil
+          end
+
+        fn id, data ->
+          case data[:node_type] do
+            :person ->
+              true
+
+            :software_system ->
+              id != s_id
+
+            :container ->
+              id != c_id and data[:parent] == s_id
+
+            :component ->
+              data[:parent] == c_id
+
+            _ ->
+              false
+          end
+        end
     end
+  end
 
   # Level 3+ — everything
   def zoom_predicate(_c4, _level), do: fn _id, _data -> true end
 
   def virtual_edge_meta(_c4), do: %{edge_type: :virtual, label: nil}
+
+  # Helper functions to resolve the active scope
+  defp resolve_active_scope(c4) do
+    if c4.scope do
+      c4.scope
+    else
+      c4.graph.nodes
+      |> Enum.find(fn {_id, data} ->
+        data[:node_type] == :software_system and data[:scope] == :in
+      end)
+      |> case do
+        {id, _data} -> id
+        nil -> nil
+      end
+    end
+  end
+
+  defp resolve_system_scope(c4) do
+    case resolve_active_scope(c4) do
+      nil ->
+        nil
+
+      scope_id ->
+        case Map.get(c4.graph.nodes, scope_id) do
+          %{node_type: :software_system} ->
+            scope_id
+
+          %{node_type: :container} = data ->
+            data[:parent]
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  defp resolve_container_scope(c4) do
+    case resolve_active_scope(c4) do
+      nil ->
+        nil
+
+      scope_id ->
+        case Map.get(c4.graph.nodes, scope_id) do
+          %{node_type: :container} ->
+            scope_id
+
+          _ ->
+            nil
+        end
+    end
+  end
 end
 
 defimpl Choreo.DOT, for: Choreo.C4 do
