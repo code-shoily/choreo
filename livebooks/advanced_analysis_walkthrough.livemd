@@ -505,6 +505,22 @@ We can calculate the semantic path from the runtime business task down to the da
 {:ok, path} = Tracing.trace_path(composed_system, :wf_log_audit_trail, :erd_ledger_entries)
 ```
 
+### Focusing on a Trace Path
+
+If the composed system is very large, you can use the `Choreo.View.focus_trace/4` lens to filter the diagram down to **only** the nodes on the trace path:
+
+```elixir
+# Filters the system diagram to show only the trace path
+trace_view = Choreo.View.focus_trace(composed_system, :wf_log_audit_trail, :erd_ledger_entries)
+
+Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
+```
+
+```elixir
+# Render Mermaid of focused trace path
+Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true))
+```
+
 ### Nested Semantic Lens Analysis
 
 Using `Tracing.analyze/3`, we can thread through the trace path and extract domain-specific metadata (such as workflow timeouts, retries, and database column sensitivity classifications) to compile a unified, queryable architectural posture report:

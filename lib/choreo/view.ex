@@ -153,6 +153,51 @@ defmodule Choreo.View do
   end
 
   # ============================================================================
+  # Focus trace — trace path view
+  # ============================================================================
+
+  @doc """
+  Returns a new diagram containing only the trace path from `from` to `to` (using
+  trace edges).
+
+  Optionally includes neighbors within `radius` hops of every node on the
+  path in the full graph.
+
+  ## Options
+
+    * `:radius` — include nodes within this many hops of each path node
+      in the full graph (default: `0`, meaning path nodes only)
+  """
+  @spec focus_trace(viewable(), Yog.node_id(), Yog.node_id(), keyword()) :: viewable()
+  def focus_trace(diagram, from, to, opts \\ []) do
+    radius = Keyword.get(opts, :radius, 0)
+
+    validate_node_exists!(diagram.graph, from)
+    validate_node_exists!(diagram.graph, to)
+
+    case Choreo.Analysis.Tracing.trace_path(diagram, from, to) do
+      {:ok, path_nodes} ->
+        ids_to_keep =
+          if radius > 0 do
+            path_nodes
+            |> Enum.flat_map(fn node ->
+              ego = graph_ego_graph(diagram.graph, node, radius, :neighbors)
+              Map.keys(ego.nodes)
+            end)
+            |> Enum.uniq()
+          else
+            path_nodes
+          end
+
+        new_graph = graph_subgraph(diagram.graph, ids_to_keep)
+        Choreo.Viewable.rebuild(diagram, new_graph)
+
+      :error ->
+        raise ArgumentError, "No trace path from #{inspect(from)} to #{inspect(to)}"
+    end
+  end
+
+  # ============================================================================
   # Zoom — level-based filtering
   # ============================================================================
 

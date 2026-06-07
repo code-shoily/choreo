@@ -163,6 +163,10 @@ defmodule Choreo.CompositionTest do
     assert erd_find.domain == :erd
     assert erd_find.type == :table
 
+    # 5c. Run Choreo.View.focus_trace/4
+    focused = Choreo.View.focus_trace(system, :wf_login, :erd_users)
+    assert Enum.sort(Map.keys(Choreo.nodes(focused))) == [:c4_auth, :erd_users, :wf_login]
+
     # 6. Verify default rendering filters out traces
     dot = Choreo.to_dot(system)
     refute String.contains?(dot, "executes")

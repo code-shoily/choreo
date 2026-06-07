@@ -443,6 +443,22 @@ We can calculate the tracing path (sequence of nodes) from a user task down to t
 {:ok, path} = Choreo.Analysis.Tracing.trace_path(system, :wf_verify_credentials, :erd_users)
 ```
 
+### 4. Focusing on a Semantic Trace Path
+
+If the composed system is very large, you can use the `Choreo.View.focus_trace/4` lens to filter the diagram down to **only** the nodes on the trace path:
+
+```elixir
+# Filters the system diagram to show only the trace path
+trace_view = Choreo.View.focus_trace(system, :wf_verify_credentials, :erd_users)
+
+Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
+```
+
+```elixir
+# Render Mermaid of focused trace path
+Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true))
+```
+
 ---
 
 ## Exporting to Markdown (Mermaid.js)
