@@ -13,7 +13,7 @@ defmodule Choreo.Infrastructure.Render.DOT do
     theme = Theme.resolve(Keyword.get(opts, :theme, :default))
 
     states_list = Choreo.Infrastructure.nodes(infra)
-    id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
+    id_map = Enum.into(states_list, %{}, fn id -> {id, Choreo.Internal.dot_id(id)} end)
     safe_graph = Choreo.Internal.make_multi_graph_safe(infra.graph, id_map)
 
     # Style clusters dynamically depending on theme
@@ -29,14 +29,14 @@ defmodule Choreo.Infrastructure.Render.DOT do
     hl_nodes =
       Keyword.get(opts, :highlighted_nodes, [])
       |> Kernel.||([])
-      |> Enum.map(&dot_id/1)
+      |> Enum.map(&Choreo.Internal.dot_id/1)
       |> MapSet.new()
 
     hl_edges =
       Keyword.get(opts, :highlighted_edges, [])
       |> Kernel.||([])
       |> Enum.map(fn
-        {from, to} -> {dot_id(from), dot_id(to)}
+        {from, to} -> {Choreo.Internal.dot_id(from), Choreo.Internal.dot_id(to)}
         other -> other
       end)
       |> MapSet.new()
@@ -210,21 +210,6 @@ defmodule Choreo.Infrastructure.Render.DOT do
       else
         base
       end
-    end
-  end
-
-  defp dot_id(id) do
-    str =
-      cond do
-        is_atom(id) -> Atom.to_string(id)
-        is_binary(id) -> id
-        true -> inspect(id)
-      end
-
-    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
-      str
-    else
-      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
     end
   end
 end

@@ -17,6 +17,25 @@ defmodule Choreo.Internal do
     do_bfs(graph, seeds, MapSet.new(seeds))
   end
 
+  @doc """
+  Converts a node ID to a DOT-safe identifier string.
+  """
+  @spec dot_id(Yog.node_id()) :: String.t()
+  def dot_id(id) do
+    str =
+      cond do
+        is_atom(id) -> Atom.to_string(id)
+        is_binary(id) -> id
+        true -> inspect(id)
+      end
+
+    if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+      str
+    else
+      "\"" <> String.replace(str, "\"", "\\\"") <> "\""
+    end
+  end
+
   defp do_bfs(_graph, [], visited), do: visited
 
   defp do_bfs(graph, [h | t], visited) do
