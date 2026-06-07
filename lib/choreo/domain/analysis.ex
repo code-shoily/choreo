@@ -33,6 +33,43 @@ defmodule Choreo.Domain.Analysis do
     |> check_policy_commands(nodes, outgoing_map)
   end
 
+  @doc """
+  Generates a Markdown-formatted table representing the Ubiquitous Language (glossary)
+  extracted from all nodes, aggregates, events, and types defined in the domain.
+  """
+  @spec ubiquitous_language(Domain.t()) :: String.t()
+  def ubiquitous_language(%Domain{} = domain) do
+    nodes = Domain.nodes(domain)
+
+    rows =
+      nodes
+      |> Enum.sort_by(fn {id, data} -> data[:name] || to_string(id) end)
+      |> Enum.map_join("\n", fn {id, data} ->
+        term = data[:name] || to_string(id)
+        stereotype = String.capitalize(to_string(data[:type] || :generic))
+
+        context_lbl =
+          if cluster = data[:cluster] do
+            case Map.get(domain.clusters, cluster) do
+              %{label: lbl} -> lbl
+              _ -> String.replace_prefix(cluster, "cluster_", "")
+            end
+          else
+            "Global"
+          end
+
+        description = data[:description] || "No description provided."
+        desc_escaped = String.replace(description, "|", "\\|")
+
+        "| **#{term}** | `#{stereotype}` | *#{context_lbl}* | #{desc_escaped} |"
+      end)
+
+    """
+    | Term | Stereotype | Bounded Context | Description / Definition |
+    |---|---|---|---|
+    """ <> rows
+  end
+
   # ============================================================================
   # Internal Rules
   # ============================================================================

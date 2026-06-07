@@ -130,4 +130,22 @@ defmodule Choreo.DomainTest do
     assert Enum.any?(warnings, fn w -> w =~ "Dead End Event" and w =~ "dead-end" end)
     assert Enum.any?(warnings, fn w -> w =~ "Dangling Policy" and w =~ "does not trigger" end)
   end
+
+  test "extracts term definitions into a Ubiquitous Language glossary table" do
+    map =
+      Domain.new()
+      |> Domain.add_context_boundary("checkout", label: "Checkout Context")
+      |> Domain.add_aggregate(:order_agg,
+        label: "Order Aggregate",
+        cluster: "checkout",
+        description: "Consistency boundary wrapping order entities."
+      )
+
+    glossary = Analysis.ubiquitous_language(map)
+    assert glossary =~ "| Term | Stereotype | Bounded Context | Description"
+    assert glossary =~ "**Order Aggregate**"
+    assert glossary =~ "`Aggregate`"
+    assert glossary =~ "Checkout Context"
+    assert glossary =~ "Consistency boundary wrapping order entities."
+  end
 end
