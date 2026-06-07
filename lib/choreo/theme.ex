@@ -102,7 +102,11 @@ defmodule Choreo.Theme do
     load_balancer: :hexagon,
     queue: :component,
     storage: :tab,
-    generic: :box
+    generic: :box,
+    # Infrastructure topology types
+    internet: :cloud,
+    compute: :box3d,
+    managed_db: :cylinder
   }
 
   @default_colors %{
@@ -114,7 +118,11 @@ defmodule Choreo.Theme do
     load_balancer: "#8b5cf6",
     queue: "#ec4899",
     storage: "#14b8a6",
-    generic: "#9ca3af"
+    generic: "#9ca3af",
+    # Infrastructure topology types
+    internet: "#64748b",
+    compute: "#10b981",
+    managed_db: "#f59e0b"
   }
 
   defstruct [
@@ -299,7 +307,10 @@ defmodule Choreo.Theme do
         load_balancer: "#ffffff",
         queue: "#ffffff",
         storage: "#ffffff",
-        generic: "#ffffff"
+        generic: "#ffffff",
+        internet: "#ffffff",
+        compute: "#ffffff",
+        managed_db: "#ffffff"
       },
       shapes: %{
         database: :box,
@@ -310,7 +321,10 @@ defmodule Choreo.Theme do
         load_balancer: :box,
         queue: :box,
         storage: :box,
-        generic: :box
+        generic: :box,
+        internet: :box,
+        compute: :box,
+        managed_db: :box
       },
       node_fontcolor: "black",
       edge_color: "#334155",
@@ -334,7 +348,10 @@ defmodule Choreo.Theme do
         load_balancer: "#ea580c",
         queue: "#dc2626",
         storage: "#db2777",
-        generic: "#78716c"
+        generic: "#78716c",
+        internet: "#78716c",
+        compute: "#fbbf24",
+        managed_db: "#f43f5e"
       },
       graph_bgcolor: "#fef2f2",
       edge_color: "#78716c",
@@ -359,7 +376,10 @@ defmodule Choreo.Theme do
         load_balancer: "#047857",
         queue: "#4d7c0f",
         storage: "#0f766e",
-        generic: "#4b5563"
+        generic: "#4b5563",
+        internet: "#4b5563",
+        compute: "#65a30d",
+        managed_db: "#15803d"
       },
       graph_bgcolor: "#f0fdf4",
       edge_color: "#4b5563",
@@ -384,7 +404,10 @@ defmodule Choreo.Theme do
         load_balancer: "#0e7490",
         queue: "#1e3a8a",
         storage: "#008080",
-        generic: "#64748b"
+        generic: "#64748b",
+        internet: "#64748b",
+        compute: "#0891b2",
+        managed_db: "#1d4ed8"
       },
       graph_bgcolor: "#f0f9ff",
       edge_color: "#64748b",
@@ -423,6 +446,51 @@ defmodule Choreo.Theme do
   @spec color(t(), atom()) :: String.t()
   def color(%Theme{colors: colors}, type) do
     Map.get(colors, type) || Map.get(@default_colors, type, "#9ca3af")
+  end
+
+  @doc """
+  Resolves a theme atom shortcut to a `%Theme{}` struct.
+
+  Pass-through if already a struct. Falls back to `default/0` for unknown atoms.
+  Does not dispatch to diagram-specific defaults — use this only from renderers
+  that use the standard Choreo themes (e.g. `Choreo.Infrastructure`).
+
+  ## Examples
+
+      iex> Choreo.Theme.resolve(:dark) == Choreo.Theme.dark()
+      true
+      iex> Choreo.Theme.resolve(:unknown) == Choreo.Theme.default()
+      true
+      iex> theme = Choreo.Theme.default()
+      iex> Choreo.Theme.resolve(theme) == theme
+      true
+  """
+  @spec resolve(t() | atom()) :: t()
+  def resolve(%Theme{} = theme), do: theme
+  def resolve(:default), do: default()
+  def resolve(:dark), do: dark()
+  def resolve(:minimal), do: minimal()
+  def resolve(:warm), do: warm()
+  def resolve(:forest), do: forest()
+  def resolve(:ocean), do: ocean()
+  def resolve(_), do: default()
+
+  @doc """
+  Returns `true` if the theme is considered a dark-background theme.
+
+  Used by renderers that need to flip cluster fill colours between
+  light and dark variants.
+
+  ## Examples
+
+      iex> Choreo.Theme.dark?(Choreo.Theme.dark())
+      true
+      iex> Choreo.Theme.dark?(Choreo.Theme.default())
+      false
+  """
+  @spec dark?(t()) :: boolean()
+  def dark?(%Theme{name: name, graph_bgcolor: bgcolor}) do
+    String.contains?(to_string(name || ""), "dark") or bgcolor == "#0f172a"
   end
 
   @doc """

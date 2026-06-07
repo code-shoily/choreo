@@ -10,12 +10,32 @@
   - Implemented automatic cluster boundary generation and nested hierarchy mapping for parent systems and containers of visible nodes.
   - Rewrote the C4 walkthrough Livebook guide to showcase a unified banking architecture model, scoped zooming, relationship roll-up, auto-clustering, and themes.
 
+- **Choreo.Theme — Infrastructure node types & shared helpers**:
+  - Added `:internet`, `:compute`, and `:managed_db` as first-class node types in `@default_shapes`, `@default_colors`, and all named themes (`:minimal`, `:warm`, `:forest`, `:ocean`). Infrastructure diagrams now participate in the full theme system without any special-casing.
+  - Added `Theme.resolve/1` — converts an atom shortcut (`:default`, `:dark`, etc.) to a `%Theme{}` struct, eliminating the duplicated `resolve_theme/1` private functions previously spread across renderers.
+  - Added `Theme.dark?/1` — returns `true` for dark-background themes, eliminating the duplicated `is_dark_theme?/1` private functions previously in the Infrastructure renderers.
+
 ### Added
 
 - **Cross-Diagram Semantic Tracing & Impact Analysis**:
   - Implemented `Choreo.trace/5` for declaring semantic connections (traces) between nodes across different diagram schemas (e.g. Workflow task -> C4 component -> ERD table).
   - Implemented `Choreo.Analysis.Tracing` with `impact_analysis/2` (transitively walks dependency graphs backwards to find all impacted components) and `trace_path/3` (computes cross-diagram execution paths).
   - Added `:show_traces` option to `Choreo.to_dot/2` and `Choreo.to_mermaid/2` to render trace links as styled red dashed arrows with layout constraint bypass (`constraint=false` in Graphviz).
+
+- **Choreo.Infrastructure — Cloud Network Topology Preset**:
+  - Implemented `Choreo.Infrastructure` as a domain-specific vocabulary layer on top of Choreo's existing graph, cluster, and rendering stack — not a parallel implementation.
+  - Added typed network boundary builders: `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3` — clusters with security semantics (`:vpc`, `:subnet_public`, `:subnet_private` types).
+  - Added infrastructure node builders: `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3`.
+  - Added `connect/3` with `:protocol` metadata (`:https`, `:ssl`, `:tcp`, etc.) for styled edge rendering.
+  - Implemented `Choreo.Infrastructure.Render.DOT` with VPC/subnet cluster boundary coloring (theme-aware: light and dark variants), and node shapes/colors resolved via `Choreo.Theme`.
+  - Implemented `Choreo.Infrastructure.Render.Mermaid` with Mermaid-compatible node shapes (`:circle`, `:hexagon`, `:subroutine`, `:cylinder`) and styled edges.
+  - Implemented `Choreo.Infrastructure.Analysis` with structural audit rules:
+    - `:direct_internet_to_private_subnet` — flags connections that bypass the DMZ.
+    - `:db_not_in_private_subnet` — flags managed databases placed in public subnets or outside any subnet.
+    - `:load_balancer_not_in_public_subnet` — flags load balancers placed in private subnets.
+  - Implemented `Choreo.Viewable` protocol for standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
+  - Added ExDoc groupings for all `Choreo.Infrastructure` modules.
+
 
 ## [0.8.0] - 2026-06-06
 

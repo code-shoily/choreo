@@ -93,6 +93,11 @@ defmodule Choreo.MixProject do
           Choreo.Render.DOT,
           Choreo.Render.Mermaid
         ],
+        "Cloud Infrastructure": [
+          Choreo.Infrastructure,
+          Choreo.Infrastructure.Render.DOT,
+          Choreo.Infrastructure.Render.Mermaid
+        ],
         "State Machines": [
           Choreo.FSM,
           Choreo.FSM.Render.DOT,
@@ -153,7 +158,8 @@ defmodule Choreo.MixProject do
           Choreo.ThreatModel.Analysis,
           Choreo.Workflow.Analysis,
           Choreo.ERD.Analysis,
-          Choreo.UML.Analysis
+          Choreo.UML.Analysis,
+          Choreo.Infrastructure.Analysis
         ]
       ],
       groups_for_extras: [
