@@ -173,6 +173,34 @@ defmodule Choreo.C4Test do
       assert String.contains?(dot, "User")
       assert String.contains?(dot, "App")
     end
+
+    test "supports themes and options" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:user, label: "User")
+        |> C4.add_software_system(:app, label: "App")
+        |> C4.add_container(:api, label: "API", parent: :app)
+        |> C4.add_component(:auth, label: "Auth", parent: :api)
+        |> C4.add_relationship(:user, :app, label: "Uses")
+
+      for theme <- [:dark, :warm, :forest, :ocean, :default, :custom, :invalid] do
+        theme_opt =
+          if theme == :custom,
+            do: %Choreo.Theme{name: :custom, colors: %{person: "#ff0000"}},
+            else: theme
+
+        dot =
+          C4.to_dot(c4,
+            theme: theme_opt,
+            highlighted_nodes: [:user],
+            highlighted_edges: [{:user, :app}]
+          )
+
+        assert dot =~ "digraph"
+      end
+
+      assert %Choreo.Theme{name: :c4_warm} = Choreo.C4.Render.DOT.theme(:warm)
+    end
   end
 
   describe "to_mermaid/2" do
@@ -187,6 +215,35 @@ defmodule Choreo.C4Test do
       assert String.contains?(mermaid, "graph LR")
       assert String.contains?(mermaid, "User")
       assert String.contains?(mermaid, "App")
+    end
+
+    test "supports themes and options" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:user, label: "User")
+        |> C4.add_software_system(:app, label: "App")
+        |> C4.add_container(:api, label: "API", parent: :app)
+        |> C4.add_component(:auth, label: "Auth", parent: :api)
+        |> C4.add_relationship(:user, :app, label: "Uses")
+
+      for theme <- [:dark, :warm, :forest, :ocean, :default, :custom, :invalid] do
+        theme_opt =
+          if theme == :custom,
+            do: %Choreo.Theme{name: :custom, colors: %{person: "#ff0000"}},
+            else: theme
+
+        mermaid =
+          C4.to_mermaid(c4,
+            theme: theme_opt,
+            direction: :td,
+            highlighted_nodes: [:user],
+            highlighted_edges: [{:user, :app}]
+          )
+
+        assert mermaid =~ "graph TD"
+      end
+
+      assert %Choreo.Theme{name: :c4_warm} = Choreo.C4.Render.Mermaid.theme(:warm)
     end
   end
 

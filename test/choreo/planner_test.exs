@@ -299,6 +299,62 @@ defmodule Choreo.PlannerTest do
     end
   end
 
+  describe "planner themes and options" do
+    test "to_dot/2 supports themes and highlights" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.depends_on(:b, :a)
+
+      for theme <- [:dark, :warm, :forest, :ocean, :default, :custom, :invalid] do
+        theme_opt =
+          if theme == :custom,
+            do: %Choreo.Theme{name: :custom, colors: %{task: "#ff0000"}},
+            else: theme
+
+        dot =
+          Planner.to_dot(planner,
+            theme: theme_opt,
+            highlighted_nodes: [:a],
+            highlighted_edges: [{:a, :b}]
+          )
+
+        assert dot =~ "digraph"
+      end
+
+      assert %Choreo.Theme{name: :planner_warm} = Choreo.Planner.Render.DOT.theme(:warm)
+    end
+
+    test "to_mermaid/2 supports themes, directions, and highlights" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.depends_on(:b, :a)
+
+      for theme <- [:dark, :warm, :forest, :ocean, :default, :custom, :invalid] do
+        theme_opt =
+          if theme == :custom,
+            do: %Choreo.Theme{name: :custom, colors: %{task: "#ff0000"}},
+            else: theme
+
+        mermaid =
+          Planner.to_mermaid(planner,
+            theme: theme_opt,
+            direction: :td,
+            highlighted_nodes: [:a],
+            highlighted_edges: [{:a, :b}],
+            syntax: :flowchart
+          )
+
+        assert mermaid =~ "graph TD"
+      end
+
+      assert %Choreo.Theme{name: :planner_warm} = Choreo.Planner.Render.Mermaid.theme(:warm)
+    end
+  end
+
   describe "protocols" do
     test "Choreo.Mermaid protocol" do
       planner = Planner.new() |> Planner.add_task(:a, title: "A")
