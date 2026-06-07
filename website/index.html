@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choreo — Domain-Specific Diagrams and Code-Driven Graph Analysis in Elixir</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="Choreo is an Elixir library for building domain-specific diagrams (C4, FSM, ERD, Sequence, Workflow, Threat Model) and performing semantic graph analysis on top of Yog.">
+  <meta name="keywords" content="Elixir, Mermaid, Graphviz, C4 model, Event Storming, DDD, threat modeling, state machines, sequence diagrams, visual modeling">
+  <meta name="author" content="Choreo team">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Mermaid JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+
+  <!-- Modern CSS Stylesheet -->
+  <style>
+    :root {
+      --bg-color: #030712;
+      --panel-bg: rgba(17, 24, 39, 0.7);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.15);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.15);
+      --accent-blue: #3b82f6;
+      --accent-teal: #14b8a6;
+      --accent-magenta: #d946ef;
+      --font-outfit: 'Outfit', sans-serif;
+      --font-inter: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-inter);
+      line-height: 1.6;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+
+    /* Background Ambient Gradients */
+    .ambient-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 900px;
+      background: 
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(217, 70, 239, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(17, 24, 39, 0.5) 0%, var(--bg-color) 100%);
+      z-index: -2;
+      pointer-events: none;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Header Nav */
+    header {
+      padding: 1.5rem 0;
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(3, 7, 18, 0.6);
+    }
+
+    .nav-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-magenta) 100%);
+      width: 2.25rem;
+      height: 2.25rem;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-outfit);
+      font-weight: 800;
+      color: #fff;
+      font-size: 1.25rem;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+    }
+
+    .logo-text {
+      font-family: var(--font-outfit);
+      font-weight: 700;
+      font-size: 1.5rem;
+      background: linear-gradient(135deg, #fff 40%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text-main);
+    }
+
+    .btn-github {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-github:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-hover);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 6rem 0 4rem 0;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: #818cf8;
+      padding: 0.35rem 0.85rem;
+      border-radius: 2rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-family: var(--font-outfit);
+      margin-bottom: 2rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .hero-title {
+      font-family: var(--font-outfit);
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.5rem;
+      background: linear-gradient(to right, #ffffff, #9ca3af);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent-magenta) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      max-width: 750px;
+      margin: 0 auto 2.5rem auto;
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 4rem;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      padding: 0.75rem 1.75rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.75rem 1.75rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-hover);
+    }
+
+    /* Teaser / Main Preview */
+    .teaser-wrapper {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 2rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      margin-bottom: 6rem;
+      position: relative;
+    }
+
+    .teaser-wrapper::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      border-radius: 1.05rem;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(217, 70, 239, 0.1) 100%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .teaser-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    .teaser-tag {
+      font-family: var(--font-outfit);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-teal);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .teaser-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-teal);
+      box-shadow: 0 0 10px var(--accent-teal);
+    }
+
+    .teaser-title {
+      font-family: var(--font-outfit);
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .teaser-content {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    .teaser-code {
+      background: rgba(3, 7, 18, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      padding: 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      overflow-x: auto;
+      color: #e5e7eb;
+      text-align: left;
+    }
+
+    .teaser-code span.keyword { color: #f472b6; }
+    .teaser-code span.module { color: #60a5fa; }
+    .teaser-code span.atom { color: #f59e0b; }
+    .teaser-code span.string { color: #34d399; }
+    .teaser-code span.comment { color: #6b7280; }
+
+    .teaser-diagram {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+    }
+
+    /* Showcase Tabs & Grid */
+    .section-title {
+      font-family: var(--font-outfit);
+      font-size: 2.25rem;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 3rem auto;
+      font-size: 1rem;
+    }
+
+    .showcase-tabs {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.5rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border-color);
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-family: var(--font-outfit);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: var(--primary);
+    }
+
+    .showcase-content {
+      display: none;
+    }
+
+    .showcase-content.active {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 2rem;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Diagram Grid for All Types */
+    .grid-types {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 6rem;
+    }
+
+    .card-type {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .card-type:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-hover);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-category {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--primary);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-title {
+      font-family: var(--font-outfit);
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-description {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .card-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      padding: 0.15rem 0.45rem;
+      border-radius: 0.25rem;
+      border: 1px solid var(--border-color);
+    }
+
+    /* Interactive Playground */
+    .playground-section {
+      background: radial-gradient(circle at top, rgba(99, 102, 241, 0.05) 0%, transparent 100%);
+      padding: 5rem 0;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 6rem;
+    }
+
+    .playground-container {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 2rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      padding: 2rem;
+      backdrop-filter: blur(12px);
+    }
+
+    .playground-left {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .playground-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preset-selector {
+      background: rgba(3, 7, 18, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      font-family: var(--font-outfit);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .editor-textarea {
+      width: 100%;
+      height: 400px;
+      background: rgba(3, 7, 18, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      color: #34d399;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 1rem;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    .editor-textarea:focus {
+      border-color: var(--primary);
+    }
+
+    .playground-right {
+      background: #ffffff;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      overflow: auto;
+      color: #000;
+    }
+
+    .playground-error {
+      color: #ef4444;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      width: 100%;
+      display: none;
+    }
+
+    /* Installation Section */
+    .install-section {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto 6rem auto;
+    }
+
+    .install-box {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      margin-top: 1.5rem;
+      text-align: left;
+    }
+
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-copy:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 3rem 0;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Responsive Quirks */
+    @media (max-width: 900px) {
+      .teaser-content, .showcase-content.active, .playground-container {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-title {
+        font-size: 2.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-bg"></div>
+
+  <!-- Header Nav -->
+  <header>
+    <div class="container nav-container">
+      <div class="logo-group">
+        <div class="logo-icon">C</div>
+        <span class="logo-text">Choreo</span>
+      </div>
+      <div class="nav-links">
+        <a href="#types" class="nav-link">Features</a>
+        <a href="#playground" class="nav-link">Playground</a>
+        <a href="https://hexdocs.pm/choreo" class="nav-link">HexDocs</a>
+        <a href="https://github.com/code-shoily/choreo" class="btn-github">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="container hero">
+    <div class="hero-badge">Coming in v0.9 — Production Ready</div>
+    <h1 class="hero-title">Model Complex Systems<br>With <span>Elixir Code</span></h1>
+    <p class="hero-subtitle">
+      Choreo is a powerful Elixir visual modeling toolchain. Write declarative, domain-specific graph definitions and render beautiful diagrams automatically using Mermaid or Graphviz, backed by rich semantic static analysis.
+    </p>
+    <div class="hero-actions">
+      <a href="#playground" class="btn-primary">Try the Playground</a>
+      <a href="#types" class="btn-secondary">Explore 13 Diagram Types</a>
+    </div>
+
+    <!-- Teaser Preview -->
+    <div class="teaser-wrapper">
+      <div class="teaser-header">
+        <div class="teaser-tag">Dataflow & Processing Pipelines</div>
+        <div class="teaser-title">Choreo.Dataflow</div>
+      </div>
+      <div class="teaser-content">
+        <div class="teaser-code">
+<span class="keyword">alias</span> <span class="module">Choreo.Dataflow</span>
+
+pipeline =
+  <span class="module">Dataflow</span>.new()
+  |&gt; <span class="module">Dataflow</span>.add_source(<span class="atom">:kafka</span>, <span class="atom">label:</span> <span class="string">"Kafka Ingest"</span>)
+  |&gt; <span class="module">Dataflow</span>.add_transform(<span class="atom">:parser</span>, <span class="atom">label:</span> <span class="string">"JSON Parser"</span>)
+  |&gt; <span class="module">Dataflow</span>.add_transform(<span class="atom">:enricher</span>, <span class="atom">label:</span> <span class="string">"Enricher"</span>)
+  |&gt; <span class="module">Dataflow</span>.add_sink(<span class="atom">:postgres</span>, <span class="atom">label:</span> <span class="string">"Postgres Sink"</span>)
+  |&gt; <span class="module">Dataflow</span>.add_sink(<span class="atom">:s3</span>, <span class="atom">label:</span> <span class="string">"S3 Archive"</span>)
+  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:kafka</span>, <span class="atom">:parser</span>)
+  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:parser</span>, <span class="atom">:enricher</span>)
+  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:enricher</span>, <span class="atom">:postgres</span>)
+  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:enricher</span>, <span class="atom">:s3</span>)
+        </div>
+        <div class="teaser-diagram">
+          <pre class="mermaid">
+graph TD
+  classDef default color:#333
+  kafka[("Kafka Ingest")]
+  parser["JSON Parser"]
+  enricher["Enricher"]
+  postgres[("Postgres Sink")]
+  s3[("S3 Archive")]
+  
+  style kafka fill:#3b82f6,stroke:#1d64d8,color:#fff
+  style parser fill:#10b981,stroke:#059669,color:#fff
+  style enricher fill:#10b981,stroke:#059669,color:#fff
+  style postgres fill:#8b5cf6,stroke:#6d28d9,color:#fff
+  style s3 fill:#8b5cf6,stroke:#6d28d9,color:#fff
+
+  kafka --> parser
+  parser --> enricher
+  enricher --> postgres
+  enricher --> s3
+          </pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Tabs Showcase -->
+  <section class="container" style="margin-bottom: 6rem;">
+    <h2 class="section-title">Visual Architectures of Any Type</h2>
+    <p class="section-subtitle">Switch tabs below to see how standard Elixir declarations render into clean, readable system layouts.</p>
+    
+    <div class="showcase-tabs">
+      <button class="tab-btn active" onclick="switchTab('fsm')">FSM (State Machine)</button>
+      <button class="tab-btn" onclick="switchTab('seq')">Sequence Diagram</button>
+      <button class="tab-btn" onclick="switchTab('workflow')">Workflow Orchestration</button>
+      <button class="tab-btn" onclick="switchTab('domain')">DDD Strategic Map</button>
+    </div>
+
+    <!-- FSM Tab Content -->
+    <div id="showcase-fsm" class="showcase-content active">
+      <div class="teaser-code">
+<span class="keyword">alias</span> <span class="module">Choreo.FSM</span>
+
+fsm =
+  <span class="module">FSM</span>.new()
+  |&gt; <span class="module">FSM</span>.add_initial_state(<span class="atom">:idle</span>)
+  |&gt; <span class="module">FSM</span>.add_state(<span class="atom">:running</span>)
+  |&gt; <span class="module">FSM</span>.add_final_state(<span class="atom">:done</span>)
+  |&gt; <span class="module">FSM</span>.add_transition(<span class="atom">:idle</span>, <span class="atom">:running</span>, <span class="atom">label:</span> <span class="string">"start"</span>)
+  |&gt; <span class="module">FSM</span>.add_transition(<span class="atom">:running</span>, <span class="atom">:done</span>, <span class="atom">label:</span> <span class="string">"finish"</span>)
+      </div>
+      <div class="teaser-diagram">
+        <pre class="mermaid">
+stateDiagram-v2
+  [*] --> idle
+  idle --> running : start
+  running --> done : finish
+  done --> [*]
+        </pre>
+      </div>
+    </div>
+
+    <!-- Sequence Tab Content -->
+    <div id="showcase-seq" class="showcase-content">
+      <div class="teaser-code">
+<span class="keyword">alias</span> <span class="module">Choreo.Sequence</span>
+
+seq =
+  <span class="module">Sequence</span>.new()
+  |&gt; <span class="module">Sequence</span>.add_actor(<span class="atom">:user</span>, <span class="atom">label:</span> <span class="string">"User"</span>)
+  |&gt; <span class="module">Sequence</span>.add_participant(<span class="atom">:api</span>, <span class="atom">label:</span> <span class="string">"API"</span>)
+  |&gt; <span class="module">Sequence</span>.add_participant(<span class="atom">:db</span>, <span class="atom">label:</span> <span class="string">"Database"</span>)
+  |&gt; <span class="module">Sequence</span>.message(<span class="atom">:user</span>, <span class="atom">:api</span>, <span class="atom">label:</span> <span class="string">"GET /accounts"</span>)
+  |&gt; <span class="module">Sequence</span>.activate(<span class="atom">:api</span>)
+  |&gt; <span class="module">Sequence</span>.message(<span class="atom">:api</span>, <span class="atom">:db</span>, <span class="atom">label:</span> <span class="string">"SELECT"</span>)
+  |&gt; <span class="module">Sequence</span>.return(<span class="atom">:db</span>, <span class="atom">:api</span>, <span class="atom">label:</span> <span class="string">"rows"</span>)
+  |&gt; <span class="module">Sequence</span>.deactivate(<span class="atom">:api</span>)
+  |&gt; <span class="module">Sequence</span>.return(<span class="atom">:api</span>, <span class="atom">:user</span>, <span class="atom">label:</span> <span class="string">"200 OK"</span>)
+      </div>
+      <div class="teaser-diagram">
+        <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant API
+    participant Database
+    User->>API: GET /accounts
+    activate API
+    API->>Database: SELECT
+    Database-->>API: rows
+    API-->>User: 200 OK
+    deactivate API
+        </pre>
+      </div>
+    </div>
+
+    <!-- Workflow Tab Content -->
+    <div id="showcase-workflow" class="showcase-content">
+      <div class="teaser-code">
+<span class="keyword">alias</span> <span class="module">Choreo.Workflow</span>
+
+workflow =
+  <span class="module">Workflow</span>.new()
+  |&gt; <span class="module">Workflow</span>.add_start(<span class="atom">:received</span>)
+  |&gt; <span class="module">Workflow</span>.add_task(<span class="atom">:charge</span>, <span class="atom">timeout_ms:</span> <span class="string">5000</span>)
+  |&gt; <span class="module">Workflow</span>.add_compensation(<span class="atom">:refund</span>, <span class="atom">for:</span> <span class="atom">:charge</span>)
+  |&gt; <span class="module">Workflow</span>.add_end(<span class="atom">:done</span>)
+  |&gt; <span class="module">Workflow</span>.connect(<span class="atom">:received</span>, <span class="atom">:charge</span>)
+  |&gt; <span class="module">Workflow</span>.connect(<span class="atom">:charge</span>, <span class="atom">:done</span>)
+      </div>
+      <div class="teaser-diagram">
+        <pre class="mermaid">
+graph TD
+  classDef default color:#fff
+  received(("received"))
+  charge[["charge (5000ms)"]]
+  refund["refund"]
+  done(("done"))
+
+  style received fill:#10b981,stroke:#059669
+  style charge fill:#3b82f6,stroke:#1d64d8
+  style done fill:#ef4444,stroke:#dc2626
+  style refund fill:#f87171,stroke:#ef4444,stroke-dasharray:3 3
+
+  received --> charge
+  charge --> done
+  charge -.-> refund
+        </pre>
+      </div>
+    </div>
+
+    <!-- DDD Tab Content -->
+    <div id="showcase-domain" class="showcase-content">
+      <div class="teaser-code">
+<span class="keyword">alias</span> <span class="module">Choreo.Domain</span>
+
+domain =
+  <span class="module">Domain</span>.new()
+  |&gt; <span class="module">Domain</span>.add_aggregate(<span class="atom">:order</span>, <span class="atom">label:</span> <span class="string">"Order"</span>)
+  |&gt; <span class="module">Domain</span>.add_type(<span class="atom">:line_item</span>, <span class="atom">label:</span> <span class="string">"OrderLine"</span>)
+  |&gt; <span class="module">Domain</span>.connect(<span class="atom">:order</span>, <span class="atom">:line_item</span>, <span class="atom">label:</span> <span class="string">"has"</span>)
+      </div>
+      <div class="teaser-diagram">
+        <pre class="mermaid">
+classDiagram
+  class order {
+    &lt;&lt;aggregate&gt;&gt;
+  }
+  class line_item {
+    &lt;&lt;type&gt;&gt;
+  }
+  order --> line_item : has
+        </pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Playground Section -->
+  <section id="playground" class="playground-section">
+    <div class="container">
+      <h2 class="section-title">Interactive Live Playground</h2>
+      <p class="section-subtitle" style="margin-bottom: 2.5rem;">Modify the Mermaid layout syntax in real-time. Select preset templates to instantly swap modeling schemas.</p>
+      
+      <div class="playground-container">
+        <div class="playground-left">
+          <div class="playground-header">
+            <span style="font-weight: 600; font-size: 0.95rem;">Mermaid Output Editor</span>
+            <select id="preset-select" class="preset-selector" onchange="loadPreset()">
+              <option value="dataflow">Preset: Dataflow & Pipeline</option>
+              <option value="fsm">Preset: Finite State Machine</option>
+              <option value="sequence">Preset: Sequence Diagram</option>
+              <option value="c4">Preset: C4 System Context</option>
+              <option value="erd">Preset: ERD Schema</option>
+            </select>
+          </div>
+          <textarea id="editor" class="editor-textarea" oninput="renderPlayground()"></textarea>
+          <div id="error-msg" class="playground-error"></div>
+        </div>
+        <div class="playground-right">
+          <div id="render-target"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Grid of 13 Types -->
+  <section id="types" class="container">
+    <h2 class="section-title">13 Specialized Modeling DSLs</h2>
+    <p class="section-subtitle">Every model targets a specific domain design need, complete with specialized semantic graphs, analyses, and layout generators.</p>
+    
+    <div class="grid-types">
+      <!-- Architecture & Design -->
+      <div class="card-type">
+        <div class="card-category">Architecture & Design</div>
+        <h3 class="card-title">C4 Model</h3>
+        <p class="card-description">Hierarchical modeling of software systems, containers, and components following the C4 layout specification.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.C4</span>
+          <span class="card-tag">Systems</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Architecture & Design</div>
+        <h3 class="card-title">Domain DDD</h3>
+        <p class="card-description">Map strategic bounded contexts, aggregates, entities, and event storming command-policy flows.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.Domain</span>
+          <span class="card-tag">DDD</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Architecture & Design</div>
+        <h3 class="card-title">ERD</h3>
+        <p class="card-description">Database entity-relationship modeling supporting primary/foreign keys, types, and schema links.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.ERD</span>
+          <span class="card-tag">Databases</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Architecture & Design</div>
+        <h3 class="card-title">UML Class</h3>
+        <p class="card-description">Generate classic object-oriented class structure layouts mapping structs, schemas, and associations.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.UML</span>
+          <span class="card-tag">UML</span>
+        </div>
+      </div>
+
+      <!-- Behavior & Flows -->
+      <div class="card-type">
+        <div class="card-category">Behavior & Flows</div>
+        <h3 class="card-title">FSM</h3>
+        <p class="card-description">Model finite state machines with deterministic transitions, dead-state reachability, and path analysis.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.FSM</span>
+          <span class="card-tag">State</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Behavior & Flows</div>
+        <h3 class="card-title">Sequence</h3>
+        <p class="card-description">Map sequence interactions and timelines with sync/async activations and loop/alt conditions.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.Sequence</span>
+          <span class="card-tag">Messages</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Behavior & Flows</div>
+        <h3 class="card-title">Workflow</h3>
+        <p class="card-description">Orchestrate tasks, parallel branches, latency weights, Saga compensation hooks, and bottlenecks.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.Workflow</span>
+          <span class="card-tag">Sagas</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Behavior & Flows</div>
+        <h3 class="card-title">Pipelines</h3>
+        <p class="card-description">Model dataflow processing graphs, transformation nodes, message routers, and parallel sources/sinks.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.Dataflow</span>
+          <span class="card-tag">Pipelines</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Behavior & Flows</div>
+        <h3 class="card-title">Threat Modeling</h3>
+        <p class="card-description">Map secure boundaries, trust barriers, assets, dataflows, and calculate threat levels statically.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.ThreatModel</span>
+          <span class="card-tag">STRIDE</span>
+        </div>
+      </div>
+
+      <!-- Data & Structure -->
+      <div class="card-type">
+        <div class="card-category">Data & Structure</div>
+        <h3 class="card-title">Dependencies</h3>
+        <p class="card-description">Analyze acyclic package dependencies, detect cyclic loops, and optimize layering schedules.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.Dependency</span>
+          <span class="card-tag">DAGs</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Data & Structure</div>
+        <h3 class="card-title">Decision Trees</h3>
+        <p class="card-description">Evaluate complex branching heuristics and run entropy validation checks for logical soundness.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.DecisionTree</span>
+          <span class="card-tag">Logic</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Data & Structure</div>
+        <h3 class="card-title">Planner</h3>
+        <p class="card-description">Schedule tasks, resolve priority constraints, and isolate critical path dependencies.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.Planner</span>
+          <span class="card-tag">PERT</span>
+        </div>
+      </div>
+
+      <div class="card-type">
+        <div class="card-category">Data & Structure</div>
+        <h3 class="card-title">Mind Maps</h3>
+        <p class="card-description">Organize concepts hierarchically into parent-child visual layouts representing domain trees.</p>
+        <div class="card-tags">
+          <span class="card-tag">Choreo.MindMap</span>
+          <span class="card-tag">Trees</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Installation Section -->
+  <section class="container install-section">
+    <h2 class="section-title">Install Choreo</h2>
+    <p class="section-subtitle">Add Choreo to your mix.exs and start building visual models of your domain today.</p>
+    
+    <div class="install-box">
+      <span id="install-code">def deps do
+  [
+    {:choreo, "~> 0.8.0"}
+  ]
+end</span>
+      <button class="btn-copy" onclick="copyInstall()">Copy snippet</button>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Choreo. Built on top of Yog. Released under the MIT License.</p>
+    </div>
+  </footer>
+
+  <!-- Page Scripts -->
+  <script>
+    // Mermaid presets for Playground
+    const presets = {
+      dataflow: `graph TD
+  classDef default color:#fff
+  kafka[("Kafka Ingest")]
+  parser["JSON Parser"]
+  enricher["Enricher"]
+  postgres[("Postgres Sink")]
+  s3[("S3 Archive")]
+  
+  style kafka fill:#3b82f6,stroke:#1d64d8
+  style parser fill:#10b981,stroke:#059669
+  style enricher fill:#10b981,stroke:#059669
+  style postgres fill:#8b5cf6,stroke:#6d28d9
+  style s3 fill:#8b5cf6,stroke:#6d28d9
+
+  kafka --> parser
+  parser --> enricher
+  enricher --> postgres
+  enricher --> s3`,
+      
+      fsm: `stateDiagram-v2
+  [*] --> idle
+  idle --> running : start
+  running --> done : finish
+  done --> [*]`,
+
+      sequence: `sequenceDiagram
+  actor User
+  participant API
+  participant Database
+  User->>API: GET /accounts
+  activate API
+  API->>Database: SELECT
+  Database-->>API: rows
+  API-->>User: 200 OK
+  deactivate API`,
+
+      c4: `graph TB
+  subgraph CustomerBoundary ["Customer Boundary"]
+    user["Customer (User)"]
+  end
+  subgraph SystemBoundary ["E-Commerce System"]
+    api["API Gateway (Elixir/Phoenix)"]
+    db[("Database (Postgres)")]
+  end
+  user -->|HTTPS| api
+  api -->|SQL| db
+  style user fill:#1d4ed8,color:#fff
+  style api fill:#3b82f6,color:#fff
+  style db fill:#0284c7,color:#fff`,
+
+      erd: `erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE-ITEM : contains
+  CUSTOMER {
+    string name
+    string email
+  }
+  ORDER {
+    int id
+    date date_placed
+  }`
+    };
+
+    // Initialize Mermaid
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose'
+    });
+
+    // Tab Switcher
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.showcase-content').forEach(content => content.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      const target = document.getElementById(`showcase-${tabId}`);
+      target.classList.add('active');
+      
+      // Re-run mermaid inside the tab if not already rendered
+      mermaid.init(undefined, target.querySelectorAll('.mermaid'));
+    }
+
+    // Playground Control
+    const editor = document.getElementById('editor');
+    const renderTarget = document.getElementById('render-target');
+    const errorMsg = document.getElementById('error-msg');
+
+    function loadPreset() {
+      const selected = document.getElementById('preset-select').value;
+      editor.value = presets[selected];
+      renderPlayground();
+    }
+
+    async function renderPlayground() {
+      const code = editor.value;
+      errorMsg.style.display = 'none';
+      renderTarget.innerHTML = '';
+      
+      try {
+        // Generate unique ID for rendering element
+        const id = 'mermaid-' + Math.round(Math.random() * 10000);
+        
+        // Parse and render
+        const { svg } = await mermaid.render(id, code);
+        renderTarget.innerHTML = svg;
+      } catch (err) {
+        console.error(err);
+        errorMsg.textContent = 'Mermaid syntax error. Check formatting.';
+        errorMsg.style.display = 'block';
+      }
+    }
+
+    function copyInstall() {
+      const text = document.getElementById('install-code').textContent;
+      navigator.clipboard.writeText(text);
+      alert('Mix dependency copied to clipboard!');
+    }
+
+    // Initial load
+    window.addEventListener('DOMContentLoaded', () => {
+      // Render static mermaid diagrams
+      mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+      
+      // Load default preset into editor
+      editor.value = presets.dataflow;
+      renderPlayground();
+    });
+  </script>
+</body>
+</html>
