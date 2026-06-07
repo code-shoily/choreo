@@ -2,6 +2,7 @@ defmodule Choreo.CompositionTest do
   use ExUnit.Case, async: true
 
   alias Choreo
+  alias Choreo.Analysis.Tracing
   alias Choreo.Dataflow
   alias Choreo.Workflow
 
@@ -140,13 +141,27 @@ defmodule Choreo.CompositionTest do
 
     # 4. Perform tracing impact analysis (walking transposed path)
     # erd_users is at the bottom, so changes to it flow back to c4_auth and wf_login
-    impacted = Choreo.Analysis.Tracing.impact_analysis(system, :erd_users)
+    impacted = Tracing.impact_analysis(system, :erd_users)
     assert :c4_auth in impacted
     assert :wf_login in impacted
 
     # 5. Trace path
-    {:ok, path} = Choreo.Analysis.Tracing.trace_path(system, :wf_login, :erd_users)
+    {:ok, path} = Tracing.trace_path(system, :wf_login, :erd_users)
     assert path == [:wf_login, :c4_auth, :erd_users]
+
+    # 5b. Run analyze/3 nested analysis
+    {:ok, analysis} = Tracing.analyze(system, :wf_login, :erd_users)
+    assert analysis.path == [:wf_login, :c4_auth, :erd_users]
+    assert length(analysis.findings) == 3
+
+    [wf_find, c4_find, erd_find] = analysis.findings
+    assert wf_find.domain == :workflow
+    assert wf_find.type == :task
+
+    assert c4_find.domain == :c4
+
+    assert erd_find.domain == :erd
+    assert erd_find.type == :table
 
     # 6. Verify default rendering filters out traces
     dot = Choreo.to_dot(system)

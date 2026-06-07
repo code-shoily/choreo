@@ -505,6 +505,15 @@ We can calculate the semantic path from the runtime business task down to the da
 {:ok, path} = Tracing.trace_path(composed_system, :wf_log_audit_trail, :erd_ledger_entries)
 ```
 
+### Nested Semantic Lens Analysis
+
+Using `Tracing.analyze/3`, we can thread through the trace path and extract domain-specific metadata (such as workflow timeouts, retries, and database column sensitivity classifications) to compile a unified, queryable architectural posture report:
+
+```elixir
+# Performs cross-domain metadata analysis along the trace path
+{:ok, summary} = Tracing.analyze(composed_system, :wf_log_audit_trail, :erd_ledger_entries)
+```
+
 ---
 
 ## 9. Further Reading

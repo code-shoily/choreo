@@ -36,6 +36,115 @@ defmodule Choreo.Analysis.Tracing do
     end
   end
 
+  @doc """
+  Performs nested, cross-domain analysis on a trace path starting from `from`
+  down to `to`. Threads through domain-specific metadata for each node.
+  """
+  @spec analyze(Choreo.t(), Yog.node_id(), Yog.node_id()) :: {:ok, map()} | :error
+  def analyze(%Choreo{} = system, from, to) do
+    case trace_path(system, from, to) do
+      {:ok, path} ->
+        findings =
+          Enum.map(path, fn node_id ->
+            node_data = Map.get(system.graph.nodes, node_id, %{})
+
+            base = %{
+              node: node_id,
+              label: node_data[:label] || node_data[:name] || to_string(node_id)
+            }
+
+            domain_info =
+              cond do
+                # Workflow node
+                node_data[:node_type] in [:task, :decision, :start, :end] ->
+                  %{
+                    domain: :workflow,
+                    type: node_data[:node_type],
+                    timeout_ms: node_data[:timeout_ms],
+                    retry: node_data[:retry]
+                  }
+
+                # ThreatModel element (e.g. data_store or process)
+                node_data[:element_type] != nil ->
+                  %{
+                    domain: :threat_model,
+                    type: node_data[:element_type],
+                    sensitivity: node_data[:sensitivity],
+                    boundary: node_data[:boundary]
+                  }
+
+                # ERD Table node
+                node_data[:type] == :table ->
+                  %{
+                    domain: :erd,
+                    type: :table,
+                    columns: node_data[:columns]
+                  }
+
+                # Dataflow node
+                node_data[:type] == :dataflow_node ->
+                  %{
+                    domain: :dataflow,
+                    type: node_data[:node_type],
+                    capacity: node_data[:capacity],
+                    rate: node_data[:rate]
+                  }
+
+                # Dependency node
+                node_data[:type] == :dependency_node ->
+                  %{
+                    domain: :dependency,
+                    type: node_data[:node_type]
+                  }
+
+                # C4 container/component node
+                node_data[:technology] != nil or
+                    node_data[:node_type] in [:person, :software_system, :container, :component] ->
+                  %{
+                    domain: :c4,
+                    type: node_data[:node_type],
+                    technology: node_data[:technology]
+                  }
+
+                # Generic / Fallback
+                true ->
+                  %{
+                    domain: :generic
+                  }
+              end
+
+            Map.merge(base, domain_info)
+          end)
+
+        has_bottleneck =
+          Enum.any?(findings, fn f ->
+            f[:domain] == :workflow and is_number(f[:timeout_ms]) and f[:timeout_ms] >= 5000
+          end)
+
+        has_high_risk =
+          Enum.any?(findings, fn f ->
+            (f[:domain] == :threat_model and
+               f[:sensitivity] in [:confidential, :restricted, :high_risk]) or
+              (f[:domain] == :erd and
+                 Enum.any?(f[:columns] || [], fn col ->
+                   col[:sensitivity] in [:confidential, :restricted, :high_risk]
+                 end))
+          end)
+
+        summary = %{
+          path: path,
+          findings: findings,
+          has_bottleneck?: has_bottleneck,
+          has_high_risk?: has_high_risk
+        }
+
+        {:ok, summary}
+
+      :error ->
+        :error
+    end
+  end
+
   defp build_trace_only_graph(system) do
     simple = Yog.new(:directed)
 
