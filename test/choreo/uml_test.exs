@@ -148,7 +148,7 @@ defmodule Choreo.UMLTest do
     mermaid = UML.to_mermaid(uml, syntax: :class_diagram)
 
     assert mermaid =~ "classDiagram"
-    assert mermaid =~ "class user[\"User Model\"] {"
+    assert mermaid =~ "class user {"
     assert mermaid =~ "<<struct>>"
     assert mermaid =~ "+id integer"
     assert mermaid =~ "-email string"

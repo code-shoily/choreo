@@ -79,8 +79,7 @@ defmodule Choreo.UML.Render.Mermaid do
           |> Enum.filter(&(&1 != ""))
           |> Enum.join("\n")
 
-        label = data[:label] || to_string(id)
-        "  class #{id}[\"#{label}\"] {\n#{body}\n  }"
+        "  class #{id} {\n#{body}\n  }"
       end)
 
     relations =
