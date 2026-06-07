@@ -22,26 +22,30 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
   <style>
+    /* ─────────────────────────────────────────────────────────
+       BLUEPRINT THEME — Technical Drawing / Architect's Draft
+       ───────────────────────────────────────────────────────── */
     :root {
-      --bg:           #f8fafc;
-      --surface:      #ffffff;
-      --surface-2:    #f1f5f9;
-      --border:       #e2e8f0;
-      --border-dark:  #cbd5e1;
-      --text:         #0f172a;
-      --text-2:       #475569;
-      --text-3:       #94a3b8;
-      --primary:      #4f46e5;
-      --primary-dk:   #3730a3;
-      --primary-lt:   #eef2ff;
-      --accent-teal:  #0d9488;
-      --accent-mg:    #c026d3;
-      --code-bg:      #0f172a;
-      --font-sans:    'Inter', sans-serif;
-      --font-display: 'Outfit', sans-serif;
-      --font-mono:    'JetBrains Mono', monospace;
-      --radius:       0.5rem;
-      --radius-lg:    0.75rem;
+      --bg:            #0c1a2e;
+      --surface:       #0f2035;
+      --surface-2:     #162840;
+      --surface-paper: #ffffff;
+      --border:        rgba(56, 189, 248, 0.18);
+      --border-bright: rgba(56, 189, 248, 0.5);
+      --text:          #cce4f7;
+      --text-2:        #7eadc9;
+      --text-3:        #3d6b8e;
+      --primary:       #38bdf8;
+      --primary-dk:    #0ea5e9;
+      --primary-lt:    rgba(56, 189, 248, 0.08);
+      --accent-amber:  #fbbf24;
+      --code-bg:       #060e1c;
+      --grid-line:     rgba(56, 189, 248, 0.045);
+      --font-sans:     'Inter', sans-serif;
+      --font-display:  'Outfit', sans-serif;
+      --font-mono:     'JetBrains Mono', monospace;
+      --radius:        0.25rem;
+      --radius-lg:     0.375rem;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,18 +59,52 @@
       scroll-behavior: smooth;
     }
 
+    /* Blueprint grid overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Major grid lines every 5 cells */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
+      background-size: 240px 240px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
     /* ── Layout ───────────────────────────────── */
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
 
     /* ── Header ───────────────────────────────── */
     header {
-      background: var(--surface);
+      background: rgba(12, 26, 46, 0.92);
       border-bottom: 1px solid var(--border);
       padding: 1rem 0;
       position: sticky;
       top: 0;
       z-index: 50;
     }
+
+    header .container { padding-top: 0; padding-bottom: 0; }
 
     .nav-container { display: flex; justify-content: space-between; align-items: center; }
 
@@ -82,7 +120,7 @@
       justify-content: center;
       font-family: var(--font-display);
       font-weight: 800;
-      color: #fff;
+      color: #0c1a2e;
       font-size: 1.1rem;
     }
 
@@ -103,12 +141,12 @@
       font-weight: 500;
       transition: color 0.15s;
     }
-    .nav-link:hover { color: var(--text); }
+    .nav-link:hover { color: var(--primary); }
 
     .btn-github {
-      background: var(--surface-2);
+      background: var(--primary-lt);
       border: 1px solid var(--border);
-      color: var(--text);
+      color: var(--primary);
       padding: 0.4rem 0.85rem;
       border-radius: var(--radius);
       display: inline-flex;
@@ -119,29 +157,46 @@
       text-decoration: none;
       transition: background 0.15s, border-color 0.15s;
     }
-    .btn-github:hover { background: var(--border); border-color: var(--border-dark); }
+    .btn-github:hover { background: rgba(56,189,248,0.15); border-color: var(--border-bright); }
 
     /* ── Hero ─────────────────────────────────── */
     .hero {
       padding: 5rem 0 3.5rem;
       text-align: center;
       border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+
+    /* Blueprint title block — top-right corner annotation */
+    .hero::after {
+      content: 'CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.9  ·  ELIXIR / BEAM';
+      white-space: pre;
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text-3);
+      text-align: right;
+      line-height: 1.8;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      background: var(--primary-lt);
-      border: 1px solid #c7d2fe;
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.3);
       color: var(--primary);
       padding: 0.3rem 0.75rem;
-      border-radius: 2rem;
-      font-size: 0.75rem;
+      border-radius: 0;
+      font-size: 0.72rem;
       font-weight: 600;
-      font-family: var(--font-display);
+      font-family: var(--font-mono);
       margin-bottom: 1.75rem;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
     }
 
@@ -155,16 +210,13 @@
       color: var(--text);
     }
 
-    .hero-title span {
-      color: var(--primary);
-    }
+    .hero-title span { color: var(--primary); }
 
     .hero-subtitle {
       max-width: 680px;
       margin: 0 auto 2.25rem;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       color: var(--text-2);
-      font-weight: 400;
     }
 
     .hero-actions {
@@ -176,29 +228,39 @@
 
     .btn-primary {
       background: var(--primary);
-      color: #fff;
+      color: #0c1a2e;
       padding: 0.65rem 1.5rem;
       border-radius: var(--radius);
       text-decoration: none;
-      font-weight: 600;
-      font-size: 0.9rem;
+      font-weight: 700;
+      font-size: 0.875rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.03em;
       border: 1px solid var(--primary);
-      transition: background 0.15s;
+      transition: background 0.15s, box-shadow 0.15s;
     }
-    .btn-primary:hover { background: var(--primary-dk); border-color: var(--primary-dk); }
+    .btn-primary:hover {
+      background: var(--primary-dk);
+      box-shadow: 0 0 20px rgba(56,189,248,0.25);
+    }
 
     .btn-secondary {
-      background: var(--surface);
-      border: 1px solid var(--border-dark);
-      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--primary);
       padding: 0.65rem 1.5rem;
       border-radius: var(--radius);
       text-decoration: none;
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.03em;
       transition: background 0.15s, border-color 0.15s;
     }
-    .btn-secondary:hover { background: var(--surface-2); border-color: var(--border-dark); }
+    .btn-secondary:hover {
+      background: var(--primary-lt);
+      border-color: var(--primary);
+    }
 
     /* ── Teaser ───────────────────────────────── */
     .teaser-wrapper {
@@ -206,38 +268,64 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: hidden;
+      position: relative;
+    }
+
+    /* Blueprint corner marks */
+    .teaser-wrapper::before,
+    .teaser-wrapper::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: var(--border-bright);
+      border-style: solid;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .teaser-wrapper::before {
+      top: -1px; left: -1px;
+      border-width: 2px 0 0 2px;
+    }
+    .teaser-wrapper::after {
+      bottom: -1px; right: -1px;
+      border-width: 0 2px 2px 0;
     }
 
     .teaser-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1rem 1.5rem;
+      padding: 0.75rem 1.5rem;
       border-bottom: 1px solid var(--border);
       background: var(--surface-2);
     }
 
     .teaser-tag {
-      font-family: var(--font-display);
-      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
       font-weight: 600;
-      color: var(--accent-teal);
+      color: var(--primary);
       display: flex;
       align-items: center;
       gap: 0.4rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
     .teaser-tag::before {
       content: '';
-      width: 6px; height: 6px;
+      width: 5px; height: 5px;
       border-radius: 50%;
-      background: var(--accent-teal);
+      background: var(--primary);
+      box-shadow: 0 0 6px var(--primary);
     }
 
     .teaser-title {
       font-family: var(--font-mono);
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       font-weight: 500;
-      color: var(--text-2);
+      color: var(--text-3);
+      letter-spacing: 0.06em;
     }
 
     .teaser-content {
@@ -245,9 +333,7 @@
       grid-template-columns: 1.1fr 0.9fr;
     }
 
-    .teaser-code {
-      border-right: 1px solid var(--border);
-    }
+    .teaser-code { border-right: 1px solid var(--border); }
 
     pre[class*="language-"] {
       background: var(--code-bg) !important;
@@ -258,11 +344,11 @@
       font-size: 0.82rem !important;
       height: 100%;
     }
-
     code[class*="language-"] { font-family: var(--font-mono) !important; }
 
+    /* Diagram panels: white "paper" on the dark blueprint */
     .teaser-diagram {
-      background: #ffffff;
+      background: var(--surface-paper);
       padding: 1.5rem;
       display: flex;
       align-items: center;
@@ -270,14 +356,25 @@
       min-height: 280px;
     }
 
-    /* ── Section Headers ──────────────────────── */
+    /* ── Section Layout ───────────────────────── */
     .section {
       padding: 5rem 0;
       border-bottom: 1px solid var(--border);
+      position: relative;
     }
     .section:last-of-type { border-bottom: none; }
 
     .section-header { text-align: center; margin-bottom: 3rem; }
+
+    .section-label {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 0.75rem;
+    }
 
     .section-title {
       font-family: var(--font-display);
@@ -292,7 +389,7 @@
       color: var(--text-2);
       max-width: 560px;
       margin: 0 auto;
-      font-size: 0.975rem;
+      font-size: 0.95rem;
     }
 
     /* ── Showcase Tabs ────────────────────────── */
@@ -300,12 +397,12 @@
       display: flex;
       justify-content: center;
       flex-wrap: wrap;
-      gap: 0.35rem;
+      gap: 0.25rem;
       margin-bottom: 2rem;
       padding: 0.35rem;
-      background: var(--surface-2);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius);
       max-width: 900px;
       margin-left: auto;
       margin-right: auto;
@@ -317,49 +414,66 @@
       color: var(--text-2);
       padding: 0.4rem 0.85rem;
       border-radius: var(--radius);
-      font-family: var(--font-display);
-      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
       white-space: nowrap;
+      letter-spacing: 0.02em;
     }
-    .tab-btn:hover { color: var(--text); background: var(--border); }
-    .tab-btn.active { color: #fff; background: var(--primary); }
+    .tab-btn:hover { color: var(--primary); background: var(--primary-lt); }
+    .tab-btn.active { color: #0c1a2e; background: var(--primary); }
 
-    /* Showcase panel: stacked vertically, fixed heights */
     .showcase-content { display: none; }
     .showcase-content.active {
       display: block;
       animation: fadeIn 0.25s ease forwards;
     }
 
+    /* Showcase panel */
     .showcase-panel {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       overflow: hidden;
+      position: relative;
     }
+
+    /* Corner marks on panels */
+    .showcase-panel::before,
+    .showcase-panel::after {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      border-color: rgba(56, 189, 248, 0.4);
+      border-style: solid;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .showcase-panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .showcase-panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
 
     .showcase-panel-header {
       background: var(--surface-2);
       border-bottom: 1px solid var(--border);
-      padding: 0.6rem 1rem;
+      padding: 0.55rem 1rem;
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
 
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
     .dot-red   { background: #ef4444; }
     .dot-amber { background: #f59e0b; }
     .dot-green { background: #22c55e; }
 
     .panel-filename {
       font-family: var(--font-mono);
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--text-3);
       margin-left: 0.35rem;
+      letter-spacing: 0.04em;
     }
 
     .showcase-code-block {
@@ -374,13 +488,29 @@
       padding: 1.25rem !important;
     }
 
+    /* White "paper" panel for rendered diagrams */
     .showcase-diagram-block {
       height: 460px;
-      background: #ffffff;
+      background: var(--surface-paper);
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: auto;
+      position: relative;
+    }
+
+    /* Blueprint label on diagram panels */
+    .showcase-diagram-block::after {
+      content: 'RENDERED OUTPUT';
+      position: absolute;
+      bottom: 0.6rem;
+      right: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.58rem;
+      letter-spacing: 0.1em;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      pointer-events: none;
     }
 
     .showcase-diagram-block svg {
@@ -416,27 +546,36 @@
 
     .analysis-table thead th {
       background: var(--surface-2);
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 0.7rem;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-2);
+      letter-spacing: 0.1em;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border-bright);
     }
 
     .analysis-table tbody tr:last-child td { border-bottom: none; }
-    .analysis-table tbody tr:hover { background: var(--surface-2); }
+    .analysis-table tbody tr:hover { background: var(--primary-lt); }
+    .analysis-table tbody td { color: var(--text-2); }
+    .analysis-table tbody td:first-child { color: var(--text); }
+    .analysis-table tbody td:nth-child(2) {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-3);
+    }
 
     .artifact-chip {
       display: inline-block;
       font-family: var(--font-mono);
-      font-size: 0.72rem;
-      background: var(--primary-lt);
+      font-size: 0.7rem;
+      background: rgba(56, 189, 248, 0.08);
       color: var(--primary);
-      border: 1px solid #c7d2fe;
+      border: 1px solid rgba(56, 189, 248, 0.3);
       padding: 0.15rem 0.5rem;
-      border-radius: 0.25rem;
+      border-radius: 0;
       font-weight: 600;
+      letter-spacing: 0.04em;
     }
 
     /* ── 13-type Grid ─────────────────────────── */
@@ -457,76 +596,98 @@
       color: inherit;
       display: block;
       transition: background 0.15s;
+      position: relative;
     }
     .card-type:hover { background: var(--surface-2); }
+    .card-type:hover .card-title { color: var(--primary); }
 
     .card-category {
-      font-size: 0.7rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
       color: var(--text-3);
-      font-weight: 600;
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.4rem;
     }
 
     .card-title {
       font-family: var(--font-display);
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 700;
       margin-bottom: 0.5rem;
       color: var(--text);
+      transition: color 0.15s;
     }
 
     .card-description {
-      font-size: 0.825rem;
+      font-size: 0.82rem;
       color: var(--text-2);
       margin-bottom: 1rem;
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     .card-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 
     .card-tag {
       font-family: var(--font-mono);
-      font-size: 0.68rem;
+      font-size: 0.65rem;
       color: var(--text-3);
       padding: 0.1rem 0.4rem;
-      border-radius: 0.2rem;
       border: 1px solid var(--border);
-      background: var(--surface-2);
+      background: transparent;
     }
 
     /* ── Install Section ──────────────────────── */
     .install-box {
-      background: var(--surface);
+      background: var(--code-bg);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1.25rem 1.5rem;
+      padding: 1.5rem 1.75rem;
       margin-top: 1.5rem;
+      gap: 1rem;
+      position: relative;
+    }
+
+    /* Blueprint corner marks on install box */
+    .install-box::before,
+    .install-box::after {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      border-color: rgba(56, 189, 248, 0.4);
+      border-style: solid;
+    }
+    .install-box::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .install-box::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+    .install-code {
       font-family: var(--font-mono);
       font-size: 0.9rem;
-      gap: 1rem;
+      color: var(--text);
+      white-space: pre;
     }
-
-    .install-code { white-space: pre; color: var(--text); }
 
     .btn-copy {
-      background: var(--surface-2);
-      border: 1px solid var(--border-dark);
-      color: var(--text-2);
+      background: var(--primary-lt);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--primary);
       padding: 0.45rem 0.9rem;
       border-radius: var(--radius);
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       cursor: pointer;
-      font-family: var(--font-sans);
+      font-family: var(--font-mono);
       font-weight: 500;
       white-space: nowrap;
-      transition: background 0.15s, color 0.15s;
+      letter-spacing: 0.04em;
+      transition: background 0.15s, border-color 0.15s;
     }
-    .btn-copy:hover { background: var(--border); color: var(--text); }
+    .btn-copy:hover {
+      background: rgba(56,189,248,0.15);
+      border-color: var(--border-bright);
+    }
 
     /* ── Footer ───────────────────────────────── */
     footer {
@@ -534,7 +695,9 @@
       padding: 2rem 0;
       text-align: center;
       color: var(--text-3);
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
     }
 
     /* ── Responsive ───────────────────────────── */
@@ -542,8 +705,9 @@
       .teaser-content { grid-template-columns: 1fr; }
       .teaser-code { border-right: none; border-bottom: 1px solid var(--border); }
       .hero-title { font-size: 2.25rem; }
+      .hero::after { display: none; }
     }
-  </style>
+</style>
 </head>
 <body>
 
@@ -1568,7 +1732,7 @@ elixir((Elixir))
     // Initialize Mermaid
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'default',
+      theme: 'neutral',
       securityLevel: 'loose'
     });
 
