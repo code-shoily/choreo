@@ -15,6 +15,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
+  <!-- Prism.js Syntax Highlighting (Tomorrow Night theme) -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+
   <!-- Mermaid JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
@@ -317,23 +320,19 @@
       align-items: center;
     }
 
-    .teaser-code {
-      background: rgba(3, 7, 18, 0.6);
-      border: 1px solid var(--border-color);
-      border-radius: 0.5rem;
-      padding: 1.25rem;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      overflow-x: auto;
-      color: #e5e7eb;
-      text-align: left;
+    /* Override Prism styling for seamless integration */
+    pre[class*="language-"] {
+      background: rgba(3, 7, 18, 0.6) !important;
+      border: 1px solid var(--border-color) !important;
+      border-radius: 0.5rem !important;
+      margin: 0 !important;
+      padding: 1.25rem !important;
+      font-size: 0.85rem !important;
     }
 
-    .teaser-code span.keyword { color: #f472b6; }
-    .teaser-code span.module { color: #60a5fa; }
-    .teaser-code span.atom { color: #f59e0b; }
-    .teaser-code span.string { color: #34d399; }
-    .teaser-code span.comment { color: #6b7280; }
+    code[class*="language-"] {
+      font-family: var(--font-mono) !important;
+    }
 
     .teaser-diagram {
       background: #ffffff;
@@ -407,7 +406,7 @@
 
     .showcase-content.active {
       display: grid;
-      grid-template-columns: 1fr 1.2fr;
+      grid-template-columns: 1.1fr 0.9fr;
       gap: 2rem;
       animation: fadeIn 0.4s ease forwards;
     }
@@ -665,25 +664,24 @@
         <div class="teaser-title">Choreo.Dataflow</div>
       </div>
       <div class="teaser-content">
-        <div class="teaser-code">
-<span class="keyword">alias</span> <span class="module">Choreo.Dataflow</span>
+        <div>
+          <pre class="language-elixir"><code class="language-elixir">alias Choreo.Dataflow
 
 pipeline =
-  <span class="module">Dataflow</span>.new()
-  |&gt; <span class="module">Dataflow</span>.add_source(<span class="atom">:kafka</span>, <span class="atom">label:</span> <span class="string">"Kafka Ingest"</span>)
-  |&gt; <span class="module">Dataflow</span>.add_transform(<span class="atom">:parser</span>, <span class="atom">label:</span> <span class="string">"JSON Parser"</span>)
-  |&gt; <span class="module">Dataflow</span>.add_transform(<span class="atom">:enricher</span>, <span class="atom">label:</span> <span class="string">"Enricher"</span>)
-  |&gt; <span class="module">Dataflow</span>.add_sink(<span class="atom">:postgres</span>, <span class="atom">label:</span> <span class="string">"Postgres Sink"</span>)
-  |&gt; <span class="module">Dataflow</span>.add_sink(<span class="atom">:s3</span>, <span class="atom">label:</span> <span class="string">"S3 Archive"</span>)
-  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:kafka</span>, <span class="atom">:parser</span>)
-  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:parser</span>, <span class="atom">:enricher</span>)
-  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:enricher</span>, <span class="atom">:postgres</span>)
-  |&gt; <span class="module">Dataflow</span>.connect(<span class="atom">:enricher</span>, <span class="atom">:s3</span>)
+  Dataflow.new()
+  |> Dataflow.add_source(:kafka, label: "Kafka Ingest")
+  |> Dataflow.add_transform(:parser, label: "JSON Parser")
+  |> Dataflow.add_transform(:enricher, label: "Enricher")
+  |> Dataflow.add_sink(:postgres, label: "Postgres Sink")
+  |> Dataflow.add_sink(:s3, label: "S3 Archive")
+  |> Dataflow.connect(:kafka, :parser)
+  |> Dataflow.connect(:parser, :enricher)
+  |> Dataflow.connect(:enricher, :postgres)
+  |> Dataflow.connect(:enricher, :s3)</code></pre>
         </div>
         <div class="teaser-diagram">
-          <pre class="mermaid">
+          <div class="mermaid">
 graph TD
-  classDef default color:#333
   kafka[("Kafka Ingest")]
   parser["JSON Parser"]
   enricher["Enricher"]
@@ -700,7 +698,7 @@ graph TD
   parser --> enricher
   enricher --> postgres
   enricher --> s3
-          </pre>
+          </div>
         </div>
       </div>
     </div>
@@ -720,118 +718,76 @@ graph TD
 
     <!-- FSM Tab Content -->
     <div id="showcase-fsm" class="showcase-content active">
-      <div class="teaser-code">
-<span class="keyword">alias</span> <span class="module">Choreo.FSM</span>
+      <div>
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.FSM
 
 fsm =
-  <span class="module">FSM</span>.new()
-  |&gt; <span class="module">FSM</span>.add_initial_state(<span class="atom">:idle</span>)
-  |&gt; <span class="module">FSM</span>.add_state(<span class="atom">:running</span>)
-  |&gt; <span class="module">FSM</span>.add_final_state(<span class="atom">:done</span>)
-  |&gt; <span class="module">FSM</span>.add_transition(<span class="atom">:idle</span>, <span class="atom">:running</span>, <span class="atom">label:</span> <span class="string">"start"</span>)
-  |&gt; <span class="module">FSM</span>.add_transition(<span class="atom">:running</span>, <span class="atom">:done</span>, <span class="atom">label:</span> <span class="string">"finish"</span>)
+  FSM.new()
+  |> FSM.add_initial_state(:idle)
+  |> FSM.add_state(:running)
+  |> FSM.add_final_state(:done)
+  |> FSM.add_transition(:idle, :running, label: "start")
+  |> FSM.add_transition(:running, :done, label: "finish")</code></pre>
       </div>
-      <div class="teaser-diagram">
-        <pre class="mermaid">
-stateDiagram-v2
-  [*] --> idle
-  idle --> running : start
-  running --> done : finish
-  done --> [*]
-        </pre>
+      <div class="teaser-diagram" id="diag-fsm">
+        <!-- Rendered dynamically -->
       </div>
     </div>
 
     <!-- Sequence Tab Content -->
     <div id="showcase-seq" class="showcase-content">
-      <div class="teaser-code">
-<span class="keyword">alias</span> <span class="module">Choreo.Sequence</span>
+      <div>
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.Sequence
 
 seq =
-  <span class="module">Sequence</span>.new()
-  |&gt; <span class="module">Sequence</span>.add_actor(<span class="atom">:user</span>, <span class="atom">label:</span> <span class="string">"User"</span>)
-  |&gt; <span class="module">Sequence</span>.add_participant(<span class="atom">:api</span>, <span class="atom">label:</span> <span class="string">"API"</span>)
-  |&gt; <span class="module">Sequence</span>.add_participant(<span class="atom">:db</span>, <span class="atom">label:</span> <span class="string">"Database"</span>)
-  |&gt; <span class="module">Sequence</span>.message(<span class="atom">:user</span>, <span class="atom">:api</span>, <span class="atom">label:</span> <span class="string">"GET /accounts"</span>)
-  |&gt; <span class="module">Sequence</span>.activate(<span class="atom">:api</span>)
-  |&gt; <span class="module">Sequence</span>.message(<span class="atom">:api</span>, <span class="atom">:db</span>, <span class="atom">label:</span> <span class="string">"SELECT"</span>)
-  |&gt; <span class="module">Sequence</span>.return(<span class="atom">:db</span>, <span class="atom">:api</span>, <span class="atom">label:</span> <span class="string">"rows"</span>)
-  |&gt; <span class="module">Sequence</span>.deactivate(<span class="atom">:api</span>)
-  |&gt; <span class="module">Sequence</span>.return(<span class="atom">:api</span>, <span class="atom">:user</span>, <span class="atom">label:</span> <span class="string">"200 OK"</span>)
+  Sequence.new()
+  |> Sequence.add_actor(:user, label: "User")
+  |> Sequence.add_participant(:api, label: "API")
+  |> Sequence.add_participant(:db, label: "Database")
+  |> Sequence.message(:user, :api, label: "GET /accounts")
+  |> Sequence.activate(:api)
+  |> Sequence.message(:api, :db, label: "SELECT")
+  |> Sequence.return(:db, :api, label: "rows")
+  |> Sequence.deactivate(:api)
+  |> Sequence.return(:api, :user, label: "200 OK")</code></pre>
       </div>
-      <div class="teaser-diagram">
-        <pre class="mermaid">
-sequenceDiagram
-    actor User
-    participant API
-    participant Database
-    User->>API: GET /accounts
-    activate API
-    API->>Database: SELECT
-    Database-->>API: rows
-    API-->>User: 200 OK
-    deactivate API
-        </pre>
+      <div class="teaser-diagram" id="diag-seq">
+        <!-- Rendered dynamically -->
       </div>
     </div>
 
     <!-- Workflow Tab Content -->
     <div id="showcase-workflow" class="showcase-content">
-      <div class="teaser-code">
-<span class="keyword">alias</span> <span class="module">Choreo.Workflow</span>
+      <div>
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.Workflow
 
 workflow =
-  <span class="module">Workflow</span>.new()
-  |&gt; <span class="module">Workflow</span>.add_start(<span class="atom">:received</span>)
-  |&gt; <span class="module">Workflow</span>.add_task(<span class="atom">:charge</span>, <span class="atom">timeout_ms:</span> <span class="string">5000</span>)
-  |&gt; <span class="module">Workflow</span>.add_compensation(<span class="atom">:refund</span>, <span class="atom">for:</span> <span class="atom">:charge</span>)
-  |&gt; <span class="module">Workflow</span>.add_end(<span class="atom">:done</span>)
-  |&gt; <span class="module">Workflow</span>.connect(<span class="atom">:received</span>, <span class="atom">:charge</span>)
-  |&gt; <span class="module">Workflow</span>.connect(<span class="atom">:charge</span>, <span class="atom">:done</span>)
+  Workflow.new()
+  |> Workflow.add_start(:received)
+  |> Workflow.add_task(:charge, timeout_ms: 5000)
+  |> Workflow.add_compensation(:refund, for: :charge)
+  |> Workflow.add_end(:done)
+  |> Workflow.connect(:received, :charge)
+  |> Workflow.connect(:charge, :done)</code></pre>
       </div>
-      <div class="teaser-diagram">
-        <pre class="mermaid">
-graph TD
-  classDef default color:#fff
-  received(("received"))
-  charge[["charge (5000ms)"]]
-  refund["refund"]
-  done(("done"))
-
-  style received fill:#10b981,stroke:#059669
-  style charge fill:#3b82f6,stroke:#1d64d8
-  style done fill:#ef4444,stroke:#dc2626
-  style refund fill:#f87171,stroke:#ef4444,stroke-dasharray:3 3
-
-  received --> charge
-  charge --> done
-  charge -.-> refund
-        </pre>
+      <div class="teaser-diagram" id="diag-workflow">
+        <!-- Rendered dynamically -->
       </div>
     </div>
 
     <!-- DDD Tab Content -->
     <div id="showcase-domain" class="showcase-content">
-      <div class="teaser-code">
-<span class="keyword">alias</span> <span class="module">Choreo.Domain</span>
+      <div>
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.Domain
 
 domain =
-  <span class="module">Domain</span>.new()
-  |&gt; <span class="module">Domain</span>.add_aggregate(<span class="atom">:order</span>, <span class="atom">label:</span> <span class="string">"Order"</span>)
-  |&gt; <span class="module">Domain</span>.add_type(<span class="atom">:line_item</span>, <span class="atom">label:</span> <span class="string">"OrderLine"</span>)
-  |&gt; <span class="module">Domain</span>.connect(<span class="atom">:order</span>, <span class="atom">:line_item</span>, <span class="atom">label:</span> <span class="string">"has"</span>)
+  Domain.new()
+  |> Domain.add_aggregate(:order, label: "Order")
+  |> Domain.add_type(:line_item, label: "OrderLine")
+  |> Domain.connect(:order, :line_item, label: "has")</code></pre>
       </div>
-      <div class="teaser-diagram">
-        <pre class="mermaid">
-classDiagram
-  class order {
-    &lt;&lt;aggregate&gt;&gt;
-  }
-  class line_item {
-    &lt;&lt;type&gt;&gt;
-  }
-  order --> line_item : has
-        </pre>
+      <div class="teaser-diagram" id="diag-domain">
+        <!-- Rendered dynamically -->
       </div>
     </div>
   </section>
@@ -1027,23 +983,70 @@ end</span>
     </div>
   </footer>
 
+  <!-- Prism JS for syntax highlighting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-elixir.min.js"></script>
+
   <!-- Page Scripts -->
   <script>
+    // Tab presets with raw Mermaid syntax to compile dynamically when active
+    const tabPresets = {
+      fsm: `stateDiagram-v2
+  [*] --> idle
+  idle --> running : start
+  running --> done : finish
+  done --> [*]`,
+
+      seq: `sequenceDiagram
+  actor User
+  participant API
+  participant Database
+  User->>API: GET /accounts
+  activate API
+  API->>Database: SELECT
+  Database-->>API: rows
+  API-->>User: 200 OK
+  deactivate API`,
+
+      workflow: `graph TD
+  received(("received"))
+  charge[["charge (5000ms)"]]
+  refund["refund"]
+  done(("done"))
+
+  style received fill:#10b981,stroke:#059669,color:#fff
+  style charge fill:#3b82f6,stroke:#1d64d8,color:#fff
+  style done fill:#ef4444,stroke:#dc2626,color:#fff
+  style refund fill:#f87171,stroke:#ef4444,color:#fff,stroke-dasharray:3 3
+
+  received --> charge
+  charge --> done
+  charge -.-> refund`,
+
+      domain: `classDiagram
+  class order {
+    <<aggregate>>
+  }
+  class line_item {
+    <<type>>
+  }
+  order --> line_item : has`
+    };
+
     // Mermaid presets for Playground
     const presets = {
       dataflow: `graph TD
-  classDef default color:#fff
   kafka[("Kafka Ingest")]
   parser["JSON Parser"]
   enricher["Enricher"]
   postgres[("Postgres Sink")]
   s3[("S3 Archive")]
   
-  style kafka fill:#3b82f6,stroke:#1d64d8
-  style parser fill:#10b981,stroke:#059669
-  style enricher fill:#10b981,stroke:#059669
-  style postgres fill:#8b5cf6,stroke:#6d28d9
-  style s3 fill:#8b5cf6,stroke:#6d28d9
+  style kafka fill:#3b82f6,stroke:#1d64d8,color:#fff
+  style parser fill:#10b981,stroke:#059669,color:#fff
+  style enricher fill:#10b981,stroke:#059669,color:#fff
+  style postgres fill:#8b5cf6,stroke:#6d28d9,color:#fff
+  style s3 fill:#8b5cf6,stroke:#6d28d9,color:#fff
 
   kafka --> parser
   parser --> enricher
@@ -1094,24 +1097,41 @@ end</span>
   }`
     };
 
-    // Initialize Mermaid
+    // Initialize Mermaid with Dark Mode config
     mermaid.initialize({
       startOnLoad: false,
       theme: 'dark',
       securityLevel: 'loose'
     });
 
+    // Track which tab diagrams have been rendered
+    const renderedTabs = {};
+
     // Tab Switcher
-    function switchTab(tabId) {
+    async function switchTab(tabId) {
+      // Deactivate tabs
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.showcase-content').forEach(content => content.classList.remove('active'));
       
+      // Activate tab button and container
       event.target.classList.add('active');
-      const target = document.getElementById(`showcase-${tabId}`);
-      target.classList.add('active');
+      const container = document.getElementById(`showcase-${tabId}`);
+      container.classList.add('active');
       
-      // Re-run mermaid inside the tab if not already rendered
-      mermaid.init(undefined, target.querySelectorAll('.mermaid'));
+      // Render the Mermaid diagram for this tab on-demand
+      const targetDiv = document.getElementById(`diag-${tabId}`);
+      if (targetDiv && !renderedTabs[tabId]) {
+        try {
+          const rawCode = tabPresets[tabId];
+          const uniqueId = `mermaid-tab-${tabId}-${Math.round(Math.random() * 10000)}`;
+          const { svg } = await mermaid.render(uniqueId, rawCode);
+          targetDiv.innerHTML = svg;
+          renderedTabs[tabId] = true;
+        } catch (err) {
+          console.error(`Error rendering tab ${tabId}:`, err);
+          targetDiv.innerHTML = `<span style="color:#ef4444; font-family: monospace;">Render Error</span>`;
+        }
+      }
     }
 
     // Playground Control
@@ -1128,11 +1148,10 @@ end</span>
     async function renderPlayground() {
       const code = editor.value;
       errorMsg.style.display = 'none';
-      renderTarget.innerHTML = '';
       
       try {
         // Generate unique ID for rendering element
-        const id = 'mermaid-' + Math.round(Math.random() * 10000);
+        const id = 'mermaid-playground-' + Math.round(Math.random() * 10000);
         
         // Parse and render
         const { svg } = await mermaid.render(id, code);
@@ -1151,11 +1170,23 @@ end</span>
     }
 
     // Initial load
-    window.addEventListener('DOMContentLoaded', () => {
-      // Render static mermaid diagrams
-      mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Initialize static header diagram
+      mermaid.init(undefined, document.querySelectorAll('.teaser-diagram .mermaid'));
       
-      // Load default preset into editor
+      // Load and render initial FSM tab diagram (active by default)
+      const fsmTarget = document.getElementById('diag-fsm');
+      if (fsmTarget) {
+        try {
+          const { svg } = await mermaid.render('mermaid-tab-fsm-initial', tabPresets.fsm);
+          fsmTarget.innerHTML = svg;
+          renderedTabs.fsm = true;
+        } catch (err) {
+          console.error("FSM initial render failed:", err);
+        }
+      }
+
+      // Load default playground preset
       editor.value = presets.dataflow;
       renderPlayground();
     });
