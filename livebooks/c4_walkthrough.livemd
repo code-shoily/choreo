@@ -373,17 +373,6 @@ Analysis.parents_without_relationships(model)
 
 ---
 
-## Exporting to Markdown (Mermaid.js)
-
-You can output native Mermaid flowchart syntax to embed your diagrams directly in markdown pages (like GitHub readmes, wikis, or Notion).
-
-```elixir
-# Let's print out the Mermaid syntax for the Container diagram
-IO.puts(C4.to_mermaid(container_view))
-```
-
----
-
 ## Cross-Diagram Semantic Tracing
 
 Because Choreo allows you to compose different diagrams together using `Choreo.embed/4`, you can use **semantic tracing** to link your static C4 components to runtime workflows or database entities.
@@ -452,6 +441,17 @@ We can calculate the tracing path (sequence of nodes) from a user task down to t
 ```elixir
 # Returns the sequence: [:wf_verify_credentials, :c4_auth_service, :erd_users]
 {:ok, path} = Choreo.Analysis.Tracing.trace_path(system, :wf_verify_credentials, :erd_users)
+```
+
+---
+
+## Exporting to Markdown (Mermaid.js)
+
+You can output native Mermaid flowchart syntax to embed your diagrams directly in markdown pages (like GitHub readmes, wikis, or Notion).
+
+```elixir
+# Let's print out the Mermaid syntax for the Container diagram
+IO.puts(C4.to_mermaid(container_view))
 ```
 
 ---
