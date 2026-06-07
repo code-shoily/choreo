@@ -314,6 +314,12 @@ defmodule Choreo.Infrastructure do
 
   @doc """
   Renders the infrastructure topology to DOT format.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = infra, opts \\ []) do
@@ -322,6 +328,13 @@ defmodule Choreo.Infrastructure do
 
   @doc """
   Renders the infrastructure topology to Mermaid.js syntax.
+
+  ## Options
+
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:direction` — `:td` (default), `:lr`, `:rl`, `:bt`
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
   def to_mermaid(%__MODULE__{} = infra, opts \\ []) do

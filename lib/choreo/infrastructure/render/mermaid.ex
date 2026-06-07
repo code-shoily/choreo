@@ -113,7 +113,10 @@ defmodule Choreo.Infrastructure.Render.Mermaid do
           MapSet.member?(hl_edges, {from, to})
 
       if is_highlighted do
-        Keyword.drop(base, [:stroke, :stroke_width])
+        [
+          {:stroke, "#ef4444"},
+          {:stroke_width, "3px"} | Keyword.drop(base, [:stroke, :stroke_width])
+        ]
       else
         base
       end

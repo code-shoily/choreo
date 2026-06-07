@@ -66,6 +66,15 @@ defmodule Choreo.Infrastructure.AnalysisTest do
            ]
   end
 
+  test "valid load balancer in public subnet passes with zero warnings" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_subnet_public("subnet_dmz", label: "Public DMZ")
+      |> Infrastructure.add_load_balancer(:alb, cluster: "subnet_dmz")
+
+    assert Analysis.warnings(infra) == []
+  end
+
   test "a secure three-tier network architecture passes with zero warnings" do
     infra =
       Infrastructure.new()

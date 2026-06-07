@@ -37,7 +37,8 @@ defmodule Choreo.Infrastructure.Analysis do
     private_nodes =
       infra.graph.nodes
       |> Enum.filter(fn {_id, data} ->
-        in_private_subnet?(data[:cluster], infra.clusters)
+        cluster = data[:cluster]
+        not is_nil(cluster) and in_private_subnet?(cluster, infra.clusters)
       end)
       |> Enum.map(fn {id, _data} -> id end)
       |> MapSet.new()
@@ -148,8 +149,6 @@ defmodule Choreo.Infrastructure.Analysis do
 
   # Helpers
 
-  defp in_private_subnet?(nil, _clusters), do: false
-
   defp in_private_subnet?(cluster_name, clusters) do
     case Map.get(clusters, cluster_name) do
       %{cluster_type: :subnet_private} -> true
@@ -158,13 +157,9 @@ defmodule Choreo.Infrastructure.Analysis do
   end
 
   defp in_public_subnet?(cluster_name, clusters) do
-    if is_nil(cluster_name) do
-      false
-    else
-      case Map.get(clusters, cluster_name) do
-        %{cluster_type: :subnet_public} -> true
-        _ -> false
-      end
+    case Map.get(clusters, cluster_name) do
+      %{cluster_type: :subnet_public} -> true
+      _ -> false
     end
   end
 end
