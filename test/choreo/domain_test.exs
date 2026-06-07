@@ -148,4 +148,38 @@ defmodule Choreo.DomainTest do
     assert glossary =~ "Checkout Context"
     assert glossary =~ "Consistency boundary wrapping order entities."
   end
+
+  test "supports native class_diagram and erd syntax overrides in to_mermaid/2" do
+    map =
+      Domain.new()
+      |> Domain.add_aggregate(:order_agg,
+        label: "Order",
+        fields: [
+          {:id, :uuid},
+          {:total, :money}
+        ]
+      )
+      |> Domain.add_type(:order_line,
+        label: "OrderLine",
+        fields: [
+          {:product_id, :string}
+        ]
+      )
+      |> Domain.connect(:order_agg, :order_line, label: "has")
+
+    # Native Class Diagram syntax
+    classes = Domain.to_mermaid(map, syntax: :class_diagram)
+    assert classes =~ "classDiagram"
+    assert classes =~ "class order_agg {"
+    assert classes =~ "<<aggregate>>"
+    assert classes =~ "+id uuid"
+    assert classes =~ "order_agg --> order_line : has"
+
+    # Native ERD syntax
+    erd = Domain.to_mermaid(map, syntax: :erd)
+    assert erd =~ "erDiagram"
+    assert erd =~ "order_agg {"
+    assert erd =~ "uuid id"
+    assert erd =~ "order_agg }|..|{ order_line : \"has\""
+  end
 end

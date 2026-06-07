@@ -420,16 +420,115 @@ defmodule Choreo.Domain do
   end
 
   @doc """
-  Renders the domain model to Mermaid.js native flowchart syntax.
+  Renders the domain model to Mermaid.js native syntax.
+
+  ## Options
+    * `:syntax` - `:flowchart` (default), `:class_diagram`, or `:erd`
+    * Other options matching selected syntax engine
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
   def to_mermaid(%Domain{} = domain, opts \\ []) do
-    opts =
-      opts
-      |> Keyword.put_new(:highlighted_nodes, domain.highlighted_nodes)
-      |> Keyword.put_new(:highlighted_edges, domain.highlighted_edges)
+    case Keyword.get(opts, :syntax, :flowchart) do
+      :class_diagram ->
+        to_native_class_diagram(domain, opts)
 
-    Choreo.Render.Mermaid.to_mermaid(domain, opts)
+      :erd ->
+        to_native_erd(domain, opts)
+
+      :flowchart ->
+        opts =
+          opts
+          |> Keyword.put_new(:highlighted_nodes, domain.highlighted_nodes)
+          |> Keyword.put_new(:highlighted_edges, domain.highlighted_edges)
+
+        Choreo.Render.Mermaid.to_mermaid(domain, opts)
+    end
+  end
+
+  defp to_native_class_diagram(domain, opts) do
+    direction = Keyword.get(opts, :direction, :td)
+    direction_part = "  direction #{String.upcase(to_string(direction))}\n"
+
+    class_defs =
+      domain.graph.nodes
+      |> Enum.sort_by(fn {id, _data} -> id end)
+      |> Enum.map_join("\n", fn {id, data} ->
+        stereotype =
+          case data[:type] do
+            :class -> ""
+            type -> "    <<#{type}>>"
+          end
+
+        fields =
+          (data[:fields] || [])
+          |> Enum.map_join("\n", fn
+            {field_name, field_type} when is_list(field_type) ->
+              choices = Enum.map_join(field_type, " | ", &to_string/1)
+              "    +#{field_name} #{choices}"
+
+            {field_name, field_type} ->
+              "    +#{field_name} #{field_type}"
+          end)
+
+        body =
+          [stereotype, fields]
+          |> Enum.filter(&(&1 != ""))
+          |> Enum.join("\n")
+
+        "  class #{id} {\n#{body}\n  }"
+      end)
+
+    relations =
+      domain.graph.edges
+      |> Map.keys()
+      |> Enum.sort()
+      |> Enum.map_join("\n", fn edge_id ->
+        {from, to, _weight} = Map.get(domain.graph.edges, edge_id)
+        meta = Map.get(domain.edge_meta, edge_id, %{})
+        label = if l = meta[:label], do: " : #{l}", else: ""
+        "  #{from} --> #{to}#{label}"
+      end)
+
+    "classDiagram\n" <> direction_part <> class_defs <> "\n" <> relations <> "\n"
+  end
+
+  defp to_native_erd(domain, _opts) do
+    entity_defs =
+      domain.graph.nodes
+      |> Enum.sort_by(fn {id, _data} -> id end)
+      |> Enum.map_join("\n", fn {id, data} ->
+        fields =
+          (data[:fields] || [])
+          |> Enum.map_join("\n", fn
+            {field_name, field_type} when is_list(field_type) ->
+              choices = Enum.map_join(field_type, "|", &to_string/1)
+              safe_type = String.replace(choices, " ", "_")
+              "    #{safe_type} #{field_name}"
+
+            {field_name, field_type} ->
+              safe_type = String.replace(to_string(field_type), " ", "_")
+              "    #{safe_type} #{field_name}"
+          end)
+
+        if fields != "" do
+          "  #{id} {\n#{fields}\n  }"
+        else
+          "  #{id}"
+        end
+      end)
+
+    relations =
+      domain.graph.edges
+      |> Map.keys()
+      |> Enum.sort()
+      |> Enum.map_join("\n", fn edge_id ->
+        {from, to, _weight} = Map.get(domain.graph.edges, edge_id)
+        meta = Map.get(domain.edge_meta, edge_id, %{})
+        label = if l = meta[:label], do: " : \"#{l}\"", else: " : \"relates\""
+        "  #{from} }|..|{ #{to}#{label}"
+      end)
+
+    "erDiagram\n" <> entity_defs <> "\n" <> relations <> "\n"
   end
 
   # ============================================================================

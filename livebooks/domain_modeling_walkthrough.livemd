@@ -343,7 +343,7 @@ aggregate_detail =
 
 # Render detailed Aggregate structures
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(aggregate_detail)),
+  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
   "Graphviz": Kino.VizJS.render(Domain.to_dot(aggregate_detail))
 ])
 ```
