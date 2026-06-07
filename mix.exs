@@ -64,7 +64,7 @@ defmodule Choreo.MixProject do
   defp package do
     [
       name: "choreo",
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE),
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE guides),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url
@@ -80,6 +80,9 @@ defmodule Choreo.MixProject do
       extras:
         [
           "README.md",
+          "guides/architecture_and_design.md",
+          "guides/behavior_and_flows.md",
+          "guides/data_and_structure.md",
           "CHANGELOG.md"
         ] ++ livebooks,
       source_ref: "v#{@version}",
@@ -91,9 +94,14 @@ defmodule Choreo.MixProject do
           Choreo.Theme,
           Choreo.View,
           Choreo.Viewable,
-          Choreo.Mermaid
+          Choreo.Mermaid,
+          Choreo.Domain,
+          Choreo.Sequence
         ],
         "System Architecture": [
+          Choreo.C4,
+          Choreo.C4.Render.DOT,
+          Choreo.C4.Render.Mermaid,
           Choreo.Render.DOT,
           Choreo.Render.Mermaid
         ],
@@ -125,7 +133,8 @@ defmodule Choreo.MixProject do
         "Threat Modeling": [
           Choreo.ThreatModel,
           Choreo.ThreatModel.Render.DOT,
-          Choreo.ThreatModel.Render.Mermaid
+          Choreo.ThreatModel.Render.Mermaid,
+          Choreo.ThreatModel.Render.PlantUML
         ],
         "Workflow & Orchestration": [
           Choreo.Workflow,
@@ -154,6 +163,9 @@ defmodule Choreo.MixProject do
           Choreo.UML.Render.Mermaid
         ],
         Analysis: [
+          Choreo.Analysis,
+          Choreo.Analysis.Tracing,
+          Choreo.C4.Analysis,
           Choreo.FSM.Analysis,
           Choreo.Dataflow.Analysis,
           Choreo.Dependency.Analysis,
@@ -163,12 +175,17 @@ defmodule Choreo.MixProject do
           Choreo.Workflow.Analysis,
           Choreo.ERD.Analysis,
           Choreo.UML.Analysis,
-          Choreo.Infrastructure.Analysis
+          Choreo.Infrastructure.Analysis,
+          Choreo.Domain.Analysis,
+          Choreo.Sequence.Analysis
         ]
       ],
       groups_for_extras: [
         Guides: [
-          "README.md"
+          "README.md",
+          "guides/architecture_and_design.md",
+          "guides/behavior_and_flows.md",
+          "guides/data_and_structure.md"
         ],
         Livebooks: livebooks,
         Resources: [
