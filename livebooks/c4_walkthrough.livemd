@@ -381,3 +381,83 @@ You can output native Mermaid flowchart syntax to embed your diagrams directly i
 # Let's print out the Mermaid syntax for the Container diagram
 IO.puts(C4.to_mermaid(container_view))
 ```
+
+---
+
+## Cross-Diagram Semantic Tracing
+
+Because Choreo allows you to compose different diagrams together using `Choreo.embed/4`, you can use **semantic tracing** to link your static C4 components to runtime workflows or database entities.
+
+For example, let's embed a **User Login Workflow** and a **Database ERD** into our system architecture, and then draw semantic traces connecting them.
+
+```elixir
+# 1. Define a runtime login workflow
+login_flow =
+  Choreo.Workflow.new()
+  |> Choreo.Workflow.add_start(:start)
+  |> Choreo.Workflow.add_task(:verify_credentials)
+  |> Choreo.Workflow.add_end(:stop)
+  |> Choreo.Workflow.connect(:start, :verify_credentials)
+  |> Choreo.Workflow.connect(:verify_credentials, :stop)
+
+# 2. Define database tables in an ERD
+database_erd =
+  Choreo.ERD.new()
+  |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+
+# 3. Create a master composed system and embed C4, Workflow, and ERD
+system =
+  Choreo.new()
+  |> Choreo.add_cluster("banking_vpc", label: "Banking Infrastructure")
+  |> Choreo.embed(model, "banking_vpc", prefix: "c4_")
+  |> Choreo.embed(login_flow, "banking_vpc", prefix: "wf_")
+  |> Choreo.embed(database_erd, "banking_vpc", prefix: "erd_")
+
+# 4. Declare semantic tracing links (executes, stores)
+system =
+  system
+  |> Choreo.trace(:wf_verify_credentials, :c4_auth_service, type: :executes)
+  |> Choreo.trace(:c4_auth_service, :erd_users, type: :stores)
+```
+
+### 1. Visualizing Traces
+
+Trace edges are hidden from normal visual outputs by default to keep the diagrams clean. To display them, pass the `:show_traces` option set to `true`.
+
+In Graphviz (DOT), trace edges are automatically rendered with `constraint=false` so the trace lines do not warp or disrupt the layout of the static C4 or Workflow diagrams.
+
+```elixir
+# Render DOT with traces highlighted
+Kino.VizJS.render(Choreo.to_dot(system, show_traces: true))
+```
+
+```elixir
+# Render Mermaid with traces highlighted
+Kino.Mermaid.new(Choreo.to_mermaid(system, show_traces: true))
+```
+
+### 2. Performing Cross-Diagram Impact Analysis
+
+If the database table `users` changes, which components and business tasks are affected? We can traverse the trace relationships backwards to run impact analysis:
+
+```elixir
+# Returns list of impacted nodes: [:c4_auth_service, :wf_verify_credentials]
+Choreo.Analysis.Tracing.impact_analysis(system, :erd_users)
+```
+
+### 3. Finding Execution Paths
+
+We can calculate the tracing path (sequence of nodes) from a user task down to the database schema:
+
+```elixir
+# Returns the sequence: [:wf_verify_credentials, :c4_auth_service, :erd_users]
+{:ok, path} = Choreo.Analysis.Tracing.trace_path(system, :wf_verify_credentials, :erd_users)
+```
+
+---
+
+## Further Reading
+
+* [C4 Model](https://c4model.com/) — Official site
+* [Software Architecture for Developers](https://softwarearchitecturefordevelopers.com/) — Simon Brown's book
+* [Choreo.C4 module documentation](https://hexdocs.pm/choreo/Choreo.C4.html)
