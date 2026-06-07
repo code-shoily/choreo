@@ -183,11 +183,11 @@ end)
 
 `Analysis.warnings/1` returns a list of plain strings. Each message describes the violation:
 
-| Violation detected | Example message |
-|---|---|
-| Direct internet → private subnet | `"Private resource 'app' is connected directly to public internet boundary 'internet'."` |
-| Database not in private subnet | `"Managed database 'db' should be located in a private subnet, but it is in subnet 'pub'."` |
-| Load balancer not in public subnet | `"Load balancer 'lb' should be in a public-facing subnet, but it is in subnet 'priv'."` |
+| Violation detected                 | Example message                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| Direct internet → private subnet | `"Private resource 'app' is connected directly to public internet boundary 'internet'."`    |
+| Database not in private subnet     | `"Managed database 'db' should be located in a private subnet, but it is in subnet 'pub'."` |
+| Load balancer not in public subnet | `"Load balancer 'lb' should be in a public-facing subnet, but it is in subnet 'priv'."`     |
 
 ---
 
@@ -312,7 +312,7 @@ Kino.VizJS.render(Infrastructure.to_dot(multi_region, theme: :dark))
 Analysis.warnings(multi_region)
 |> case do
   [] -> IO.puts("✅ Clean topology")
-  ws -> Enum.each(ws, &IO.puts("⚠️  #{&1.message}"))
+  ws -> Enum.each(ws, &IO.puts("⚠️  #{&1}"))
 end
 ```
 
