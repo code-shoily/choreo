@@ -363,7 +363,7 @@
     }
 
     .showcase-code-block {
-      height: 240px;
+      height: 340px;
       overflow-y: auto;
       border-bottom: 1px solid var(--border);
     }
@@ -375,7 +375,7 @@
     }
 
     .showcase-diagram-block {
-      height: 320px;
+      height: 460px;
       background: #ffffff;
       display: flex;
       align-items: center;
@@ -385,7 +385,7 @@
 
     .showcase-diagram-block svg {
       max-width: 100%;
-      max-height: 300px;
+      max-height: 440px;
     }
 
     @keyframes fadeIn {
@@ -1079,6 +1079,21 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
               <td>Are system boundaries clean? Which systems share databases? What external interfaces exist?</td>
             </tr>
             <tr>
+              <td><span class="artifact-chip">Dataflow</span></td>
+              <td>Processing Pipelines</td>
+              <td>Where are data bottlenecks? Is backpressure possible? Are processing paths strictly acyclic?</td>
+            </tr>
+            <tr>
+              <td><span class="artifact-chip">Decision Tree</span></td>
+              <td>Branching Heuristics</td>
+              <td>Are there duplicate logic paths? Is the decision tree complete? Which branches have missing leaves?</td>
+            </tr>
+            <tr>
+              <td><span class="artifact-chip">Dependency</span></td>
+              <td>Package &amp; Module DAGs</td>
+              <td>Are there circular package imports? Which modules are impacted if a low-level module changes?</td>
+            </tr>
+            <tr>
               <td><span class="artifact-chip">Domain DDD</span></td>
               <td>Strategic &amp; Tactical Design</td>
               <td>What are aggregate boundaries? Which events trigger policies? Are there unmapped commands?</td>
@@ -1089,44 +1104,14 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
               <td>Are column keys consistent? Are there circular entity relationships? Do we have orphaned tables?</td>
             </tr>
             <tr>
-              <td><span class="artifact-chip">UML Class</span></td>
-              <td>Software Types</td>
-              <td>Which structs reference each other? Are there circular associations or inheritance loops?</td>
-            </tr>
-            <tr>
               <td><span class="artifact-chip">FSM</span></td>
               <td>State Transitions</td>
               <td>Is the state machine deterministic? Are there unreachable or dead-end states? Shortest path to done?</td>
             </tr>
             <tr>
-              <td><span class="artifact-chip">Sequence</span></td>
-              <td>Timeline Interactions</td>
-              <td>Are activation boxes balanced? Do async returns match? Is any actor blocked indefinitely?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Workflow</span></td>
-              <td>Task Orchestration</td>
-              <td>What is the latency critical path? Which tasks can run in parallel? Are Saga compensations missing?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Dataflow</span></td>
-              <td>Processing Pipelines</td>
-              <td>Where are data bottlenecks? Is backpressure possible? Are processing paths strictly acyclic?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Threat Model</span></td>
-              <td>STRIDE Security</td>
-              <td>Which flows cross trust boundaries? Where are sensitive assets stored? What is the static risk level?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Dependency</span></td>
-              <td>Package &amp; Module DAGs</td>
-              <td>Are there circular package imports? Which modules are impacted if a low-level module changes?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Decision Tree</span></td>
-              <td>Branching Heuristics</td>
-              <td>Are there duplicate logic paths? Is the decision tree complete? Which branches have missing leaves?</td>
+              <td><span class="artifact-chip">Mind Map</span></td>
+              <td>Concept Hierarchies</td>
+              <td>Are there disconnected subtopics? Is the structure strictly parent-child? What is the depth distribution?</td>
             </tr>
             <tr>
               <td><span class="artifact-chip">Planner</span></td>
@@ -1134,9 +1119,24 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
               <td>What is the project critical path? Which tasks are ready to start? Who has overloaded assignments?</td>
             </tr>
             <tr>
-              <td><span class="artifact-chip">Mind Map</span></td>
-              <td>Concept Hierarchies</td>
-              <td>Are there disconnected subtopics? Is the structure strictly parent-child? What is the depth distribution?</td>
+              <td><span class="artifact-chip">Sequence</span></td>
+              <td>Timeline Interactions</td>
+              <td>Are activation boxes balanced? Do async returns match? Is any actor blocked indefinitely?</td>
+            </tr>
+            <tr>
+              <td><span class="artifact-chip">Threat Model</span></td>
+              <td>STRIDE Security</td>
+              <td>Which flows cross trust boundaries? Where are sensitive assets stored? What is the static risk level?</td>
+            </tr>
+            <tr>
+              <td><span class="artifact-chip">UML Class</span></td>
+              <td>Software Types</td>
+              <td>Which structs reference each other? Are there circular associations or inheritance loops?</td>
+            </tr>
+            <tr>
+              <td><span class="artifact-chip">Workflow</span></td>
+              <td>Task Orchestration</td>
+              <td>What is the latency critical path? Which tasks can run in parallel? Are Saga compensations missing?</td>
             </tr>
           </tbody>
         </table>
@@ -1153,7 +1153,7 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
       </div>
 
       <div class="grid-types">
-        <!-- Architecture & Design -->
+        <!-- Alphabetical order -->
         <a href="https://hexdocs.pm/choreo/Choreo.C4.html" target="_blank" class="card-type">
           <div class="card-category">Architecture &amp; Design</div>
           <h3 class="card-title">C4 Model</h3>
@@ -1161,6 +1161,36 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
           <div class="card-tags">
             <span class="card-tag">Choreo.C4</span>
             <span class="card-tag">Systems</span>
+          </div>
+        </a>
+
+        <a href="https://hexdocs.pm/choreo/Choreo.Dataflow.html" target="_blank" class="card-type">
+          <div class="card-category">Behavior &amp; Flows</div>
+          <h3 class="card-title">Dataflow</h3>
+          <p class="card-description">Model dataflow processing graphs, transformation nodes, message routers, and parallel sources/sinks.</p>
+          <div class="card-tags">
+            <span class="card-tag">Choreo.Dataflow</span>
+            <span class="card-tag">Pipelines</span>
+          </div>
+        </a>
+
+        <a href="https://hexdocs.pm/choreo/Choreo.DecisionTree.html" target="_blank" class="card-type">
+          <div class="card-category">Data &amp; Structure</div>
+          <h3 class="card-title">Decision Tree</h3>
+          <p class="card-description">Evaluate complex branching heuristics and run entropy validation checks for logical soundness.</p>
+          <div class="card-tags">
+            <span class="card-tag">Choreo.DecisionTree</span>
+            <span class="card-tag">Logic</span>
+          </div>
+        </a>
+
+        <a href="https://hexdocs.pm/choreo/Choreo.Dependency.html" target="_blank" class="card-type">
+          <div class="card-category">Data &amp; Structure</div>
+          <h3 class="card-title">Dependency</h3>
+          <p class="card-description">Analyze acyclic package dependencies, detect cyclic loops, and optimize layering schedules.</p>
+          <div class="card-tags">
+            <span class="card-tag">Choreo.Dependency</span>
+            <span class="card-tag">DAGs</span>
           </div>
         </a>
 
@@ -1184,17 +1214,6 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
           </div>
         </a>
 
-        <a href="https://hexdocs.pm/choreo/Choreo.UML.html" target="_blank" class="card-type">
-          <div class="card-category">Architecture &amp; Design</div>
-          <h3 class="card-title">UML Class</h3>
-          <p class="card-description">Generate object-oriented class structure layouts mapping structs, schemas, and associations.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.UML</span>
-            <span class="card-tag">UML</span>
-          </div>
-        </a>
-
-        <!-- Behavior & Flows -->
         <a href="https://hexdocs.pm/choreo/Choreo.FSM.html" target="_blank" class="card-type">
           <div class="card-category">Behavior &amp; Flows</div>
           <h3 class="card-title">FSM</h3>
@@ -1205,64 +1224,13 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
           </div>
         </a>
 
-        <a href="https://hexdocs.pm/choreo/Choreo.Sequence.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Sequence</h3>
-          <p class="card-description">Map sequence interactions and timelines with sync/async activations and loop/alt conditions.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Sequence</span>
-            <span class="card-tag">Messages</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Workflow.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Workflow</h3>
-          <p class="card-description">Orchestrate tasks, parallel branches, latency weights, Saga compensation hooks, and bottlenecks.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Workflow</span>
-            <span class="card-tag">Sagas</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Dataflow.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Pipelines</h3>
-          <p class="card-description">Model dataflow processing graphs, transformation nodes, message routers, and parallel sources/sinks.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Dataflow</span>
-            <span class="card-tag">Pipelines</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.ThreatModel.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Threat Modeling</h3>
-          <p class="card-description">Map secure boundaries, trust barriers, assets, dataflows, and calculate threat levels statically.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.ThreatModel</span>
-            <span class="card-tag">STRIDE</span>
-          </div>
-        </a>
-
-        <!-- Data & Structure -->
-        <a href="https://hexdocs.pm/choreo/Choreo.Dependency.html" target="_blank" class="card-type">
+        <a href="https://hexdocs.pm/choreo/Choreo.MindMap.html" target="_blank" class="card-type">
           <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Dependencies</h3>
-          <p class="card-description">Analyze acyclic package dependencies, detect cyclic loops, and optimize layering schedules.</p>
+          <h3 class="card-title">Mind Map</h3>
+          <p class="card-description">Organize concepts hierarchically into parent-child visual layouts representing domain trees.</p>
           <div class="card-tags">
-            <span class="card-tag">Choreo.Dependency</span>
-            <span class="card-tag">DAGs</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.DecisionTree.html" target="_blank" class="card-type">
-          <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Decision Trees</h3>
-          <p class="card-description">Evaluate complex branching heuristics and run entropy validation checks for logical soundness.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.DecisionTree</span>
-            <span class="card-tag">Logic</span>
+            <span class="card-tag">Choreo.MindMap</span>
+            <span class="card-tag">Trees</span>
           </div>
         </a>
 
@@ -1276,32 +1244,62 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
           </div>
         </a>
 
-        <a href="https://hexdocs.pm/choreo/Choreo.MindMap.html" target="_blank" class="card-type">
-          <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Mind Maps</h3>
-          <p class="card-description">Organize concepts hierarchically into parent-child visual layouts representing domain trees.</p>
+        <a href="https://hexdocs.pm/choreo/Choreo.Sequence.html" target="_blank" class="card-type">
+          <div class="card-category">Behavior &amp; Flows</div>
+          <h3 class="card-title">Sequence</h3>
+          <p class="card-description">Map sequence interactions and timelines with sync/async activations and loop/alt conditions.</p>
           <div class="card-tags">
-            <span class="card-tag">Choreo.MindMap</span>
-            <span class="card-tag">Trees</span>
+            <span class="card-tag">Choreo.Sequence</span>
+            <span class="card-tag">Messages</span>
           </div>
         </a>
-      </div>
+
+        <a href="https://hexdocs.pm/choreo/Choreo.ThreatModel.html" target="_blank" class="card-type">
+          <div class="card-category">Behavior &amp; Flows</div>
+          <h3 class="card-title">Threat Model</h3>
+          <p class="card-description">Map secure boundaries, trust barriers, assets, dataflows, and calculate threat levels statically.</p>
+          <div class="card-tags">
+            <span class="card-tag">Choreo.ThreatModel</span>
+            <span class="card-tag">STRIDE</span>
+          </div>
+        </a>
+
+        <a href="https://hexdocs.pm/choreo/Choreo.UML.html" target="_blank" class="card-type">
+          <div class="card-category">Architecture &amp; Design</div>
+          <h3 class="card-title">UML Class</h3>
+          <p class="card-description">Generate object-oriented class structure layouts mapping structs, schemas, and associations.</p>
+          <div class="card-tags">
+            <span class="card-tag">Choreo.UML</span>
+            <span class="card-tag">UML</span>
+          </div>
+        </a>
+
+        <a href="https://hexdocs.pm/choreo/Choreo.Workflow.html" target="_blank" class="card-type">
+          <div class="card-category">Behavior &amp; Flows</div>
+          <h3 class="card-title">Workflow</h3>
+          <p class="card-description">Orchestrate tasks, parallel branches, latency weights, Saga compensation hooks, and bottlenecks.</p>
+          <div class="card-tags">
+            <span class="card-tag">Choreo.Workflow</span>
+            <span class="card-tag">Sagas</span>
+          </div>
+        </a>
+            </div>
     </div>
   </section>
 
   <!-- Installation -->
   <section class="section">
-    <div class="container" style="max-width: 700px; text-align: center;">
+    <div class="container" style="max-width: 760px;">
       <div class="section-header">
         <h2 class="section-title">Install Choreo</h2>
         <p class="section-subtitle">Add Choreo to your <code>mix.exs</code> and start building visual models of your domain.</p>
       </div>
       <div class="install-box">
-        <span id="install-code" class="install-code">def deps do
+        <pre id="install-code" style="margin:0;background:none;border:none;padding:0;font-family:var(--font-mono);font-size:0.9rem;color:var(--text);">def deps do
   [
     {:choreo, "~> 0.8.0"}
   ]
-end</span>
+end</pre>
         <button class="btn-copy" onclick="copyInstall()">Copy snippet</button>
       </div>
     </div>
@@ -1451,33 +1449,24 @@ elixir((Elixir))
     mix[Mix]
     livebook[Livebook]`,
 
-      planner: `graph TB
-  subgraph Backlog ["📋 Backlog"]
-    testing["QA Testing\n16h"]
-    deploy["Deploy\n8h"]
-  end
-  subgraph InProgress ["🔄 In Progress"]
-    api_impl["API Impl\n40h"]
-    frontend["Frontend\n32h"]
-  end
-  subgraph Done ["✅ Done"]
-    wireframes["Wireframes\n12h"]
-    ui_design["UI Design\n20h"]
-  end
+      planner: `gantt
+  title Launch v1.0 — Project Timeline
+  dateFormat  YYYY-MM-DD
+  axisFormat  %b %d
 
-  wireframes --> ui_design
-  wireframes --> api_impl
-  ui_design --> frontend
-  api_impl --> testing
-  frontend --> testing
-  testing --> deploy
+  section Design
+    Wireframes        :done,    wireframes, 2026-06-01, 2026-06-03
+    UI Design         :done,    ui_design,  after wireframes, 4d
 
-  style testing fill:#f1f5f9,stroke:#cbd5e1
-  style deploy fill:#f1f5f9,stroke:#cbd5e1
-  style api_impl fill:#dbeafe,stroke:#93c5fd
-  style frontend fill:#dbeafe,stroke:#93c5fd
-  style wireframes fill:#dcfce7,stroke:#86efac
-  style ui_design fill:#dcfce7,stroke:#86efac`,
+  section Backend
+    API Implementation :active,  api_impl,   after wireframes, 8d
+
+  section Frontend
+    Frontend Build    :active,  frontend,   after ui_design, 7d
+
+  section QA & Deploy
+    QA Testing        :         testing,    after api_impl, 3d
+    Deploy            :         deploy,     after testing, 1d`,
 
       threat: `graph TD
   subgraph Internet ["🌐 Internet Boundary"]
