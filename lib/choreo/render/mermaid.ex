@@ -162,8 +162,7 @@ defmodule Choreo.Render.Mermaid do
       fontcolor =
         cond do
           node_font = Map.get(data, :fontcolor) -> node_font
-          # Light background colors get dark text
-          fill in ["#eab308", "#fef08a", "#fef2f2", "#ffffcc", "#ffeda0", "#fed976"] -> "#1e293b"
+          light_color?(fill) -> "#1e293b"
           true -> theme.node_fontcolor
         end
 
@@ -339,4 +338,20 @@ defmodule Choreo.Render.Mermaid do
 
     %{system | graph: new_graph, edge_meta: new_edge_meta}
   end
+
+  defp light_color?(hex) when is_binary(hex) do
+    clean_hex = String.replace(hex, "#", "")
+
+    case Base.decode16(String.upcase(clean_hex)) do
+      {:ok, <<r, g, b>>} ->
+        # Relative luminance formula: 0.299*R + 0.587*G + 0.114*B
+        # If > 150, the color is considered bright/light (use dark text color)
+        0.299 * r + 0.587 * g + 0.114 * b > 150.0
+
+      _ ->
+        false
+    end
+  end
+
+  defp light_color?(_), do: false
 end

@@ -221,7 +221,7 @@ Kino.Layout.tabs([
 
 ---
 
-## 3. Tactical ADT Data Pipelines (Scott Wlaschin Style)
+## 3. Tactical ADT Data Pipelines
 
 In *Domain Modeling Made Functional*, Scott Wlaschin focuses on modeling business workflows as pipelines of pure functions that transform algebraic data types.
 
@@ -290,7 +290,7 @@ algebraic_pipeline =
 
 # Render UML-like Pipeline Flow
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline, syntax: :class_diagram)),
+  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline, syntax: :class_dia)),
   "Graphviz": Kino.VizJS.render(Domain.to_dot(algebraic_pipeline))
 ])
 ```
