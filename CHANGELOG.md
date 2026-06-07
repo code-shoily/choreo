@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Choreo.C4 — Scoped Zooming & Relationship Roll-up**:
+  - Implemented automatic relationship roll-up (edge rewiring) when zooming/filtering lower-level components and containers to higher-level elements.
+  - Implemented scoped Container (L2) and Component (L3) diagram filtering based on the active diagram scope, hiding expanded parent nodes and showing their respective sub-elements.
+  - Implemented automatic cluster boundary generation and nested hierarchy mapping for parent systems and containers of visible nodes.
+  - Rewrote the C4 walkthrough Livebook guide to showcase a unified banking architecture model, scoped zooming, relationship roll-up, auto-clustering, and themes.
+
+### Added
+
+- **Cross-Diagram Semantic Tracing & Impact Analysis**:
+  - Implemented `Choreo.trace/5` for declaring semantic connections (traces) between nodes across different diagram schemas (e.g. Workflow task -> C4 component -> ERD table).
+  - Implemented `Choreo.Analysis.Tracing` with `impact_analysis/2` (transitively walks dependency graphs backwards to find all impacted components) and `trace_path/3` (computes cross-diagram execution paths).
+  - Added `:show_traces` option to `Choreo.to_dot/2` and `Choreo.to_mermaid/2` to render trace links as styled red dashed arrows with layout constraint bypass (`constraint=false` in Graphviz).
+
 ## [0.8.0] - 2026-06-06
 
 ### Changed
