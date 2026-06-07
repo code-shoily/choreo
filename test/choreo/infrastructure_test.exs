@@ -50,6 +50,7 @@ defmodule Choreo.InfrastructureTest do
       |> Infrastructure.add_vpc("vpc_a")
       |> Infrastructure.add_subnet_public("pub", parent: "vpc_a")
       |> Infrastructure.add_load_balancer(:alb, cluster: "pub")
+      |> Infrastructure.add_compute(:web, cluster: "pub")
       |> Infrastructure.connect(:alb, :web)
 
     mermaid = Infrastructure.to_mermaid(infra)
@@ -59,6 +60,20 @@ defmodule Choreo.InfrastructureTest do
     # vpc_a has no direct nodes (only contains sub-cluster pub), so it won't appear as a subgraph in Mermaid
     assert mermaid =~ "subgraph pub"
     assert mermaid =~ "style"
+  end
+
+  test "connect/3 raises when nodes do not exist" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_compute(:app, label: "App")
+
+    assert_raise ArgumentError, "Node :db does not exist in infrastructure diagram", fn ->
+      Infrastructure.connect(infra, :app, :db)
+    end
+
+    assert_raise ArgumentError, "Node :gateway does not exist in infrastructure diagram", fn ->
+      Infrastructure.connect(infra, :gateway, :app)
+    end
   end
 
   test "Theme defaults in DOT rendering" do

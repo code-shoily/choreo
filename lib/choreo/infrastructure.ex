@@ -271,16 +271,13 @@ defmodule Choreo.Infrastructure do
     opts = NimbleOptions.validate!(opts, @connect_schema)
     cost = opts[:cost]
 
-    # Ensure nodes exist
-    infra =
-      if Map.has_key?(infra.graph.nodes, from),
-        do: infra,
-        else: add_typed_node(infra, from, :compute, [])
+    unless Map.has_key?(infra.graph.nodes, from) do
+      raise ArgumentError, "Node #{inspect(from)} does not exist in infrastructure diagram"
+    end
 
-    infra =
-      if Map.has_key?(infra.graph.nodes, to),
-        do: infra,
-        else: add_typed_node(infra, to, :compute, [])
+    unless Map.has_key?(infra.graph.nodes, to) do
+      raise ArgumentError, "Node #{inspect(to)} does not exist in infrastructure diagram"
+    end
 
     meta = Map.new(opts)
     {graph, edge_id} = Yog.Multi.add_edge(infra.graph, from, to, cost)
