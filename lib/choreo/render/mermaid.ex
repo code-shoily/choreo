@@ -110,6 +110,7 @@ defmodule Choreo.Render.Mermaid do
 
     Yog.Multi.Mermaid.to_mermaid(graph, base)
     |> String.replace("stroke_dasharray", "stroke-dasharray")
+    |> String.replace("Color:", "color:")
   end
 
   @doc """
@@ -169,12 +170,12 @@ defmodule Choreo.Render.Mermaid do
       attrs =
         if MapSet.member?(hl_nodes, id) do
           # Highlighted nodes use light yellow fill, so they must use dark text
-          [{:color, "#1e293b"}]
+          [{:Color, "#1e293b"}]
         else
           [
             {:fill, fill},
             {:stroke, stroke},
-            {:color, fontcolor}
+            {:Color, fontcolor}
           ]
         end
 
