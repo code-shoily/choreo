@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   # {:choreo, "~> 0.8"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
@@ -16,28 +16,54 @@ Mix.install([
 
 ## 1. Single Point of Failure (SPOF) Detection
 
-An **Articulation Point** (or Cut Vertex) is a node that, if removed, would split the graph into two or more disconnected components. In a microservice architecture, these are your most critical nodes.
+An **Articulation Point** (or Cut Vertex) is a node that, if removed, would split the graph into two or more disconnected components. In a microservice architecture, these are your most critical services.
+
+Let's model a realistic **E-Commerce Microservices Architecture**. Here, the `:api_gateway` and `:order_service` act as routing hubs. Let's run articulation point detection and highlight the critical hotspots in red.
 
 ```elixir
 alias Choreo
 alias Choreo.Analysis
 
-system =
+ecommerce_system =
   Choreo.new()
-  |> Choreo.add_service(:a, name: "Svc A")
-  |> Choreo.add_service(:b, name: "Critical Hub")
-  |> Choreo.add_service(:c, name: "Svc C")
-  |> Choreo.add_service(:d, name: "Svc D")
-  |> Choreo.connect(:a, :b)
-  |> Choreo.connect(:b, :c)
-  |> Choreo.connect(:b, :d)
+  # Public entrypoint
+  |> Choreo.add_user(:customer, name: "Customer Browser")
+  # Core gateway
+  |> Choreo.add_service(:api_gateway, name: "API Gateway")
+  # Independent services
+  |> Choreo.add_service(:auth_service, name: "Auth Service")
+  |> Choreo.add_service(:product_catalog, name: "Product Catalog Svc")
+  # Business orchestration hub
+  |> Choreo.add_service(:order_service, name: "Order Processor")
+  # Downstream fulfillment services
+  |> Choreo.add_service(:payment_gateway, name: "Payment Gateway Integration")
+  |> Choreo.add_service(:inventory_service, name: "Inventory Controller")
+  |> Choreo.add_service(:shipping_service, name: "Shipping & Fulfillment")
+  
+  # Connect the graph
+  |> Choreo.connect(:customer, :api_gateway)
+  |> Choreo.connect(:api_gateway, :auth_service)
+  |> Choreo.connect(:api_gateway, :product_catalog)
+  |> Choreo.connect(:api_gateway, :order_service)
+  |> Choreo.connect(:order_service, :payment_gateway)
+  |> Choreo.connect(:order_service, :inventory_service)
+  |> Choreo.connect(:order_service, :shipping_service)
 
-# Highlight SPOFs in Red
-spof_system = Analysis.heatmap(system, measure: :spof, palette: :heat)
+# Run cut vertex analysis and heat-map the graph
+spof_system = Analysis.heatmap(ecommerce_system, measure: :spof, palette: :heat)
 
+# Render DOT (Graphviz)
 Kino.Layout.grid([
   Kino.VizJS.render(Choreo.to_dot(spof_system)),
   Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+], columns: 2)
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Layout.grid([
+  Kino.Mermaid.new(Choreo.to_mermaid(spof_system)),
+  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
 ], columns: 2)
 ```
 
@@ -45,26 +71,48 @@ Kino.Layout.grid([
 
 ## 2. Nucleus Detection (K-Core)
 
-**K-Core Decomposition** identifies nested layers of connectivity. Higher "Core Numbers" represent nodes that are part of a tightly-coupled nucleus.
+**K-Core Decomposition** identifies nested layers of connectivity. Higher "Core Numbers" represent nodes that are part of a tightly-coupled nucleus. This helps architects identify highly cohesive system components that should probably scale together or share database zones.
+
+Let's model a **Billing Consensus & Ledger Cluster** where three database nodes form a highly connected consensus ring, coordinated by a manager, with log shippers at the periphery.
 
 ```elixir
-# A more complex mesh
-mesh = Choreo.new()
-  |> Choreo.add_service(:n1) |> Choreo.add_service(:n2) |> Choreo.add_service(:n3)
-  |> Choreo.add_service(:n4) |> Choreo.add_service(:n5) |> Choreo.add_service(:n6)
-  # The 3-core "Nucleus"
-  |> Choreo.connect(:n1, :n2) |> Choreo.connect(:n2, :n3) |> Choreo.connect(:n3, :n1)
-  |> Choreo.connect(:n1, :n4) |> Choreo.connect(:n2, :n4) |> Choreo.connect(:n3, :n4)
-  # Peripheral nodes
-  |> Choreo.add_service(:p1) |> Choreo.connect(:n4, :p1)
+consensus_mesh = 
+  Choreo.new()
+  # Core consensus ring (3-core)
+  |> Choreo.add_database(:ledger_db1, name: "Ledger Replica 1")
+  |> Choreo.add_database(:ledger_db2, name: "Ledger Replica 2")
+  |> Choreo.add_database(:ledger_db3, name: "Ledger Replica 3")
+  # Coordinator
+  |> Choreo.add_service(:consensus_manager, name: "Consensus Manager")
+  # Periphery
+  |> Choreo.add_service(:log_shipper, name: "Log Shipper")
+  
+  # Build the consensus mesh
+  |> Choreo.connect(:ledger_db1, :ledger_db2)
+  |> Choreo.connect(:ledger_db2, :ledger_db3)
+  |> Choreo.connect(:ledger_db3, :ledger_db1)
+  # Connect manager to all consensus nodes
+  |> Choreo.connect(:consensus_manager, :ledger_db1)
+  |> Choreo.connect(:consensus_manager, :ledger_db2)
+  |> Choreo.connect(:consensus_manager, :ledger_db3)
+  # Log shipper only polls the manager
+  |> Choreo.connect(:log_shipper, :consensus_manager)
 
-# Visualize the "Core"
-# The nucleus (n1, n2, n3, n4) will be red/orange, peripheral p1 will be pale yellow.
-core_system = Analysis.heatmap(mesh, measure: :k_core, palette: :cool)
+# Highlight k-core depth
+core_system = Analysis.heatmap(consensus_mesh, measure: :k_core, palette: :cool)
 
+# Render DOT (Graphviz)
 Kino.Layout.grid([
   Kino.VizJS.render(Choreo.to_dot(core_system)),
   Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :cool)))
+], columns: 2)
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Layout.grid([
+  Kino.Mermaid.new(Choreo.to_mermaid(core_system)),
+  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
 ], columns: 2)
 ```
 
@@ -72,27 +120,47 @@ Kino.Layout.grid([
 
 ## 3. Workflow Latency Hotspots
 
-Workflow heatmaps highlight tasks based on their cumulative latency (including retries).
+Workflow heatmaps highlight tasks based on their cumulative latency (including retries and human-in-the-loop timeouts). 
+
+Let's model a **User Registration & KYC Verification Workflow** where automated steps are lightning fast, but the manual KYC verification step takes up to 10 seconds (10,000ms), acting as a giant bottleneck.
 
 ```elixir
 alias Choreo.Workflow
 alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
 
-wf = Workflow.new()
+kyc_wf = 
+  Workflow.new()
   |> Workflow.add_start(:start)
-  |> Workflow.add_task(:fast, timeout_ms: 100)
-  |> Workflow.add_task(:slow, timeout_ms: 5000)
+  |> Workflow.add_task(:submit_details, label: "Submit Registration Info", timeout_ms: 100)
+  |> Workflow.add_task(:email_validation, label: "Verify Email Token", timeout_ms: 200)
+  |> Workflow.add_task(:automated_credit_check, label: "Credit Bureau Call", timeout_ms: 1500)
+  |> Workflow.add_task(:manual_kyc_verification, label: "Manual KYC Approval", timeout_ms: 10000)
+  |> Workflow.add_task(:create_user_account, label: "Create Db Records", timeout_ms: 300)
   |> Workflow.add_end(:done)
-  |> Workflow.connect(:start, :fast)
-  |> Workflow.connect(:fast, :slow)
-  |> Workflow.connect(:slow, :done)
+  
+  # Connect sequence
+  |> Workflow.connect(:start, :submit_details)
+  |> Workflow.connect(:submit_details, :email_validation)
+  |> Workflow.connect(:email_validation, :automated_credit_check)
+  |> Workflow.connect(:automated_credit_check, :manual_kyc_verification)
+  |> Workflow.connect(:manual_kyc_verification, :create_user_account)
+  |> Workflow.connect(:create_user_account, :done)
 
-# Highlight slow tasks
-heat_wf = WorkflowAnalysis.heatmap(wf, palette: :spectral)
+# Heatmap by latency
+heat_wf = WorkflowAnalysis.heatmap(kyc_wf, palette: :spectral)
 
+# Render DOT (Graphviz)
 Kino.Layout.grid([
   Kino.VizJS.render(Workflow.to_dot(heat_wf)),
   Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :spectral)))
+], columns: 2)
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Layout.grid([
+  Kino.Mermaid.new(Workflow.to_mermaid(heat_wf)),
+  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
 ], columns: 2)
 ```
 
@@ -100,25 +168,42 @@ Kino.Layout.grid([
 
 ## 4. Dataflow Throughput Hotspots
 
-Dataflow heatmaps visualize volume by coloring stages based on their inbound event rate.
+Dataflow heatmaps visualize volume by coloring stages based on their inbound event rates.
+
+Let's model an **IoT Sensor Telemetry Ingestion Pipeline** where high-frequency GPS tracking devices stream 50,000 events/sec into Kafka, but the PostgreSQL writer is throttled at 2,000 events/sec.
 
 ```elixir
 alias Choreo.Dataflow
 alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
 
-pipeline = Dataflow.new()
-  |> Dataflow.add_source(:sensor, rate: 1000)
-  |> Dataflow.add_transform(:parser, latency_ms: 10)
-  |> Dataflow.add_sink(:db)
-  |> Dataflow.connect(:sensor, :parser)
-  |> Dataflow.connect(:parser, :db)
+telemetry_pipeline = 
+  Dataflow.new()
+  # Inbound rates of sources, and capacities of transforms/sinks
+  |> Dataflow.add_source(:gps_sensors, label: "50k GPS Devices", rate: 50000)
+  |> Dataflow.add_transform(:kafka_ingest, label: "Kafka Ingestion Topic", capacity: 60000)
+  |> Dataflow.add_transform(:spark_processor, label: "Spark Stream Parser", capacity: 45000)
+  |> Dataflow.add_sink(:postgres_db, label: "Relational Audit DB", capacity: 2000)
+  
+  # Connect pipeline
+  |> Dataflow.connect(:gps_sensors, :kafka_ingest)
+  |> Dataflow.connect(:kafka_ingest, :spark_processor)
+  |> Dataflow.connect(:spark_processor, :postgres_db)
 
-# Highlight high-volume stages
-heat_df = DataflowAnalysis.heatmap(pipeline, palette: :heat)
+# Heatmap showing processing bottlenecks
+heat_df = DataflowAnalysis.heatmap(telemetry_pipeline, palette: :heat)
 
+# Render DOT (Graphviz)
 Kino.Layout.grid([
   Kino.VizJS.render(Dataflow.to_dot(heat_df)),
   Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+], columns: 2)
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Layout.grid([
+  Kino.Mermaid.new(Dataflow.to_mermaid(heat_df)),
+  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
 ], columns: 2)
 ```
 
@@ -126,26 +211,47 @@ Kino.Layout.grid([
 
 ## 5. ThreatModel Risk Hotspots
 
-ThreatModel heatmaps identify security "Hotspots" by node threat density.
+ThreatModel heatmaps identify security "Hotspots" based on node threat density and asset sensitivity.
+
+Let's model a **Financial Transaction Threat Model** with three zones: Public Network, Corporate DMZ, and PCI-Compliant secure zone. The credit card vault is the most sensitive data store and gets marked as a high security risk.
 
 ```elixir
 alias Choreo.ThreatModel
 alias Choreo.ThreatModel.Analysis, as: ThreatAnalysis
 
-model = ThreatModel.new()
-  |> ThreatModel.add_trust_boundary("internet", level: 0)
-  |> ThreatModel.add_external_entity(:user, boundary: "internet")
-  |> ThreatModel.add_process(:api, boundary: "app")
-  |> ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :confidential)
-  |> ThreatModel.data_flow(:user, :api)
-  |> ThreatModel.data_flow(:api, :db)
+security_model = 
+  ThreatModel.new()
+  # Add boundaries
+  |> ThreatModel.add_trust_boundary("public_network", label: "Public Internet", level: 0)
+  |> ThreatModel.add_trust_boundary("corporate_dmz", label: "DMZ", level: 1)
+  |> ThreatModel.add_trust_boundary("pci_zone", label: "PCI-DSS Compliant Area", level: 2)
+  
+  # Add entities
+  |> ThreatModel.add_external_entity(:customer_browser, label: "User Browser", boundary: "public_network")
+  |> ThreatModel.add_process(:web_server, label: "Nginx Gateway", boundary: "corporate_dmz")
+  |> ThreatModel.add_process(:payment_processor, label: "Card Transaction Svc", boundary: "pci_zone")
+  |> ThreatModel.add_data_store(:credit_card_vault, label: "CC Hash Vault", boundary: "pci_zone", sensitivity: :restricted)
+  
+  # Connect data flows
+  |> ThreatModel.data_flow(:customer_browser, :web_server)
+  |> ThreatModel.data_flow(:web_server, :payment_processor)
+  |> ThreatModel.data_flow(:payment_processor, :credit_card_vault)
 
-# Highlight security hotspots
-heat_tm = ThreatAnalysis.heatmap(model, palette: :heat)
+# Heatmap showing high risk concentration
+heat_tm = ThreatAnalysis.heatmap(security_model, palette: :heat)
 
+# Render DOT (Graphviz)
 Kino.Layout.grid([
   Kino.VizJS.render(ThreatModel.to_dot(heat_tm)),
   Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+], columns: 2)
+```
+
+```elixir
+# Render Mermaid.js
+Kino.Layout.grid([
+  Kino.Mermaid.new(ThreatModel.to_mermaid(heat_tm)),
+  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
 ], columns: 2)
 ```
 
@@ -155,24 +261,38 @@ Kino.Layout.grid([
 
 **Transitive Reduction** simplifies complex dependency graphs by removing redundant edges while preserving reachability. If `A -> B`, `B -> C`, and `A -> C`, the direct edge `A -> C` is removed because the dependency is already implied by the path through `B`.
 
+Let's model a **Microservice Deployment Dependency Graph** where circular or redundant dependencies often build up. Redundant edges make dependency tracking hard; transitive reduction cleans it up.
+
 ```elixir
 alias Choreo.Dependency
 
-# A dense dependency graph with a redundant edge
-deps = Dependency.new()
-  |> Dependency.add_application(:api)
-  |> Dependency.add_module(:auth)
-  |> Dependency.add_library(:phoenix)
-  |> Dependency.depends_on(:api, :auth)
-  |> Dependency.depends_on(:auth, :phoenix)
-  |> Dependency.depends_on(:api, :phoenix) # Redundant!
+deploy_deps = 
+  Dependency.new()
+  |> Dependency.add_application(:api_gateway)
+  |> Dependency.add_service(:auth_service)
+  |> Dependency.add_service(:user_database)
+  
+  # Declare dependencies
+  |> Dependency.depends_on(:api_gateway, :auth_service)
+  |> Dependency.depends_on(:auth_service, :user_database)
+  # Redundant! The gateway depends on DB transitively via auth_service
+  |> Dependency.depends_on(:api_gateway, :user_database) 
 
-# Perform reduction
-{:ok, reduced} = Analysis.reduce_transitive(deps)
+# Run Transitive Reduction
+{:ok, reduced_deps} = Analysis.reduce_transitive(deploy_deps)
 
+# Render DOT (Graphviz) - Before vs After
 Kino.Layout.grid([
-  Kino.VizJS.render(Dependency.to_dot(deps)),
-  Kino.VizJS.render(Dependency.to_dot(reduced))
+  Kino.VizJS.render(Dependency.to_dot(deploy_deps)),
+  Kino.VizJS.render(Dependency.to_dot(reduced_deps))
+], columns: 2)
+```
+
+```elixir
+# Render Mermaid.js - Before vs After
+Kino.Layout.grid([
+  Kino.Mermaid.new(Dependency.to_mermaid(deploy_deps)),
+  Kino.Mermaid.new(Dependency.to_mermaid(reduced_deps))
 ], columns: 2)
 ```
 
@@ -182,57 +302,80 @@ Kino.Layout.grid([
 
 **Path Analysis** finds the optimal route between two services based on domain-specific metrics.
 
-### Fastest Path (Workflow)
+### Fastest Path (Workflow Latency)
 
-Minimize cumulative latency across tasks.
+Minimize cumulative latency across tasks (shortest path search).
 
 ```elixir
 alias Choreo.Workflow
 
-wf = Workflow.new()
+order_flow = 
+  Workflow.new()
   |> Workflow.add_start(:start)
-  |> Workflow.add_task(:fast_a, timeout_ms: 10)
-  |> Workflow.add_task(:fast_b, timeout_ms: 10)
-  |> Workflow.add_task(:slow, timeout_ms: 500)
+  # Parallel path A (Fast Lane - Automated payment & release)
+  |> Workflow.add_task(:fast_payment, label: "Auth Card", timeout_ms: 150)
+  |> Workflow.add_task(:fast_ship, label: "Auto Release", timeout_ms: 100)
+  # Parallel path B (Slow Lane - Manual fraud check)
+  |> Workflow.add_task(:fraud_review, label: "Fraud Investigation", timeout_ms: 5000)
   |> Workflow.add_end(:done)
-  |> Workflow.connect(:start, :fast_a)
-  |> Workflow.connect(:fast_a, :fast_b)
-  |> Workflow.connect(:fast_b, :done)
-  |> Workflow.connect(:start, :slow)
-  |> Workflow.connect(:slow, :done)
+  
+  # Connect fast path
+  |> Workflow.connect(:start, :fast_payment)
+  |> Workflow.connect(:fast_payment, :fast_ship)
+  |> Workflow.connect(:fast_ship, :done)
+  # Connect slow path
+  |> Workflow.connect(:start, :fraud_review)
+  |> Workflow.connect(:fraud_review, :done)
 
-# Find the "Fastest Path"
-{:ok, path} = Analysis.path(wf, :start, :done, measure: :latency)
+# Find the "Fastest Path" (minimum timeout_ms latency)
+{:ok, fast_path} = Analysis.path(order_flow, :start, :done, measure: :latency)
 
-Kino.VizJS.render(Workflow.to_dot(wf), height: "600px")
+# Render DOT (Graphviz) with the fast path highlighted in blue
+Kino.VizJS.render(Workflow.to_dot(order_flow, Analysis.highlight(fast_path)))
 ```
 
-### Widest Path (Dataflow)
+```elixir
+# Render Mermaid.js with the fast path highlighted
+Kino.Mermaid.new(Workflow.to_mermaid(order_flow, Analysis.highlight(fast_path)))
+```
+
+### Widest Path (Dataflow Throughput Capacity)
 
 Maximize the bottleneck capacity (minimum throughput) along the path.
 
 ```elixir
 alias Choreo.Dataflow
 
-pipeline = Dataflow.new()
-  |> Dataflow.add_source(:sensor, rate: 1000)
-  |> Dataflow.add_transform(:fast_lane, capacity: 800)
-  |> Dataflow.add_transform(:slow_lane, capacity: 50)
-  |> Dataflow.add_sink(:db)
-  |> Dataflow.connect(:sensor, :fast_lane)
-  |> Dataflow.connect(:fast_lane, :db)
-  |> Dataflow.connect(:sensor, :slow_lane)
-  |> Dataflow.connect(:slow_lane, :db)
+route_pipeline = 
+  Dataflow.new()
+  |> Dataflow.add_source(:ingest, rate: 1000)
+  # Router A (Gigabit Fiber backup link)
+  |> Dataflow.add_transform(:high_speed_link, label: "Fiber Backup", capacity: 800)
+  # Router B (Dial-up backup link)
+  |> Dataflow.add_transform(:low_speed_link, label: "Satellite Link", capacity: 10)
+  |> Dataflow.add_sink(:backup_store, label: "Backup SAN")
+  
+  # Connect paths
+  |> Dataflow.connect(:ingest, :high_speed_link)
+  |> Dataflow.connect(:high_speed_link, :backup_store)
+  |> Dataflow.connect(:ingest, :low_speed_link)
+  |> Dataflow.connect(:low_speed_link, :backup_store)
 
-# Find the "Widest Path"
-{:ok, path} = Analysis.path(pipeline, :sensor, :db, measure: :throughput)
+# Find the "Widest Path" (maximizing bottleneck throughput)
+{:ok, wide_path} = Analysis.path(route_pipeline, :ingest, :backup_store, measure: :throughput)
 
-Kino.VizJS.render(Dataflow.to_dot(pipeline, Analysis.highlight(path)))
+# Render DOT (Graphviz) with the optimal routing highlighted
+Kino.VizJS.render(Dataflow.to_dot(route_pipeline, Analysis.highlight(wide_path)))
+```
+
+```elixir
+# Render Mermaid.js with the optimal routing highlighted
+Kino.Mermaid.new(Dataflow.to_mermaid(route_pipeline, Analysis.highlight(wide_path)))
 ```
 
 ### Custom Weighted Paths
 
-You can also find paths based on arbitrary metadata keys or custom weight functions.
+Minimize arbitrary metrics like monetary costs or hops.
 
 ```elixir
 system = Choreo.new()
@@ -244,7 +387,123 @@ system = Choreo.new()
   |> Choreo.connect(:a, :c, cost: 50)
 
 # Find the cheapest path using the 'cost' variable
-{:ok, path} = Analysis.path(system, :a, :c, measure: :cost)
+{:ok, cost_path} = Analysis.path(system, :a, :c, measure: :cost)
 
-Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(path)))
+# Render DOT (Graphviz) with the cheapest path highlighted in blue
+Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(cost_path)))
 ```
+
+```elixir
+# Render Mermaid.js with the cheapest path highlighted
+Kino.Mermaid.new(Choreo.to_mermaid(system, Analysis.highlight(cost_path)))
+```
+
+---
+
+## 8. Cross-Diagram Semantic Tracing & Composition
+
+Because Choreo allows you to compose different diagrams together using `Choreo.embed/4`, you can use **semantic tracing** to link your static C4 architectural components to runtime workflows or database entities. 
+
+By pulling tracing up to the coordinator level:
+1. Domain modules (`C4`, `Workflow`, `ERD`) remain completely decoupled.
+2. Cross-domain dependencies are declared as traces.
+3. Impact analysis can be performed across boundaries.
+
+Let's build a composed system with:
+1. A **C4 Model** showing an internet banking backend container.
+2. A **Workflow** describing a money transfer execution.
+3. An **ERD** describing the database structure.
+
+Then, we'll draw traces connecting them, perform impact analysis, and calculate path tracing.
+
+```elixir
+alias Choreo.C4
+alias Choreo.Workflow
+alias Choreo.ERD
+alias Choreo.Analysis.Tracing
+
+# 1. Define C4 Architecture L2
+c4_model = 
+  C4.new()
+  |> C4.add_container(:transfer_api, label: "Transfer API Service", technology: "Elixir/Phoenix")
+  |> C4.add_container(:audit_db, label: "Transaction Database", technology: "PostgreSQL")
+  |> C4.add_relationship(:transfer_api, :audit_db, label: "Writes transactions to")
+
+# 2. Define business runtime Workflow
+business_wf = 
+  Workflow.new()
+  |> Workflow.add_start(:start)
+  |> Workflow.add_task(:validate_funds, label: "Validate Available Funds")
+  |> Workflow.add_task(:log_audit_trail, label: "Log Audit Record")
+  |> Workflow.add_end(:stop)
+  |> Workflow.connect(:start, :validate_funds)
+  |> Workflow.connect(:validate_funds, :log_audit_trail)
+  |> Workflow.connect(:log_audit_trail, :stop)
+
+# 3. Define Database ERD
+database_erd = 
+  ERD.new()
+  |> ERD.add_table(:ledger_entries, columns: [
+    %{name: :id, type: :uuid},
+    %{name: :amount, type: :decimal},
+    %{name: :created_at, type: :timestamp}
+  ])
+
+# 4. Compose them in a top-level Choreo VPC
+composed_system = 
+  Choreo.new()
+  |> Choreo.add_cluster("secure_zone", label: "PCI Network Segment")
+  |> Choreo.embed(c4_model, "secure_zone", prefix: "c4_")
+  |> Choreo.embed(business_wf, "secure_zone", prefix: "wf_")
+  |> Choreo.embed(database_erd, "secure_zone", prefix: "erd_")
+
+# 5. Draw semantic traces across domains
+# - The 'log_audit_trail' task executes via the 'transfer_api' C4 component
+# - The 'transfer_api' component writes and stores data inside the 'ledger_entries' database table
+composed_system = 
+  composed_system
+  |> Choreo.trace(:wf_log_audit_trail, :c4_transfer_api, type: :executes)
+  |> Choreo.trace(:c4_transfer_api, :erd_ledger_entries, type: :stores)
+```
+
+### Visualizing Trace Edges
+
+Trace edges are hidden from normal visual outputs by default to keep the diagrams clean. To display them, pass the `:show_traces` option set to `true`.
+
+In DOT, trace edges render with `constraint=false` so the trace lines do not warp or disrupt the layout of the embedded diagrams.
+
+```elixir
+# Render DOT (Graphviz) with trace edges highlighted in red dashed lines
+Kino.VizJS.render(Choreo.to_dot(composed_system, show_traces: true))
+```
+
+```elixir
+# Render Mermaid.js with trace edges highlighted
+Kino.Mermaid.new(Choreo.to_mermaid(composed_system, show_traces: true))
+```
+
+### Performing Cross-Diagram Impact Analysis
+
+If the database table `ledger_entries` schema is modified, which architectural components and business workflows are impacted? We run impact analysis by walking the traces backward:
+
+```elixir
+# Returns list of impacted nodes: [:c4_transfer_api, :wf_log_audit_trail]
+Tracing.impact_analysis(composed_system, :erd_ledger_entries)
+```
+
+### Finding Execution Paths
+
+We can calculate the semantic path from the runtime business task down to the database schema:
+
+```elixir
+# Returns {:ok, [:wf_log_audit_trail, :c4_transfer_api, :erd_ledger_entries]}
+{:ok, path} = Tracing.trace_path(composed_system, :wf_log_audit_trail, :erd_ledger_entries)
+```
+
+---
+
+## 9. Further Reading
+
+* [Graph Theory Applications in Software Architecture](https://en.wikipedia.org/wiki/Network_architecture)
+* [STRIDE Threat Modeling](https://en.wikipedia.org/wiki/STRIDE_(security))
+* [Simon Brown's C4 Model](https://c4model.com/)
