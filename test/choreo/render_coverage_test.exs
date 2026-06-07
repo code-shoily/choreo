@@ -6,33 +6,38 @@ defmodule Choreo.RenderCoverageTest do
   alias Choreo.DecisionTree
   alias Choreo.Dependency
   alias Choreo.FSM
+  alias Choreo.Infrastructure
   alias Choreo.MindMap
   alias Choreo.ThreatModel
   alias Choreo.Workflow
 
-  test "infrastructure mermaid renderer comprehensive" do
-    system =
-      Choreo.new()
-      |> Choreo.add_database(:db, kind: :postgres)
-      |> Choreo.add_cache(:cache, kind: :redis)
-      |> Choreo.add_service(:api)
-      |> Choreo.add_network(:vpc)
-      |> Choreo.add_user(:client)
-      |> Choreo.add_load_balancer(:lb)
-      |> Choreo.add_queue(:q, kind: :kafka)
-      |> Choreo.add_storage(:s3)
-      |> Choreo.connect(:api, :db, cost: 10)
-      |> Choreo.connect(:api, :cache, cost: 5)
-      |> Choreo.add_dataflow(:client, :api)
+  test "infrastructure renderer comprehensive" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_vpc("vpc")
+      |> Infrastructure.add_subnet_public("pub", parent: "vpc")
+      |> Infrastructure.add_subnet_private("priv", parent: "vpc")
+      |> Infrastructure.add_internet(:gw)
+      |> Infrastructure.add_load_balancer(:lb, cluster: "pub")
+      |> Infrastructure.add_compute(:app, cluster: "priv")
+      |> Infrastructure.add_managed_db(:db, cluster: "priv")
+      |> Infrastructure.add_storage(:s3)
+      |> Infrastructure.connect(:gw, :lb, protocol: :https, label: "TLS")
+      |> Infrastructure.connect(:lb, :app, protocol: :http)
+      |> Infrastructure.connect(:app, :db, protocol: :tcp)
+      |> Infrastructure.connect(:app, :s3, protocol: :ssl)
 
     for theme <- [:default, :dark, :warm, :forest, :ocean, :minimal] do
-      assert Choreo.to_mermaid(system, theme: theme) =~ "graph TD"
+      assert Infrastructure.to_dot(infra, theme: theme) =~ "digraph"
+      assert Infrastructure.to_mermaid(infra, theme: theme) =~ "graph TD"
     end
 
-    # Custom attributes
+    assert Infrastructure.to_mermaid(infra, direction: :lr) =~ "graph LR"
+
+    # Custom node attributes
     custom =
-      system
-      |> Choreo.add_database(:custom,
+      Infrastructure.new()
+      |> Infrastructure.add_compute(:custom,
         shape: :circle,
         fillcolor: "red",
         fontcolor: "blue",
@@ -41,7 +46,13 @@ defmodule Choreo.RenderCoverageTest do
         image: "icon.png"
       )
 
-    assert Choreo.to_mermaid(custom) =~ "((\"custom\"))"
+    dot = Infrastructure.to_dot(custom)
+    assert dot =~ "shape=\"circle\""
+    assert dot =~ "fillcolor=\"red\""
+    assert dot =~ "fontcolor=\"blue\""
+    assert dot =~ "style=\"bold\""
+    assert dot =~ "penwidth=\"5.0\""
+    assert dot =~ "image=\"icon.png\""
   end
 
   test "decision_tree renderer comprehensive" do

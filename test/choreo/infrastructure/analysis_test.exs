@@ -20,6 +20,43 @@ defmodule Choreo.Infrastructure.AnalysisTest do
            ]
   end
 
+  test "detects bidirectional internet to private violations" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_internet(:gateway)
+      |> Infrastructure.add_subnet_private("priv")
+      |> Infrastructure.add_compute(:app, cluster: "priv")
+      |> Infrastructure.connect(:app, :gateway)
+
+    warnings = Analysis.warnings(infra)
+
+    assert warnings == [
+             "Private resource 'app' is connected directly to public internet boundary 'gateway'."
+           ]
+  end
+
+  test "no warning when internet connects to public subnet node" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_internet(:gateway)
+      |> Infrastructure.add_subnet_public("pub")
+      |> Infrastructure.add_compute(:app, cluster: "pub")
+      |> Infrastructure.connect(:gateway, :app)
+
+    assert Analysis.warnings(infra) == []
+  end
+
+  test "no warning when private subnet node has no internet connection" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_subnet_private("priv")
+      |> Infrastructure.add_compute(:app, cluster: "priv")
+      |> Infrastructure.add_managed_db(:db, cluster: "priv")
+      |> Infrastructure.connect(:app, :db)
+
+    assert Analysis.warnings(infra) == []
+  end
+
   test "detects database placement violations" do
     infra_no_subnet =
       Infrastructure.new()
@@ -45,6 +82,41 @@ defmodule Choreo.Infrastructure.AnalysisTest do
       |> Infrastructure.add_managed_db(:rds_secure, cluster: "subnet_app")
 
     assert Analysis.warnings(infra_valid) == []
+  end
+
+  test "warnings use cluster name when label is missing" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_subnet_public("subnet_dmz")
+      |> Infrastructure.add_managed_db(:rds, cluster: "subnet_dmz")
+
+    assert Analysis.warnings(infra) == [
+             "Managed database 'rds' should be located in a private subnet, but it is in 'subnet_dmz'."
+           ]
+
+    # DB with no label via manual cluster injection
+    infra_db =
+      Infrastructure.new()
+      |> Infrastructure.add_managed_db(:rds, cluster: "no_label_subnet")
+
+    infra_db =
+      put_in(infra_db.clusters["cluster_no_label_subnet"], %{cluster_type: :subnet_public})
+
+    assert Analysis.warnings(infra_db) == [
+             "Managed database 'rds' should be located in a private subnet, but it is in 'no_label_subnet'."
+           ]
+
+    # LB with no label via manual cluster injection
+    infra_lb =
+      Infrastructure.new()
+      |> Infrastructure.add_load_balancer(:alb, cluster: "no_label_subnet2")
+
+    infra_lb =
+      put_in(infra_lb.clusters["cluster_no_label_subnet2"], %{cluster_type: :subnet_private})
+
+    assert Analysis.warnings(infra_lb) == [
+             "Load balancer 'alb' should be located in a public subnet, but it is in 'no_label_subnet2'."
+           ]
   end
 
   test "detects load balancer placement violations" do
@@ -90,5 +162,49 @@ defmodule Choreo.Infrastructure.AnalysisTest do
       |> Infrastructure.connect(:api, :db)
 
     assert Analysis.warnings(infra) == []
+  end
+
+  test "compute node in public subnet does not trigger any warnings" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_subnet_public("pub")
+      |> Infrastructure.add_compute(:app, cluster: "pub")
+
+    assert Analysis.warnings(infra) == []
+  end
+
+  test "storage node outside any subnet does not trigger any warnings" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_storage(:s3)
+
+    assert Analysis.warnings(infra) == []
+  end
+
+  test "internet node in private subnet does not trigger placement warnings" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_subnet_private("priv")
+      |> Infrastructure.add_internet(:gw, cluster: "priv")
+
+    assert Analysis.warnings(infra) == []
+  end
+
+  test "multiple violations are all reported" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_internet(:gateway)
+      |> Infrastructure.add_subnet_private("priv")
+      |> Infrastructure.add_compute(:app, cluster: "priv")
+      |> Infrastructure.add_managed_db(:db)
+      |> Infrastructure.add_load_balancer(:lb)
+      |> Infrastructure.connect(:gateway, :app)
+
+    warnings = Analysis.warnings(infra)
+
+    assert length(warnings) == 3
+    assert Enum.any?(warnings, &String.contains?(&1, "Private resource 'app'"))
+    assert Enum.any?(warnings, &String.contains?(&1, "Managed database 'db'"))
+    assert Enum.any?(warnings, &String.contains?(&1, "Load balancer 'lb'"))
   end
 end
