@@ -430,6 +430,9 @@
       border-radius: 0.75rem;
       padding: 1.5rem;
       transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+      color: inherit;
+      display: block;
     }
 
     .card-type:hover {
@@ -827,7 +830,7 @@ domain =
     
     <div class="grid-types">
       <!-- Architecture & Design -->
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.C4.html" target="_blank" class="card-type">
         <div class="card-category">Architecture & Design</div>
         <h3 class="card-title">C4 Model</h3>
         <p class="card-description">Hierarchical modeling of software systems, containers, and components following the C4 layout specification.</p>
@@ -835,9 +838,9 @@ domain =
           <span class="card-tag">Choreo.C4</span>
           <span class="card-tag">Systems</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.Domain.html" target="_blank" class="card-type">
         <div class="card-category">Architecture & Design</div>
         <h3 class="card-title">Domain DDD</h3>
         <p class="card-description">Map strategic bounded contexts, aggregates, entities, and event storming command-policy flows.</p>
@@ -845,9 +848,9 @@ domain =
           <span class="card-tag">Choreo.Domain</span>
           <span class="card-tag">DDD</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.ERD.html" target="_blank" class="card-type">
         <div class="card-category">Architecture & Design</div>
         <h3 class="card-title">ERD</h3>
         <p class="card-description">Database entity-relationship modeling supporting primary/foreign keys, types, and schema links.</p>
@@ -855,9 +858,9 @@ domain =
           <span class="card-tag">Choreo.ERD</span>
           <span class="card-tag">Databases</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.UML.html" target="_blank" class="card-type">
         <div class="card-category">Architecture & Design</div>
         <h3 class="card-title">UML Class</h3>
         <p class="card-description">Generate classic object-oriented class structure layouts mapping structs, schemas, and associations.</p>
@@ -865,10 +868,10 @@ domain =
           <span class="card-tag">Choreo.UML</span>
           <span class="card-tag">UML</span>
         </div>
-      </div>
+      </a>
 
       <!-- Behavior & Flows -->
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.FSM.html" target="_blank" class="card-type">
         <div class="card-category">Behavior & Flows</div>
         <h3 class="card-title">FSM</h3>
         <p class="card-description">Model finite state machines with deterministic transitions, dead-state reachability, and path analysis.</p>
@@ -876,9 +879,9 @@ domain =
           <span class="card-tag">Choreo.FSM</span>
           <span class="card-tag">State</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.Sequence.html" target="_blank" class="card-type">
         <div class="card-category">Behavior & Flows</div>
         <h3 class="card-title">Sequence</h3>
         <p class="card-description">Map sequence interactions and timelines with sync/async activations and loop/alt conditions.</p>
@@ -886,9 +889,9 @@ domain =
           <span class="card-tag">Choreo.Sequence</span>
           <span class="card-tag">Messages</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.Workflow.html" target="_blank" class="card-type">
         <div class="card-category">Behavior & Flows</div>
         <h3 class="card-title">Workflow</h3>
         <p class="card-description">Orchestrate tasks, parallel branches, latency weights, Saga compensation hooks, and bottlenecks.</p>
@@ -896,9 +899,9 @@ domain =
           <span class="card-tag">Choreo.Workflow</span>
           <span class="card-tag">Sagas</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.Dataflow.html" target="_blank" class="card-type">
         <div class="card-category">Behavior & Flows</div>
         <h3 class="card-title">Pipelines</h3>
         <p class="card-description">Model dataflow processing graphs, transformation nodes, message routers, and parallel sources/sinks.</p>
@@ -906,9 +909,9 @@ domain =
           <span class="card-tag">Choreo.Dataflow</span>
           <span class="card-tag">Pipelines</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.ThreatModel.html" target="_blank" class="card-type">
         <div class="card-category">Behavior & Flows</div>
         <h3 class="card-title">Threat Modeling</h3>
         <p class="card-description">Map secure boundaries, trust barriers, assets, dataflows, and calculate threat levels statically.</p>
@@ -916,10 +919,10 @@ domain =
           <span class="card-tag">Choreo.ThreatModel</span>
           <span class="card-tag">STRIDE</span>
         </div>
-      </div>
+      </a>
 
       <!-- Data & Structure -->
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.Dependency.html" target="_blank" class="card-type">
         <div class="card-category">Data & Structure</div>
         <h3 class="card-title">Dependencies</h3>
         <p class="card-description">Analyze acyclic package dependencies, detect cyclic loops, and optimize layering schedules.</p>
@@ -927,9 +930,9 @@ domain =
           <span class="card-tag">Choreo.Dependency</span>
           <span class="card-tag">DAGs</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.DecisionTree.html" target="_blank" class="card-type">
         <div class="card-category">Data & Structure</div>
         <h3 class="card-title">Decision Trees</h3>
         <p class="card-description">Evaluate complex branching heuristics and run entropy validation checks for logical soundness.</p>
@@ -937,9 +940,9 @@ domain =
           <span class="card-tag">Choreo.DecisionTree</span>
           <span class="card-tag">Logic</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.Planner.html" target="_blank" class="card-type">
         <div class="card-category">Data & Structure</div>
         <h3 class="card-title">Planner</h3>
         <p class="card-description">Schedule tasks, resolve priority constraints, and isolate critical path dependencies.</p>
@@ -947,9 +950,9 @@ domain =
           <span class="card-tag">Choreo.Planner</span>
           <span class="card-tag">PERT</span>
         </div>
-      </div>
+      </a>
 
-      <div class="card-type">
+      <a href="https://hexdocs.pm/choreo/Choreo.MindMap.html" target="_blank" class="card-type">
         <div class="card-category">Data & Structure</div>
         <h3 class="card-title">Mind Maps</h3>
         <p class="card-description">Organize concepts hierarchically into parent-child visual layouts representing domain trees.</p>
@@ -957,7 +960,7 @@ domain =
           <span class="card-tag">Choreo.MindMap</span>
           <span class="card-tag">Trees</span>
         </div>
-      </div>
+      </a>
     </div>
   </section>
 
