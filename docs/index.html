@@ -24,18 +24,18 @@
   <!-- Modern CSS Stylesheet -->
   <style>
     :root {
-      --bg-color: #030712;
-      --panel-bg: rgba(17, 24, 39, 0.7);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(255, 255, 255, 0.15);
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --primary-glow: rgba(99, 102, 241, 0.15);
-      --accent-blue: #3b82f6;
-      --accent-teal: #14b8a6;
-      --accent-magenta: #d946ef;
+      --bg-color: #f8fafc;
+      --panel-bg: rgba(255, 255, 255, 0.85);
+      --border-color: rgba(15, 23, 42, 0.08);
+      --border-hover: rgba(15, 23, 42, 0.15);
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --primary: #4f46e5;
+      --primary-hover: #3730a3;
+      --primary-glow: rgba(79, 70, 229, 0.15);
+      --accent-blue: #2563eb;
+      --accent-teal: #0d9488;
+      --accent-magenta: #c026d3;
       --font-outfit: 'Outfit', sans-serif;
       --font-inter: 'Inter', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
@@ -64,9 +64,9 @@
       right: 0;
       height: 900px;
       background: 
-        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(217, 70, 239, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 50% 50%, rgba(17, 24, 39, 0.5) 0%, var(--bg-color) 100%);
+        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(217, 70, 239, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(248, 250, 252, 0.5) 0%, var(--bg-color) 100%);
       z-index: -2;
       pointer-events: none;
     }
@@ -86,7 +86,7 @@
       position: sticky;
       top: 0;
       z-index: 50;
-      background: rgba(3, 7, 18, 0.6);
+      background: rgba(248, 250, 252, 0.8);
     }
 
     .nav-container {
@@ -120,7 +120,7 @@
       font-family: var(--font-outfit);
       font-weight: 700;
       font-size: 1.5rem;
-      background: linear-gradient(135deg, #fff 40%, var(--text-muted) 100%);
+      background: linear-gradient(135deg, #0f172a 40%, var(--text-muted) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       letter-spacing: -0.02em;
@@ -145,9 +145,9 @@
     }
 
     .btn-github {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(15, 23, 42, 0.05);
       border: 1px solid var(--border-color);
-      color: #fff;
+      color: var(--text-main);
       padding: 0.5rem 1rem;
       border-radius: 0.5rem;
       display: inline-flex;
@@ -159,7 +159,7 @@
     }
 
     .btn-github:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(15, 23, 42, 0.1);
       border-color: var(--border-hover);
     }
 
@@ -336,6 +336,7 @@
 
     .teaser-diagram {
       background: #ffffff;
+      border: 1px solid var(--border-color);
       border-radius: 0.5rem;
       padding: 1.5rem;
       display: flex;
@@ -368,7 +369,7 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       margin-bottom: 2.5rem;
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(15, 23, 42, 0.03);
       padding: 0.5rem;
       border-radius: 0.75rem;
       border: 1px solid var(--border-color);
@@ -392,7 +393,7 @@
 
     .tab-btn:hover {
       color: var(--text-main);
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(15, 23, 42, 0.05);
     }
 
     .tab-btn.active {
@@ -512,7 +513,7 @@
     }
 
     .preset-selector {
-      background: rgba(3, 7, 18, 0.8);
+      background: #ffffff;
       border: 1px solid var(--border-color);
       color: var(--text-main);
       padding: 0.5rem;
@@ -525,10 +526,10 @@
     .editor-textarea {
       width: 100%;
       height: 400px;
-      background: rgba(3, 7, 18, 0.8);
+      background: #ffffff;
       border: 1px solid var(--border-color);
       border-radius: 0.5rem;
-      color: #34d399;
+      color: #0d9488;
       font-family: var(--font-mono);
       font-size: 0.85rem;
       padding: 1rem;
@@ -543,6 +544,7 @@
 
     .playground-right {
       background: #ffffff;
+      border: 1px solid var(--border-color);
       border-radius: 0.5rem;
       padding: 1.5rem;
       display: flex;
@@ -1285,10 +1287,10 @@ elixir((Elixir))
       Mind Map Topics`
     };
 
-    // Initialize Mermaid with Dark Mode config
+    // Initialize Mermaid with Light Mode config
     mermaid.initialize({
       startOnLoad: false,
-      theme: 'dark',
+      theme: 'default',
       securityLevel: 'loose'
     });
 
