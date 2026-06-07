@@ -1,4 +1,4 @@
-# Choreo Infrastructure: Comprehensive Walkthrough
+# Choreo System Design: Comprehensive Walkthrough
 
 ```elixir
 Mix.install([

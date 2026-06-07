@@ -1,0 +1,393 @@
+# Choreo.Infrastructure: Cloud Network Topology Walkthrough
+
+```elixir
+Mix.install([
+  # {:choreo, "~> 0.8"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
+  {:kino_vizjs, "~> 0.8.0"}
+])
+```
+
+## Section
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline.
+> Mermaid output can be rendered with `Kino.Mermaid.new/1`, which is supported natively in Livebook.
+
+---
+
+## What is `Choreo.Infrastructure`?
+
+`Choreo.Infrastructure` is a **cloud network topology preset** built on top of Choreo's
+existing graph and rendering stack. It provides a domain vocabulary for modelling VPCs,
+subnets, compute instances, databases, and load balancers — with structural validation
+rules to catch common networking mistakes before they reach production.
+
+It is *not* a separate rendering engine: node shapes and colors are resolved through
+`Choreo.Theme` (just like `Choreo`), and the rendering pipeline is the same `Yog`-based
+stack. What it adds is:
+
+- **Typed cluster boundaries** — VPCs and subnets carry security semantics (public vs. private).
+- **`Choreo.Infrastructure.Analysis`** — audit rules that operate on those semantics.
+- **Network vocabulary** — intent-revealing builders (`add_vpc`, `add_compute`, etc.).
+
+### Node Types
+
+| Builder              | Node Type       | DOT Shape   | Mermaid Shape   | Purpose                           |
+| -------------------- | --------------- | ----------- | --------------- | --------------------------------- |
+| `add_internet/3`     | `:internet`     | ☁️ cloud    | Circle          | Public internet gateway           |
+| `add_load_balancer/3`| `:load_balancer`| ▽ invhouse  | Hexagon         | ALB, NLB, Nginx, HAProxy          |
+| `add_compute/3`      | `:compute`      | 📦 box3d    | Subroutine      | EC2, ECS task, Kubernetes pod     |
+| `add_managed_db/3`   | `:managed_db`   | 🛢️ cylinder | Cylinder        | RDS, Aurora, Cloud SQL            |
+| `add_storage/3`      | `:storage`      | 📁 folder   | Rounded rect    | S3, EFS, GCS bucket               |
+
+### Cluster (Boundary) Types
+
+| Builder                | Cluster Type      | Style   | Meaning                                        |
+| ---------------------- | ----------------- | ------- | ---------------------------------------------- |
+| `add_vpc/3`            | `:vpc`            | Dashed  | Virtual Private Cloud — the outer envelope     |
+| `add_subnet_public/3`  | `:subnet_public`  | Rounded | Internet-facing zone (DMZ, load balancers)     |
+| `add_subnet_private/3` | `:subnet_private` | Rounded | Isolated zone (app servers, databases)         |
+
+```elixir
+alias Choreo.Infrastructure
+alias Choreo.Infrastructure.Analysis
+```
+
+---
+
+## Step 1: Minimal topology — a node type legend
+
+```elixir
+legend =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:gw, label: "Internet")
+  |> Infrastructure.add_load_balancer(:lb, label: "Load Balancer")
+  |> Infrastructure.add_compute(:app, label: "Compute")
+  |> Infrastructure.add_managed_db(:db, label: "Managed DB")
+  |> Infrastructure.add_storage(:store, label: "Storage")
+  |> Infrastructure.connect(:gw, :lb)
+  |> Infrastructure.connect(:lb, :app)
+  |> Infrastructure.connect(:app, :db)
+  |> Infrastructure.connect(:app, :store)
+
+Kino.VizJS.render(Infrastructure.to_dot(legend))
+```
+
+```elixir
+# Mermaid output — rendered natively in Livebook
+Kino.Mermaid.new(Infrastructure.to_mermaid(legend))
+```
+
+---
+
+## Step 2: A realistic three-tier web application
+
+We model a production VPC with:
+
+- A **public subnet (DMZ)** holding the load balancer
+- A **private subnet (App)** holding compute and the database
+- A **storage bucket** outside the VPC (managed S3-like service)
+
+```elixir
+prod =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:internet, label: "Internet")
+  |> Infrastructure.add_vpc("vpc_prod", label: "Production VPC")
+  |> Infrastructure.add_subnet_public("subnet_dmz",
+    label: "Public Subnet (DMZ)",
+    parent: "vpc_prod"
+  )
+  |> Infrastructure.add_subnet_private("subnet_app",
+    label: "Private Subnet (App)",
+    parent: "vpc_prod"
+  )
+  |> Infrastructure.add_load_balancer(:alb,
+    label: "Application LB",
+    cluster: "subnet_dmz"
+  )
+  |> Infrastructure.add_compute(:api,
+    label: "API Service",
+    cluster: "subnet_app"
+  )
+  |> Infrastructure.add_compute(:worker,
+    label: "Background Worker",
+    cluster: "subnet_app"
+  )
+  |> Infrastructure.add_managed_db(:rds,
+    label: "Postgres RDS",
+    cluster: "subnet_app"
+  )
+  |> Infrastructure.add_storage(:s3, label: "Object Store (S3)")
+  |> Infrastructure.connect(:internet, :alb, protocol: :https, label: "HTTPS")
+  |> Infrastructure.connect(:alb, :api, protocol: :http)
+  |> Infrastructure.connect(:api, :rds, protocol: :tcp)
+  |> Infrastructure.connect(:api, :worker, protocol: :amqp, label: "Jobs")
+  |> Infrastructure.connect(:api, :s3, protocol: :https)
+  |> Infrastructure.connect(:worker, :rds, protocol: :tcp)
+  |> Infrastructure.connect(:worker, :s3, protocol: :https)
+
+Kino.VizJS.render(Infrastructure.to_dot(prod))
+```
+
+```elixir
+Kino.Mermaid.new(Infrastructure.to_mermaid(prod))
+```
+
+---
+
+## Step 3: Security analysis — `Choreo.Infrastructure.Analysis`
+
+The analysis module runs structural audit rules against your topology.
+Each warning carries a `:rule`, `:message`, and `:nodes` list.
+
+```elixir
+warnings = Analysis.warnings(prod)
+
+if warnings == [] do
+  IO.puts("✅ No security warnings — topology looks clean.")
+else
+  Enum.each(warnings, fn w ->
+    IO.puts("⚠️  [#{w.rule}] #{w.message}")
+    IO.puts("   Nodes: #{inspect(w.nodes)}")
+  end)
+end
+```
+
+### Intentionally broken topology — triggering all three rules
+
+Now let's build a **deliberately misconfigured** topology to see every rule fire:
+
+```elixir
+broken =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:internet, label: "Internet")
+  |> Infrastructure.add_vpc("vpc", label: "VPC")
+  |> Infrastructure.add_subnet_public("pub", label: "Public Subnet", parent: "vpc")
+  |> Infrastructure.add_subnet_private("priv", label: "Private Subnet", parent: "vpc")
+  # ❌ Load balancer placed in the private subnet (should be in public/DMZ)
+  |> Infrastructure.add_load_balancer(:lb, label: "LB", cluster: "priv")
+  # ❌ Database placed in the public subnet (should be private)
+  |> Infrastructure.add_managed_db(:db, label: "DB", cluster: "pub")
+  |> Infrastructure.add_compute(:app, label: "App", cluster: "priv")
+  # ❌ Direct internet → private subnet connection (bypasses DMZ)
+  |> Infrastructure.connect(:internet, :app, protocol: :https)
+  |> Infrastructure.connect(:lb, :app)
+  |> Infrastructure.connect(:app, :db)
+
+Analysis.warnings(broken)
+|> Enum.each(fn w ->
+  IO.puts("⚠️  [#{w.rule}]")
+  IO.puts("   #{w.message}")
+end)
+```
+
+### The three audit rules explained
+
+| Rule | What it catches |
+|---|---|
+| `:direct_internet_to_private_subnet` | Traffic hitting a private-subnet node directly, bypassing any DMZ or load balancer |
+| `:db_not_in_private_subnet` | A managed database placed in a public subnet or outside any subnet at all |
+| `:load_balancer_not_in_public_subnet` | A load balancer sitting in a private subnet, unable to accept public traffic |
+
+---
+
+## Step 4: Themes
+
+All six `Choreo.Theme` presets work out of the box with `Choreo.Infrastructure` because
+`:internet`, `:compute`, and `:managed_db` are now first-class types in the theme system.
+
+```elixir
+# Build a compact topology for comparing themes
+demo =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:gw, label: "Internet")
+  |> Infrastructure.add_vpc("vpc", label: "VPC")
+  |> Infrastructure.add_subnet_public("pub", parent: "vpc")
+  |> Infrastructure.add_subnet_private("priv", parent: "vpc")
+  |> Infrastructure.add_load_balancer(:lb, label: "ALB", cluster: "pub")
+  |> Infrastructure.add_compute(:app, label: "API", cluster: "priv")
+  |> Infrastructure.add_managed_db(:db, label: "RDS", cluster: "priv")
+  |> Infrastructure.connect(:gw, :lb, protocol: :https)
+  |> Infrastructure.connect(:lb, :app, protocol: :http)
+  |> Infrastructure.connect(:app, :db, protocol: :tcp)
+
+# Default (light)
+Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :default))
+```
+
+```elixir
+# Dark theme
+Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :dark))
+```
+
+```elixir
+# Ocean theme
+Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :ocean))
+```
+
+```elixir
+# Forest theme
+Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :forest))
+```
+
+---
+
+## Step 5: Multi-region topology
+
+A more complex deployment: two availability zones with shared storage and a global load balancer.
+
+```elixir
+multi_region =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:internet, label: "Internet")
+  # Global load balancer (outside VPC)
+  |> Infrastructure.add_load_balancer(:global_lb, label: "Global LB / CDN")
+  # VPC
+  |> Infrastructure.add_vpc("vpc", label: "AWS VPC (us-east-1)")
+  # AZ-1
+  |> Infrastructure.add_subnet_public("az1_pub",
+    label: "AZ-1 Public",
+    parent: "vpc"
+  )
+  |> Infrastructure.add_subnet_private("az1_priv",
+    label: "AZ-1 Private",
+    parent: "vpc"
+  )
+  |> Infrastructure.add_load_balancer(:alb1,
+    label: "ALB (AZ-1)",
+    cluster: "az1_pub"
+  )
+  |> Infrastructure.add_compute(:api1,
+    label: "API (AZ-1)",
+    cluster: "az1_priv"
+  )
+  |> Infrastructure.add_managed_db(:primary_db,
+    label: "Primary RDS",
+    cluster: "az1_priv"
+  )
+  # AZ-2
+  |> Infrastructure.add_subnet_public("az2_pub",
+    label: "AZ-2 Public",
+    parent: "vpc"
+  )
+  |> Infrastructure.add_subnet_private("az2_priv",
+    label: "AZ-2 Private",
+    parent: "vpc"
+  )
+  |> Infrastructure.add_load_balancer(:alb2,
+    label: "ALB (AZ-2)",
+    cluster: "az2_pub"
+  )
+  |> Infrastructure.add_compute(:api2,
+    label: "API (AZ-2)",
+    cluster: "az2_priv"
+  )
+  |> Infrastructure.add_managed_db(:replica_db,
+    label: "Read Replica RDS",
+    cluster: "az2_priv"
+  )
+  # Shared storage (outside any subnet — managed service)
+  |> Infrastructure.add_storage(:s3, label: "S3 (shared)")
+  # Connections
+  |> Infrastructure.connect(:internet, :global_lb, protocol: :https)
+  |> Infrastructure.connect(:global_lb, :alb1, protocol: :https)
+  |> Infrastructure.connect(:global_lb, :alb2, protocol: :https)
+  |> Infrastructure.connect(:alb1, :api1, protocol: :http)
+  |> Infrastructure.connect(:alb2, :api2, protocol: :http)
+  |> Infrastructure.connect(:api1, :primary_db, protocol: :tcp)
+  |> Infrastructure.connect(:api2, :replica_db, protocol: :tcp)
+  # Replication stream
+  |> Infrastructure.connect(:primary_db, :replica_db,
+    protocol: :tcp,
+    label: "Replication"
+  )
+  |> Infrastructure.connect(:api1, :s3, protocol: :https)
+  |> Infrastructure.connect(:api2, :s3, protocol: :https)
+
+Kino.VizJS.render(Infrastructure.to_dot(multi_region, theme: :dark))
+```
+
+```elixir
+# Confirm no security warnings on the multi-region design
+Analysis.warnings(multi_region)
+|> case do
+  [] -> IO.puts("✅ Clean topology")
+  ws -> Enum.each(ws, &IO.puts("⚠️  #{&1.message}"))
+end
+```
+
+---
+
+## Step 6: Protocol-aware edge styling
+
+`connect/3` accepts a `:protocol` key that drives edge color in the DOT output:
+- `:https` / `:ssl` → green (#10b981) — secure traffic
+- everything else → grey (#64748b) — internal traffic
+
+```elixir
+proto_demo =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:inet, label: "Internet")
+  |> Infrastructure.add_load_balancer(:lb, label: "LB")
+  |> Infrastructure.add_compute(:api, label: "API")
+  |> Infrastructure.add_managed_db(:db, label: "DB")
+  |> Infrastructure.add_storage(:store, label: "Store")
+  |> Infrastructure.connect(:inet, :lb, protocol: :https, label: "TLS")
+  |> Infrastructure.connect(:lb, :api, protocol: :http, label: "Plaintext")
+  |> Infrastructure.connect(:api, :db, protocol: :tcp, label: "TCP/5432")
+  |> Infrastructure.connect(:api, :store, protocol: :https, label: "TLS")
+
+Kino.VizJS.render(Infrastructure.to_dot(proto_demo))
+```
+
+---
+
+## Step 7: `Choreo.View` lens operations
+
+`Choreo.Infrastructure` implements `Choreo.Viewable`, so the full View API works — focus,
+zoom, filter, and collapse.
+
+```elixir
+alias Choreo.View
+
+# Build a full topology to slice through
+full =
+  Infrastructure.new()
+  |> Infrastructure.add_internet(:inet, label: "Internet")
+  |> Infrastructure.add_load_balancer(:lb, label: "Load Balancer")
+  |> Infrastructure.add_compute(:api, label: "API")
+  |> Infrastructure.add_compute(:worker, label: "Worker")
+  |> Infrastructure.add_managed_db(:db, label: "DB")
+  |> Infrastructure.add_storage(:store, label: "Store")
+  |> Infrastructure.connect(:inet, :lb, protocol: :https)
+  |> Infrastructure.connect(:lb, :api, protocol: :http)
+  |> Infrastructure.connect(:api, :worker)
+  |> Infrastructure.connect(:api, :db, protocol: :tcp)
+  |> Infrastructure.connect(:api, :store, protocol: :https)
+  |> Infrastructure.connect(:worker, :db, protocol: :tcp)
+
+# Focus: show API and its immediate 1-hop neighbourhood
+focused = View.focus(full, :api, 1)
+Kino.VizJS.render(Infrastructure.to_dot(focused))
+```
+
+```elixir
+# Filter: show only compute nodes (and edges between them)
+compute_only = View.filter(full, fn _id, data -> data[:node_type] == :compute end)
+Kino.VizJS.render(Infrastructure.to_dot(compute_only))
+```
+
+---
+
+## Summary
+
+| Feature | API |
+|---|---|
+| Create topology | `Infrastructure.new/0` |
+| Add boundary | `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3` |
+| Add nodes | `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
+| Add edge | `connect/3` — options: `:protocol`, `:label` |
+| Audit | `Analysis.warnings/1` |
+| Render DOT | `Infrastructure.to_dot/2` — option: `theme:` |
+| Render Mermaid | `Infrastructure.to_mermaid/2` — option: `theme:`, `direction:` |
+| Lens ops | `Choreo.View.focus/3`, `filter/3`, `zoom/2`, `collapse/4` |
