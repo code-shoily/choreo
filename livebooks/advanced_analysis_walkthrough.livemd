@@ -120,7 +120,7 @@ Kino.Layout.grid([
 
 ## 3. Workflow Latency Hotspots
 
-Workflow heatmaps highlight tasks based on their cumulative latency (including retries and human-in-the-loop timeouts). 
+Workflow heatmaps highlight tasks based on their cumulative latency (including retries and human-in-the-loop timeouts).
 
 Let's model a **User Registration & KYC Verification Workflow** where automated steps are lightning fast, but the manual KYC verification step takes up to 10 seconds (10,000ms), acting as a giant bottleneck.
 
@@ -182,12 +182,15 @@ telemetry_pipeline =
   |> Dataflow.add_source(:gps_sensors, label: "50k GPS Devices", rate: 50000)
   |> Dataflow.add_transform(:kafka_ingest, label: "Kafka Ingestion Topic", capacity: 60000)
   |> Dataflow.add_transform(:spark_processor, label: "Spark Stream Parser", capacity: 45000)
-  |> Dataflow.add_sink(:postgres_db, label: "Relational Audit DB", capacity: 2000)
+  # Postgres writer is a transform with capacity, writing to the final database sink
+  |> Dataflow.add_transform(:postgres_writer, label: "Postgres Writer Service", capacity: 2000)
+  |> Dataflow.add_sink(:postgres_db, label: "Relational Audit DB")
   
   # Connect pipeline
   |> Dataflow.connect(:gps_sensors, :kafka_ingest)
   |> Dataflow.connect(:kafka_ingest, :spark_processor)
-  |> Dataflow.connect(:spark_processor, :postgres_db)
+  |> Dataflow.connect(:spark_processor, :postgres_writer)
+  |> Dataflow.connect(:postgres_writer, :postgres_db)
 
 # Heatmap showing processing bottlenecks
 heat_df = DataflowAnalysis.heatmap(telemetry_pipeline, palette: :heat)
@@ -402,14 +405,16 @@ Kino.Mermaid.new(Choreo.to_mermaid(system, Analysis.highlight(cost_path)))
 
 ## 8. Cross-Diagram Semantic Tracing & Composition
 
-Because Choreo allows you to compose different diagrams together using `Choreo.embed/4`, you can use **semantic tracing** to link your static C4 architectural components to runtime workflows or database entities. 
+Because Choreo allows you to compose different diagrams together using `Choreo.embed/4`, you can use **semantic tracing** to link your static C4 architectural components to runtime workflows or database entities.
 
 By pulling tracing up to the coordinator level:
+
 1. Domain modules (`C4`, `Workflow`, `ERD`) remain completely decoupled.
 2. Cross-domain dependencies are declared as traces.
 3. Impact analysis can be performed across boundaries.
 
 Let's build a composed system with:
+
 1. A **C4 Model** showing an internet banking backend container.
 2. A **Workflow** describing a money transfer execution.
 3. An **ERD** describing the database structure.
