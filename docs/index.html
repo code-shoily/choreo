@@ -194,9 +194,7 @@
       line-height: 1.15;
       letter-spacing: -0.03em;
       margin-bottom: 1.5rem;
-      background: linear-gradient(to right, #ffffff, #9ca3af);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #0f172a;
     }
 
     .hero-title span {
@@ -322,7 +320,7 @@
 
     /* Override Prism styling for seamless integration */
     pre[class*="language-"] {
-      background: rgba(3, 7, 18, 0.6) !important;
+      background: #0f172a !important;
       border: 1px solid var(--border-color) !important;
       border-radius: 0.5rem !important;
       margin: 0 !important;
@@ -1097,17 +1095,19 @@ elixir((Elixir))
     uuid user_id FK
   }`,
 
-      planner: `kanban
-  title Launch v1
-  subgraph Backlog
-    test[Test<br/>estimate: 8h]
+      planner: `graph TB
+  subgraph Backlog ["Backlog"]
+    test["Test<br/>estimate: 8h"]
   end
-  subgraph In Progress
-    impl[Implement<br/>estimate: 24h]
+  subgraph InProgress ["In Progress"]
+    impl["Implement<br/>estimate: 24h"]
   end
-  subgraph Done
-    design[Design<br/>estimate: 16h]
-  end`
+  subgraph Done ["Done"]
+    design["Design<br/>estimate: 16h"]
+  end
+  style test fill:#f1f5f9,stroke:#cbd5e1
+  style impl fill:#e0f2fe,stroke:#bae6fd
+  style design fill:#dcfce7,stroke:#bbf7d0`
     };
 
     // Mermaid presets for Playground
@@ -1236,20 +1236,25 @@ elixir((Elixir))
     int stock_count
   }`,
 
-      planner: `kanban
-  title Project Roadmap v0.9
-  subgraph Backlog
-    pbt_integration[PBT Testing Suite<br/>estimate: 12h]
-    rustler_prototype[Rustler NIF layout testing<br/>estimate: 24h]
+      planner: `graph TB
+  subgraph Backlog ["Backlog"]
+    pbt_integration["PBT Testing Suite<br/>estimate: 12h"]
+    rustler_prototype["Rustler NIF layout testing<br/>estimate: 24h"]
   end
-  subgraph In Progress
-    doc_revamp[Hexdocs Guide Restructure<br/>estimate: 8h]
-    livebook_tests[Livebook Interactive Walkthroughs<br/>estimate: 16h]
+  subgraph InProgress ["In Progress"]
+    doc_revamp["Hexdocs Guide Restructure<br/>estimate: 8h"]
+    livebook_tests["Livebook Interactive Walkthroughs<br/>estimate: 16h"]
   end
-  subgraph Done
-    fsm_content[FSM State Machine docs<br/>estimate: 6h]
-    c4_hierarchical[C4 Hierarchical layout builder<br/>estimate: 10h]
-  end`,
+  subgraph Done ["Done"]
+    fsm_content["FSM State Machine docs<br/>estimate: 6h"]
+    c4_hierarchical["C4 Hierarchical layout builder<br/>estimate: 10h"]
+  end
+  style pbt_integration fill:#f1f5f9,stroke:#cbd5e1
+  style rustler_prototype fill:#f1f5f9,stroke:#cbd5e1
+  style doc_revamp fill:#e0f2fe,stroke:#bae6fd
+  style livebook_tests fill:#e0f2fe,stroke:#bae6fd
+  style fsm_content fill:#dcfce7,stroke:#bbf7d0
+  style c4_hierarchical fill:#dcfce7,stroke:#bbf7d0`,
 
       uml: `classDiagram
   direction TD
