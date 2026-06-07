@@ -502,11 +502,11 @@ defmodule Choreo.Domain do
           |> Enum.map_join("\n", fn
             {field_name, field_type} when is_list(field_type) ->
               choices = Enum.map_join(field_type, "|", &to_string/1)
-              safe_type = String.replace(choices, " ", "_")
+              safe_type = clean_erd_type(choices)
               "    #{safe_type} #{field_name}"
 
             {field_name, field_type} ->
-              safe_type = String.replace(to_string(field_type), " ", "_")
+              safe_type = clean_erd_type(to_string(field_type))
               "    #{safe_type} #{field_name}"
           end)
 
@@ -592,6 +592,16 @@ defmodule Choreo.Domain do
         new_visited = MapSet.union(visited, MapSet.new(incoming))
         traverse_backwards(graph, new_queue, new_visited)
     end
+  end
+
+  defp clean_erd_type(type_str) do
+    type_str
+    |> String.replace(" ", "_")
+    |> String.replace("|", "_or_")
+    # Strip any character that is not alphanumeric or underscore
+    |> String.replace(~r/[^a-zA-Z0-9_]/, "")
+    # Deduplicate multiple underscores
+    |> String.replace(~r/__+/, "_")
   end
 end
 
