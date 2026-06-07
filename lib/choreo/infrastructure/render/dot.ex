@@ -206,7 +206,7 @@ defmodule Choreo.Infrastructure.Render.DOT do
 
       # Highlight override
       if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
-        Keyword.drop(base, [:color, :penwidth])
+        [{:color, "#ef4444"}, {:penwidth, 2.0} | Keyword.drop(base, [:color, :penwidth])]
       else
         base
       end
