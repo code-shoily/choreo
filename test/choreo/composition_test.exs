@@ -98,4 +98,70 @@ defmodule Choreo.CompositionTest do
     # Verify custom node name preservation
     assert nodes[:flow_parser].name == "Custom Parser"
   end
+
+  test "declares traces and performs semantic impact analysis and pathfinding" do
+    # 1. Define child diagrams (C4, Workflow, ERD)
+    c4 =
+      Choreo.C4.new()
+      |> Choreo.C4.add_software_system(:banking, scope: :in)
+      |> Choreo.C4.add_container(:api, parent: :banking)
+      |> Choreo.C4.add_component(:auth, parent: :api)
+
+    flow =
+      Choreo.Workflow.new()
+      |> Choreo.Workflow.add_start(:start)
+      |> Choreo.Workflow.add_task(:login)
+      |> Choreo.Workflow.add_end(:stop)
+      |> Choreo.Workflow.connect(:start, :login)
+      |> Choreo.Workflow.connect(:login, :stop)
+
+    erd =
+      Choreo.ERD.new()
+      |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+
+    # 2. Embed all into a system map
+    system =
+      Choreo.new()
+      |> Choreo.add_cluster("banking_cluster")
+      |> Choreo.embed(c4, "banking_cluster", prefix: "c4_")
+      |> Choreo.embed(flow, "banking_cluster", prefix: "wf_")
+      |> Choreo.embed(erd, "banking_cluster", prefix: "erd_")
+
+    # 3. Add traces
+    system =
+      system
+      |> Choreo.trace(:wf_login, :c4_auth, type: :executes)
+      |> Choreo.trace(:c4_auth, :erd_users, type: :stores)
+
+    # Verify edge metadata has trace type
+    edges = Choreo.edges_with_meta(system)
+    trace_edges = Enum.filter(edges, fn {_, _, _, meta} -> meta[:edge_type] == :trace end)
+    assert length(trace_edges) == 2
+
+    # 4. Perform tracing impact analysis (walking transposed path)
+    # erd_users is at the bottom, so changes to it flow back to c4_auth and wf_login
+    impacted = Choreo.Analysis.Tracing.impact_analysis(system, :erd_users)
+    assert :c4_auth in impacted
+    assert :wf_login in impacted
+
+    # 5. Trace path
+    {:ok, path} = Choreo.Analysis.Tracing.trace_path(system, :wf_login, :erd_users)
+    assert path == [:wf_login, :c4_auth, :erd_users]
+
+    # 6. Verify default rendering filters out traces
+    dot = Choreo.to_dot(system)
+    refute String.contains?(dot, "executes")
+
+    # Verify rendering with show_traces: true includes them
+    dot_with_traces = Choreo.to_dot(system, show_traces: true)
+    assert String.contains?(dot_with_traces, "executes")
+    assert String.contains?(dot_with_traces, "stores")
+
+    # Mermaid rendering checks
+    mermaid = Choreo.to_mermaid(system)
+    refute String.contains?(mermaid, "executes")
+
+    mermaid_with_traces = Choreo.to_mermaid(system, show_traces: true)
+    assert String.contains?(mermaid_with_traces, "executes")
+  end
 end

@@ -76,6 +76,14 @@ defmodule Choreo.Render.Mermaid do
   def to_mermaid(system, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
     direction = Keyword.get(opts, :direction, theme_direction(theme))
+    show_traces = Keyword.get(opts, :show_traces, false)
+
+    system =
+      if show_traces do
+        system
+      else
+        remove_trace_edges(system)
+      end
 
     subgraphs = Choreo.Internal.build_mermaid_subgraphs(system)
 
@@ -189,34 +197,43 @@ defmodule Choreo.Render.Mermaid do
     fn from, to, edge_id, _weight ->
       meta = Map.get(system.edge_meta, edge_id, %{})
 
-      if meta[:edge_type] == :virtual do
-        [{:stroke, "#cbd5e1"}, {:stroke_width, "1px"}]
-      else
-        base =
-          case meta[:type] do
-            :dataflow ->
-              [
-                {:stroke, "#6366f1"},
-                {:stroke_width, "2px"},
-                {:stroke_dasharray, "5 5"}
-              ]
+      cond do
+        meta[:edge_type] == :virtual ->
+          [{:stroke, "#cbd5e1"}, {:stroke_width, "1px"}]
 
-            _ ->
-              [{:stroke, theme.edge_color}, {:stroke_width, "2px"}]
+        meta[:edge_type] == :trace ->
+          [
+            {:stroke, "#ef4444"},
+            {:stroke_width, "1.5px"},
+            {:stroke_dasharray, "5 5"}
+          ]
+
+        true ->
+          base =
+            case meta[:type] do
+              :dataflow ->
+                [
+                  {:stroke, "#6366f1"},
+                  {:stroke_width, "2px"},
+                  {:stroke_dasharray, "5 5"}
+                ]
+
+              _ ->
+                [{:stroke, theme.edge_color}, {:stroke_width, "2px"}]
+            end
+
+          # Final highlighting override
+          is_highlighted =
+            MapSet.member?(hl_edges, edge_id) or
+              MapSet.member?(hl_edges, {from, to}) or
+              (system.graph.kind == :undirected and
+                 MapSet.member?(hl_edges, {to, from}))
+
+          if is_highlighted do
+            Keyword.drop(base, [:stroke, :stroke_width])
+          else
+            base
           end
-
-        # Final highlighting override
-        is_highlighted =
-          MapSet.member?(hl_edges, edge_id) or
-            MapSet.member?(hl_edges, {from, to}) or
-            (system.graph.kind == :undirected and
-               MapSet.member?(hl_edges, {to, from}))
-
-        if is_highlighted do
-          Keyword.drop(base, [:stroke, :stroke_width])
-        else
-          base
-        end
       end
     end
   end
@@ -225,6 +242,7 @@ defmodule Choreo.Render.Mermaid do
     meta = Map.get(system.edge_meta, edge_id, %{})
 
     cond do
+      meta[:edge_type] == :trace -> to_string(meta[:type] || "trace")
       label = meta[:label] -> to_string(label)
       protocol = meta[:protocol] -> to_string(protocol)
       true -> ""
@@ -268,4 +286,21 @@ defmodule Choreo.Render.Mermaid do
   def to_mermaid_shape(:circle), do: :circle
   def to_mermaid_shape(:diamond), do: :rhombus
   def to_mermaid_shape(_), do: :rounded_rect
+
+  defp remove_trace_edges(system) do
+    trace_edge_ids =
+      system.edge_meta
+      |> Enum.filter(fn {_eid, meta} -> meta[:edge_type] == :trace end)
+      |> Enum.map(&elem(&1, 0))
+      |> MapSet.new()
+
+    new_graph =
+      Enum.reduce(trace_edge_ids, system.graph, fn eid, g ->
+        Yog.Multi.remove_edge(g, eid)
+      end)
+
+    new_edge_meta = Map.drop(system.edge_meta, MapSet.to_list(trace_edge_ids))
+
+    %{system | graph: new_graph, edge_meta: new_edge_meta}
+  end
 end

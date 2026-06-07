@@ -198,6 +198,15 @@ defmodule Choreo do
     ]
   ]
 
+  @trace_schema [
+    type: [
+      type: :atom,
+      required: false,
+      default: :executes,
+      doc: "Semantic trace type (e.g. :executes, :stores, :implements)."
+    ]
+  ]
+
   # ============================================================================
   # Creation
   # ============================================================================
@@ -629,6 +638,55 @@ defmodule Choreo do
 
     {final_graph, final_edge_meta} = updated_state
     %{system | graph: final_graph, edge_meta: final_edge_meta, clusters: updated_clusters}
+  end
+
+  @doc """
+  Declares a semantic trace (cross-diagram link) between two nodes in a composed system.
+
+  Trace links are kept separate from the visual layout by default and are only shown
+  when `:show_traces` is set to `true`.
+
+  ## Options
+
+  #{NimbleOptions.docs(@trace_schema)}
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_service(:api) |> Choreo.add_database(:db)
+      iex> system = Choreo.trace(system, :api, :db, type: :stores)
+      iex> [{:api, :db, 1, meta}] = Choreo.edges_with_meta(system)
+      iex> meta.edge_type
+      :trace
+  """
+  @spec trace(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
+  def trace(%__MODULE__{} = system, from, to, opts \\ []) do
+    opts = NimbleOptions.validate!(opts, @trace_schema)
+    type = opts[:type]
+
+    system =
+      if Map.has_key?(system.graph.nodes, from) do
+        system
+      else
+        add_node(system, from, name: to_string(from))
+      end
+
+    system =
+      if Map.has_key?(system.graph.nodes, to) do
+        system
+      else
+        add_node(system, to, name: to_string(to))
+      end
+
+    meta = %{
+      edge_type: :trace,
+      type: type,
+      label: to_string(type)
+    }
+
+    {graph, edge_id} = Yog.Multi.add_edge(system.graph, from, to, 1)
+    edge_meta = Map.put(system.edge_meta, edge_id, meta)
+
+    %{system | graph: graph, edge_meta: edge_meta}
   end
 
   defp add_typed_node(%__MODULE__{graph: graph} = system, id, type, opts) do

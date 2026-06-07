@@ -44,6 +44,14 @@ defmodule Choreo.Render.DOT do
   @spec to_dot(Choreo.t(), keyword()) :: String.t()
   def to_dot(system, opts \\ []) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
+    show_traces = Keyword.get(opts, :show_traces, false)
+
+    system =
+      if show_traces do
+        system
+      else
+        remove_trace_edges(system)
+      end
 
     states_list = Map.keys(system.graph.nodes)
     id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
@@ -70,7 +78,15 @@ defmodule Choreo.Render.DOT do
     base =
       Yog.Multi.DOT.default_options()
       |> Map.put(:node_label, &node_label/2)
-      |> Map.put(:edge_label, fn _edge_id, weight -> edge_label(weight) end)
+      |> Map.put(:edge_label, fn edge_id, weight ->
+        meta = Map.get(system.edge_meta, edge_id, %{})
+
+        if meta[:edge_type] == :trace do
+          to_string(meta[:type] || "trace")
+        else
+          edge_label(weight)
+        end
+      end)
       |> Map.put(:node_attributes, node_attributes_fn(safe_system, theme, hl_nodes))
       |> Map.put(:edge_attributes, edge_attributes_fn(safe_system, hl_edges))
       |> Map.merge(theme_graph_attrs(theme))
@@ -181,45 +197,50 @@ defmodule Choreo.Render.DOT do
     fn from, to, edge_id, _weight ->
       meta = Map.get(system.edge_meta, edge_id, %{})
 
-      if meta[:edge_type] == :virtual do
-        [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
-      else
-        base =
-          case meta[:type] do
-            :dataflow ->
-              [{:color, "#6366f1"}, {:penwidth, 1.5}, {:style, "dashed"}]
+      cond do
+        meta[:edge_type] == :virtual ->
+          [{:color, "#cbd5e1"}, {:style, "dashed"}, {:penwidth, 0.8}]
 
-            _ ->
-              [{:color, "#64748b"}, {:penwidth, 1.0}]
-          end
+        meta[:edge_type] == :trace ->
+          [{:color, "#ef4444"}, {:style, "dashed"}, {:penwidth, 1.0}, {:constraint, "false"}]
 
-        base =
-          cond do
-            label = meta[:label] -> [{:label, to_string(label)} | base]
-            protocol = meta[:protocol] -> [{:label, to_string(protocol)} | base]
-            true -> base
-          end
+        true ->
+          base =
+            case meta[:type] do
+              :dataflow ->
+                [{:color, "#6366f1"}, {:penwidth, 1.5}, {:style, "dashed"}]
 
-        # Smart headport: databases look best when entered from the top.
-        target_data = Map.get(system.graph.nodes, to, %{})
+              _ ->
+                [{:color, "#64748b"}, {:penwidth, 1.0}]
+            end
 
-        base =
-          if target_data[:type] == :database and is_nil(meta[:headport]) do
-            [{:headport, "n"} | base]
+          base =
+            cond do
+              label = meta[:label] -> [{:label, to_string(label)} | base]
+              protocol = meta[:protocol] -> [{:label, to_string(protocol)} | base]
+              true -> base
+            end
+
+          # Smart headport: databases look best when entered from the top.
+          target_data = Map.get(system.graph.nodes, to, %{})
+
+          base =
+            if target_data[:type] == :database and is_nil(meta[:headport]) do
+              [{:headport, "n"} | base]
+            else
+              base
+            end
+
+          # Allow user overrides
+          base = if port = meta[:headport], do: [{:headport, port} | base], else: base
+          base = if port = meta[:tailport], do: [{:tailport, port} | base], else: base
+
+          # Final highlighting override
+          if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
+            Keyword.drop(base, [:color, :penwidth])
           else
             base
           end
-
-        # Allow user overrides
-        base = if port = meta[:headport], do: [{:headport, port} | base], else: base
-        base = if port = meta[:tailport], do: [{:tailport, port} | base], else: base
-
-        # Final highlighting override
-        if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
-          Keyword.drop(base, [:color, :penwidth])
-        else
-          base
-        end
       end
     end
   end
@@ -245,5 +266,22 @@ defmodule Choreo.Render.DOT do
     else
       "\"" <> String.replace(str, "\"", "\\\"") <> "\""
     end
+  end
+
+  defp remove_trace_edges(system) do
+    trace_edge_ids =
+      system.edge_meta
+      |> Enum.filter(fn {_eid, meta} -> meta[:edge_type] == :trace end)
+      |> Enum.map(&elem(&1, 0))
+      |> MapSet.new()
+
+    new_graph =
+      Enum.reduce(trace_edge_ids, system.graph, fn eid, g ->
+        Yog.Multi.remove_edge(g, eid)
+      end)
+
+    new_edge_meta = Map.drop(system.edge_meta, MapSet.to_list(trace_edge_ids))
+
+    %{system | graph: new_graph, edge_meta: new_edge_meta}
   end
 end
