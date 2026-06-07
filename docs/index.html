@@ -653,7 +653,7 @@
     <div class="hero-badge">Coming in v0.9 — Production Ready</div>
     <h1 class="hero-title">Model Complex Systems<br>With <span>Elixir Code</span></h1>
     <p class="hero-subtitle">
-      Choreo is a powerful Elixir visual modeling toolchain. Write declarative, domain-specific graph definitions and render beautiful diagrams automatically using Mermaid or Graphviz, backed by rich semantic static analysis.
+      Choreo is an Elixir visual modeling library. Write declarative, domain-specific graph definitions and render diagrams using Mermaid or Graphviz, backed by semantic static analysis.
     </p>
     <div class="hero-actions">
       <a href="#playground" class="btn-primary">Try the Playground</a>
@@ -716,7 +716,9 @@ graph TD
       <button class="tab-btn active" onclick="switchTab('fsm')">FSM (State Machine)</button>
       <button class="tab-btn" onclick="switchTab('seq')">Sequence Diagram</button>
       <button class="tab-btn" onclick="switchTab('workflow')">Workflow Orchestration</button>
-      <button class="tab-btn" onclick="switchTab('domain')">DDD Strategic Map</button>
+      <button class="tab-btn" onclick="switchTab('mind_map')">Mind Map</button>
+      <button class="tab-btn" onclick="switchTab('erd')">ERD (Database)</button>
+      <button class="tab-btn" onclick="switchTab('planner')">Planner (Kanban)</button>
     </div>
 
     <!-- FSM Tab Content -->
@@ -778,18 +780,64 @@ workflow =
       </div>
     </div>
 
-    <!-- DDD Tab Content -->
-    <div id="showcase-domain" class="showcase-content">
+    <!-- Mind Map Tab Content -->
+    <div id="showcase-mind_map" class="showcase-content">
       <div>
-        <pre class="language-elixir"><code class="language-elixir">alias Choreo.Domain
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.MindMap
 
-domain =
-  Domain.new()
-  |> Domain.add_aggregate(:order, label: "Order")
-  |> Domain.add_type(:line_item, label: "OrderLine")
-  |> Domain.connect(:order, :line_item, label: "has")</code></pre>
+map =
+  MindMap.new()
+  |> MindMap.set_root(:elixir, label: "Elixir")
+  |> MindMap.add_topic(:concurrency, label: "Concurrency")
+  |> MindMap.add_topic(:ecosystem, label: "Ecosystem")
+  |> MindMap.add_subtopic(:processes, label: "Processes")
+  |> MindMap.add_note(:beam, label: "BEAM VM")
+  |> MindMap.branch(:elixir, :concurrency)
+  |> MindMap.branch(:elixir, :ecosystem)
+  |> MindMap.branch(:concurrency, :processes)
+  |> MindMap.branch(:ecosystem, :beam)
+  |> MindMap.associate(:processes, :beam, label: "runs on")</code></pre>
       </div>
-      <div class="teaser-diagram" id="diag-domain">
+      <div class="teaser-diagram" id="diag-mind_map">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ERD Tab Content -->
+    <div id="showcase-erd" class="showcase-content">
+      <div>
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.ERD
+
+erd =
+  ERD.new()
+  |> ERD.add_table(:users, label: "users")
+  |> ERD.add_column(:users, :id, :uuid, primary_key: true)
+  |> ERD.add_column(:users, :email, :string)
+  |> ERD.add_table(:orders, label: "orders")
+  |> ERD.add_column(:orders, :id, :uuid, primary_key: true)
+  |> ERD.add_column(:orders, :user_id, :uuid)
+  |> ERD.connect(:users, :orders, label: "places", relationship: :one_to_many)</code></pre>
+      </div>
+      <div class="teaser-diagram" id="diag-erd">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Planner Tab Content -->
+    <div id="showcase-planner" class="showcase-content">
+      <div>
+        <pre class="language-elixir"><code class="language-elixir">alias Choreo.Planner
+
+project =
+  Planner.new("Launch v1")
+  |> Planner.add_milestone(:v1, title: "V1 Launch")
+  |> Planner.add_task(:design, title: "Design", status: :done, estimate_hours: 16)
+  |> Planner.add_task(:impl, title: "Implement", status: :in_progress, estimate_hours: 24)
+  |> Planner.add_task(:test, title: "Test", status: :backlog, estimate_hours: 8)
+  |> Planner.depends_on(:impl, :design)
+  |> Planner.depends_on(:test, :impl)</code></pre>
+      </div>
+      <div class="teaser-diagram" id="diag-planner">
         <!-- Rendered dynamically -->
       </div>
     </div>
@@ -811,6 +859,9 @@ domain =
               <option value="sequence">Preset: Sequence Diagram</option>
               <option value="c4">Preset: C4 System Context</option>
               <option value="erd">Preset: ERD Schema</option>
+              <option value="planner">Preset: Project Planner Kanban</option>
+              <option value="uml">Preset: UML Class Diagram</option>
+              <option value="mindmap">Preset: Mind Map</option>
             </select>
           </div>
           <textarea id="editor" class="editor-textarea" oninput="renderPlayground()"></textarea>
@@ -1026,14 +1077,35 @@ end</span>
   charge --> done
   charge -.-> refund`,
 
-      domain: `classDiagram
-  class order {
-    <<aggregate>>
+      mind_map: `mindmap
+elixir((Elixir))
+  concurrency(Concurrency)
+    processes[Processes]
+  ecosystem(Ecosystem)
+    beam)BEAM VM(`,
+
+      erd: `erDiagram
+  users ||--o{ orders : places
+  users {
+    uuid id PK
+    string email
   }
-  class line_item {
-    <<type>>
-  }
-  order --> line_item : has`
+  orders {
+    uuid id PK
+    uuid user_id FK
+  }`,
+
+      planner: `kanban
+  title Launch v1
+  subgraph Backlog
+    test[Test<br/>estimate: 8h]
+  end
+  subgraph In Progress
+    impl[Implement<br/>estimate: 24h]
+  end
+  subgraph Done
+    design[Design<br/>estimate: 16h]
+  end`
     };
 
     // Mermaid presets for Playground
@@ -1041,63 +1113,176 @@ end</span>
       dataflow: `graph TD
   kafka[("Kafka Ingest")]
   parser["JSON Parser"]
+  validator["Schema Validator"]
   enricher["Enricher"]
   postgres[("Postgres Sink")]
   s3[("S3 Archive")]
+  alert["Slack Alert Handler"]
   
   style kafka fill:#3b82f6,stroke:#1d64d8,color:#fff
   style parser fill:#10b981,stroke:#059669,color:#fff
+  style validator fill:#10b981,stroke:#059669,color:#fff
   style enricher fill:#10b981,stroke:#059669,color:#fff
   style postgres fill:#8b5cf6,stroke:#6d28d9,color:#fff
   style s3 fill:#8b5cf6,stroke:#6d28d9,color:#fff
+  style alert fill:#ef4444,stroke:#dc2626,color:#fff
 
   kafka --> parser
-  parser --> enricher
+  parser --> validator
+  validator -->|valid| enricher
+  validator -->|invalid| alert
   enricher --> postgres
   enricher --> s3`,
       
       fsm: `stateDiagram-v2
   [*] --> idle
   idle --> running : start
+  running --> paused : pause
+  paused --> running : resume
   running --> done : finish
+  paused --> stopped : abort
+  running --> stopped : abort
+  stopped --> [*]
   done --> [*]`,
 
       sequence: `sequenceDiagram
   actor User
-  participant API
-  participant Database
-  User->>API: GET /accounts
+  participant App as Mobile App
+  participant API as API Gateway
+  participant Auth as Auth Service
+  participant DB as Postgres DB
+
+  User->>App: Click 'Login'
+  activate App
+  App->>API: POST /login (credentials)
   activate API
-  API->>Database: SELECT
-  Database-->>API: rows
-  API-->>User: 200 OK
-  deactivate API`,
+  API->>Auth: Verify Credentials
+  activate Auth
+  Auth->>DB: Query User
+  activate DB
+  DB-->>Auth: User Record (hash)
+  deactivate DB
+  Auth-->>API: JWT Token (OK)
+  deactivate Auth
+  API-->>App: 200 OK (token)
+  deactivate API
+  App-->>User: Show Dashboard
+  deactivate App`,
 
       c4: `graph TB
-  subgraph CustomerBoundary ["Customer Boundary"]
-    user["Customer (User)"]
+  subgraph Users ["Actors"]
+    customer["Customer (Web/Mobile)"]
+    admin["Admin Operator"]
   end
-  subgraph SystemBoundary ["E-Commerce System"]
+
+  subgraph SystemBoundary ["E-Commerce System Boundary"]
     api["API Gateway (Elixir/Phoenix)"]
-    db[("Database (Postgres)")]
+    auth_srv["Auth Service (Go)"]
+    order_srv["Order Service (Elixir)"]
+    db[("Postgres Database")]
+    cache[("Redis Cache")]
   end
-  user -->|HTTPS| api
-  api -->|SQL| db
-  style user fill:#1d4ed8,color:#fff
+
+  subgraph ExtSystem ["External Services"]
+    stripe["Stripe API (Payment)"]
+  end
+
+  customer -->|HTTPS| api
+  admin -->|HTTPS| api
+  api -->|GRPC| auth_srv
+  api -->|JSON| order_srv
+  order_srv -->|Read/Write| db
+  order_srv -->|Query| cache
+  order_srv -->|HTTPS| stripe
+
+  style customer fill:#1d4ed8,color:#fff
+  style admin fill:#1d4ed8,color:#fff
   style api fill:#3b82f6,color:#fff
-  style db fill:#0284c7,color:#fff`,
+  style auth_srv fill:#0284c7,color:#fff
+  style order_srv fill:#0284c7,color:#fff
+  style db fill:#4b5563,color:#fff
+  style cache fill:#4b5563,color:#fff
+  style stripe fill:#92400e,color:#fff`,
 
       erd: `erDiagram
-  CUSTOMER ||--o{ ORDER : places
-  ORDER ||--|{ LINE-ITEM : contains
-  CUSTOMER {
-    string name
+  customers ||--o{ orders : places
+  orders ||--|{ line_items : contains
+  products ||--o{ line_items : ordered_in
+  customers {
+    uuid id PK
     string email
+    string name
+    timestamp created_at
   }
-  ORDER {
-    int id
-    date date_placed
-  }`
+  orders {
+    uuid id PK
+    uuid customer_id FK
+    string status
+    decimal total_amount
+  }
+  line_items {
+    uuid id PK
+    uuid order_id FK
+    uuid product_id FK
+    int quantity
+    decimal price
+  }
+  products {
+    uuid id PK
+    string name
+    decimal price
+    int stock_count
+  }`,
+
+      planner: `kanban
+  title Project Roadmap v0.9
+  subgraph Backlog
+    pbt_integration[PBT Testing Suite<br/>estimate: 12h]
+    rustler_prototype[Rustler NIF layout testing<br/>estimate: 24h]
+  end
+  subgraph In Progress
+    doc_revamp[Hexdocs Guide Restructure<br/>estimate: 8h]
+    livebook_tests[Livebook Interactive Walkthroughs<br/>estimate: 16h]
+  end
+  subgraph Done
+    fsm_content[FSM State Machine docs<br/>estimate: 6h]
+    c4_hierarchical[C4 Hierarchical layout builder<br/>estimate: 10h]
+  end`,
+
+      uml: `classDiagram
+  direction TD
+  class User {
+    <<struct>>
+    +id: integer
+    +email: string
+    +status: atom
+    +login(credentials) bool
+  }
+  class Account {
+    <<struct>>
+    +id: integer
+    +balance: decimal
+    +deposit(amount) decimal
+    +withdraw(amount) decimal
+  }
+  User "1" --> "*" Account : owns`,
+
+      mindmap: `mindmap
+  root((Choreo System))
+    Architecture
+      C4 Model
+      UML Class
+      ERD Database
+    Behaviors
+      FSM State Machine
+      Sequence Diagrams
+      Workflow Sagas
+      Threat STRIDE
+    Structures
+      Dependency Graph
+      Decision Tree
+      Planner Gantt
+      Mind Map Topics`
     };
 
     // Initialize Mermaid with Dark Mode config
