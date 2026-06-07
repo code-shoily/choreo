@@ -290,7 +290,7 @@ algebraic_pipeline =
 
 # Render UML-like Pipeline Flow
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline)),
+  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline, syntax: :class_diagram)),
   "Graphviz": Kino.VizJS.render(Domain.to_dot(algebraic_pipeline))
 ])
 ```

@@ -157,17 +157,25 @@ defmodule Choreo.Render.Mermaid do
       fill = Map.get(data, :fillcolor) || Theme.color(theme, type)
       stroke = Choreo.Internal.darken(fill)
 
-      attrs = [
-        {:fill, fill},
-        {:stroke, stroke}
-      ]
+      # Determine proper text color based on background lightness
+      fontcolor =
+        cond do
+          node_font = Map.get(data, :fontcolor) -> node_font
+          # Light background colors get dark text
+          fill in ["#eab308", "#fef08a", "#fef2f2", "#ffffcc", "#ffeda0", "#fed976"] -> "#1e293b"
+          true -> theme.node_fontcolor
+        end
 
-      # Only add fill/stroke if node is NOT highlighted.
       attrs =
         if MapSet.member?(hl_nodes, id) do
-          []
+          # Highlighted nodes use light yellow fill, so they must use dark text
+          [{:color, "#1e293b"}]
         else
-          attrs
+          [
+            {:fill, fill},
+            {:stroke, stroke},
+            {:color, fontcolor}
+          ]
         end
 
       attrs =
