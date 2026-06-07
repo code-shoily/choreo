@@ -9,7 +9,7 @@ defmodule Choreo.PresetsTest do
   alias Choreo.ThreatModel
   alias Choreo.Workflow
 
-  test "all modules render empty graphs across theme presets" do
+  test "basic modules render empty graphs across theme presets" do
     assert Choreo.new() |> Choreo.to_dot(theme: :warm) =~ "digraph"
     assert Choreo.new() |> Choreo.to_dot(theme: :forest) =~ "digraph"
     assert Choreo.new() |> Choreo.to_dot(theme: :ocean) =~ "digraph"
@@ -25,7 +25,9 @@ defmodule Choreo.PresetsTest do
     assert Dependency.new() |> Dependency.to_dot(theme: :warm) =~ "digraph"
     assert Dependency.new() |> Dependency.to_dot(theme: :forest) =~ "digraph"
     assert Dependency.new() |> Dependency.to_dot(theme: :ocean) =~ "digraph"
+  end
 
+  test "behavioral modules render empty graphs across theme presets" do
     assert FSM.new() |> FSM.to_dot(theme: :warm) =~ "digraph"
     assert FSM.new() |> FSM.to_dot(theme: :forest) =~ "digraph"
     assert FSM.new() |> FSM.to_dot(theme: :ocean) =~ "digraph"

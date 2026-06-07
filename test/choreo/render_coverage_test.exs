@@ -1,6 +1,8 @@
 defmodule Choreo.RenderCoverageTest do
   use ExUnit.Case
 
+  doctest Choreo.Render.Mermaid
+
   alias Choreo
   alias Choreo.Dataflow
   alias Choreo.DecisionTree

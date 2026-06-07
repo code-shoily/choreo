@@ -252,8 +252,8 @@ defmodule Choreo.ThreatModel.AnalysisTest do
     test "returns summary with by_category, by_severity, and total" do
       summary = Analysis.threat_summary(simple_model())
 
-      assert is_map(summary.by_category)
-      assert is_map(summary.by_severity)
+      assert %{elevation_of_privilege: _} = summary.by_category
+      assert %{high: _} = summary.by_severity
       assert is_integer(summary.total)
       assert summary.total > 0
     end
@@ -363,7 +363,7 @@ defmodule Choreo.ThreatModel.AnalysisTest do
 
       # Should not crash even though PartialRule lacks threats_for_flow
       threats = Analysis.stride_threats(simple_model(), rules: [PartialRule])
-      assert is_list(threats)
+      assert [_ | _] = threats
     end
   end
 

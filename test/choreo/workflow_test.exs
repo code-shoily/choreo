@@ -3,6 +3,7 @@ defmodule Choreo.WorkflowTest do
 
   doctest Choreo.Workflow
   doctest Choreo.Workflow.Render.DOT
+  doctest Choreo.Workflow.Render.Mermaid
 
   alias Choreo.Workflow
 

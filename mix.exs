@@ -55,6 +55,7 @@ defmodule Choreo.MixProject do
       {:nimble_options, "~> 1.1"},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:jump_credo_checks, "~> 0.2", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test}
     ]
@@ -72,12 +73,15 @@ defmodule Choreo.MixProject do
   end
 
   defp docs do
+    livebooks = Path.wildcard("livebooks/*.livemd") |> Enum.sort()
+
     [
       main: "readme",
-      extras: [
-        "README.md",
-        "CHANGELOG.md"
-      ],
+      extras:
+        [
+          "README.md",
+          "CHANGELOG.md"
+        ] ++ livebooks,
       source_ref: "v#{@version}",
       source_url: @source_url,
       before_closing_body_tag: &before_closing_body_tag/1,
@@ -166,6 +170,7 @@ defmodule Choreo.MixProject do
         Guides: [
           "README.md"
         ],
+        Livebooks: livebooks,
         Resources: [
           "CHANGELOG.md"
         ]

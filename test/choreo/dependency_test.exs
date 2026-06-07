@@ -3,6 +3,7 @@ defmodule Choreo.DependencyTest do
 
   doctest Choreo.Dependency
   doctest Choreo.Dependency.Render.DOT
+  doctest Choreo.Dependency.Render.Mermaid
 
   alias Choreo.Dependency
 

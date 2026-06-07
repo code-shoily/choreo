@@ -4,6 +4,8 @@ defmodule Choreo.Planner.AnalysisTest do
   alias Choreo.Planner
   alias Choreo.Planner.Analysis
 
+  doctest Choreo.Planner.Analysis
+
   describe "ready/1" do
     test "returns tasks with all dependencies done" do
       project =

@@ -1,8 +1,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <script>
   (function() {
     var vizInstance = null;
+    var mermaidInitialized = false;
+    var mermaidId = 0;
 
     function renderGraphviz() {
       var elements = document.querySelectorAll(".graphviz:not([data-rendered='true'])");
@@ -45,13 +48,73 @@
       });
     }
 
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", renderGraphviz);
-    } else {
-      renderGraphviz();
+    function renderMermaid() {
+      var elements = document.querySelectorAll("pre code.mermaid");
+      if (elements.length === 0) return;
+
+      if (typeof mermaid === "undefined") {
+        return;
+      }
+
+      if (!mermaidInitialized) {
+        var isDark = document.body.classList.contains("dark");
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? "dark" : "default",
+          securityLevel: "loose",
+          flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true
+          }
+        });
+        mermaidInitialized = true;
+      }
+
+      elements.forEach(function(codeEl) {
+        var preEl = codeEl.parentElement;
+        if (preEl.getAttribute("data-rendered") === "true") return;
+        preEl.setAttribute("data-rendered", "true");
+
+        var graphDefinition = codeEl.textContent;
+        var graphEl = document.createElement("div");
+        graphEl.className = "mermaid-container";
+        var graphId = "mermaid-graph-" + mermaidId++;
+
+        mermaid.render(graphId, graphDefinition).then(function(result) {
+          graphEl.innerHTML = result.svg;
+          if (result.bindFunctions) {
+            result.bindFunctions(graphEl);
+          }
+          preEl.insertAdjacentElement("afterend", graphEl);
+          preEl.style.display = "none";
+        }).catch(function(error) {
+          console.error("Mermaid Render Error:", error);
+          preEl.style.display = "block";
+        });
+      });
     }
 
-    var observer = new MutationObserver(function() { renderGraphviz(); });
+    function renderAll() {
+      renderGraphviz();
+      renderMermaid();
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", renderAll);
+    } else {
+      renderAll();
+    }
+
+    if (typeof mermaid === "undefined") {
+      var script = document.querySelector("script[src*='mermaid']");
+      if (script) {
+        script.addEventListener("load", function() {
+          renderAll();
+        });
+      }
+    }
+
+    var observer = new MutationObserver(function() { renderAll(); });
     observer.observe(document.body, { childList: true, subtree: true });
   })();
 </script>
@@ -65,4 +128,17 @@
   }
   /* Only override font-family, let SVG attributes handle the colors */
   .graphviz svg text { font-family: inherit !important; }
+
+  .mermaid-container {
+    text-align: center;
+    background: transparent;
+    margin: 1.5em 0;
+    width: 100%;
+  }
+  .mermaid-container svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
 </style>

@@ -1,13 +1,16 @@
 defmodule Choreo.PlannerTest do
   use ExUnit.Case
 
+  doctest Choreo.Planner
+  doctest Choreo.Planner.Render.Mermaid
+
   alias Choreo.Planner
 
   describe "construction" do
     test "new/1 creates an empty planner" do
       planner = Planner.new("Test Project")
       assert planner.name == "Test Project"
-      assert planner.graph != nil
+      assert %Yog.Multi.Graph{} = planner.graph
       assert Planner.tasks(planner) == []
     end
 

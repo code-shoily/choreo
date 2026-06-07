@@ -4,6 +4,7 @@ defmodule Choreo.ThreatModelTest do
   doctest Choreo.ThreatModel
   doctest Choreo.ThreatModel.Render.DOT
   doctest Choreo.ThreatModel.Render.PlantUML
+  doctest Choreo.ThreatModel.Render.Mermaid
 
   alias Choreo.ThreatModel
 

@@ -4,6 +4,8 @@ defmodule Choreo.Infrastructure.AnalysisTest do
   alias Choreo.Infrastructure
   alias Choreo.Infrastructure.Analysis
 
+  doctest Choreo.Infrastructure.Analysis
+
   test "detects direct internet access to private subnet nodes" do
     infra =
       Infrastructure.new()

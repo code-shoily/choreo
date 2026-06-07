@@ -3,6 +3,7 @@ defmodule Choreo.MindMapTest do
 
   doctest Choreo.MindMap
   doctest Choreo.MindMap.Render.DOT
+  doctest Choreo.MindMap.Render.Mermaid
 
   alias Choreo.MindMap
 

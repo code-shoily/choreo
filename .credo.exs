@@ -1,3 +1,45 @@
+jump_tests = [
+  {Jump.CredoChecks.AvoidFunctionLevelElse, []},
+  {Jump.CredoChecks.AvoidLoggerConfigureInTest, []},
+  {Jump.CredoChecks.DoctestIExExamples,
+   [
+     derive_test_path: fn filename ->
+       cond do
+         String.match?(filename, ~r"^lib/choreo/([^/]+)/render/") ->
+           name = Regex.run(~r"^lib/choreo/([^/]+)/render/", filename) |> Enum.at(1)
+           "test/choreo/#{name}_test.exs"
+
+         String.match?(filename, ~r"^lib/choreo/([^/]+)/analysis.ex") ->
+           name = Regex.run(~r"^lib/choreo/([^/]+)/analysis.ex", filename) |> Enum.at(1)
+           path = "test/choreo/#{name}/analysis_test.exs"
+           if File.exists?(path), do: path, else: "test/choreo/#{name}_test.exs"
+
+         filename == "lib/choreo/render/mermaid.ex" ->
+           "test/choreo/render_coverage_test.exs"
+
+         filename == "lib/choreo/theme.ex" ->
+           "test/choreo_test.exs"
+
+         filename == "lib/choreo/analysis.ex" ->
+           "test/choreo_test.exs"
+
+         filename == "lib/choreo/internal.ex" ->
+           "test/choreo_test.exs"
+
+         true ->
+           filename
+           |> String.replace_leading("lib/", "test/")
+           |> String.replace_trailing(".ex", "_test.exs")
+       end
+     end
+   ]},
+  {Jump.CredoChecks.TestHasNoAssertions, []},
+  {Jump.CredoChecks.TooManyAssertions, [max_assertions: 20]},
+  {Jump.CredoChecks.TopLevelAliasImportRequire, []},
+  {Jump.CredoChecks.VacuousTest, []},
+  {Jump.CredoChecks.WeakAssertion, []}
+]
+
 %{
   configs: [
     %{
@@ -11,7 +53,7 @@
       strict: false,
       parse_timeout: 5000,
       color: true,
-      checks: [
+      checks: jump_tests ++ [
         # Disabled for graph algorithm domains
         {Credo.Check.Refactor.CyclomaticComplexity, false},
         {Credo.Check.Refactor.ABCSize, false},

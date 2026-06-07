@@ -214,8 +214,10 @@ defmodule Choreo.ERDTest do
   end
 
   test "viewable protocol implementation", %{erd: erd} do
-    assert Choreo.Viewable.zoom_predicate(erd, 1) != nil
-    assert Choreo.Viewable.virtual_edge_meta(erd) != nil
+    assert is_function(Choreo.Viewable.zoom_predicate(erd, 1))
+
+    assert %{type: :uses, cardinality: :one_to_many, label: "virtual"} =
+             Choreo.Viewable.virtual_edge_meta(erd)
 
     # Rebuild
     rebuilt = Choreo.Viewable.rebuild(erd, erd.graph)

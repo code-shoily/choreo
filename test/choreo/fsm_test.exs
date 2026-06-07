@@ -5,6 +5,7 @@ defmodule Choreo.FSMTest do
 
   doctest Choreo.FSM
   doctest Choreo.FSM.Render.DOT
+  doctest Choreo.FSM.Render.Mermaid
 
   describe "creation" do
     test "new/0 creates a directed graph by default" do

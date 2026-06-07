@@ -1,7 +1,10 @@
 defmodule Choreo.SequenceTest do
   use ExUnit.Case
 
+  doctest Choreo.Sequence
+
   alias Choreo.Sequence
+  alias Choreo.Sequence.Analysis
 
   describe "new/0" do
     test "creates an empty sequence diagram" do
@@ -204,8 +207,6 @@ defmodule Choreo.SequenceTest do
   end
 
   describe "Analysis" do
-    alias Choreo.Sequence.Analysis
-
     test "finds isolated participants" do
       seq =
         Sequence.new()

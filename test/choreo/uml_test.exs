@@ -157,8 +157,8 @@ defmodule Choreo.UMLTest do
   end
 
   test "viewable protocol implementation", %{uml: uml} do
-    assert Choreo.Viewable.zoom_predicate(uml, 1) != nil
-    assert Choreo.Viewable.virtual_edge_meta(uml) != nil
+    assert is_function(Choreo.Viewable.zoom_predicate(uml, 1))
+    assert %{type: :depends, label: "virtual"} = Choreo.Viewable.virtual_edge_meta(uml)
 
     rebuilt = Choreo.Viewable.rebuild(uml, uml.graph)
     assert rebuilt.graph == uml.graph
