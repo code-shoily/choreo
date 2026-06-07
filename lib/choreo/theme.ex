@@ -106,7 +106,18 @@ defmodule Choreo.Theme do
     # Infrastructure topology types
     internet: :cloud,
     compute: :box3d,
-    managed_db: :cylinder
+    managed_db: :cylinder,
+    # Domain modeling types
+    actor: :doublecircle,
+    command: :box,
+    aggregate: :box3d,
+    event: :hexagon,
+    read_model: :tab,
+    policy: :component,
+    external_system: :box,
+    type: :plain,
+    workflow: :box,
+    acl: :box
   }
 
   @default_colors %{
@@ -122,7 +133,18 @@ defmodule Choreo.Theme do
     # Infrastructure topology types
     internet: "#64748b",
     compute: "#10b981",
-    managed_db: "#f59e0b"
+    managed_db: "#f59e0b",
+    # Domain modeling colors
+    actor: "#f472b6",
+    command: "#60a5fa",
+    aggregate: "#eab308",
+    event: "#fb923c",
+    read_model: "#4ade80",
+    policy: "#c084fc",
+    external_system: "#f43f5e",
+    type: "#e2e8f0",
+    workflow: "#2dd4bf",
+    acl: "#94a3b8"
   }
 
   defstruct [

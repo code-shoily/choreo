@@ -185,8 +185,24 @@ defmodule Choreo.Render.Mermaid do
     end
   end
 
-  defp node_label(_id, data) do
-    Map.get(data, :name, "")
+  defp node_label(id, data) do
+    if fields = data[:fields] do
+      name = data[:name] || to_string(id)
+
+      rows =
+        Enum.map_join(fields, "<br>", fn
+          {field_name, field_type} when is_list(field_type) ->
+            choices = Enum.map_join(field_type, " | ", &to_string/1)
+            "#{field_name}: #{choices}"
+
+          {field_name, field_type} ->
+            "#{field_name}: #{field_type}"
+        end)
+
+      "\"#{name}<br>------------------<br>#{rows}\""
+    else
+      Map.get(data, :name, "")
+    end
   end
 
   # ============================================================================

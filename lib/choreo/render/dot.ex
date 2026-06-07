@@ -77,7 +77,7 @@ defmodule Choreo.Render.DOT do
 
     base =
       Yog.Multi.DOT.default_options()
-      |> Map.put(:node_label, &node_label/2)
+      |> Map.put(:node_label, fn id, data -> node_label(id, data, theme) end)
       |> Map.put(:edge_label, fn edge_id, weight ->
         meta = Map.get(system.edge_meta, edge_id, %{})
 
@@ -94,7 +94,11 @@ defmodule Choreo.Render.DOT do
 
     base = if subgraphs != [], do: Map.put(base, :subgraphs, subgraphs), else: base
 
-    Yog.Multi.DOT.to_dot(safe_graph, base)
+    dot = Yog.Multi.DOT.to_dot(safe_graph, base)
+
+    # Post-process generated DOT to convert HTML-like labels to Graphviz-compatible
+    # double-angle-bracket syntax (required by Viz.js and older Graphviz versions).
+    String.replace(dot, ~r/label=<(TABLE.*?)<\/TABLE>/s, "label=<<\\1</TABLE>>")
   end
 
   # ============================================================================
@@ -142,9 +146,15 @@ defmodule Choreo.Render.DOT do
   defp node_attributes_fn(_system, theme, hl_nodes) do
     fn id, data ->
       type = Map.get(data, :type, :generic)
+      has_fields = not is_nil(data[:fields])
 
-      shape = Map.get(data, :shape) || Theme.shape(theme, type)
-      color = Map.get(data, :fillcolor) || Theme.color(theme, type)
+      shape = if has_fields, do: :plain, else: Map.get(data, :shape) || Theme.shape(theme, type)
+
+      color =
+        if has_fields,
+          do: "transparent",
+          else: Map.get(data, :fillcolor) || Theme.color(theme, type)
+
       fontcolor = Map.get(data, :fontcolor) || theme.node_fontcolor
       style = Map.get(data, :style, "filled")
 
@@ -154,10 +164,9 @@ defmodule Choreo.Render.DOT do
         {:style, style}
       ]
 
-      # Only add fillcolor if node is NOT highlighted.
-      # This allows Yog's highlight_color to take precedence.
+      # Only add fillcolor if node is NOT highlighted and has no fields.
       attrs =
-        if MapSet.member?(hl_nodes, id) do
+        if MapSet.member?(hl_nodes, id) or has_fields do
           attrs
         else
           [{:fillcolor, color} | attrs]
@@ -185,8 +194,44 @@ defmodule Choreo.Render.DOT do
     end
   end
 
-  defp node_label(_id, data) do
-    Map.get(data, :name, "")
+  defp node_label(id, data, theme) do
+    if fields = data[:fields] do
+      table_name = data[:name] || to_string(id)
+      type = Map.get(data, :type, :generic)
+      header_bg = data[:fillcolor] || Theme.color(theme, type)
+
+      header_fg =
+        if header_bg in ["#eab308", "#fef08a", "#fef2f2"], do: "#1e293b", else: "#ffffff"
+
+      border_color = "#94a3b8"
+      text_color = "#334155"
+
+      rows =
+        Enum.map_join(fields, "", fn
+          {field_name, field_type} when is_list(field_type) ->
+            choices = Enum.map_join(field_type, " | ", &to_string/1)
+
+            "<TR>" <>
+              ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border_color}"><FONT COLOR="#{text_color}">#{to_string(field_name)}</FONT></TD>) <>
+              ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border_color}"><FONT COLOR="#{text_color}"><i>#{choices}</i></FONT></TD>) <>
+              "</TR>"
+
+          {field_name, field_type} ->
+            "<TR>" <>
+              ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border_color}"><FONT COLOR="#{text_color}">#{to_string(field_name)}</FONT></TD>) <>
+              ~s(<TD ALIGN="LEFT" BORDER="1" COLOR="#{border_color}"><FONT COLOR="#{text_color}"><i>#{to_string(field_type)}</i></FONT></TD>) <>
+              "</TR>"
+        end)
+
+      ~s(<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#{border_color}">) <>
+        ~s(<TR><TD COLSPAN="2" BGCOLOR="#{header_bg}" ALIGN="CENTER" BORDER="1" COLOR="#{border_color}">) <>
+        ~s(<FONT COLOR="#{header_fg}"><B>#{table_name}</B></FONT>) <>
+        "</TD></TR>" <>
+        rows <>
+        "</TABLE>"
+    else
+      Map.get(data, :name, "")
+    end
   end
 
   # ============================================================================

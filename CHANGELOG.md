@@ -17,6 +17,16 @@
 
 ### Added
 
+- **Choreo.Domain — DDD, Event Storming & Functional Modeling**:
+  - Implemented `Choreo.Domain` vocabulary layer mapping Strategic Bounded Context maps and Tactical Event Storming models.
+  - Added builders for Event Storming sticky notes: `add_actor/3`, `add_command/3`, `add_aggregate/3`, `add_event/3`, `add_read_model/3`, `add_policy/3`, `add_external_system/3`, `add_acl/3`, and `add_workflow/3`.
+  - Added support for UML-style structured field specifications on `:type` and `:aggregate` nodes, rendering them as clean HTML-like table grids in Graphviz and newline-separated lists in Mermaid.
+  - Implemented context-mapping relationship decorators in `connect_contexts/4` with automatic suppliers, customers, conformists, OHS, PL, and ACL markings on arrows.
+  - Implemented scenario highlighting lens via `focus_path/2` to visually gray-out nodes outside of targeted execution paths.
+  - Implemented recursive root-cause verification using `trace_cause/2`.
+  - Implemented semantic audit validations in `Choreo.Domain.Analysis` checking for orphaned commands, dead-end events, parentless events, and dangling saga policies.
+  - Added interactive walkthrough notebook (`livebooks/domain_modeling_walkthrough.livemd`).
+
 - **Cross-Diagram Semantic Tracing & Impact Analysis**:
   - Implemented `Choreo.trace/5` for declaring semantic connections (traces) between nodes across different diagram schemas (e.g. Workflow task -> C4 component -> ERD table).
   - Implemented `Choreo.Analysis.Tracing` with `impact_analysis/2` (transitively walks dependency graphs backwards to find all impacted components) and `trace_path/3` (computes cross-diagram execution paths).

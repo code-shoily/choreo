@@ -1,0 +1,179 @@
+# Domain Modeling Made Functional with Choreo
+
+```elixir
+Mix.install([
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
+  {:kino_vizjs, "~> 0.8.0"}
+])
+```
+
+## Section
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render Graphviz DOT diagrams inline.
+> Mermaid output can be rendered with `Kino.Mermaid.new/1`, which is supported natively in Livebook.
+
+```elixir
+alias Choreo.Domain
+alias Choreo.Domain.Analysis
+```
+
+---
+
+## 1. Strategic Context Mapping
+
+In Strategic Domain-Driven Design (DDD), we divide a large system into distinct partitions called **Bounded Contexts**. We then map how these contexts communicate.
+
+Below, we model three bounded contexts for a business system—**Order Taking**, **Billing**, and **Shipping**—as well as an upstream **Legacy CRM** system. To protect our core order system, we implement an **Anti-Corruption Layer (ACL)** relationship gate between it and the legacy system.
+
+```elixir
+context_map =
+  Domain.new()
+  # Add Bounded Context nodes
+  |> Domain.add_context(:legacy_crm, label: "Legacy CRM System")
+  |> Domain.add_context(:order_taking, label: "Order Taking Context")
+  |> Domain.add_context(:billing, label: "Billing Context")
+  |> Domain.add_context(:shipping, label: "Shipping Context")
+
+  # Define Strategic DDD context-mapping relationships
+  |> Domain.connect_contexts(:legacy_crm, :order_taking,
+       relationship: :acl,
+       label: "CRM Customer Translation"
+     )
+  |> Domain.connect_contexts(:order_taking, :billing,
+       relationship: :customer_supplier,
+       label: "Invoice Requests"
+     )
+  |> Domain.connect_contexts(:order_taking, :shipping,
+       relationship: :conformist,
+       label: "Shipping Info"
+     )
+
+# Render Strategic Map
+Kino.VizJS.render(Domain.to_dot(context_map))
+```
+
+---
+
+## 2. Tactical Event Storming
+
+During an Event Storming session, we explore the flow of business actions. We place colored "sticky notes" to map how users initiate Commands, which target Aggregates, which then emit Domain Events that trigger reaction Policies.
+
+We organize these nodes inside a **Bounded Context cluster boundary** representing the **Order Taking** context.
+
+```elixir
+storming =
+  Domain.new()
+  # Define the context cluster boundary
+  |> Domain.add_context_boundary("order_taking_boundary", label: "Order Taking Bounded Context")
+
+  # Define visual Event Storming sticky notes (with standard colored themes)
+  |> Domain.add_actor(:customer, label: "Customer")
+  |> Domain.add_command(:place_order, label: "Place Order", cluster: "order_taking_boundary")
+  |> Domain.add_acl(:shopping_cart_acl, label: "Shopping Cart ACL", cluster: "order_taking_boundary")
+  |> Domain.add_aggregate(:order_agg, label: "Order Aggregate", cluster: "order_taking_boundary")
+  |> Domain.add_event(:order_placed, label: "Order Placed Event", cluster: "order_taking_boundary")
+  |> Domain.add_policy(:payment_policy, label: "Payment Saga Policy", cluster: "order_taking_boundary")
+  |> Domain.add_command(:request_payment, label: "Request Payment", cluster: "order_taking_boundary")
+
+  # Connect the execution flow
+  |> Domain.connect(:customer, :place_order)
+  |> Domain.connect(:place_order, :shopping_cart_acl)
+  |> Domain.connect(:shopping_cart_acl, :order_agg)
+  |> Domain.connect(:order_agg, :order_placed)
+  |> Domain.connect(:order_placed, :payment_policy)
+  |> Domain.connect(:payment_policy, :request_payment)
+
+# Render Event Storming Flow
+Kino.VizJS.render(Domain.to_dot(storming))
+```
+
+---
+
+## 3. Algebraic Data Pipelines (Scott Wlaschin Style)
+
+In *Domain Modeling Made Functional*, Scott Wlaschin focuses on modeling business workflows as pure functions that transform algebraic data types.
+
+`UnvalidatedOrder -> [Validate Order] -> ValidatedOrder -> [Price Order] -> PricedOrder`
+
+`Choreo.Domain` can render these types as UML-like table cards displaying their fields and data types:
+
+```elixir
+algebraic_pipeline =
+  Domain.new()
+  # Define Domain Types with fields (renders as structured UML Class tables)
+  |> Domain.add_type(:unvalidated_order,
+       label: "Unvalidated Order",
+       fields: [
+         {:customer_id, :string},
+         {:lines, "list of UnvalidatedLine"}
+       ]
+     )
+  |> Domain.add_type(:validated_order,
+       label: "Validated Order",
+       fields: [
+         {:customer_info, "CustomerInfo"},
+         {:lines, "list of ValidatedLine"}
+       ]
+     )
+  |> Domain.add_type(:priced_order,
+       label: "Priced Order",
+       fields: [
+         {:customer_info, "CustomerInfo"},
+         {:lines, "list of PricedLine"},
+         {:total_amount, :money}
+       ]
+     )
+
+  # Define Workflow action pipeline functions
+  |> Domain.add_workflow(:validate_order, label: "Validate Order (Workflow)")
+  |> Domain.add_workflow(:price_order, label: "Price Order (Workflow)")
+
+  # Wire the pipeline transitions
+  |> Domain.connect(:unvalidated_order, :validate_order)
+  |> Domain.connect(:validate_order, :validated_order)
+  |> Domain.connect(:validated_order, :price_order)
+  |> Domain.connect(:price_order, :priced_order)
+
+# Render UML-like Pipeline Flow
+Kino.VizJS.render(Domain.to_dot(algebraic_pipeline))
+```
+
+---
+
+## 4. Scenario Tracing & Semantic Auditing
+
+With Choreo, you can highlight specific transaction scenarios (paths) and run semantic checks against your diagrams.
+
+### Highlighting a Scenario: "The Payment Trigger Path"
+
+We highlight only the path from the customer's request down to the payment command, leaving the rest of the storming board grayed out.
+
+```elixir
+payment_scenario = [:customer, :place_order, :shopping_cart_acl, :order_agg, :order_placed, :payment_policy, :request_payment]
+
+highlighted_storm = Domain.focus_path(storming, payment_scenario)
+
+Kino.VizJS.render(Domain.to_dot(highlighted_storm))
+```
+
+### Tracing Roots
+
+We can trace backward from the payment request command to determine all preceding triggers:
+
+```elixir
+Domain.trace_cause(storming, :request_payment)
+```
+
+### Semantic Design Auditor
+
+We run semantic rule checks on our Event Storming board to verify that there are no dangling triggers or unhandled events.
+
+```elixir
+warnings = Analysis.warnings(storming)
+
+if warnings == [] do
+  IO.puts("✅ Clean Event Storming graph: All triggers and outputs resolve properly.")
+else
+  Enum.each(warnings, &IO.puts("⚠️  #{&1}"))
+end
+```
