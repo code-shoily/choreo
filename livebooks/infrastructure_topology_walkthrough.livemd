@@ -26,27 +26,27 @@ It is *not* a separate rendering engine: node shapes and colors are resolved thr
 `Choreo.Theme` (just like `Choreo`), and the rendering pipeline is the same `Yog`-based
 stack. What it adds is:
 
-- **Typed cluster boundaries** — VPCs and subnets carry security semantics (public vs. private).
-- **`Choreo.Infrastructure.Analysis`** — audit rules that operate on those semantics.
-- **Network vocabulary** — intent-revealing builders (`add_vpc`, `add_compute`, etc.).
+* **Typed cluster boundaries** — VPCs and subnets carry security semantics (public vs. private).
+* **`Choreo.Infrastructure.Analysis`** — audit rules that operate on those semantics.
+* **Network vocabulary** — intent-revealing builders (`add_vpc`, `add_compute`, etc.).
 
 ### Node Types
 
-| Builder              | Node Type       | DOT Shape   | Mermaid Shape   | Purpose                           |
-| -------------------- | --------------- | ----------- | --------------- | --------------------------------- |
-| `add_internet/3`     | `:internet`     | ☁️ cloud    | Circle          | Public internet gateway           |
-| `add_load_balancer/3`| `:load_balancer`| ▽ invhouse  | Hexagon         | ALB, NLB, Nginx, HAProxy          |
-| `add_compute/3`      | `:compute`      | 📦 box3d    | Subroutine      | EC2, ECS task, Kubernetes pod     |
-| `add_managed_db/3`   | `:managed_db`   | 🛢️ cylinder | Cylinder        | RDS, Aurora, Cloud SQL            |
-| `add_storage/3`      | `:storage`      | 📁 folder   | Rounded rect    | S3, EFS, GCS bucket               |
+| Builder               | Node Type        | DOT Shape        | Mermaid Shape | Purpose                       |
+| --------------------- | ---------------- | ---------------- | ------------- | ----------------------------- |
+| `add_internet/3`      | `:internet`      | ☁️ cloud     | Circle        | Public internet gateway       |
+| `add_load_balancer/3` | `:load_balancer` | ▽ invhouse     | Hexagon       | ALB, NLB, Nginx, HAProxy      |
+| `add_compute/3`       | `:compute`       | 📦 box3d       | Subroutine    | EC2, ECS task, Kubernetes pod |
+| `add_managed_db/3`    | `:managed_db`    | 🛢️ cylinder | Cylinder      | RDS, Aurora, Cloud SQL        |
+| `add_storage/3`       | `:storage`       | 📁 folder      | Rounded rect  | S3, EFS, GCS bucket           |
 
 ### Cluster (Boundary) Types
 
-| Builder                | Cluster Type      | Style   | Meaning                                        |
-| ---------------------- | ----------------- | ------- | ---------------------------------------------- |
-| `add_vpc/3`            | `:vpc`            | Dashed  | Virtual Private Cloud — the outer envelope     |
-| `add_subnet_public/3`  | `:subnet_public`  | Rounded | Internet-facing zone (DMZ, load balancers)     |
-| `add_subnet_private/3` | `:subnet_private` | Rounded | Isolated zone (app servers, databases)         |
+| Builder                | Cluster Type      | Style   | Meaning                                      |
+| ---------------------- | ----------------- | ------- | -------------------------------------------- |
+| `add_vpc/3`            | `:vpc`            | Dashed  | Virtual Private Cloud — the outer envelope |
+| `add_subnet_public/3`  | `:subnet_public`  | Rounded | Internet-facing zone (DMZ, load balancers)   |
+| `add_subnet_private/3` | `:subnet_private` | Rounded | Isolated zone (app servers, databases)       |
 
 ```elixir
 alias Choreo.Infrastructure
@@ -84,9 +84,9 @@ Kino.Mermaid.new(Infrastructure.to_mermaid(legend))
 
 We model a production VPC with:
 
-- A **public subnet (DMZ)** holding the load balancer
-- A **private subnet (App)** holding compute and the database
-- A **storage bucket** outside the VPC (managed S3-like service)
+* A **public subnet (DMZ)** holding the load balancer
+* A **private subnet (App)** holding compute and the database
+* A **storage bucket** outside the VPC (managed S3-like service)
 
 ```elixir
 prod =
@@ -146,9 +146,8 @@ warnings = Analysis.warnings(prod)
 if warnings == [] do
   IO.puts("✅ No security warnings — topology looks clean.")
 else
-  Enum.each(warnings, fn w ->
-    IO.puts("⚠️  [#{w.rule}] #{w.message}")
-    IO.puts("   Nodes: #{inspect(w.nodes)}")
+  Enum.each(warnings, fn message ->
+    IO.puts("⚠️  #{message}")
   end)
 end
 ```
@@ -175,19 +174,20 @@ broken =
   |> Infrastructure.connect(:app, :db)
 
 Analysis.warnings(broken)
-|> Enum.each(fn w ->
-  IO.puts("⚠️  [#{w.rule}]")
-  IO.puts("   #{w.message}")
+|> Enum.each(fn message ->
+  IO.puts("⚠️  #{message}")
 end)
 ```
 
 ### The three audit rules explained
 
-| Rule | What it catches |
+`Analysis.warnings/1` returns a list of plain strings. Each message describes the violation:
+
+| Violation detected | Example message |
 |---|---|
-| `:direct_internet_to_private_subnet` | Traffic hitting a private-subnet node directly, bypassing any DMZ or load balancer |
-| `:db_not_in_private_subnet` | A managed database placed in a public subnet or outside any subnet at all |
-| `:load_balancer_not_in_public_subnet` | A load balancer sitting in a private subnet, unable to accept public traffic |
+| Direct internet → private subnet | `"Private resource 'app' is connected directly to public internet boundary 'internet'."` |
+| Database not in private subnet | `"Managed database 'db' should be located in a private subnet, but it is in subnet 'pub'."` |
+| Load balancer not in public subnet | `"Load balancer 'lb' should be in a public-facing subnet, but it is in subnet 'priv'."` |
 
 ---
 
@@ -321,8 +321,9 @@ end
 ## Step 6: Protocol-aware edge styling
 
 `connect/3` accepts a `:protocol` key that drives edge color in the DOT output:
-- `:https` / `:ssl` → green (#10b981) — secure traffic
-- everything else → grey (#64748b) — internal traffic
+
+* `:https` / `:ssl` → green (#10b981) — secure traffic
+* everything else → grey (#64748b) — internal traffic
 
 ```elixir
 proto_demo =
@@ -367,7 +368,7 @@ full =
   |> Infrastructure.connect(:worker, :db, protocol: :tcp)
 
 # Focus: show API and its immediate 1-hop neighbourhood
-focused = View.focus(full, :api, 1)
+focused = View.focus(full, :api, radius: 1)
 Kino.VizJS.render(Infrastructure.to_dot(focused))
 ```
 
@@ -381,13 +382,13 @@ Kino.VizJS.render(Infrastructure.to_dot(compute_only))
 
 ## Summary
 
-| Feature | API |
-|---|---|
-| Create topology | `Infrastructure.new/0` |
-| Add boundary | `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3` |
-| Add nodes | `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
-| Add edge | `connect/3` — options: `:protocol`, `:label` |
-| Audit | `Analysis.warnings/1` |
-| Render DOT | `Infrastructure.to_dot/2` — option: `theme:` |
-| Render Mermaid | `Infrastructure.to_mermaid/2` — option: `theme:`, `direction:` |
-| Lens ops | `Choreo.View.focus/3`, `filter/3`, `zoom/2`, `collapse/4` |
+| Feature         | API                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| Create topology | `Infrastructure.new/0`                                                                        |
+| Add boundary    | `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`                                    |
+| Add nodes       | `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
+| Add edge        | `connect/3` — options: `:protocol`, `:label`                                                |
+| Audit           | `Analysis.warnings/1`                                                                         |
+| Render DOT      | `Infrastructure.to_dot/2` — option: `theme:`                                                |
+| Render Mermaid  | `Infrastructure.to_mermaid/2` — option: `theme:`, `direction:`                              |
+| Lens ops        | `Choreo.View.focus/3`, `filter/3`, `zoom/2`, `collapse/4`                                     |
