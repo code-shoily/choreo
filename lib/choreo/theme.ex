@@ -31,7 +31,7 @@ defmodule Choreo.Theme do
 
   ## Per-type overrides
 
-  The `shapes` and `colors` maps accept any node `:type` as a key. Missing
+  The `shapes` and `colors` maps accept any node `:node_type` as a key. Missing
   types fall back to the built-in defaults (`:box` shape, `"#9ca3af"` colour).
 
   ## Cluster theming

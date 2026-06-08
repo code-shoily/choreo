@@ -20,7 +20,7 @@ defmodule Choreo.CompositionTest do
     system =
       Choreo.new()
       |> Choreo.add_cluster("vpc", label: "VPC Infrastructure")
-      |> Choreo.add_service(:api, name: "Gateway")
+      |> Choreo.add_service(:api, label: "Gateway")
       |> Choreo.embed(flow, "vpc", prefix: "flow_")
 
     # Verify nodes embedded
@@ -96,8 +96,8 @@ defmodule Choreo.CompositionTest do
     assert nodes[:flow_sensor].cluster == "cluster_flow_inner"
     assert nodes[:flow_parser].cluster == "cluster_vpc"
 
-    # Verify custom node name preservation
-    assert nodes[:flow_parser].name == "Custom Parser"
+    # Verify custom node label preservation
+    assert nodes[:flow_parser].label == "Custom Parser"
   end
 
   test "declares traces and performs semantic impact analysis and pathfinding" do

@@ -32,7 +32,7 @@ defmodule Choreo.Infrastructure.ViewTest do
         |> Infrastructure.connect(:app, :db)
 
       zoomed = View.zoom(infra, level: 1)
-      assert Enum.sort(Infrastructure.nodes(zoomed)) == [:app, :gw, :lb]
+      assert Enum.sort(Infrastructure.nodes(zoomed)) == [:app, :db, :gw, :lb]
     end
 
     test "level 2+ keeps everything including storage and databases" do

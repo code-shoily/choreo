@@ -60,7 +60,8 @@ end
 Choreo supports 13 different artifact modeling vocabularies. They are categorized and detailed in the following guides:
 
 1. **[Architecture & Design Modeling](guides/architecture_and_design.md)**
-   * Infrastructure Topology (`Choreo`)
+   * System Architecture (`Choreo`)
+   * Cloud Network Topology (`Choreo.Infrastructure`)
    * C4 Model Architecture (`Choreo.C4`)
    * STRIDE Threat Modeling (`Choreo.ThreatModel`)
    * Domain-Driven Design & Event Storming (`Choreo.Domain`)

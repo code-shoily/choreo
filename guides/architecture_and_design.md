@@ -4,18 +4,18 @@ Choreo provides powerful tools for modeling, analyzing, and rendering system arc
 
 ---
 
-## Choreo — Infrastructure Architecture
+## Choreo — System Architecture
 
-Model systems with typed infrastructure nodes: databases, caches, services, queues, load balancers, networks, users, and storage.
+Model systems with typed infrastructure nodes: databases, caches, services, queues, load balancers, networks, users, storage, compute, and managed databases. Use this for general service-level and system architecture diagrams.
 
 ```elixir
 alias Choreo
 
 system =
   Choreo.new()
-  |> Choreo.add_database(:db, name: "Postgres", kind: :postgres)
-  |> Choreo.add_cache(:cache, name: "Redis")
-  |> Choreo.add_service(:api, name: "API Gateway")
+  |> Choreo.add_database(:db, label: "Postgres", kind: :postgres)
+  |> Choreo.add_cache(:cache, label: "Redis")
+  |> Choreo.add_service(:api, label: "API Gateway")
   |> Choreo.connect(:api, :cache, cost: 5)
   |> Choreo.connect(:api, :db, cost: 10)
 
@@ -28,7 +28,7 @@ dot = Choreo.to_dot(system, theme: :dark)
 mermaid = Choreo.to_mermaid(system)
 ```
 
-**Features:** clusters with nesting, dataflow edges, cost-weighted edges, MST, topological sort, SCC, theming.
+**Features:** clusters with nesting (including typed VPC/subnet boundaries), dataflow edges, cost-weighted edges, MST, topological sort, SCC, theming, cross-diagram embedding and tracing.
 
 ```mermaid
 graph TD
@@ -44,6 +44,38 @@ graph TD
   linkStyle 0 stroke-width:2px,stroke:#64748b
   linkStyle 1 stroke-width:2px,stroke:#64748b
 ```
+
+---
+
+## Choreo.Infrastructure — Cloud Network Topology
+
+A domain-specific vocabulary layer on top of `Choreo` for modeling cloud network topologies with VPCs, subnets, compute instances, managed databases, and load balancers. It shares the same rendering pipeline and data model as `Choreo` but adds security-aware analysis rules.
+
+Use `Choreo.Infrastructure` when you need:
+- **Typed cluster boundaries** — VPCs, public subnets, and private subnets with security semantics
+- **Security audits** — automatic checks for direct internet-to-private links, misplaced databases, and exposed storage
+- **Cloud vocabulary** — `add_vpc/3`, `add_compute/3`, `add_managed_db/3`, `add_subnet_public/3`, etc.
+
+```elixir
+alias Choreo.Infrastructure
+
+infra =
+  Infrastructure.new()
+  |> Infrastructure.add_vpc("vpc_main", label: "Production VPC")
+  |> Infrastructure.add_subnet_public("dmz", label: "Public DMZ", parent: "vpc_main")
+  |> Infrastructure.add_subnet_private("app", label: "App Tier", parent: "vpc_main")
+  |> Infrastructure.add_load_balancer(:alb, label: "ALB", cluster: "dmz")
+  |> Infrastructure.add_compute(:api, label: "API", cluster: "app")
+  |> Infrastructure.add_managed_db(:db, label: "Postgres RDS", cluster: "app")
+  |> Infrastructure.connect(:alb, :api)
+  |> Infrastructure.connect(:api, :db)
+
+# Security audit
+Choreo.Infrastructure.Analysis.validate(infra)
+# => []  (or [{:error, ...}, {:warning, ...}] if violations found)
+```
+
+**Note:** `Choreo.Infrastructure` is a thin wrapper over `Choreo` — it uses the same struct fields, rendering pipeline, and theming system. You can embed an `Infrastructure` diagram into a top-level `Choreo` diagram and it will render seamlessly.
 
 ---
 

@@ -146,14 +146,14 @@ defmodule Choreo.Render.Mermaid do
 
   defp node_shape_fn(theme) do
     fn _id, data ->
-      type = Map.get(data, :type, :generic)
+      type = Map.get(data, :node_type, :generic)
       Map.get(data, :shape) || Theme.shape(theme, type) |> to_mermaid_shape()
     end
   end
 
   defp node_attributes_fn(_system, theme, hl_nodes) do
     fn id, data ->
-      type = Map.get(data, :type, :generic)
+      type = Map.get(data, :node_type, :generic)
 
       fill = Map.get(data, :fillcolor) || Theme.color(theme, type)
       stroke = Choreo.Internal.darken(fill)
@@ -195,7 +195,7 @@ defmodule Choreo.Render.Mermaid do
 
   defp node_label(id, data) do
     if fields = data[:fields] do
-      name = data[:name] || to_string(id)
+      name = data[:label] || to_string(id)
 
       rows =
         Enum.map_join(fields, "<br>", fn
@@ -209,7 +209,7 @@ defmodule Choreo.Render.Mermaid do
 
       "\"#{name}<br>------------------<br>#{rows}\""
     else
-      Map.get(data, :name, "")
+      Map.get(data, :label, "")
     end
   end
 

@@ -432,17 +432,17 @@ defmodule Choreo.Analysis do
     Choreo.new()
     |> Choreo.add_cluster("importance_legend", style: :dashed, label: "Importance Legend")
     |> Choreo.add_service(:low,
-      name: "Low",
+      label: "Low",
       cluster: "importance_legend",
       fillcolor: Choreo.Theme.color_from_scale(0.0, palette)
     )
     |> Choreo.add_service(:mid,
-      name: "Medium",
+      label: "Medium",
       cluster: "importance_legend",
       fillcolor: Choreo.Theme.color_from_scale(0.5, palette)
     )
     |> Choreo.add_service(:high,
-      name: "High",
+      label: "High",
       cluster: "importance_legend",
       fillcolor: Choreo.Theme.color_from_scale(1.0, palette)
     )
