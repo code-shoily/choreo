@@ -83,10 +83,11 @@ defmodule Choreo.Dependency do
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
-          clusters: %{String.t() => map()}
+          clusters: %{String.t() => map()},
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, clusters: %{}
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}, strict: false
 
   @node_schema [
     label: [
@@ -244,6 +245,11 @@ defmodule Choreo.Dependency do
 
   Dependency graphs are always directed.
 
+  ## Options
+
+    * `:strict` — if `true`, `depends_on/4` raises when an endpoint does not
+      already exist. Default `false` (auto-creates missing nodes as `:module`).
+
   ## Examples
 
       iex> deps = Choreo.Dependency.new()
@@ -252,12 +258,13 @@ defmodule Choreo.Dependency do
       iex> Choreo.Dependency.edges(deps)
       []
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},
-      clusters: %{}
+      clusters: %{},
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -468,11 +475,8 @@ defmodule Choreo.Dependency do
 
   Direction reads as "`from` depends on `to`".
 
-  > ### Limitation
-  > At most one edge is allowed per `(from, to)` pair.
-  > Adding a second dependency between the same components raises
-  > `ArgumentError`. Multigraph support (parallel edges) is planned
-  > for a future release.
+  Parallel edges are supported: the same `(from, to)` pair can be added
+  multiple times with different `:type` values (e.g. `:uses` and `:dev`).
 
   ## Options
 
@@ -519,6 +523,16 @@ defmodule Choreo.Dependency do
     opts = NimbleOptions.validate!(opts, @depends_on_schema)
     type = Keyword.get(opts, :type, :uses)
     label = opts[:label] || type_to_label(type)
+
+    if deps.strict and not Map.has_key?(deps.graph.nodes, from) do
+      raise ArgumentError,
+            "Source node #{inspect(from)} does not exist (strict mode is enabled)"
+    end
+
+    if deps.strict and not Map.has_key?(deps.graph.nodes, to) do
+      raise ArgumentError,
+            "Target node #{inspect(to)} does not exist (strict mode is enabled)"
+    end
 
     deps =
       if Map.has_key?(deps.graph.nodes, from) do
@@ -580,7 +594,7 @@ defmodule Choreo.Dependency do
       iex> Choreo.Dependency.edges(deps)
       [{:api, :auth, 1}]
   """
-  @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), any()}]
+  @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), integer()}]
   def edges(%__MODULE__{graph: graph}) do
     Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
       {from, to, weight}

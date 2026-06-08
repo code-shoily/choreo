@@ -1,22 +1,21 @@
 # Choreo Dependency: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
+# For Hex publication/readers:
+# Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
+
+# For local development:
 Mix.install([
-  # {:choreo, "~> 0.9"},
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
 
-### Section
-
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
 ---
 
-### What is Choreo.Dependency?
+## What is Choreo.Dependency?
 
 `Choreo.Dependency` maps software component relationships — applications, libraries, modules, interfaces, and tests — to help you visualise coupling, detect cycles, enforce architectural layers, and measure instability.
 
@@ -28,7 +27,7 @@ Unlike static dependency graphs drawn by hand, Choreo dependency graphs are **an
 * "Which components are the most coupled?"
 * "What's the deepest dependency chain?"
 
-#### Node Types
+### Node Types
 
 | Type          | Shape            | Purpose                    |
 | ------------- | ---------------- | -------------------------- |
@@ -38,7 +37,7 @@ Unlike static dependency graphs drawn by hand, Choreo dependency graphs are **an
 | `interface`   | 💎 diamond     | API, contract, or protocol |
 | `test`        | 📝 note        | Test suite or spec         |
 
-#### Edge Types
+### Edge Types
 
 | Type        | Style       | Meaning                      |
 | ----------- | ----------- | ---------------------------- |
@@ -64,24 +63,18 @@ legend =
   |> Dependency.depends_on(:mod, :iface, type: :inherits)
   |> Dependency.depends_on(:test, :app, type: :dev)
 
-Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")
-```
+tabs = [
+  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")},
+  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(legend))},
+  {"Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))}
+]
 
-By default, renders to a styled Mermaid flowchart:
-
-```elixir
-Kino.Mermaid.new(Dependency.to_mermaid(legend))
-```
-
-Alternatively, render to a native Mermaid Class Diagram:
-
-```elixir
-Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))
+Kino.Layout.tabs(tabs)
 ```
 
 ---
 
-### Example 1: Simple Microservice Dependencies
+## Example 1: Simple Microservice Dependencies
 
 A classic three-service architecture: API Gateway, Auth Service, and User Service. Each depends on shared libraries and infrastructure.
 
@@ -112,8 +105,12 @@ microservices =
   |> Dependency.depends_on(:api_tests, :api_gateway, type: :dev)
   |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
 
-Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")
-Kino.Mermaid.new(Dependency.to_mermaid(microservices))
+tabs = [
+  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")},
+  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(microservices))}
+]
+
+Kino.Layout.tabs(tabs)
 ```
 
 ### Impact Analysis
@@ -136,7 +133,7 @@ Analysis.depends_on(microservices, :api_gateway)
 
 ---
 
-### Example 2: Layered Architecture with Violations
+## Example 2: Layered Architecture with Violations
 
 A well-designed system has layers: Repository (data access) → Service (business logic) → API (HTTP handlers). But during refactoring, layers can get crossed.
 
@@ -204,7 +201,7 @@ Removing redundant edges simplifies the diagram without losing information.
 
 ---
 
-### Example 3: Circular Dependencies
+## Example 3: Circular Dependencies
 
 The most dangerous pattern in dependency graphs. Let's model a messy codebase and find the cycles.
 
@@ -253,18 +250,31 @@ end)
 
 ### Isolated Subsystems
 
-Which components are completely disconnected from each other?
+Build a graph with multiple disconnected groups to see `isolated_subsystems/1` in action:
 
 ```elixir
-Analysis.isolated_subsystems(messy)
+subsystems_graph =
+  Dependency.new()
+  # Group A: e-commerce
+  |> Dependency.add_module(:cart)
+  |> Dependency.add_module(:checkout)
+  |> Dependency.depends_on(:cart, :checkout)
+  # Group B: analytics
+  |> Dependency.add_module(:tracker)
+  |> Dependency.add_module(:reporter)
+  |> Dependency.depends_on(:tracker, :reporter)
+  # Group C: orphan
+  |> Dependency.add_module(:legacy_parser)
+
+Analysis.isolated_subsystems(subsystems_graph)
 |> Enum.each(fn component ->
-  IO.puts("Subsystem: #{Enum.join(component, ", ")}")
+  IO.puts("Subsystem: #{Enum.join(Enum.sort(component), ", ")}")
 end)
 ```
 
 ---
 
-### Example 4: Instability Metrics
+## Example 4: Instability Metrics
 
 Robert C. Martin's instability metric measures how likely a component is to change. A component with many outgoing dependencies (efferent) and few incoming (afferent) is unstable — it depends on the world but the world doesn't depend on it.
 
@@ -321,7 +331,7 @@ IO.inspect(Analysis.roots(metrics), label: "Components with no dependencies (fou
 
 ---
 
-### Example 5: Longest Dependency Chain
+## Example 5: Longest Dependency Chain
 
 Long dependency chains slow down builds, tests, and deployments. Let's find the longest one.
 
@@ -359,21 +369,22 @@ end
 
 ---
 
-### Example 6: Fixing a Broken Pipeline
+## Example 6: Dependency Inversion in Practice
 
-Start with a graph that has structural issues and use analysis as a checklist.
+The [Dependency Inversion Principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle) states that high-level modules should not depend on low-level modules; both should depend on abstractions. Start with a graph that violates this principle and use analysis to guide the refactor.
 
 ```elixir
 broken =
   Dependency.new()
-  |> Dependency.add_module(:a, label: "Module A")
-  |> Dependency.add_module(:b, label: "Module B")
-  |> Dependency.add_module(:c, label: "Module C")
+  |> Dependency.add_module(:report_generator, label: "Report Generator")
+  |> Dependency.add_module(:pdf_exporter, label: "PDF Exporter")
+  |> Dependency.add_module(:email_sender, label: "Email Sender")
   |> Dependency.add_module(:orphan, label: "Orphan")
-  |> Dependency.depends_on(:a, :b, type: :calls)
-  |> Dependency.depends_on(:b, :c, type: :calls)
-  |> Dependency.depends_on(:c, :a, type: :imports)
-  # orphan has no edges
+  # High-level Report Generator directly depends on low-level implementations
+  |> Dependency.depends_on(:report_generator, :pdf_exporter, type: :calls)
+  |> Dependency.depends_on(:report_generator, :email_sender, type: :calls)
+  # Circular: pdf_exporter calls back up to report_generator
+  |> Dependency.depends_on(:pdf_exporter, :report_generator, type: :calls)
 
 Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo")
 ```
@@ -390,28 +401,29 @@ end)
 
 ### The Fix
 
-Break the cycle by introducing an interface:
+Apply Dependency Inversion: introduce an interface so both high- and low-level modules depend on an abstraction instead of on each other.
 
 ```elixir
 fixed =
   Dependency.new()
-  |> Dependency.add_module(:a, label: "Module A")
-  |> Dependency.add_module(:b, label: "Module B")
-  |> Dependency.add_module(:c, label: "Module C")
-  |> Dependency.add_interface(:contract, label: "Contract")
-  |> Dependency.depends_on(:a, :b, type: :calls)
-  |> Dependency.depends_on(:b, :c, type: :calls)
-  |> Dependency.depends_on(:c, :contract, type: :inherits)
-  |> Dependency.depends_on(:a, :contract, type: :inherits)
+  |> Dependency.add_module(:report_generator, label: "Report Generator")
+  |> Dependency.add_module(:pdf_exporter, label: "PDF Exporter")
+  |> Dependency.add_module(:email_sender, label: "Email Sender")
+  |> Dependency.add_interface(:exportable, label: "Exportable")
+  # High-level module depends on the abstraction
+  |> Dependency.depends_on(:report_generator, :exportable, type: :inherits)
+  # Low-level modules implement the abstraction
+  |> Dependency.depends_on(:pdf_exporter, :exportable, type: :inherits)
+  |> Dependency.depends_on(:email_sender, :exportable, type: :inherits)
 
-IO.puts("After fixing:")
+IO.puts("After applying DIP:")
 Analysis.validate(fixed) |> IO.inspect()
 Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px")
 ```
 
 ---
 
-### Example 7: Custom Theming
+## Example 7: Custom Theming
 
 Build a theme that matches your organisation's brand colours.
 
@@ -435,7 +447,7 @@ Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: 
 
 ---
 
-### Example 8: Parallel Dependencies
+## Example 8: Parallel Dependencies
 
 A component can depend on another for multiple distinct reasons (e.g., both an explicit `:uses` runtime dependency and a `:dev` testing harness mock).
 
@@ -453,7 +465,7 @@ Kino.VizJS.render(Dependency.to_dot(parallel_deps))
 
 ---
 
-### Example 9: Zooming and Architectural Views
+## Example 9: Zooming and Architectural Views
 
 When dealing with large systems, displaying every module and interface can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
 
@@ -483,27 +495,28 @@ system =
   |> Dependency.depends_on(:auth_test, :auth, type: :dev)
 ```
 
-#### Zoom out to Level 0 (System Context: Applications only)
+Compare all zoom levels side-by-side:
 
 ```elixir
-system_view = View.zoom(system, level: 0)
+for level <- 0..4 do
+  view = View.zoom(system, level: level)
 
-IO.puts("Zoom Level 0 (System Context)")
-Kino.VizJS.render(Dependency.to_dot(system_view), height: "200px")
-Kino.Mermaid.new(Dependency.to_mermaid(system_view))
+  label =
+    case level do
+      0 -> "Level 0 — System Context"
+      1 -> "Level 1 — Containers"
+      2 -> "Level 2 — Components"
+      3 -> "Level 3 — Interfaces"
+      _ -> "Level 4+ — Everything"
+    end
+
+  IO.puts("\n#{label}")
+  IO.inspect(Dependency.nodes(view))
+  Kino.VizJS.render(Dependency.to_dot(view), height: "200px")
+end
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
-
-#### Zoom in to Level 2 (Component Level: Apps, Libs, Modules)
-
-```elixir
-component_view = View.zoom(system, level: 2)
-
-IO.puts("Zoom Level 2 (Component Level)")
-Kino.VizJS.render(Dependency.to_dot(component_view), height: "400px")
-Kino.Mermaid.new(Dependency.to_mermaid(component_view))
-```
 
 ---
 

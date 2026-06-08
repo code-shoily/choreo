@@ -57,6 +57,19 @@ defmodule Choreo.Dependency.AnalysisTest do
     test "returns empty for empty graph" do
       assert Analysis.cyclic_dependencies(Dependency.new()) == []
     end
+
+    test "start node is deterministic" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:z)
+        |> Dependency.add_module(:a)
+        |> Dependency.depends_on(:z, :a)
+        |> Dependency.depends_on(:a, :z)
+
+      [cycle] = Analysis.cyclic_dependencies(deps)
+      # Canonical start is the alphabetically first node in the SCC
+      assert hd(cycle) == :a
+    end
   end
 
   describe "affected_by/2" do
@@ -155,6 +168,17 @@ defmodule Choreo.Dependency.AnalysisTest do
         |> Dependency.add_module(:c)
         |> Dependency.depends_on(:a, :b)
         |> Dependency.depends_on(:b, :c)
+
+      assert Analysis.transitive_reduction(deps) == []
+    end
+
+    test "returns empty for cyclic graphs" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.depends_on(:a, :b)
+        |> Dependency.depends_on(:b, :a)
 
       assert Analysis.transitive_reduction(deps) == []
     end

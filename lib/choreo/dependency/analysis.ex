@@ -57,7 +57,8 @@ defmodule Choreo.Dependency.Analysis do
     sccs
     |> Enum.filter(fn component -> length(component) > 1 end)
     |> Enum.map(fn component ->
-      start = hd(component)
+      # Pick a canonical start node so cycle order is deterministic
+      start = component |> Enum.sort() |> hd()
       find_cycle(simple_graph, start, start, MapSet.new([start]), [start])
     end)
     |> Enum.reject(&is_nil/1)
@@ -92,6 +93,7 @@ defmodule Choreo.Dependency.Analysis do
     Choreo.Internal.bfs_reachable(transposed, [target])
     |> MapSet.to_list()
     |> List.delete(target)
+    |> Enum.sort()
   end
 
   @doc """
@@ -122,6 +124,7 @@ defmodule Choreo.Dependency.Analysis do
     Choreo.Internal.bfs_reachable(simple_graph, [target])
     |> MapSet.to_list()
     |> List.delete(target)
+    |> Enum.sort()
   end
 
   @doc """
@@ -224,7 +227,13 @@ defmodule Choreo.Dependency.Analysis do
   @doc """
   Returns nodes with no dependents (nothing depends on them).
 
-  These are safe to change or delete without breaking other components.
+  These are "source" nodes in the dependency graph — safe to change or
+  delete without breaking other components.
+
+  > ### Naming note
+  > In dependency-graph terminology a *leaf* is a node at the top of the
+  > stack (nothing depends on it). This is the inverse of tree terminology
+  > where a leaf is at the bottom.
 
   ## Examples
 
@@ -252,7 +261,13 @@ defmodule Choreo.Dependency.Analysis do
   @doc """
   Returns nodes with no dependencies (foundational components).
 
-  These are the bottom of the dependency stack.
+  These are the bottom of the dependency stack — nodes that nothing else
+  depends on and that have no outgoing edges.
+
+  > ### Naming note
+  > In dependency-graph terminology a *root* is a node at the bottom of the
+  > stack (depends on nothing). This is the inverse of tree terminology
+  > where a root is at the top.
 
   ## Examples
 
@@ -284,6 +299,11 @@ defmodule Choreo.Dependency.Analysis do
   edge A -> C is often redundant. This returns a list of `{from, to}`
   tuples representing these redundant edges.
 
+  > ### Limitation
+  > This algorithm assumes a directed acyclic graph. On cyclic graphs it
+  > returns an empty list because every edge in a strongly connected
+  > component is part of a cycle and therefore not transitively redundant.
+
   ## Examples
 
       iex> deps = Choreo.Dependency.new()
@@ -302,28 +322,34 @@ defmodule Choreo.Dependency.Analysis do
   @spec transitive_reduction(Dependency.t()) :: [{Yog.node_id(), Yog.node_id()}]
   def transitive_reduction(%Dependency{} = deps) do
     simple_graph = Dependency.to_simple_graph(deps)
-    edges = Yog.all_edges(simple_graph)
 
-    Enum.reduce(edges, [], fn {u, v, _weight}, redundant ->
-      # If we remove the direct edge u -> v, can we still reach v from u?
-      # We check this by seeing if v is reachable from any OTHER successor of u.
-      other_successors =
-        simple_graph
-        |> Yog.successor_ids(u)
-        |> List.delete(v)
+    # Algorithm only valid on DAGs
+    if Yog.cyclic?(simple_graph) do
+      []
+    else
+      edges = Yog.all_edges(simple_graph)
 
-      if other_successors == [] do
-        redundant
-      else
-        reachable = Choreo.Internal.bfs_reachable(simple_graph, other_successors)
+      Enum.reduce(edges, [], fn {u, v, _weight}, redundant ->
+        # If we remove the direct edge u -> v, can we still reach v from u?
+        # We check this by seeing if v is reachable from any OTHER successor of u.
+        other_successors =
+          simple_graph
+          |> Yog.successor_ids(u)
+          |> List.delete(v)
 
-        if MapSet.member?(reachable, v) do
-          [{u, v} | redundant]
-        else
+        if other_successors == [] do
           redundant
+        else
+          reachable = Choreo.Internal.bfs_reachable(simple_graph, other_successors)
+
+          if MapSet.member?(reachable, v) do
+            [{u, v} | redundant]
+          else
+            redundant
+          end
         end
-      end
-    end)
+      end)
+    end
   end
 
   @doc """
@@ -333,6 +359,11 @@ defmodule Choreo.Dependency.Analysis do
   Returns a map of `node_id => instability_score`.
   A score of 0.0 means the component is maximally stable.
   A score of 1.0 means the component is maximally unstable.
+
+  > ### Note on parallel edges
+  > This analysis collapses parallel edges into a single edge before
+  > computing degrees, so multiple edges of different types between the
+  > same pair of nodes count as one dependency.
 
   ## Examples
 
@@ -472,6 +503,9 @@ defmodule Choreo.Dependency.Analysis do
     * circular dependencies
     * orphaned nodes (no edges at all)
 
+  Layer violations are *not* checked by `validate/1`; use
+  `layer_violations/2` with an explicit layer map for that.
+
   Returns a list of `{severity, message}` tuples.
 
   ## Examples
@@ -506,11 +540,6 @@ defmodule Choreo.Dependency.Analysis do
   # ============================================================================
   # Private helpers
   # ============================================================================
-
-  defp find_cycle(_graph, _start, _current, _visited, path) when length(path) > 50 do
-    # Safety guard against runaway DFS
-    nil
-  end
 
   defp find_cycle(graph, start, current, visited, path) do
     successors =

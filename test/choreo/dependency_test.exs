@@ -13,6 +13,11 @@ defmodule Choreo.DependencyTest do
       assert Dependency.nodes(deps) == []
       assert Dependency.edges(deps) == []
     end
+
+    test "accepts strict mode" do
+      deps = Dependency.new(strict: true)
+      assert deps.strict == true
+    end
   end
 
   describe "node builders" do
@@ -103,6 +108,20 @@ defmodule Choreo.DependencyTest do
       assert :auth in Dependency.nodes(deps)
       assert Map.get(deps.graph.nodes, :api).node_type == :module
       assert Map.get(deps.graph.nodes, :auth).node_type == :module
+    end
+
+    test "raises in strict mode when nodes are missing" do
+      deps = Dependency.new(strict: true)
+
+      assert_raise ArgumentError, ~r/Source node :api does not exist/, fn ->
+        Dependency.depends_on(deps, :api, :auth)
+      end
+
+      deps = Dependency.add_module(deps, :api)
+
+      assert_raise ArgumentError, ~r/Target node :auth does not exist/, fn ->
+        Dependency.depends_on(deps, :api, :auth)
+      end
     end
 
     test "renders node IDs containing spaces or special characters without syntax errors" do
