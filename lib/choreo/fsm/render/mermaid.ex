@@ -68,7 +68,12 @@ defmodule Choreo.FSM.Render.Mermaid do
           |> Map.put(:node_label, fn _id, data ->
             if data[:label] == "", do: " ", else: data[:label] || ""
           end)
-          |> Map.put(:edge_label, fn _edge_id, weight -> weight || "" end)
+          |> Map.put(:edge_label, fn _edge_id, weight ->
+            case weight || "" do
+              "" -> ""
+              label -> "\"#{String.replace(label, "\"", "\\\"")}\""
+            end
+          end)
           |> Map.put(:node_shape, :circle)
           |> Map.put(:node_attributes, node_attributes_fn(theme, fsm, hl_nodes))
           |> Map.put(:edge_attributes, edge_attributes_fn(theme, hl_edges))
