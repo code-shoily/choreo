@@ -1,14 +1,15 @@
 # Choreo ThreatModel: Comprehensive Walkthrough
 
 ```elixir
+# For Hex publication/readers:
+# Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
+
+# For local development:
 Mix.install([
-  # {:choreo, "~> 0.9"},
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
-
-## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
@@ -71,11 +72,12 @@ web_app =
     label: "SQL query"
   )
 
-Kino.VizJS.render(ThreatModel.to_dot(web_app))
-```
+tabs = [
+  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(web_app))},
+  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(web_app))}
+]
 
-```elixir
-Kino.Mermaid.new(ThreatModel.to_mermaid(web_app))
+Kino.Layout.tabs(tabs)
 ```
 
 Notice the color coding:
@@ -166,11 +168,12 @@ microservices =
   |> ThreatModel.data_flow(:order_service, :redis_cache, label: "Redis protocol")
   |> ThreatModel.data_flow(:payment_webhook, :order_service, label: "Event bus")
 
-Kino.VizJS.render(ThreatModel.to_dot(microservices))
-```
+tabs = [
+  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(microservices))},
+  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(microservices))}
+]
 
-```elixir
-Kino.Mermaid.new(ThreatModel.to_mermaid(microservices))
+Kino.Layout.tabs(tabs)
 ```
 
 ### Cross-Boundary Analysis
@@ -256,18 +259,22 @@ defmodule GDPRRule do
   end
 
   @impl true
-  def threats_for_flow(_model, from, to) do
-    # Every cross-boundary flow with personal data needs a DPA
-    [
-      %{
-        id: "GDPR-FLOW-#{from}-#{to}",
-        category: :compliance,
-        target: {from, to},
-        description: "Data flow #{from} → #{to} may require Data Processing Agreement.",
-        severity: :medium,
-        mitigation: "Review DPA coverage and SCCs for third-party processors."
-      }
-    ]
+  def threats_for_flow(_model, from, to, meta) do
+    # Cross-boundary flows with personal data that are unencrypted need DPA review
+    if meta[:encrypted] do
+      []
+    else
+      [
+        %{
+          id: "GDPR-FLOW-#{from}-#{to}",
+          category: :compliance,
+          target: {from, to},
+          description: "Unencrypted data flow #{from} → #{to} may require Data Processing Agreement.",
+          severity: :high,
+          mitigation: "Review DPA coverage and SCCs for third-party processors."
+        }
+      ]
+    end
   end
 end
 ```
@@ -312,26 +319,20 @@ Kino.VizJS.render(ThreatModel.to_dot(saas))
 
 ---
 
-## Generating Sequence Diagrams
+## Example 4: Sequence Diagrams
 
-While Data Flow Diagrams illustrate security boundaries, Sequence Diagrams visualize interactions chronologically. `Choreo` enables automatic sequence extraction in both **PlantUML** and **Mermaid.js** formats.
-
-### PlantUML format
+While Data Flow Diagrams illustrate security boundaries, Sequence Diagrams visualize interactions chronologically. Choreo supports both **Mermaid.js** and **PlantUML** formats.
 
 ```elixir
-alias Choreo.ThreatModel.Render.PlantUML
+tabs = [
+  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_sequence(microservices))},
+  {"PlantUML", Kino.Markdown.new("```plantuml\n#{ThreatModel.to_plantuml(microservices)}\n```")}
+]
 
-plantuml_string = PlantUML.to_sequence(microservices)
-IO.puts(plantuml_string)
+Kino.Layout.tabs(tabs)
 ```
 
-### Mermaid.js format (natively rendered in Livebook)
-
-<!-- livebook:{"output_size":"wide"} -->
-
-```elixir
-Kino.Mermaid.new(Choreo.ThreatModel.Render.Mermaid.to_sequence(microservices))
-```
+You can copy these payloads directly into [PlantText](https://www.planttext.com/), Mermaid Live Editor, or your Confluence macro blocks securely.
 
 ---
 
@@ -409,28 +410,12 @@ Kino.VizJS.render(ThreatModel.to_dot(hardened))
 ### Dark theme for presentations
 
 ```elixir
-Kino.VizJS.render(ThreatModel.to_dot(microservices))
+Kino.VizJS.render(ThreatModel.to_dot(microservices, theme: :dark))
 ```
-
-### Export to PlantUML / Mermaid
-
-To generate Sequence Diagrams in PlantUML or Mermaid.js format, use the dedicated sequence renderers:
-
-```elixir
-# PlantUML
-plantuml = Choreo.ThreatModel.Render.PlantUML.to_sequence(microservices)
-IO.puts(plantuml)
-
-# Mermaid
-mermaid_seq = Choreo.ThreatModel.Render.Mermaid.to_sequence(microservices)
-IO.puts(mermaid_seq)
-```
-
-You can copy these payloads directly into [PlantText](https://www.planttext.com/), Mermaid Live Editor, or your Confluence macro blocks securely.
 
 ---
 
-## Example 4: Multigraph (Parallel Data Flows)
+## Example 5: Multigraph (Parallel Data Flows)
 
 Sometimes multiple distinct data payloads cross boundaries between the same entities (e.g., an HTTPS request and a WebSocket notification channel).
 
@@ -454,15 +439,16 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 
 | Task                   | Function                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Model architecture     | `ThreatModel.new/0`, `add_trust_boundary/3`, `add_external_entity/3`, `add_process/3`, `add_data_store/3`, `data_flow/4` |
+| Model architecture     | `ThreatModel.new/1`, `add_trust_boundary/3`, `add_external_entity/3`, `add_process/3`, `add_data_store/3`, `data_flow/4` |
 | Auto-generate threats  | `Analysis.stride_threats/2`                                                                                              |
 | Custom rules           | Implement `Analysis.Rule` behaviour, pass via `rules: [MyRule]`                                                          |
 | Find unencrypted flows | `Analysis.unencrypted_boundary_flows/1`                                                                                  |
 | Find exposed databases | `Analysis.exposed_data_stores/1`                                                                                         |
 | Find risky processes   | `Analysis.high_risk_processes/1`                                                                                         |
-| Attack paths           | `Analysis.attack_paths/1`                                                                                                |
+| Attack paths           | `Analysis.attack_paths/2`                                                                                                |
 | Validate model         | `Analysis.validate/1`                                                                                                    |
 | Summarise threats      | `Analysis.threat_summary/1`                                                                                              |
-| Render                 | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`)                                                                     |
+| Render DFD             | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                      |
+| Render sequence        | `ThreatModel.to_sequence/2` (Mermaid), `ThreatModel.to_plantuml/2`                                                       |
 
 Threat modeling as code means your security review is version-controlled, diffable, and repeatable. Every pull request can include an updated threat model alongside the code changes.

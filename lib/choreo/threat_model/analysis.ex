@@ -30,8 +30,8 @@ defmodule Choreo.ThreatModel.Analysis do
     Extensible callback protocols for defining organizational custom threat metrics.
     """
     @callback threats_for_element(ThreatModel.t(), Yog.node_id(), map()) :: [map()]
-    @callback threats_for_flow(ThreatModel.t(), Yog.node_id(), Yog.node_id()) :: [map()]
-    @optional_callbacks threats_for_element: 3, threats_for_flow: 3
+    @callback threats_for_flow(ThreatModel.t(), Yog.node_id(), Yog.node_id(), map()) :: [map()]
+    @optional_callbacks threats_for_element: 3, threats_for_flow: 4
   end
 
   @doc """
@@ -47,6 +47,16 @@ defmodule Choreo.ThreatModel.Analysis do
         severity: :low | :medium | :high | :critical,
         mitigation: String.t()
       }
+
+  ## Options
+
+    * `:rules` — list of modules implementing `Choreo.ThreatModel.Analysis.Rule`
+
+  > ### ID ordering
+  > Threat IDs (`T1`, `T2`, ...) are assigned in element-iteration order
+  > followed by flow-iteration order. Custom rule threats that already have
+  > an `:id` field keep their original ID; only auto-generated threats are
+  > numbered.
 
   ## Examples
 
@@ -101,12 +111,12 @@ defmodule Choreo.ThreatModel.Analysis do
       model
       |> ThreatModel.edges_with_meta()
       |> Enum.flat_map(fn {from, to, _label, meta} ->
-        base = threats_for_flow(model, from, to, meta)
+        base = default_threats_for_flow(model, from, to, meta)
 
         custom =
           Enum.flat_map(custom_rules, fn rule ->
-            if function_exported?(rule, :threats_for_flow, 3) do
-              rule.threats_for_flow(model, from, to)
+            if function_exported?(rule, :threats_for_flow, 4) do
+              rule.threats_for_flow(model, from, to, meta)
             else
               []
             end
@@ -117,7 +127,7 @@ defmodule Choreo.ThreatModel.Analysis do
 
     (element_threats ++ flow_threats)
     |> Enum.with_index(1)
-    |> Enum.map(fn {threat, idx} -> Map.put(threat, :id, "T#{idx}") end)
+    |> Enum.map(fn {threat, idx} -> Map.put_new(threat, :id, "T#{idx}") end)
   end
 
   @doc """
@@ -182,6 +192,9 @@ defmodule Choreo.ThreatModel.Analysis do
 
   ## Severity Weights (Default)
 
+  The default weights ratchet up sharply (1 → 3 → 6 → 10). This maps roughly to
+  qualitative severity ramps but is not directly equivalent to CVSS scoring.
+
     * `:low` — 1
     * `:medium` — 3
     * `:high` — 6
@@ -214,11 +227,12 @@ defmodule Choreo.ThreatModel.Analysis do
   """
   @spec risk_score(ThreatModel.t(), keyword()) :: %{score: number(), rating: atom()}
   def risk_score(%ThreatModel{} = model, opts \\ []) do
-    weights = Keyword.get(opts, :weights, low: 1, medium: 3, high: 6, critical: 10)
-    low_w = Keyword.get(weights, :low, 1)
-    medium_w = Keyword.get(weights, :medium, 3)
-    high_w = Keyword.get(weights, :high, 6)
-    critical_w = Keyword.get(weights, :critical, 10)
+    defaults = [low: 1, medium: 3, high: 6, critical: 10]
+    weights = Keyword.merge(defaults, Keyword.get(opts, :weights, []))
+    low_w = weights[:low]
+    medium_w = weights[:medium]
+    high_w = weights[:high]
+    critical_w = weights[:critical]
 
     threats = stride_threats(model)
 
@@ -326,6 +340,15 @@ defmodule Choreo.ThreatModel.Analysis do
   internet to data at rest. These are the attack vectors that an
   adversary would follow.
 
+  > ### Complexity warning
+  > This function enumerates every simple path from each external entity
+  > to each data store. On dense graphs the number of paths grows
+  > exponentially. Use `:max_paths` to cap output for large models.
+
+  ## Options
+
+    * `:max_paths` — maximum number of paths to return (default: unlimited)
+
   ## Examples
 
       iex> model = Choreo.ThreatModel.new()
@@ -341,16 +364,20 @@ defmodule Choreo.ThreatModel.Analysis do
 
   This analysis answers the question: "What are the attack vectors from outside to data at rest?"
   """
-  @spec attack_paths(ThreatModel.t()) :: [[Yog.node_id()]]
-  def attack_paths(%ThreatModel{} = model) do
+  @spec attack_paths(ThreatModel.t(), keyword()) :: [[Yog.node_id()]]
+  def attack_paths(%ThreatModel{} = model, opts \\ []) do
+    max_paths = Keyword.get(opts, :max_paths, nil)
     externals = ThreatModel.elements_of_type(model, :external_entity)
     stores = ThreatModel.elements_of_type(model, :data_store) |> MapSet.new()
     simple_graph = ThreatModel.to_simple_graph(model)
 
-    externals
-    |> Enum.flat_map(fn ext ->
-      dfs_all_paths(simple_graph, ext, stores, [ext], MapSet.new([ext]))
-    end)
+    paths =
+      externals
+      |> Enum.flat_map(fn ext ->
+        dfs_all_paths(simple_graph, ext, stores, [ext], MapSet.new([ext]))
+      end)
+
+    if max_paths, do: Enum.take(paths, max_paths), else: paths
   end
 
   @doc """
@@ -436,6 +463,11 @@ defmodule Choreo.ThreatModel.Analysis do
     * processes without privilege level
     * data stores without sensitivity classification
 
+  Does *not* currently check:
+    * external entities with incoming flows from internal processes
+    * data stores in low-trust boundaries with high sensitivity
+    * trust boundaries without a `:level`
+
   ## Examples
 
       iex> model = Choreo.ThreatModel.new()
@@ -481,7 +513,8 @@ defmodule Choreo.ThreatModel.Analysis do
         _ -> []
       end
 
-    # Elevate severity for elements in low-trust boundaries
+    # Elevate severity for elements in low-trust boundaries.
+    # Note: boundaries without an explicit :level never trigger elevation.
     if boundary != nil and level != nil and level <= 1 do
       Enum.map(base, &elevate_severity/1)
     else
@@ -612,7 +645,7 @@ defmodule Choreo.ThreatModel.Analysis do
     ]
   end
 
-  defp threats_for_flow(model, from, to, meta) do
+  defp default_threats_for_flow(model, from, to, meta) do
     crosses = ThreatModel.crosses_boundary?(model, from, to)
     encrypted = meta[:encrypted] == true
 
@@ -766,6 +799,12 @@ defmodule Choreo.ThreatModel.Analysis do
 
   Nodes with more threats will be colored with "hotter" colors from the
   selected palette.
+
+  > ### Note on flow threats
+  > Flow-level threats (targeting `{from, to}` tuples) are not counted
+  > toward node heat since they apply to edges, not nodes. A node with
+  > zero element-level threats but many high-severity flow threats may
+  > appear cold in the heatmap.
 
   ## Options
     * `:palette` — Color palette (`:heat`, `:cool`, `:spectral`)

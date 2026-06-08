@@ -113,6 +113,45 @@ defmodule Choreo.ThreatModel.AnalysisTest do
       assert length(ids) == length(Enum.uniq(ids))
       assert Enum.all?(ids, &String.starts_with?(&1, "T"))
     end
+
+    test "preserves custom rule IDs" do
+      defmodule IdPreservingRule do
+        @behaviour Analysis.Rule
+        @impl true
+        def threats_for_element(_, id, _) do
+          [
+            %{
+              id: "CUSTOM-#{id}",
+              category: :custom,
+              target: id,
+              description: "x",
+              severity: :low,
+              mitigation: "y"
+            }
+          ]
+        end
+
+        @impl true
+        def threats_for_flow(_, from, to, _) do
+          [
+            %{
+              id: "FLOW-#{from}-#{to}",
+              category: :custom,
+              target: {from, to},
+              description: "x",
+              severity: :low,
+              mitigation: "y"
+            }
+          ]
+        end
+      end
+
+      threats = Analysis.stride_threats(simple_model(), rules: [IdPreservingRule])
+      custom = Enum.filter(threats, &(&1.category == :custom))
+
+      assert Enum.any?(custom, &(&1.id == "CUSTOM-user"))
+      assert Enum.any?(custom, &(&1.id == "FLOW-user-api"))
+    end
   end
 
   describe "cross_boundary_flows/1" do
@@ -246,6 +285,15 @@ defmodule Choreo.ThreatModel.AnalysisTest do
 
       assert Analysis.attack_paths(model) == []
     end
+
+    test "respects max_paths option" do
+      model = simple_model()
+      all = Analysis.attack_paths(model)
+      capped = Analysis.attack_paths(model, max_paths: 1)
+
+      assert length(capped) == 1
+      assert hd(capped) in all
+    end
   end
 
   describe "threat_summary/1" do
@@ -315,7 +363,7 @@ defmodule Choreo.ThreatModel.AnalysisTest do
       end
 
       @impl true
-      def threats_for_flow(_model, from, to) do
+      def threats_for_flow(_model, from, to, _meta) do
         [
           %{
             id: "CUSTOM-FLOW-#{from}-#{to}",
@@ -364,6 +412,45 @@ defmodule Choreo.ThreatModel.AnalysisTest do
       # Should not crash even though PartialRule lacks threats_for_flow
       threats = Analysis.stride_threats(simple_model(), rules: [PartialRule])
       assert [_ | _] = threats
+    end
+
+    test "passes flow metadata to custom rules" do
+      defmodule MetaAwareRule do
+        @behaviour Analysis.Rule
+        @impl true
+        def threats_for_element(_, _, _), do: []
+        @impl true
+        def threats_for_flow(_, from, to, meta) do
+          if meta[:encrypted] do
+            [
+              %{
+                id: "SAFE-#{from}-#{to}",
+                category: :custom,
+                target: {from, to},
+                description: "x",
+                severity: :low,
+                mitigation: "y"
+              }
+            ]
+          else
+            [
+              %{
+                id: "UNSAFE-#{from}-#{to}",
+                category: :custom,
+                target: {from, to},
+                description: "x",
+                severity: :high,
+                mitigation: "y"
+              }
+            ]
+          end
+        end
+      end
+
+      model = encrypted_model()
+      threats = Analysis.stride_threats(model, rules: [MetaAwareRule])
+
+      assert Enum.any?(threats, &(&1.id == "SAFE-user-api"))
     end
   end
 

@@ -14,6 +14,11 @@ defmodule Choreo.ThreatModelTest do
       assert ThreatModel.elements(model) == []
       assert ThreatModel.flows(model) == []
     end
+
+    test "accepts strict mode" do
+      model = ThreatModel.new(strict: true)
+      assert model.strict == true
+    end
   end
 
   describe "add_trust_boundary/3" do
@@ -117,13 +122,13 @@ defmodule Choreo.ThreatModelTest do
   end
 
   describe "boundary queries" do
-    test "boundary_of/2 returns boundary name" do
+    test "boundary_of/2 returns boundary name without cluster_ prefix" do
       model =
         ThreatModel.new()
         |> ThreatModel.add_trust_boundary("app")
         |> ThreatModel.add_process(:api, boundary: "app")
 
-      assert ThreatModel.boundary_of(model, :api) == "cluster_app"
+      assert ThreatModel.boundary_of(model, :api) == "app"
     end
 
     test "trust_level/2 returns numeric level" do
@@ -148,6 +153,17 @@ defmodule Choreo.ThreatModelTest do
 
       assert ThreatModel.crosses_boundary?(model, :user, :api)
       refute ThreatModel.crosses_boundary?(model, :api, :worker)
+    end
+
+    test "crosses_boundary?/3 returns false when one side has no boundary" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.add_process(:orphan)
+        |> ThreatModel.data_flow(:api, :orphan)
+
+      refute ThreatModel.crosses_boundary?(model, :api, :orphan)
     end
   end
 
@@ -367,6 +383,20 @@ defmodule Choreo.ThreatModelTest do
       assert Map.get(model.graph.nodes, :b).element_type == :process
     end
 
+    test "data_flow/4 raises in strict mode when elements are missing" do
+      model = ThreatModel.new(strict: true)
+
+      assert_raise ArgumentError, ~r/Source element :a does not exist/, fn ->
+        ThreatModel.data_flow(model, :a, :b)
+      end
+
+      model = ThreatModel.add_process(model, :a)
+
+      assert_raise ArgumentError, ~r/Target element :b does not exist/, fn ->
+        ThreatModel.data_flow(model, :a, :b)
+      end
+    end
+
     test "renderers handle element names with spaces and special characters" do
       model =
         ThreatModel.new()
@@ -389,7 +419,8 @@ defmodule Choreo.ThreatModelTest do
       seq = ThreatModel.to_sequence(model)
       assert String.contains?(seq, "actor my_user as my user")
       assert String.contains?(seq, "participant my_api_ as my-api!")
-      assert String.contains?(seq, "my_user-->my_api_: HTTPS")
+      # "my-api!" has no boundary, so crosses_boundary? returns false
+      assert String.contains?(seq, "my_user->>my_api_: HTTPS")
 
       # 4. PlantUML
       puml = Choreo.ThreatModel.Render.PlantUML.to_sequence(model)

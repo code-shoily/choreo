@@ -1,5 +1,7 @@
 # Choreo Dependency: Comprehensive Walkthrough
 
+## Section
+
 ```elixir
 # For Hex publication/readers:
 # Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])

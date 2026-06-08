@@ -90,10 +90,11 @@ defmodule Choreo.ThreatModel do
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
-          clusters: %{String.t() => map()}
+          clusters: %{String.t() => map()},
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, clusters: %{}
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}, strict: false
 
   @add_trust_boundary_schema [
     label: [
@@ -200,6 +201,11 @@ defmodule Choreo.ThreatModel do
   @doc """
   Creates a new empty threat model.
 
+  ## Options
+
+    * `:strict` — if `true`, `data_flow/4` raises when an endpoint does not
+      already exist. Default `false` (auto-creates missing elements as `:process`).
+
   ## Examples
 
       iex> model = Choreo.ThreatModel.new()
@@ -208,12 +214,13 @@ defmodule Choreo.ThreatModel do
       iex> Choreo.ThreatModel.flows(model)
       []
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},
-      clusters: %{}
+      clusters: %{},
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -400,6 +407,16 @@ defmodule Choreo.ThreatModel do
     opts = NimbleOptions.validate!(opts, @data_flow_schema)
     label = opts[:label] || ""
 
+    if model.strict and not Map.has_key?(model.graph.nodes, from) do
+      raise ArgumentError,
+            "Source element #{inspect(from)} does not exist (strict mode is enabled)"
+    end
+
+    if model.strict and not Map.has_key?(model.graph.nodes, to) do
+      raise ArgumentError,
+            "Target element #{inspect(to)} does not exist (strict mode is enabled)"
+    end
+
     model =
       if Map.has_key?(model.graph.nodes, from) do
         model
@@ -512,6 +529,9 @@ defmodule Choreo.ThreatModel do
   @doc """
   Returns the trust boundary name for an element, or `nil`.
 
+  The internal `cluster_` prefix is stripped so the returned name matches
+  the name originally passed to `add_trust_boundary/3`.
+
   ## Examples
 
       iex> model = Choreo.ThreatModel.new()
@@ -519,13 +539,19 @@ defmodule Choreo.ThreatModel do
       ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
       ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
       iex> Choreo.ThreatModel.boundary_of(model, :api)
-      "cluster_app"
+      "app"
   """
   @spec boundary_of(t(), Yog.node_id()) :: String.t() | nil
   def boundary_of(%__MODULE__{graph: graph}, id) do
     case Map.fetch(graph.nodes, id) do
-      {:ok, data} -> data[:cluster]
-      :error -> nil
+      {:ok, data} ->
+        case data[:cluster] do
+          nil -> nil
+          name -> String.replace_prefix(name, "cluster_", "")
+        end
+
+      :error ->
+        nil
     end
   end
 
@@ -545,12 +571,15 @@ defmodule Choreo.ThreatModel do
   def trust_level(%__MODULE__{clusters: clusters} = model, id) do
     case boundary_of(model, id) do
       nil -> nil
-      name -> clusters[name][:level]
+      name -> Map.get(clusters, "cluster_#{name}", %{})[:level]
     end
   end
 
   @doc """
   Checks whether a data flow crosses a trust boundary.
+
+  Returns `false` if either element has no assigned boundary, since a
+  crossing requires both sides to be in defined security zones.
 
   ## Examples
 
@@ -605,7 +634,7 @@ defmodule Choreo.ThreatModel do
     from_boundary = boundary_of(model, from)
     to_boundary = boundary_of(model, to)
 
-    from_boundary != to_boundary
+    from_boundary != nil and to_boundary != nil and from_boundary != to_boundary
   end
 
   @doc """
@@ -705,6 +734,26 @@ defmodule Choreo.ThreatModel do
   end
 
   @doc """
+  Renders the data flows in a threat model to a PlantUML sequence diagram string.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      iex> model = Choreo.ThreatModel.add_external_entity(model, :user, label: "Customer")
+      iex> model = Choreo.ThreatModel.add_process(model, :web_api, label: "Web API")
+      iex> model = Choreo.ThreatModel.data_flow(model, :user, :web_api, label: "HTTPS login")
+      iex> puml = Choreo.ThreatModel.to_plantuml(model)
+      iex> String.contains?(puml, "@startuml")
+      true
+      iex> String.contains?(puml, "user -> web_api")
+      true
+  """
+  @spec to_plantuml(t(), keyword()) :: String.t()
+  def to_plantuml(%__MODULE__{} = model, _opts \\ []) do
+    Choreo.ThreatModel.Render.PlantUML.to_sequence(model)
+  end
+
+  @doc """
   Returns a theme for `Choreo.ThreatModel`.
 
   ## Examples
@@ -729,12 +778,25 @@ defmodule Choreo.ThreatModel do
       type: :threat_model_element,
       element_type: type,
       label: Keyword.get(rest_opts, :label, to_string(id)),
-      description: rest_opts[:description],
-      privilege: rest_opts[:privilege],
-      sensitivity: rest_opts[:sensitivity]
+      description: rest_opts[:description]
     }
 
-    # Merge arbitrary remaining options
+    # Only include type-specific fields when they have meaning
+    data =
+      case type do
+        :process ->
+          Map.put(data, :privilege, rest_opts[:privilege])
+
+        :data_store ->
+          data
+          |> Map.put(:sensitivity, rest_opts[:sensitivity])
+          |> Map.put(:retention, rest_opts[:retention])
+
+        _ ->
+          data
+      end
+
+    # Merge arbitrary remaining options (shape, fillcolor, etc.)
     data = Map.merge(Map.new(rest_opts), data)
 
     data =
