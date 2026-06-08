@@ -114,6 +114,63 @@ defmodule Choreo.FSMTest do
     end
   end
 
+  describe "remove_state" do
+    test "removes state from the graph" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.remove_state(:a)
+
+      refute :a in FSM.states(fsm)
+      assert :b in FSM.states(fsm)
+    end
+
+    test "removes all transitions involving the state" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_state(:c)
+        |> FSM.add_transition(:a, :b, label: "go")
+        |> FSM.add_transition(:b, :c, label: "next")
+        |> FSM.remove_state(:b)
+
+      assert FSM.transitions(fsm) == []
+    end
+
+    test "clears the initial state when removed" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.remove_state(:a)
+
+      assert FSM.initial_states(fsm) == MapSet.new()
+      assert :a not in FSM.states(fsm)
+    end
+
+    test "removes state from the final states set when removed" do
+      fsm =
+        FSM.new()
+        |> FSM.add_final_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.remove_state(:a)
+
+      assert FSM.final_states(fsm) == []
+      assert :a not in FSM.states(fsm)
+    end
+
+    test "is a no-op for a non-existent state" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+
+      fsm_after = FSM.remove_state(fsm, :nonexistent)
+      assert fsm_after == fsm
+    end
+  end
+
   describe "transitions" do
     test "add_transition/4 with label" do
       fsm =

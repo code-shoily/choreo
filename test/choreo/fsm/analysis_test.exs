@@ -321,6 +321,23 @@ defmodule Choreo.FSM.AnalysisTest do
 
       assert Analysis.nondeterministic_states(fsm) == []
     end
+
+    test "returns {state, label} pairs for states with duplicate outgoing labels" do
+      # The public add_transition/4 enforces determinism, so we inject a
+      # duplicate-label edge directly into the graph to test this analysis.
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_state(:c)
+
+      {graph, _eid1} = Yog.Multi.add_edge(fsm.graph, :a, :b, "x")
+      {graph, _eid2} = Yog.Multi.add_edge(graph, :a, :c, "x")
+      fsm = %{fsm | graph: graph}
+
+      result = Analysis.nondeterministic_states(fsm)
+      assert {:a, "x"} in result
+    end
   end
 
   describe "validate/1" do

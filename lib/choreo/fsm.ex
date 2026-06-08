@@ -216,11 +216,19 @@ defmodule Choreo.FSM do
         put_in(fsm.meta.final_states, MapSet.put(fsm.meta.final_states, id))
 
       :normal ->
+        # NOTE: both pipe steps use `acc` so mutations from the first step
+        # are not lost when the second step runs.
         fsm
         |> then(fn acc ->
           if acc.meta.initial_state == id, do: put_in(acc.meta.initial_state, nil), else: acc
         end)
-        |> put_in([Access.key!(:meta), :final_states], MapSet.delete(fsm.meta.final_states, id))
+        |> then(fn acc ->
+          put_in(
+            acc,
+            [Access.key!(:meta), :final_states],
+            MapSet.delete(acc.meta.final_states, id)
+          )
+        end)
 
       nil ->
         fsm
@@ -337,6 +345,48 @@ defmodule Choreo.FSM do
   @spec remove_final_state(t(), Yog.node_id()) :: t()
   def remove_final_state(%__MODULE__{} = fsm, id) do
     put_in(fsm.meta.final_states, MapSet.delete(fsm.meta.final_states, id))
+  end
+
+  @doc """
+  Fully removes a state and all transitions involving it from the FSM.
+
+  If the state was the initial state, the initial state is cleared.
+  If the state was a final state, it is removed from the final states set.
+  If the state does not exist, the FSM is returned unchanged.
+
+  ## Examples
+
+      iex> fsm =
+      ...>   Choreo.FSM.new()
+      ...>   |> Choreo.FSM.add_state(:a)
+      ...>   |> Choreo.FSM.add_state(:b)
+      ...>   |> Choreo.FSM.remove_state(:a)
+      iex> :a in Choreo.FSM.states(fsm)
+      false
+      iex> :b in Choreo.FSM.states(fsm)
+      true
+  """
+  @spec remove_state(t(), Yog.node_id()) :: t()
+  def remove_state(%__MODULE__{} = fsm, id) do
+    if Map.has_key?(fsm.graph.nodes, id) do
+      removed_edge_ids =
+        fsm.graph.edges
+        |> Enum.filter(fn {_eid, {from, to, _data}} -> from == id or to == id end)
+        |> Enum.map(fn {eid, _} -> eid end)
+
+      new_graph = Yog.Multi.remove_node(fsm.graph, id)
+      new_edge_meta = Map.drop(fsm.edge_meta, removed_edge_ids)
+
+      new_meta = %{
+        fsm.meta
+        | initial_state: if(fsm.meta.initial_state == id, do: nil, else: fsm.meta.initial_state),
+          final_states: MapSet.delete(fsm.meta.final_states, id)
+      }
+
+      %__MODULE__{fsm | graph: new_graph, edge_meta: new_edge_meta, meta: new_meta}
+    else
+      fsm
+    end
   end
 
   # ============================================================================

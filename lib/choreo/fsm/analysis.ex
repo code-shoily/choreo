@@ -473,6 +473,8 @@ defmodule Choreo.FSM.Analysis do
     |> check_livelock(fsm)
     |> check_nondeterminism(fsm)
     |> check_completeness(fsm)
+    # Each check prepends, so reverse to restore declaration order.
+    |> Enum.reverse()
   end
 
   # ============================================================================
@@ -578,6 +580,10 @@ defmodule Choreo.FSM.Analysis do
           Yog.Multi.successors(fsm.graph, state)
           |> Enum.map(fn {to, _edge_id, label} -> {to, [label | path]} end)
         end)
+        # Prune identical {state, path} pairs early to avoid redundant work.
+        # The final Enum.uniq/1 in accepted_strings/2 handles any remaining
+        # duplicates that arise when different paths produce the same string.
+        |> Enum.uniq()
 
       do_accepted_strings(fsm, next_queue, max_length, current_length + 1, new_acc)
     end
