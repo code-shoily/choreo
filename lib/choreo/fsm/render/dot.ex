@@ -61,7 +61,12 @@ defmodule Choreo.FSM.Render.DOT do
       end)
       |> MapSet.new()
 
-    initials_safe = FSM.initial_states(fsm) |> Enum.map(&dot_id/1) |> MapSet.new()
+    initials_safe =
+      case FSM.initial_state(fsm) do
+        nil -> MapSet.new()
+        state -> MapSet.new([dot_id(state)])
+      end
+
     finals_safe = FSM.final_states(fsm) |> Enum.map(&dot_id/1) |> MapSet.new()
 
     base_opts =
@@ -229,28 +234,30 @@ defmodule Choreo.FSM.Render.DOT do
   # ============================================================================
 
   defp build_initial_nodes(fsm) do
-    fsm
-    |> FSM.initial_states()
-    |> Enum.map_join("\n", fn id ->
-      str =
-        cond do
-          is_atom(id) -> Atom.to_string(id)
-          is_binary(id) -> id
-          true -> inspect(id)
-        end
+    case FSM.initial_state(fsm) do
+      nil ->
+        ""
 
-      start_id =
-        if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
-          "__start_#{str}"
-        else
-          "\"__start_#{String.replace(str, "\"", "\\\"")}\""
-        end
+      id ->
+        str =
+          cond do
+            is_atom(id) -> Atom.to_string(id)
+            is_binary(id) -> id
+            true -> inspect(id)
+          end
 
-      target = dot_id(id)
+        start_id =
+          if str =~ ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/ do
+            "__start_#{str}"
+          else
+            "\"__start_#{String.replace(str, "\"", "\\\"")}\""
+          end
 
-      "  #{start_id} [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];\n" <>
-        "  #{start_id} -> #{target};"
-    end)
+        target = dot_id(id)
+
+        "  #{start_id} [shape=point, width=0.15, height=0.15, style=filled, fillcolor=black];\n" <>
+          "  #{start_id} -> #{target};"
+    end
   end
 
   defp inject_before_closing(dot, extra) do

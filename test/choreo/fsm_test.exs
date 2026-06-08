@@ -24,13 +24,13 @@ defmodule Choreo.FSMTest do
       fsm = FSM.new() |> FSM.add_state(:idle, label: "Idle")
       data = fsm.graph.nodes[:idle]
       assert data.label == "Idle"
-      refute :idle in FSM.initial_states(fsm)
+      assert FSM.initial_state(fsm) == nil
       refute :idle in FSM.final_states(fsm)
     end
 
     test "add_initial_state/3 marks state as initial" do
       fsm = FSM.new() |> FSM.add_initial_state(:idle)
-      assert :idle in FSM.initial_states(fsm)
+      assert FSM.initial_state(fsm) == :idle
     end
 
     test "add_final_state/3 marks state as final" do
@@ -40,7 +40,7 @@ defmodule Choreo.FSMTest do
 
     test "add_state/3 with type: :initial" do
       fsm = FSM.new() |> FSM.add_state(:idle, type: :initial)
-      assert :idle in FSM.initial_states(fsm)
+      assert FSM.initial_state(fsm) == :idle
     end
 
     test "add_state/3 with type: :initial raises when initial state already exists" do
@@ -71,7 +71,7 @@ defmodule Choreo.FSMTest do
         |> FSM.add_state(:a, type: :final)
         |> FSM.add_state(:a, type: :normal)
 
-      refute :a in FSM.initial_states(fsm)
+      assert FSM.initial_state(fsm) == nil
       refute :a in FSM.final_states(fsm)
     end
 
@@ -81,7 +81,7 @@ defmodule Choreo.FSMTest do
         |> FSM.add_initial_state(:a)
         |> FSM.add_state(:a, label: "Updated")
 
-      assert :a in FSM.initial_states(fsm)
+      assert FSM.initial_state(fsm) == :a
     end
 
     test "remove_initial_state/2 removes initial status" do
@@ -90,7 +90,7 @@ defmodule Choreo.FSMTest do
         |> FSM.add_initial_state(:a)
         |> FSM.remove_initial_state(:a)
 
-      refute :a in FSM.initial_states(fsm)
+      assert FSM.initial_state(fsm) == nil
       assert :a in FSM.states(fsm)
     end
 
@@ -146,7 +146,7 @@ defmodule Choreo.FSMTest do
         |> FSM.add_state(:b)
         |> FSM.remove_state(:a)
 
-      assert FSM.initial_states(fsm) == MapSet.new()
+      assert FSM.initial_state(fsm) == nil
       assert :a not in FSM.states(fsm)
     end
 
@@ -192,9 +192,20 @@ defmodule Choreo.FSMTest do
       assert [{:a, :b, "go [ready]"}] = FSM.transitions(fsm)
     end
 
-    test "add_transition/4 without label rejects epsilon transitions" do
+    test "add_transition/4 with empty label rejects epsilon transitions" do
       assert_raise ArgumentError,
                    "epsilon transitions (empty labels) are not supported in DFAs",
+                   fn ->
+                     FSM.new()
+                     |> FSM.add_state(:a)
+                     |> FSM.add_state(:b)
+                     |> FSM.add_transition(:a, :b, label: "")
+                   end
+    end
+
+    test "add_transition/4 without label rejects missing label option" do
+      assert_raise ArgumentError,
+                   "missing transition :label option",
                    fn ->
                      FSM.new()
                      |> FSM.add_state(:a)
@@ -212,6 +223,28 @@ defmodule Choreo.FSMTest do
         |> FSM.add_transition(:a, :b, label: "x")
         |> FSM.add_transition(:a, :c, label: "x")
       end
+    end
+
+    test "add_transition/4 in strict mode raises on missing states" do
+      assert_raise ArgumentError, "source state :a does not exist in strict mode", fn ->
+        FSM.new(strict: true)
+        |> FSM.add_transition(:a, :b, label: "x")
+      end
+
+      assert_raise ArgumentError, "target state :b does not exist in strict mode", fn ->
+        FSM.new(strict: true)
+        |> FSM.add_state(:a)
+        |> FSM.add_transition(:a, :b, label: "x")
+      end
+
+      # Should pass if both exist
+      fsm =
+        FSM.new(strict: true)
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      assert [{:a, :b, "x"}] == FSM.transitions(fsm)
     end
 
     test "add_transition/4 allows different labels between same states" do
@@ -388,7 +421,7 @@ defmodule Choreo.FSMTest do
         |> FSM.add_final_state(:b)
 
       comp = FSM.complement(fsm)
-      assert :a in FSM.initial_states(comp)
+      assert FSM.initial_state(comp) == :a
     end
 
     test "prune removes unreachable states" do
@@ -425,7 +458,7 @@ defmodule Choreo.FSMTest do
         |> FSM.add_state(:b)
 
       comp = FSM.complement(fsm)
-      assert :a in FSM.initial_states(comp)
+      assert FSM.initial_state(comp) == :a
       refute :a in FSM.final_states(comp)
       assert :b in FSM.final_states(comp)
     end
@@ -440,7 +473,7 @@ defmodule Choreo.FSMTest do
 
       pruned = FSM.prune(fsm)
       assert :a in FSM.states(pruned)
-      assert :a in FSM.initial_states(pruned)
+      assert FSM.initial_state(pruned) == :a
       assert :a in FSM.final_states(pruned)
       refute :dead in FSM.states(pruned)
     end

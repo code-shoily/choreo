@@ -101,11 +101,10 @@ defmodule Choreo.FSM.Render.Mermaid do
     state_defs_part = if state_defs == "", do: "", else: state_defs <> "\n"
 
     initial_transitions =
-      FSM.initial_states(fsm)
-      |> Enum.sort()
-      |> Enum.map_join("\n", fn id ->
-        "  [*] --> #{mermaid_id(id)}"
-      end)
+      case FSM.initial_state(fsm) do
+        nil -> ""
+        id -> "  [*] --> #{mermaid_id(id)}"
+      end
 
     initial_part = if initial_transitions == "", do: "", else: initial_transitions <> "\n"
 
@@ -190,32 +189,19 @@ defmodule Choreo.FSM.Render.Mermaid do
   # ============================================================================
 
   defp build_mermaid_graph(fsm) do
-    initial_states = FSM.initial_states(fsm) |> MapSet.to_list()
+    case FSM.initial_state(fsm) do
+      nil ->
+        fsm.graph
 
-    if initial_states == [] do
-      fsm.graph
-    else
-      entry_nodes =
-        initial_states
-        |> Enum.map(fn id ->
-          entry_id = :"__start_#{id}"
-          {entry_id, %{label: "", type: :entry_point}}
-        end)
-        |> Map.new()
+      id ->
+        entry_id = :"__start_#{id}"
+        entry_nodes = %{entry_id => %{label: "", type: :entry_point}}
+        entry_edges = %{:__entry_0 => {entry_id, id, nil}}
 
-      entry_edges =
-        initial_states
-        |> Enum.with_index()
-        |> Enum.map(fn {id, idx} ->
-          entry_id = :"__start_#{id}"
-          {:"__entry_#{idx}", {entry_id, id, nil}}
-        end)
-        |> Map.new()
+        nodes = Map.merge(fsm.graph.nodes, entry_nodes)
+        edges = Map.merge(fsm.graph.edges, entry_edges)
 
-      nodes = Map.merge(fsm.graph.nodes, entry_nodes)
-      edges = Map.merge(fsm.graph.edges, entry_edges)
-
-      %{fsm.graph | nodes: nodes, edges: edges}
+        %{fsm.graph | nodes: nodes, edges: edges}
     end
   end
 
@@ -228,7 +214,7 @@ defmodule Choreo.FSM.Render.Mermaid do
       if data[:type] == :entry_point do
         [{:fill, "black"}, {:stroke, "black"}, {:stroke_width, "1px"}]
       else
-        is_initial = id in FSM.initial_states(fsm)
+        is_initial = id == FSM.initial_state(fsm)
         is_final = id in FSM.final_states(fsm)
 
         base =

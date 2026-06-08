@@ -21,14 +21,13 @@ fsm =
 
 # Analysis
 FSM.Analysis.accepts?(fsm, ["start", "finish"])  #=> true
-FSM.Analysis.deterministic?(fsm)                  #=> true
 FSM.Analysis.shortest_accepting_path(fsm)         #=> {:ok, ["start", "finish"]}
 
 # Render to native state diagram
 FSM.to_mermaid(fsm, syntax: :state_diagram)
 ```
 
-**Features:** Deterministic execution, reachability, dead-state detection, determinism check, complement, product construction, equivalence checking.
+**Features:** Deterministic execution, reachability, dead-state detection, complement, product construction, equivalence checking.
 
 ```mermaid
 stateDiagram-v2

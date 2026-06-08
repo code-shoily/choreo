@@ -112,24 +112,6 @@ defmodule Choreo.FSM.AnalysisTest do
     end
   end
 
-  describe "deterministic?/1" do
-    test "true when no duplicate labels from any state" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_state(:c)
-        |> FSM.add_transition(:a, :b, label: "x")
-        |> FSM.add_transition(:a, :c, label: "y")
-
-      assert Analysis.deterministic?(fsm)
-    end
-
-    test "false for empty fsm" do
-      refute Analysis.deterministic?(FSM.new())
-    end
-  end
-
   describe "accepts?/2" do
     test "accepts valid input sequence" do
       fsm =
@@ -308,35 +290,6 @@ defmodule Choreo.FSM.AnalysisTest do
     test "true for FSM with no transitions" do
       fsm = FSM.new() |> FSM.add_state(:a)
       assert Analysis.complete?(fsm)
-    end
-  end
-
-  describe "nondeterministic_states/1" do
-    test "returns empty for deterministic FSM" do
-      fsm =
-        FSM.new()
-        |> FSM.add_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_transition(:a, :b, label: "x")
-
-      assert Analysis.nondeterministic_states(fsm) == []
-    end
-
-    test "returns {state, label} pairs for states with duplicate outgoing labels" do
-      # The public add_transition/4 enforces determinism, so we inject a
-      # duplicate-label edge directly into the graph to test this analysis.
-      fsm =
-        FSM.new()
-        |> FSM.add_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_state(:c)
-
-      {graph, _eid1} = Yog.Multi.add_edge(fsm.graph, :a, :b, "x")
-      {graph, _eid2} = Yog.Multi.add_edge(graph, :a, :c, "x")
-      fsm = %{fsm | graph: graph}
-
-      result = Analysis.nondeterministic_states(fsm)
-      assert {:a, "x"} in result
     end
   end
 

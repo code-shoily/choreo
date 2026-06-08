@@ -75,6 +75,11 @@ defmodule Choreo.FSM do
       type: :boolean,
       required: false,
       default: true
+    ],
+    strict: [
+      type: :boolean,
+      required: false,
+      default: false
     ]
   ]
 
@@ -142,6 +147,7 @@ defmodule Choreo.FSM do
   ## Options
 
     * `:directed` — whether the underlying graph is directed (default: `true`)
+    * `:strict` — if true, raises on transition definitions with non-existent states (default: `false`)
 
   ## Examples
 
@@ -157,7 +163,7 @@ defmodule Choreo.FSM do
     %__MODULE__{
       graph: Yog.Multi.new(kind),
       edge_meta: %{},
-      meta: %{initial_state: nil, final_states: MapSet.new()}
+      meta: %{initial_state: nil, final_states: MapSet.new(), strict: opts[:strict]}
     }
   end
 
@@ -193,6 +199,11 @@ defmodule Choreo.FSM do
   @spec add_state(t(), Yog.node_id(), keyword()) :: t()
   def add_state(%__MODULE__{} = fsm, id, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_state_schema)
+    type = Keyword.get(opts, :type)
+
+    if type == :initial and fsm.meta.initial_state != nil and fsm.meta.initial_state != id do
+      raise ArgumentError, "DFAs can only have one initial state"
+    end
 
     data =
       opts
@@ -204,31 +215,20 @@ defmodule Choreo.FSM do
 
     fsm = %{fsm | graph: Yog.Multi.add_node(fsm.graph, id, data)}
 
-    case Keyword.get(opts, :type) do
+    case type do
       :initial ->
-        if fsm.meta.initial_state != nil do
-          raise ArgumentError, "DFAs can only have one initial state"
-        end
-
         put_in(fsm.meta.initial_state, id)
 
       :final ->
         put_in(fsm.meta.final_states, MapSet.put(fsm.meta.final_states, id))
 
       :normal ->
-        # NOTE: both pipe steps use `acc` so mutations from the first step
-        # are not lost when the second step runs.
         fsm
-        |> then(fn acc ->
-          if acc.meta.initial_state == id, do: put_in(acc.meta.initial_state, nil), else: acc
-        end)
-        |> then(fn acc ->
-          put_in(
-            acc,
-            [Access.key!(:meta), :final_states],
-            MapSet.delete(acc.meta.final_states, id)
-          )
-        end)
+        |> remove_initial_state(id)
+        |> put_in(
+          [Access.key!(:meta), :final_states],
+          MapSet.delete(fsm.meta.final_states, id)
+        )
 
       nil ->
         fsm
@@ -248,7 +248,7 @@ defmodule Choreo.FSM do
   ## Examples
 
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle)
-      iex> :idle in Choreo.FSM.initial_states(fsm)
+      iex> Choreo.FSM.initial_state(fsm) == :idle
       true
 
   ## Diagram
@@ -270,7 +270,7 @@ defmodule Choreo.FSM do
   def add_initial_state(%__MODULE__{} = fsm, id, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_initial_state_schema)
 
-    if fsm.meta.initial_state != nil do
+    if fsm.meta.initial_state != nil and fsm.meta.initial_state != id do
       raise ArgumentError, "DFAs can only have one initial state"
     end
 
@@ -321,8 +321,8 @@ defmodule Choreo.FSM do
   ## Examples
 
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle) |> Choreo.FSM.remove_initial_state(:idle)
-      iex> :idle in Choreo.FSM.initial_states(fsm)
-      false
+      iex> Choreo.FSM.initial_state(fsm)
+      nil
   """
   @spec remove_initial_state(t(), Yog.node_id()) :: t()
   def remove_initial_state(%__MODULE__{} = fsm, id) do
@@ -433,10 +433,28 @@ defmodule Choreo.FSM do
     opts = NimbleOptions.validate!(opts, @add_transition_schema)
     label = build_transition_label(opts)
 
-    # DFAs do not support epsilon transitions
-    if label == "" do
-      raise ArgumentError,
-            "epsilon transitions (empty labels) are not supported in DFAs"
+    # Check distinct error messages for empty labels
+    cond do
+      is_nil(opts[:label]) and is_nil(opts[:guard]) ->
+        raise ArgumentError, "missing transition :label option"
+
+      label == "" ->
+        raise ArgumentError,
+              "epsilon transitions (empty labels) are not supported in DFAs"
+
+      true ->
+        :ok
+    end
+
+    # Check strict mode
+    if fsm.meta.strict do
+      if not Map.has_key?(fsm.graph.nodes, from) do
+        raise ArgumentError, "source state #{inspect(from)} does not exist in strict mode"
+      end
+
+      if not Map.has_key?(fsm.graph.nodes, to) do
+        raise ArgumentError, "target state #{inspect(to)} does not exist in strict mode"
+      end
     end
 
     fsm =
@@ -469,15 +487,9 @@ defmodule Choreo.FSM do
   end
 
   defp build_transition_label(opts) do
-    parts =
-      []
-      |> then(&if label = opts[:label], do: [label | &1], else: &1)
-      |> then(&if guard = opts[:guard], do: ["[#{guard}]" | &1], else: &1)
-
-    case parts do
-      [] -> ""
-      list -> Enum.reverse(list) |> Enum.join(" ")
-    end
+    [opts[:label], opts[:guard] && "[#{opts[:guard]}]"]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
   end
 
   # ============================================================================
@@ -519,18 +531,26 @@ defmodule Choreo.FSM do
   end
 
   @doc """
-  Returns the set of initial state IDs.
+  Returns the initial state ID, or `nil` if none is defined.
 
   ## Examples
 
       iex> fsm = Choreo.FSM.new() |> Choreo.FSM.add_initial_state(:idle)
-      iex> :idle in Choreo.FSM.initial_states(fsm)
-      true
+      iex> Choreo.FSM.initial_state(fsm)
+      :idle
   """
+  @spec initial_state(t()) :: Yog.node_id() | nil
+  def initial_state(%__MODULE__{meta: %{initial_state: state}}), do: state
+  def initial_state(%__MODULE__{}), do: nil
+
+  @deprecated "Use initial_state/1 instead"
   @spec initial_states(t()) :: MapSet.t(Yog.node_id())
-  def initial_states(%__MODULE__{meta: %{initial_state: nil}}), do: MapSet.new()
-  def initial_states(%__MODULE__{meta: %{initial_state: state}}), do: MapSet.new([state])
-  def initial_states(%__MODULE__{}), do: MapSet.new()
+  def initial_states(%__MODULE__{} = fsm) do
+    case initial_state(fsm) do
+      nil -> MapSet.new()
+      state -> MapSet.new([state])
+    end
+  end
 
   @doc """
   Returns all final state IDs.
@@ -551,7 +571,11 @@ defmodule Choreo.FSM do
 
   @doc """
   Returns the complement FSM: final states become normal, and normal states
-  become final. Initial states keep their `:initial` type.
+  become final.
+
+  Initial states keep their `:initial` type. Note that if the initial state
+  was not previously final, it becomes both initial and final in the
+  complement FSM (which is mathematically correct to accept the empty string).
 
   ## Examples
 

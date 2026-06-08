@@ -2,7 +2,9 @@
 
 ```elixir
 Mix.install([
+  # For Hex publication/readers:
   # {:choreo, "~> 0.9"},
+  # For local development:
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
@@ -24,21 +26,12 @@ fsm =
   |> FSM.add_transition(:idle, :authenticating, label: "submit_credentials")
   |> FSM.add_transition(:authenticating, :logged_in, label: "success")
 
-Kino.VizJS.render(FSM.to_dot(fsm))
-```
-
-### Mermaid Rendering
-
-By default, FSM renders to a styled Mermaid flowchart:
-
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(fsm))
-```
-
-Alternatively, you can render to a native Mermaid **State Diagram** using the `syntax: :state_diagram` option:
-
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(fsm, syntax: :state_diagram))
+# Render diagrams (Mermaid is preferred as primary tab)
+Kino.Layout.tabs([
+  "Mermaid (Flowchart)": Kino.Mermaid.new(FSM.to_mermaid(fsm)),
+  "Mermaid (State Diagram)": Kino.Mermaid.new(FSM.to_mermaid(fsm, syntax: :state_diagram)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(fsm))
+])
 ```
 
 ## State Types
@@ -56,10 +49,10 @@ You can also **remove** a special status without deleting the state:
 ```elixir
 # Promote and demote
 fsm = FSM.new() |> FSM.add_state(:a, type: :initial)
-IO.inspect(:a in FSM.initial_states(fsm), label: "Is :a initial?")
+IO.inspect(FSM.initial_state(fsm), label: "Initial state ID")
 
 fsm = FSM.remove_initial_state(fsm, :a)
-IO.inspect(:a in FSM.initial_states(fsm), label: "Is :a initial after removal?")
+IO.inspect(FSM.initial_state(fsm), label: "Initial state ID after removal")
 ```
 
 ### A state can be both initial and final
@@ -73,11 +66,10 @@ empty_match =
   |> FSM.add_final_state(:q0)
   |> FSM.add_transition(:q0, :q0, label: "a")
 
-Kino.VizJS.render(FSM.to_dot(empty_match))
-```
-
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(empty_match))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(empty_match)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(empty_match))
+])
 ```
 
 ## Building Larger Graphs
@@ -97,11 +89,10 @@ order_flow =
   |> FSM.add_transition(:fraud_check, :order_shipped, label: "passed")
   |> FSM.add_transition(:payment_pending, :cancelled, label: "declined")
 
-Kino.VizJS.render(FSM.to_dot(order_flow))
-```
-
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(order_flow))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(order_flow)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(order_flow))
+])
 ```
 
 ## Determinism
@@ -111,10 +102,36 @@ An FSM is **deterministic** when two conditions hold:
 1. Exactly **one** initial state.
 2. No state has two outgoing transitions with the **same label**.
 
-`Choreo.FSM` ensures validation tools help track structural determinism.
+`Choreo.FSM` guarantees determinism at **build-time** by raising errors if these constraints are violated.
 
 ```elixir
-# Deterministic — single start, unique labels per state
+# Let's see what happens if we attempt to add duplicate outgoing transition labels:
+try do
+  FSM.new()
+  |> FSM.add_initial_state(:q0)
+  |> FSM.add_state(:q1)
+  |> FSM.add_state(:q2)
+  |> FSM.add_transition(:q0, :q1, label: "x")
+  |> FSM.add_transition(:q0, :q2, label: "x")
+rescue
+  e in ArgumentError -> e.message
+end
+```
+
+```elixir
+# Or if we attempt to define a second initial state:
+try do
+  FSM.new()
+  |> FSM.add_initial_state(:q0)
+  |> FSM.add_initial_state(:q1)
+rescue
+  e in ArgumentError -> e.message
+end
+```
+
+We can build a valid DFA safely:
+
+```elixir
 dfa =
   FSM.new()
   |> FSM.add_initial_state(:q0)
@@ -122,8 +139,6 @@ dfa =
   |> FSM.add_final_state(:q2)
   |> FSM.add_transition(:q0, :q1, label: "a")
   |> FSM.add_transition(:q1, :q2, label: "b")
-
-Analysis.deterministic?(dfa)
 ```
 
 ## Analysis
@@ -143,11 +158,21 @@ IO.inspect(Analysis.accepts?(order_flow, ["proceed", "pay", "declined"]), label:
 IO.inspect(Analysis.accepts?(order_flow, ["proceed"]), label: "Rejects incomplete path")
 ```
 
-### Path Finding
+### Path Finding & accepted_strings/2
+
+For branching FSMs, `Analysis.accepted_strings/2` computes all valid paths up to a specified length:
 
 ```elixir
-IO.inspect(Analysis.shortest_accepting_path(order_flow), label: "Shortest accepting path")
-IO.inspect(Analysis.accepted_strings(order_flow, 3), label: "Accepted strings up to length 3")
+branching_fsm =
+  FSM.new()
+  |> FSM.add_initial_state(:q0)
+  |> FSM.add_final_state(:q1)
+  |> FSM.add_transition(:q0, :q0, label: "0")
+  |> FSM.add_transition(:q0, :q1, label: "1")
+  |> FSM.add_transition(:q1, :q1, label: "0")
+
+IO.inspect(Analysis.shortest_accepting_path(order_flow), label: "Shortest accepting path (order_flow)")
+IO.inspect(Analysis.accepted_strings(branching_fsm, 3), label: "Accepted strings up to length 3 (branching)")
 ```
 
 ### Alphabet & Completeness
@@ -159,30 +184,27 @@ IO.inspect(Analysis.complete?(order_flow), label: "Complete?")
 
 ### Validation
 
-`validate/1` returns a list of structural issues found in the FSM.
+`validate/1` returns a list of structural warnings/errors found in the FSM (such as unreachable states, trap/dead states, or incompleteness).
 
 ```elixir
-bad_fsm =
+incomplete_fsm =
   FSM.new()
   |> FSM.add_state(:orphan)
   |> FSM.add_state(:trap)
   |> FSM.add_initial_state(:a)
   |> FSM.add_final_state(:c)
-  |> FSM.add_transition(:a, :c, label: "x")
+  |> FSM.add_transition(:a, :c, label: "x", guard: "ready")
   |> FSM.add_transition(:a, :c, label: "y")
 
-Analysis.validate(bad_fsm)
+Analysis.validate(incomplete_fsm)
 |> Enum.each(fn {severity, msg} ->
   IO.puts("[#{severity}] #{msg}")
 end)
 
-bad_fsm
-|> Choreo.FSM.Render.DOT.to_dot()
-|> Kino.VizJS.render()
-```
-
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(bad_fsm))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(incomplete_fsm)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(incomplete_fsm))
+])
 ```
 
 ## Transforms
@@ -195,11 +217,11 @@ Swap final and non-final states.
 comp = FSM.complement(dfa)
 
 IO.inspect(FSM.final_states(comp), label: "Final states in complement")
-Kino.VizJS.render(FSM.to_dot(comp))
-```
 
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(comp))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(comp)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(comp))
+])
 ```
 
 ### Prune
@@ -207,14 +229,14 @@ Kino.Mermaid.new(FSM.to_mermaid(comp))
 Remove unreachable states and dead (trap) states, producing a smaller equivalent FSM.
 
 ```elixir
-pruned = FSM.prune(bad_fsm)
+pruned = FSM.prune(incomplete_fsm)
 
 IO.inspect(FSM.states(pruned), label: "States after pruning")
-Kino.VizJS.render(FSM.to_dot(pruned))
-```
 
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(pruned))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(pruned)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(pruned))
+])
 ```
 
 ## Theming
@@ -222,14 +244,10 @@ Kino.Mermaid.new(FSM.to_mermaid(pruned))
 Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
 
 ```elixir
-dot_dark = FSM.to_dot(order_flow, theme: :dark)
-Kino.VizJS.render(dot_dark)
-```
-
-### Mermaid Version
-
-```elixir
-Kino.Mermaid.new(FSM.to_mermaid(order_flow, theme: :dark))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(order_flow, theme: :dark)),
+  "Graphviz": Kino.VizJS.render(FSM.to_dot(order_flow, theme: :dark))
+])
 ```
 
 ## Summary
@@ -238,7 +256,7 @@ Kino.Mermaid.new(FSM.to_mermaid(order_flow, theme: :dark))
 | ----------------- | ------------------------------------------------------------------------------------------ |
 | Build             | `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
 | Demote            | `remove_initial_state/2`, `remove_final_state/2`                                           |
-| Determinism check | `Analysis.deterministic?/1`                                                                |
+| Query             | `FSM.initial_state/1`, `FSM.final_states/1`, `FSM.states/1`                                |
 | Acceptance        | `Analysis.accepts?/2`                                                                      |
 | Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`                                    |
 | Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                        |

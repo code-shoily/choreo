@@ -12,8 +12,6 @@ defmodule Choreo.FSM.Analysis do
   | `reachable_states/1` | Which states can I reach from the start? |
   | `dead_states/1` | Which states are traps (can never accept)? |
   | `livelock_states/1` | Which reachable states can get stuck in a loop forever? |
-  | `deterministic?/1` | Is this a DFA? |
-  | `nondeterministic_states/1` | Which states break determinism? |
   | `alphabet/1` | What are the distinct input symbols? |
   | `complete?/1` | Does every state handle every input? |
   | `accepts?/2` | Does input X lead to acceptance? |
@@ -48,13 +46,13 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec reachable_states(FSM.t()) :: [Yog.node_id()]
   def reachable_states(%FSM{} = fsm) do
-    initials = FSM.initial_states(fsm) |> MapSet.to_list()
+    case FSM.initial_state(fsm) do
+      nil ->
+        []
 
-    if initials == [] do
-      []
-    else
-      bfs_reachable_multi(fsm.graph, initials)
-      |> MapSet.to_list()
+      initial ->
+        bfs_reachable_multi(fsm.graph, [initial])
+        |> MapSet.to_list()
     end
   end
 
@@ -122,7 +120,14 @@ defmodule Choreo.FSM.Analysis do
   def livelock_states(%FSM{} = fsm) do
     reachable = MapSet.new(reachable_states(fsm))
     dead = MapSet.new(dead_states(fsm))
+    livelock_states(fsm, reachable, dead)
+  end
 
+  @doc false
+  @spec livelock_states(FSM.t(), MapSet.t(Yog.node_id()), MapSet.t(Yog.node_id())) :: [
+          Yog.node_id()
+        ]
+  def livelock_states(%FSM{} = fsm, reachable, dead) do
     reachable_dead = MapSet.intersection(reachable, dead)
 
     reachable_dead
@@ -155,45 +160,6 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-    Checks whether the FSM is deterministic.
-
-    An FSM is deterministic when it has exactly one initial state and no
-    state has two outgoing transitions with the same label.
-    (Epsilon transitions are not supported.)
-
-    ## Examples
-
-        iex> fsm =
-        ...>   Choreo.FSM.new()
-        ...>   |> Choreo.FSM.add_initial_state(:a)
-        ...>   |> Choreo.FSM.add_state(:b)
-        ...>   |> Choreo.FSM.add_state(:c)
-        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "y")
-        iex> Choreo.FSM.Analysis.deterministic?(fsm)
-        true
-
-    This analysis answers the question: "Is this a deterministic finite automaton?"
-  """
-  @spec deterministic?(FSM.t()) :: boolean()
-  def deterministic?(%FSM{graph: graph} = fsm) do
-    has_one_initial = MapSet.size(FSM.initial_states(fsm)) == 1
-
-    unique_transitions =
-      graph.nodes
-      |> Map.keys()
-      |> Enum.all?(fn id ->
-        labels =
-          Yog.Multi.successors(graph, id)
-          |> Enum.map(fn {_to, _edge_id, label} -> label end)
-
-        length(labels) == length(Enum.uniq(labels))
-      end)
-
-    has_one_initial and unique_transitions
-  end
-
-  @doc """
     Simulates the FSM on a sequence of input symbols.
 
     Returns `true` if the unique path from the initial state leads to a
@@ -217,8 +183,11 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec accepts?(FSM.t(), [String.t()]) :: boolean()
   def accepts?(%FSM{} = fsm, inputs) do
-    case FSM.initial_states(fsm) |> MapSet.to_list() do
-      [initial] ->
+    case FSM.initial_state(fsm) do
+      nil ->
+        false
+
+      initial ->
         result =
           Enum.reduce_while(inputs, initial, fn input, current ->
             case find_next(fsm.graph, current, input) do
@@ -231,9 +200,6 @@ defmodule Choreo.FSM.Analysis do
           :dead -> false
           state -> state in FSM.final_states(fsm)
         end
-
-      [] ->
-        false
     end
   end
 
@@ -269,14 +235,14 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec shortest_accepting_path(FSM.t()) :: {:ok, [String.t()]} | :error
   def shortest_accepting_path(%FSM{} = fsm) do
-    initials = FSM.initial_states(fsm) |> MapSet.to_list()
+    case FSM.initial_state(fsm) do
+      nil ->
+        :error
 
-    if initials == [] do
-      :error
-    else
-      queue = Enum.map(initials, fn id -> {id, []} end)
-      visited = MapSet.new(initials)
-      bfs_path(fsm, queue, visited)
+      initial ->
+        queue = [{initial, []}]
+        visited = MapSet.new([initial])
+        bfs_path(fsm, queue, visited)
     end
   end
 
@@ -304,16 +270,18 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec accepted_strings(FSM.t(), non_neg_integer()) :: [[String.t()]]
   def accepted_strings(%FSM{} = fsm, max_length) when max_length >= 0 do
-    initials = FSM.initial_states(fsm) |> MapSet.to_list()
+    case FSM.initial_state(fsm) do
+      nil ->
+        []
 
-    if initials == [] do
-      []
-    else
-      queue = Enum.map(initials, fn id -> {id, []} end)
+      initial ->
+        queue = [{initial, []}]
 
-      do_accepted_strings(fsm, queue, max_length, 0, [])
-      |> Enum.reverse()
-      |> Enum.uniq()
+        # Note: For strict DFAs, accepted strings are unique by construction.
+        # We keep Enum.uniq/1 as a safety measure.
+        do_accepted_strings(fsm, queue, max_length, 0, [])
+        |> Enum.reverse()
+        |> Enum.uniq()
     end
   end
 
@@ -392,46 +360,6 @@ defmodule Choreo.FSM.Analysis do
     end
   end
 
-  @doc """
-    Returns states that have nondeterministic transitions.
-
-    A state is nondeterministic if it has two or more outgoing transitions
-    with the same label. Returns a list of `{state_id, duplicate_label}`
-    tuples.
-
-    ## Examples
-
-        iex> fsm =
-        ...>   Choreo.FSM.new()
-        ...>   |> Choreo.FSM.add_state(:a)
-        ...>   |> Choreo.FSM.add_state(:b)
-        ...>   |> Choreo.FSM.add_state(:c)
-        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "x")
-        ...>   |> Choreo.FSM.add_transition(:a, :c, label: "y")
-        iex> Choreo.FSM.Analysis.nondeterministic_states(fsm)
-        []
-
-    This analysis answers the question: "Which states break determinism?"
-  """
-  @spec nondeterministic_states(FSM.t()) :: [{Yog.node_id(), String.t()}]
-  def nondeterministic_states(%FSM{graph: graph}) do
-    graph.nodes
-    |> Map.keys()
-    |> Enum.flat_map(fn id ->
-      labels =
-        Yog.Multi.successors(graph, id)
-        |> Enum.map(fn {_to, _edge_id, label} -> label end)
-
-      duplicates =
-        labels
-        |> Enum.frequencies()
-        |> Enum.filter(fn {_label, count} -> count > 1 end)
-        |> Enum.map(fn {label, _count} -> label end)
-
-      Enum.map(duplicates, fn label -> {id, label} end)
-    end)
-  end
-
   # ============================================================================
   # Validation
   # ============================================================================
@@ -441,11 +369,10 @@ defmodule Choreo.FSM.Analysis do
 
     Checks for:
 
-      * no initial states defined
+      * no initial state defined
       * no final states defined
       * unreachable states
       * dead (trap) states
-      * nondeterministic transitions
       * incomplete alphabet coverage
 
     Returns a list of `{severity, message}` tuples.
@@ -465,13 +392,16 @@ defmodule Choreo.FSM.Analysis do
   """
   @spec validate(FSM.t()) :: [{:error | :warning, String.t()}]
   def validate(%FSM{} = fsm) do
+    reachable = reachable_states(fsm) |> MapSet.new()
+    dead = dead_states(fsm) |> MapSet.new()
+    livelock = livelock_states(fsm, reachable, dead)
+
     []
     |> check_no_initial(fsm)
     |> check_no_final(fsm)
-    |> check_unreachable(fsm)
-    |> check_dead(fsm)
-    |> check_livelock(fsm)
-    |> check_nondeterminism(fsm)
+    |> check_unreachable(fsm, reachable)
+    |> check_dead(fsm, reachable, dead)
+    |> check_livelock(fsm, livelock)
     |> check_completeness(fsm)
     # Each check prepends, so reverse to restore declaration order.
     |> Enum.reverse()
@@ -482,8 +412,8 @@ defmodule Choreo.FSM.Analysis do
   # ============================================================================
 
   defp check_no_initial(acc, fsm) do
-    if MapSet.size(FSM.initial_states(fsm)) == 0 and FSM.states(fsm) != [] do
-      [{:error, "No initial states defined"} | acc]
+    if is_nil(FSM.initial_state(fsm)) and FSM.states(fsm) != [] do
+      [{:error, "No initial state defined"} | acc]
     else
       acc
     end
@@ -497,9 +427,8 @@ defmodule Choreo.FSM.Analysis do
     end
   end
 
-  defp check_unreachable(acc, fsm) do
+  defp check_unreachable(acc, fsm, reachable) do
     all = FSM.states(fsm) |> MapSet.new()
-    reachable = reachable_states(fsm) |> MapSet.new()
     unreachable = MapSet.difference(all, reachable)
 
     if MapSet.size(unreachable) > 0 do
@@ -509,24 +438,20 @@ defmodule Choreo.FSM.Analysis do
     end
   end
 
-  defp check_dead(acc, fsm) do
-    case dead_states(fsm) do
-      [] -> acc
-      dead -> [{:warning, "Dead states: #{inspect(dead)}"} | acc]
+  defp check_dead(acc, _fsm, reachable, dead) do
+    reachable_dead = MapSet.intersection(reachable, dead)
+
+    if MapSet.size(reachable_dead) > 0 do
+      [{:warning, "Dead states: #{inspect(MapSet.to_list(reachable_dead))}"} | acc]
+    else
+      acc
     end
   end
 
-  defp check_livelock(acc, fsm) do
-    case livelock_states(fsm) do
+  defp check_livelock(acc, _fsm, livelock) do
+    case livelock do
       [] -> acc
-      livelock -> [{:warning, "Livelock states: #{inspect(livelock)}"} | acc]
-    end
-  end
-
-  defp check_nondeterminism(acc, fsm) do
-    case nondeterministic_states(fsm) do
-      [] -> acc
-      nd -> [{:warning, "Nondeterministic transitions: #{inspect(nd)}"} | acc]
+      states -> [{:warning, "Livelock states: #{inspect(states)}"} | acc]
     end
   end
 
@@ -580,10 +505,6 @@ defmodule Choreo.FSM.Analysis do
           Yog.Multi.successors(fsm.graph, state)
           |> Enum.map(fn {to, _edge_id, label} -> {to, [label | path]} end)
         end)
-        # Prune identical {state, path} pairs early to avoid redundant work.
-        # The final Enum.uniq/1 in accepted_strings/2 handles any remaining
-        # duplicates that arise when different paths produce the same string.
-        |> Enum.uniq()
 
       do_accepted_strings(fsm, next_queue, max_length, current_length + 1, new_acc)
     end
