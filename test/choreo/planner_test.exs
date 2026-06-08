@@ -376,7 +376,6 @@ defmodule Choreo.PlannerTest do
         |> Planner.blocks(:t2, :t3)
         |> Planner.assign(:t1, :alice)
         |> Planner.tag(:t1, :frontend)
-        |> Planner.relates(:t1, :t4)
 
       # Check contains implicitly created v1 (milestone) and t1 (task)
       assert Map.get(planner.graph.nodes, :v1).node_type == :milestone
@@ -393,9 +392,16 @@ defmodule Choreo.PlannerTest do
 
       # Check tag implicitly created frontend (label)
       assert Map.get(planner.graph.nodes, :frontend).node_type == :label
+    end
 
-      # Check relates implicitly created t4 (task)
-      assert Map.get(planner.graph.nodes, :t4).node_type == :task
+    test "relates/3 raises when either node does not exist" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:t1)
+
+      assert_raise ArgumentError, ~r/relates\/3 requires both nodes to exist/, fn ->
+        Planner.relates(planner, :t1, :t4)
+      end
     end
 
     test "to_dot/2 handles node names with spaces and special characters" do

@@ -132,9 +132,13 @@ defmodule Choreo.Planner.AnalysisTest do
     test "detects cycles" do
       project =
         Planner.new()
+        |> Planner.add_milestone(:v1)
         |> Planner.add_task(:a)
         |> Planner.add_task(:b)
         |> Planner.add_task(:c)
+        |> Planner.contains(:v1, :a)
+        |> Planner.contains(:v1, :b)
+        |> Planner.contains(:v1, :c)
         |> Planner.depends_on(:b, :a)
         |> Planner.depends_on(:a, :c)
         |> Planner.depends_on(:c, :b)
@@ -148,7 +152,9 @@ defmodule Choreo.Planner.AnalysisTest do
     test "warns about unassigned in-progress tasks" do
       project =
         Planner.new()
+        |> Planner.add_milestone(:v1)
         |> Planner.add_task(:a, status: :in_progress)
+        |> Planner.contains(:v1, :a)
 
       assert [{:warning, :unassigned_in_progress, :a}] = Analysis.validate(project)
     end
@@ -156,9 +162,11 @@ defmodule Choreo.Planner.AnalysisTest do
     test "returns empty for valid project" do
       project =
         Planner.new()
+        |> Planner.add_milestone(:v1)
         |> Planner.add_task(:a, status: :done)
         |> Planner.add_user(:alice)
         |> Planner.assign(:a, :alice)
+        |> Planner.contains(:v1, :a)
 
       assert Analysis.validate(project) == []
     end

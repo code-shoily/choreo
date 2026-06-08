@@ -732,13 +732,13 @@ defimpl Choreo.Viewable, for: Choreo.MindMap do
     %{diagram | graph: new_graph, edge_meta: new_edge_meta, root: new_root}
   end
 
-  def zoom_predicate(_diagram, 0), do: fn data -> data[:node_type] == :root end
-  def zoom_predicate(_diagram, 1), do: fn data -> data[:node_type] in [:root, :topic] end
+  def zoom_predicate(_diagram, 0), do: fn _id, data -> data[:node_type] == :root end
+  def zoom_predicate(_diagram, 1), do: fn _id, data -> data[:node_type] in [:root, :topic] end
 
   def zoom_predicate(_diagram, 2),
-    do: fn data -> data[:node_type] in [:root, :topic, :subtopic] end
+    do: fn _id, data -> data[:node_type] in [:root, :topic, :subtopic] end
 
-  def zoom_predicate(_diagram, _level), do: fn _data -> true end
+  def zoom_predicate(_diagram, _level), do: fn _id, _data -> true end
 
   def virtual_edge_meta(_diagram), do: %{edge_type: :virtual, label: nil}
 

@@ -830,12 +830,12 @@ defimpl Choreo.Viewable, for: Choreo.Dataflow do
   end
 
   def zoom_predicate(_flow, 0),
-    do: fn data -> data[:node_type] in [:source, :sink] end
+    do: fn _id, data -> data[:node_type] in [:source, :sink] end
 
   def zoom_predicate(_flow, 1),
-    do: fn data -> data[:node_type] in [:source, :sink, :transform] end
+    do: fn _id, data -> data[:node_type] in [:source, :sink, :transform] end
 
-  def zoom_predicate(_flow, _level), do: fn _data -> true end
+  def zoom_predicate(_flow, _level), do: fn _id, _data -> true end
 
   def virtual_edge_meta(_flow), do: %{path_type: :virtual, label: nil}
 end

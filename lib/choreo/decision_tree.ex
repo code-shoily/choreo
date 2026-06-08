@@ -688,9 +688,9 @@ defimpl Choreo.Viewable, for: Choreo.DecisionTree do
     %{tree | graph: new_graph, edge_meta: new_edge_meta, root: new_root}
   end
 
-  def zoom_predicate(_tree, 0), do: fn data -> data[:node_type] == :root end
-  def zoom_predicate(_tree, 1), do: fn data -> data[:node_type] in [:root, :decision] end
-  def zoom_predicate(_tree, _level), do: fn _data -> true end
+  def zoom_predicate(_tree, 0), do: fn _id, data -> data[:node_type] == :root end
+  def zoom_predicate(_tree, 1), do: fn _id, data -> data[:node_type] in [:root, :decision] end
+  def zoom_predicate(_tree, _level), do: fn _id, _data -> true end
 
   def virtual_edge_meta(_tree), do: %{edge_type: :virtual, label: nil}
 

@@ -26,7 +26,7 @@ defmodule Choreo.Planner.Analysis do
       iex> id
       :t1
   """
-  @spec ready(Planner.t()) :: [{Planner.t(), map()}]
+  @spec ready(Planner.t()) :: [{Yog.node_id(), map()}]
   def ready(%Planner{} = planner) do
     planner
     |> Planner.tasks()
@@ -50,7 +50,7 @@ defmodule Choreo.Planner.Analysis do
       iex> id
       :a
   """
-  @spec blocked(Planner.t()) :: [{Planner.t(), map()}]
+  @spec blocked(Planner.t()) :: [{Yog.node_id(), map()}]
   def blocked(%Planner{} = planner) do
     planner
     |> Planner.tasks()
@@ -69,7 +69,7 @@ defmodule Choreo.Planner.Analysis do
       iex> id
       :t1
   """
-  @spec orphans(Planner.t()) :: [{Planner.t(), map()}]
+  @spec orphans(Planner.t()) :: [{Yog.node_id(), map()}]
   def orphans(%Planner{} = planner) do
     planner
     |> Planner.tasks()
@@ -102,7 +102,7 @@ defmodule Choreo.Planner.Analysis do
       iex> Choreo.Planner.Analysis.critical_path(project)
       :error
   """
-  @spec critical_path(Planner.t(), keyword()) :: {:ok, [Planner.t()], keyword()} | :error
+  @spec critical_path(Planner.t(), keyword()) :: {:ok, [Yog.node_id()], keyword()} | :error
   def critical_path(%Planner{} = planner, opts \\ []) do
     task_ids =
       case Keyword.get(opts, :milestone) do
@@ -160,7 +160,7 @@ defmodule Choreo.Planner.Analysis do
       iex> top_count
       2
   """
-  @spec bottlenecks(Planner.t()) :: [{Planner.t(), non_neg_integer()}]
+  @spec bottlenecks(Planner.t()) :: [{Yog.node_id(), non_neg_integer()}]
   def bottlenecks(%Planner{} = planner) do
     dep_graph = dependency_subgraph(planner)
 
@@ -184,7 +184,7 @@ defmodule Choreo.Planner.Analysis do
 
       iex> project = Choreo.Planner.new() |> Choreo.Planner.add_task(:a, status: :in_progress)
       iex> Choreo.Planner.Analysis.validate(project)
-      [{:warning, :unassigned_in_progress, :a}]
+      [{:warning, :unassigned_in_progress, :a}, {:warning, :orphan_task, :a}]
 
       iex> project = Choreo.Planner.new()
       ...> |> Choreo.Planner.add_task(:a)
@@ -193,7 +193,7 @@ defmodule Choreo.Planner.Analysis do
       ...> |> Choreo.Planner.depends_on(:b, :a)
       ...> |> Choreo.Planner.depends_on(:a, :c)
       ...> |> Choreo.Planner.depends_on(:c, :b)
-      iex> [{:error, :cycle_detected, nodes}] = Choreo.Planner.Analysis.validate(project)
+      iex> [{:error, :cycle_detected, nodes} | _] = Choreo.Planner.Analysis.validate(project)
       iex> is_list(nodes)
       true
       iex> :a in nodes
@@ -222,7 +222,49 @@ defmodule Choreo.Planner.Analysis do
         [{:warning, :unassigned_in_progress, id} | acc]
       end)
 
+    issues =
+      planner
+      |> Planner.tasks()
+      |> Enum.filter(fn {id, _data} ->
+        Planner.parents(planner, id) == []
+      end)
+      |> Enum.reduce(issues, fn {id, _data}, acc ->
+        [{:warning, :orphan_task, id} | acc]
+      end)
+
+    issues =
+      planner
+      |> Planner.milestones()
+      |> Enum.filter(fn {id, _data} ->
+        Planner.children(planner, id) == []
+      end)
+      |> Enum.reduce(issues, fn {id, _data}, acc ->
+        [{:warning, :empty_milestone, id} | acc]
+      end)
+
     Enum.reverse(issues)
+  end
+
+  @doc """
+  Converts validation 3-tuples to standard 2-tuples with human-readable messages.
+  """
+  @spec validate_messages(Planner.t()) :: [{:error | :warning, String.t()}]
+  def validate_messages(%Planner{} = planner) do
+    planner
+    |> validate()
+    |> Enum.map(fn
+      {:error, :cycle_detected, nodes} ->
+        {:error, "Cycle detected among: #{Enum.map_join(nodes, ", ", &inspect/1)}"}
+
+      {:warning, :unassigned_in_progress, id} ->
+        {:warning, "Task #{inspect(id)} is in progress but has no assignee"}
+
+      {:warning, :orphan_task, id} ->
+        {:warning, "Task #{inspect(id)} is not in any milestone"}
+
+      {:warning, :empty_milestone, id} ->
+        {:warning, "Milestone #{inspect(id)} has no tasks"}
+    end)
   end
 
   # ============================================================================
@@ -300,15 +342,15 @@ defmodule Choreo.Planner.Analysis do
   end
 
   defp update_distances(planner, dag, node, {dist_acc, pred_acc}) do
-    preds = predecessors(dag, node)
-    weight = task_estimate(planner, node)
+    weighted_preds = Yog.Model.predecessors(dag, node)
 
-    if preds == [] do
+    if weighted_preds == [] do
+      weight = task_estimate(planner, node)
       {Map.put(dist_acc, node, weight), pred_acc}
     else
       {best_pred, best_dist} =
-        preds
-        |> Enum.map(fn p -> {p, Map.get(dist_acc, p, 0) + weight} end)
+        weighted_preds
+        |> Enum.map(fn {p, weight} -> {p, Map.get(dist_acc, p, 0) + weight} end)
         |> Enum.max_by(fn {_, d} -> d end)
 
       {
@@ -323,12 +365,6 @@ defmodule Choreo.Planner.Analysis do
       %{estimate_hours: hrs} when is_number(hrs) and hrs > 0 -> hrs
       _ -> 1
     end
-  end
-
-  defp predecessors(dag, node) do
-    dag
-    |> Yog.Model.predecessors(node)
-    |> Enum.map(fn {from, _weight} -> from end)
   end
 
   defp cycle_nodes(g) do
