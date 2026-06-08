@@ -79,10 +79,11 @@ defmodule Choreo.C4 do
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           clusters: %{String.t() => map()},
-          scope: Yog.node_id() | nil
+          scope: Yog.node_id() | nil,
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, clusters: %{}, scope: nil
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}, scope: nil, strict: false
 
   @node_schema [
     label: [
@@ -218,13 +219,14 @@ defmodule Choreo.C4 do
       iex> c4.scope
       nil
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},
       clusters: %{},
-      scope: nil
+      scope: nil,
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -252,11 +254,18 @@ defmodule Choreo.C4 do
       raise ArgumentError, "Scope node #{inspect(scope_id)} does not exist"
     end
 
-    %{c4 | scope: scope_id}
+    case Map.get(c4.graph.nodes, scope_id) do
+      %{node_type: type} when type in [:software_system, :container] ->
+        %{c4 | scope: scope_id}
+
+      %{node_type: type} ->
+        raise ArgumentError,
+              "Scope must be a :software_system or :container, got #{inspect(type)}"
+    end
   end
 
   @doc """
-  Clears the current scope.
+  Clears the explicit scope and removes all `scope: :in` tags.
 
   ## Examples
 
@@ -265,9 +274,27 @@ defmodule Choreo.C4 do
       iex> c4 = Choreo.C4.clear_scope(c4)
       iex> c4.scope
       nil
+
+      iex> c4 = Choreo.C4.new() |> Choreo.C4.add_software_system(:banking, scope: :in)
+      iex> c4 = Choreo.C4.clear_scope(c4)
+      iex> c4.scope
+      nil
+      iex> Map.get(c4.graph.nodes, :banking).scope
+      :out
   """
   @spec clear_scope(t()) :: t()
-  def clear_scope(%__MODULE__{} = c4), do: %{c4 | scope: nil}
+  def clear_scope(%__MODULE__{graph: graph} = c4) do
+    new_nodes =
+      Map.new(graph.nodes, fn {id, data} ->
+        if data[:scope] == :in do
+          {id, Map.put(data, :scope, :out)}
+        else
+          {id, data}
+        end
+      end)
+
+    %{c4 | scope: nil, graph: %{graph | nodes: new_nodes}}
+  end
 
   # ============================================================================
   # Node builders — L1 System Context
@@ -433,14 +460,24 @@ defmodule Choreo.C4 do
       if Map.has_key?(c4.graph.nodes, from) do
         c4
       else
-        add_software_system(c4, from, label: to_string(from))
+        if c4.strict do
+          raise ArgumentError,
+                "add_relationship/4 requires both nodes to exist, but #{inspect(from)} does not"
+        else
+          add_software_system(c4, from, label: to_string(from))
+        end
       end
 
     c4 =
       if Map.has_key?(c4.graph.nodes, to) do
         c4
       else
-        add_software_system(c4, to, label: to_string(to))
+        if c4.strict do
+          raise ArgumentError,
+                "add_relationship/4 requires both nodes to exist, but #{inspect(to)} does not"
+        else
+          add_software_system(c4, to, label: to_string(to))
+        end
       end
 
     meta =
@@ -667,7 +704,6 @@ defmodule Choreo.C4 do
       rest_opts
       |> Map.new()
       |> Map.merge(%{
-        type: :c4_element,
         node_type: type,
         label: Keyword.get(rest_opts, :label, to_string(id))
       })
@@ -789,8 +825,7 @@ defimpl Choreo.Viewable, for: Choreo.C4 do
   end
 
   # Level 0 — System Context: people and software systems only
-  def zoom_predicate(c4, 0) do
-    _active_scope = resolve_active_scope(c4)
+  def zoom_predicate(_c4, 0) do
     fn _id, data -> data[:node_type] in [:person, :software_system] end
   end
 
@@ -813,6 +848,12 @@ defimpl Choreo.Viewable, for: Choreo.C4 do
   end
 
   # Level 2 — Component: context + containers + components
+  #
+  # > ### Without a container scope
+  # > If no container scope is set (via `set_scope/2` or `scope: :in` on a
+  # > system that has a container), level 2 falls back to showing **all**
+  # > components from **all** containers. This is rarely what you want.
+  # > Always set a container scope before zooming to level 2.
   def zoom_predicate(c4, 2) do
     case resolve_container_scope(c4) do
       nil ->

@@ -222,6 +222,9 @@ defmodule Choreo.C4.Analysis do
   @spec validate(C4.t()) :: [{:error | :warning, String.t()}]
   def validate(%C4{} = c4) do
     []
+    |> check_multiple_in_scopes(c4)
+    |> check_unknown_parents(c4)
+    |> check_parent_type_mismatch(c4)
     |> check_isolated(c4)
     |> check_missing_parents(c4)
     |> check_missing_descriptions(c4)
@@ -276,6 +279,75 @@ defmodule Choreo.C4.Analysis do
     case parents_without_relationships(c4) do
       [] -> acc
       nodes -> [{:warning, "Parent nodes with no relationships: #{inspect(nodes)}"} | acc]
+    end
+  end
+
+  defp check_multiple_in_scopes(acc, %C4{graph: graph}) do
+    in_scope_systems =
+      graph.nodes
+      |> Enum.filter(fn {_id, data} ->
+        data[:node_type] == :software_system and data[:scope] == :in
+      end)
+      |> Enum.map(fn {id, _data} -> id end)
+
+    if length(in_scope_systems) > 1 do
+      [
+        {:error, "Multiple in-scope systems: #{inspect(in_scope_systems)}; only one allowed"}
+        | acc
+      ]
+    else
+      acc
+    end
+  end
+
+  defp check_unknown_parents(acc, %C4{graph: graph}) do
+    unknown =
+      graph.nodes
+      |> Enum.filter(fn {_id, data} ->
+        data[:parent] != nil and not Map.has_key?(graph.nodes, data[:parent])
+      end)
+      |> Enum.map(fn {id, _data} -> id end)
+
+    if unknown == [] do
+      acc
+    else
+      [{:error, "Nodes with unknown parents: #{inspect(unknown)}"} | acc]
+    end
+  end
+
+  defp check_parent_type_mismatch(acc, %C4{graph: graph}) do
+    mismatches =
+      graph.nodes
+      |> Enum.filter(fn {_id, data} ->
+        parent_id = data[:parent]
+
+        if parent_id != nil and Map.has_key?(graph.nodes, parent_id) do
+          parent_type = graph.nodes[parent_id][:node_type]
+
+          case data[:node_type] do
+            :container -> parent_type != :software_system
+            :component -> parent_type != :container
+            _ -> false
+          end
+        else
+          false
+        end
+      end)
+      |> Enum.map(fn {id, data} ->
+        parent_id = data[:parent]
+        parent_type = graph.nodes[parent_id][:node_type]
+        {id, data[:node_type], parent_id, parent_type}
+      end)
+
+    if mismatches == [] do
+      acc
+    else
+      messages =
+        Enum.map(mismatches, fn {id, type, parent_id, parent_type} ->
+          "#{inspect(id)} (#{type}) has parent #{inspect(parent_id)} (#{parent_type})"
+        end)
+
+      [{:error, "Parent type mismatches: #{Enum.join(messages, ", ")}"} | acc]
     end
   end
 end
