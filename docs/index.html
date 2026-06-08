@@ -805,20 +805,18 @@ graph TD
       </div>
 
       <div class="showcase-tabs" style="margin-bottom: 2rem;">
-        <button class="tab-btn active"    onclick="switchTab('fsm', this)">FSM</button>
-        <button class="tab-btn"           onclick="switchTab('seq', this)">Sequence</button>
-        <button class="tab-btn"           onclick="switchTab('workflow', this)">Workflow</button>
-        <button class="tab-btn"           onclick="switchTab('erd', this)">ERD</button>
-        <button class="tab-btn"           onclick="switchTab('uml', this)">UML Class</button>
-        <button class="tab-btn"           onclick="switchTab('c4', this)">C4 Model</button>
-        <button class="tab-btn"           onclick="switchTab('mind_map', this)">Mind Map</button>
-        <button class="tab-btn"           onclick="switchTab('planner', this)">Planner</button>
-        <button class="tab-btn"           onclick="switchTab('threat', this)">Threat Model</button>
-        <button class="tab-btn"           onclick="switchTab('dependency', this)">Dependencies</button>
+        <button class="tab-btn active"    onclick="switchTab('c4', this)">C4 Model</button>
         <button class="tab-btn"           onclick="switchTab('dataflow', this)">Dataflow</button>
         <button class="tab-btn"           onclick="switchTab('decision', this)">Decision Tree</button>
-        <button class="tab-btn"           onclick="switchTab('embed', this)">Embed</button>
-        <button class="tab-btn"           onclick="switchTab('tracing', this)">Tracing</button>
+        <button class="tab-btn"           onclick="switchTab('dependency', this)">Dependencies</button>
+        <button class="tab-btn"           onclick="switchTab('erd', this)">ERD</button>
+        <button class="tab-btn"           onclick="switchTab('fsm', this)">FSM</button>
+        <button class="tab-btn"           onclick="switchTab('mind_map', this)">Mind Map</button>
+        <button class="tab-btn"           onclick="switchTab('planner', this)">Planner</button>
+        <button class="tab-btn"           onclick="switchTab('seq', this)">Sequence</button>
+        <button class="tab-btn"           onclick="switchTab('threat', this)">Threat Model</button>
+        <button class="tab-btn"           onclick="switchTab('uml', this)">UML Class</button>
+        <button class="tab-btn"           onclick="switchTab('workflow', this)">Workflow</button>
       </div>
 
       <!-- FSM -->
@@ -1217,107 +1215,6 @@ DecisionTree.incomplete_branches(tree)  # => []
 DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
           </div>
           <div class="showcase-diagram-block" id="diag-decision"></div>
-        </div>
-      </div>
-
-      <!-- Embed tab -->
-      <div id="showcase-embed" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">embed_example.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo
-alias Choreo.Dataflow
-alias Choreo.Workflow
-
-# ── Build two child diagrams ─────────────────────────
-ingestion =
-  Dataflow.new()
-  |> Dataflow.add_source(:kafka,   label: "Kafka")
-  |> Dataflow.add_transform(:parser,  label: "Parser")
-  |> Dataflow.add_transform(:enricher, label: "Enricher")
-  |> Dataflow.add_sink(:warehouse, label: "Warehouse")
-  |> Dataflow.connect(:kafka, :parser)
-  |> Dataflow.connect(:parser, :enricher)
-  |> Dataflow.connect(:enricher, :warehouse)
-
-orchestration =
-  Workflow.new()
-  |> Workflow.add_start(:trigger)
-  |> Workflow.add_task(:validate, label: "Validate", timeout_ms: 500)
-  |> Workflow.add_task(:publish,  label: "Publish",  timeout_ms: 2000)
-  |> Workflow.add_end(:done)
-  |> Workflow.connect(:trigger, :validate)
-  |> Workflow.connect(:validate, :publish)
-  |> Workflow.connect(:publish, :done)
-
-# ── Embed both into a parent Choreo system ───────────
-platform =
-  Choreo.new()
-  |> Choreo.add_cluster("ingestion",      label: "Data Ingestion")
-  |> Choreo.add_cluster("orchestration",  label: "Orchestration")
-  |> Choreo.embed(ingestion,     "ingestion",     prefix: "ing_")
-  |> Choreo.embed(orchestration, "orchestration", prefix: "orc_")
-  |> Choreo.connect(:ing_warehouse, :orc_trigger, label: "triggers")</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-embed"></div>
-        </div>
-      </div>
-
-      <!-- Tracing tab -->
-      <div id="showcase-tracing" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">cross_diagram_tracing.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo
-alias Choreo.Workflow
-alias Choreo.ERD
-
-# ── Domain schema ────────────────────────────────────
-schema =
-  ERD.new()
-  |> ERD.add_table(:users)
-  |> ERD.add_column(:users, :id,    :uuid,   primary_key: true)
-  |> ERD.add_column(:users, :email, :string, nullable: false)
-  |> ERD.add_table(:orders)
-  |> ERD.add_column(:orders, :id,      :uuid, primary_key: true)
-  |> ERD.add_column(:orders, :user_id, :uuid, foreign_key: {:users, :id})
-  |> ERD.connect(:users, :orders, label: "places", relationship: :one_to_many)
-
-# ── Checkout workflow ────────────────────────────────
-checkout =
-  Workflow.new()
-  |> Workflow.add_start(:begin)
-  |> Workflow.add_task(:auth,    label: "Authenticate User")
-  |> Workflow.add_task(:reserve, label: "Reserve Stock")
-  |> Workflow.add_task(:charge,  label: "Charge Payment")
-  |> Workflow.add_end(:complete)
-  |> Workflow.connect(:begin, :auth)
-  |> Workflow.connect(:auth, :reserve)
-  |> Workflow.connect(:reserve, :charge)
-  |> Workflow.connect(:charge, :complete)
-
-# ── Compose and declare cross-diagram traces ─────────
-platform =
-  Choreo.new()
-  |> Choreo.add_cluster("schema",   label: "Data Schema")
-  |> Choreo.add_cluster("checkout", label: "Checkout Workflow")
-  |> Choreo.embed(schema,   "schema",   prefix: "db_")
-  |> Choreo.embed(checkout, "checkout", prefix: "wf_")
-  # Workflow task reads users table
-  |> Choreo.trace(:wf_auth,    :db_users,  type: :reads)
-  # Workflow task writes orders table
-  |> Choreo.trace(:wf_charge,  :db_orders, type: :writes)
-
-# Show traces as dashed red arrows
-Choreo.to_mermaid(platform, show_traces: true)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-tracing"></div>
         </div>
       </div>
 
@@ -2113,8 +2010,8 @@ elixir((Elixir))
     window.addEventListener('DOMContentLoaded', async () => {
       // Render teaser hero diagram
       mermaid.init(undefined, document.querySelectorAll('.teaser-diagram .mermaid'));
-      // Render initial FSM tab
-      await renderDiagram('fsm');
+      // Render initial C4 tab
+      await renderDiagram('c4');
       // Render feature-section static diagrams
       await renderStatic('diag-embed-feature', tabPresets.embed);
       await renderStatic('diag-tracing-feature', tabPresets.tracing);
