@@ -154,9 +154,13 @@ defmodule Choreo.DecisionTree.AnalysisTest do
 
       pruned = Analysis.prune_redundant(tree)
 
-      # :shade should now be an outcome
-      assert :shade in DecisionTree.outcomes(pruned)
-      refute :shade in DecisionTree.decisions(pruned)
+      # :color is the only remaining node (converted to outcome after recursive prune)
+      assert DecisionTree.outcomes(pruned) == [:color]
+      refute :color in DecisionTree.decisions(pruned)
+      # Orphaned leaf nodes and intermediate decisions are removed
+      refute :shade in DecisionTree.nodes(pruned)
+      refute :stop_light in DecisionTree.nodes(pruned)
+      refute :stop_dark in DecisionTree.nodes(pruned)
     end
 
     test "leaves diverse decisions intact" do

@@ -26,7 +26,7 @@ defmodule Choreo.DecisionTreeTest do
     test "rejects second root" do
       tree = DecisionTree.new() |> DecisionTree.set_root(:a, feature: "x")
 
-      assert_raise ArgumentError, "Tree already has a root", fn ->
+      assert_raise ArgumentError, "Tree already has root :a", fn ->
         DecisionTree.set_root(tree, :b, feature: "y")
       end
     end
@@ -113,6 +113,31 @@ defmodule Choreo.DecisionTreeTest do
 
       assert String.contains?(dot, "\"my parent\"")
       assert String.contains?(dot, "\"my child\"")
+    end
+
+    test "strict mode raises on missing parent" do
+      tree = DecisionTree.new(strict: true) |> DecisionTree.set_root(:a, feature: "a")
+
+      assert_raise ArgumentError, ~r/Parent node :b does not exist/, fn ->
+        DecisionTree.branch(tree, :b, :c, "1")
+      end
+    end
+
+    test "strict mode raises on missing child" do
+      tree = DecisionTree.new(strict: true) |> DecisionTree.set_root(:a, feature: "a")
+
+      assert_raise ArgumentError, ~r/Child node :c does not exist/, fn ->
+        DecisionTree.branch(tree, :a, :c, "1")
+      end
+    end
+
+    test "non-strict mode auto-creates missing nodes as decisions" do
+      tree = DecisionTree.new() |> DecisionTree.branch(:a, :b, "yes")
+
+      assert :a in DecisionTree.nodes(tree)
+      assert :b in DecisionTree.nodes(tree)
+      assert Yog.node(tree.graph, :a).node_type == :decision
+      assert Yog.node(tree.graph, :b).node_type == :decision
     end
   end
 

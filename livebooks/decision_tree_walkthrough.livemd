@@ -2,7 +2,9 @@
 
 ```elixir
 Mix.install([
+  # For Hex publication/readers:
   # {:choreo, "~> 0.9"},
+  # For local development:
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
@@ -10,7 +12,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Kino.Mermaid` for Mermaid.js output. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Kino.Mermaid` for Mermaid.js output. You can also render DOT locally with `dot -Tsvg input.dot -o out.svg` or use [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/).
 
 ---
 
@@ -44,8 +46,10 @@ legend =
   |> DecisionTree.add_decision(:decision, feature: "Decision")
   |> DecisionTree.add_outcome(:outcome, label: "Outcome", class: "class_a")
 
-Kino.VizJS.render(DecisionTree.to_dot(legend))
-Kino.Mermaid.new(DecisionTree.to_mermaid(legend))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(legend)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(legend))
+])
 ```
 
 ---
@@ -71,8 +75,10 @@ troubleshooting =
   |> DecisionTree.branch(:has_internet, :all_good, "yes")
   |> DecisionTree.branch(:has_internet, :check_dns, "no")
 
-Kino.VizJS.render(DecisionTree.to_dot(troubleshooting))
-Kino.Mermaid.new(DecisionTree.to_mermaid(troubleshooting))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(troubleshooting)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(troubleshooting))
+])
 ```
 
 ### Evaluating a Decision
@@ -135,8 +141,10 @@ iris =
   |> DecisionTree.branch(:petal_width, :versicolor, "< 1.75")
   |> DecisionTree.branch(:petal_width, :virginica, ">= 1.75")
 
-Kino.VizJS.render(DecisionTree.to_dot(iris))
-Kino.Mermaid.new(DecisionTree.to_mermaid(iris))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(iris)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(iris))
+])
 ```
 
 ### Path Enumeration
@@ -201,8 +209,10 @@ loan =
   |> DecisionTree.branch(:employment, :approved_standard, "part-time")
   |> DecisionTree.branch(:employment, :manual_review_employment, "self-employed")
 
-Kino.VizJS.render(DecisionTree.to_dot(loan), height: "500px")
-Kino.Mermaid.new(DecisionTree.to_mermaid(loan))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(loan)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(loan), height: "500px")
+])
 ```
 
 ### Inconsistent Path Detection
@@ -214,7 +224,24 @@ Analysis.inconsistent_paths(loan)
 |> IO.inspect(label: "Inconsistent paths")
 ```
 
-In this well-formed tree, there are no inconsistencies. But if someone accidentally branched `:income` twice with overlapping ranges, this analysis would catch it immediately.
+In this well-formed tree, there are no inconsistencies. But if someone accidentally branched the same feature twice with overlapping ranges, this analysis catches it immediately:
+
+```elixir
+inconsistent =
+  DecisionTree.new()
+  |> DecisionTree.set_root(:color, feature: "color")
+  |> DecisionTree.add_decision(:shade, feature: "color")
+  |> DecisionTree.add_outcome(:stop, label: "Stop")
+  |> DecisionTree.add_outcome(:go1, label: "Go")
+  |> DecisionTree.add_outcome(:go2, label: "Go")
+  |> DecisionTree.branch(:color, :shade, "red")
+  |> DecisionTree.branch(:color, :go1, "green")
+  |> DecisionTree.branch(:shade, :stop, "dark")
+  |> DecisionTree.branch(:shade, :go2, "light")
+
+Analysis.inconsistent_paths(inconsistent)
+|> IO.inspect(label: "Inconsistent paths in broken tree")
+```
 
 ### Validation
 
@@ -270,8 +297,10 @@ ec2_selector =
   |> DecisionTree.branch(:budget, :t3_large, "moderate")
   |> DecisionTree.branch(:budget, :m6i_xlarge, "flexible")
 
-Kino.VizJS.render(DecisionTree.to_dot(ec2_selector), height: "500px")
-Kino.Mermaid.new(DecisionTree.to_mermaid(ec2_selector))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(ec2_selector)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(ec2_selector), height: "500px")
+])
 ```
 
 ### Interactive Evaluation
@@ -329,8 +358,11 @@ redundant =
   |> DecisionTree.branch(:size_green, :stop_4, "large")
 
 IO.puts("Before pruning:")
-Kino.VizJS.render(DecisionTree.to_dot(redundant))
-Kino.Mermaid.new(DecisionTree.to_mermaid(redundant))
+
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(redundant)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(redundant))
+])
 ```
 
 ```elixir
@@ -338,8 +370,11 @@ pruned = Analysis.prune_redundant(redundant)
 
 IO.puts("After pruning:")
 IO.puts("Depth: #{Analysis.depth(pruned)} (was #{Analysis.depth(redundant)})")
-Kino.VizJS.render(DecisionTree.to_dot(pruned))
-Kino.Mermaid.new(DecisionTree.to_mermaid(pruned))
+
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(pruned)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(pruned))
+])
 ```
 
 The `:color` and `:size` decisions were both redundant because every path ended at `Stop`. After pruning, the tree collapses to a single outcome node — the simplest possible representation.
@@ -348,7 +383,7 @@ The `:color` and `:size` decisions were both redundant because every path ended 
 
 ## Example 6: Fixing a Broken Tree
 
-The builder enforces invariants at construction time, but let's see what validation catches when you bypass the builder (or load from an external source).
+The builder enforces invariants at construction time, but let's see what validation catches when a node is left orphaned.
 
 ```elixir
 # Simulate a malformed tree by building one with issues
@@ -435,8 +470,10 @@ brand_theme =
     graph_bgcolor: "lightgray"
   )
 
-Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme), height: "500px")
-Kino.Mermaid.new(DecisionTree.to_mermaid(iris, theme: brand_theme))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(iris, theme: brand_theme)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme), height: "500px")
+])
 ```
 
 ---
@@ -472,12 +509,27 @@ zoom_tree =
   |> DecisionTree.branch(:wind, :stop2, "Strong")
   |> DecisionTree.branch(:wind, :play3, "Weak")
 
+# Zoom out to Level 0 (Root only)
+root_only = View.zoom(zoom_tree, level: 0)
+
+IO.puts("Zoom Level 0 (Root Only)")
+
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(root_only)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(root_only), height: "200px")
+])
+```
+
+```elixir
 # Zoom out to Level 1 (Decisions only)
 decision_view = View.zoom(zoom_tree, level: 1)
 
 IO.puts("Zoom Level 1 (Decisions Only)")
-Kino.VizJS.render(DecisionTree.to_dot(decision_view), height: "200px")
-Kino.Mermaid.new(DecisionTree.to_mermaid(decision_view))
+
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(decision_view)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(decision_view), height: "200px")
+])
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
@@ -487,8 +539,11 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 full_view = View.zoom(zoom_tree, level: 2)
 
 IO.puts("Zoom Level 2 (Full Tree)")
-Kino.VizJS.render(DecisionTree.to_dot(full_view), height: "400px")
-Kino.Mermaid.new(DecisionTree.to_mermaid(full_view))
+
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(full_view)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(full_view), height: "400px")
+])
 ```
 
 ---

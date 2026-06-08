@@ -56,6 +56,9 @@ defmodule Choreo.DecisionTree.Render.Mermaid do
     hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
     hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
 
+    # Decision tree's underlying graph is Yog.directed() (a simple graph).
+    # Yog.Multi.Mermaid lives in the Multi namespace only, so we convert
+    # to a multi-graph before rendering. This is an intentional round-trip.
     {multi_graph, edge_id_map} = Choreo.Internal.to_multi_graph(tree.graph)
 
     # Build edge_meta keyed by edge_id for the multigraph renderer
@@ -90,10 +93,6 @@ defmodule Choreo.DecisionTree.Render.Mermaid do
   def theme(name \\ :default, overrides \\ []) do
     resolve_theme(name) |> Choreo.Theme.override(overrides)
   end
-
-  # ============================================================================
-  # Theme helpers
-  # ============================================================================
 
   # ============================================================================
   # Theme helpers

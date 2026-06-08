@@ -300,9 +300,9 @@ defmodule Choreo.DecisionTree.Analysis do
       ...>   |> Choreo.DecisionTree.branch(:shade, :stop_light, "light")
       ...>   |> Choreo.DecisionTree.branch(:shade, :stop_dark, "dark")
       iex> pruned = Choreo.DecisionTree.Analysis.prune_redundant(tree)
-      iex> :shade in Choreo.DecisionTree.outcomes(pruned)
-      true
-      iex> :shade in Choreo.DecisionTree.decisions(pruned)
+      iex> Choreo.DecisionTree.outcomes(pruned)
+      [:color]
+      iex> :color in Choreo.DecisionTree.decisions(pruned)
       false
 
   This analysis answers the question: "Which decision nodes can be simplified?"
@@ -477,6 +477,9 @@ defmodule Choreo.DecisionTree.Analysis do
     end
   end
 
+  # Outcomes built without :class and without :label would silently skip pruning
+  # (no class label = can't merge safely). That's defensible — we only collapse
+  # when every descendant leaf has an identical, non-nil class+label pair.
   defp uniform_outcome(_tree, []), do: :error
 
   defp uniform_outcome(tree, children) do
@@ -498,9 +501,18 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   defp replace_with_outcome(tree, id, class, label) do
-    # Remove all outgoing edges
+    # Remove all outgoing edges and orphaned children
     children = Yog.successor_ids(tree.graph, id)
     graph = Enum.reduce(children, tree.graph, &Yog.remove_edge(&2, id, &1))
+
+    # Remove orphaned child nodes (no longer reachable after edge removal)
+    graph = Enum.reduce(children, graph, &Yog.remove_node(&2, &1))
+
+    # Remove edge metadata for the removed edges
+    edge_meta =
+      Enum.reduce(children, tree.edge_meta, fn child, acc ->
+        Map.delete(acc, {id, child})
+      end)
 
     # Update node data
     old_data = Yog.node(graph, id)
@@ -512,7 +524,7 @@ defmodule Choreo.DecisionTree.Analysis do
       |> Map.put(:label, label || old_data[:label])
 
     graph = Yog.update_node(graph, id, old_data, fn _ -> new_data end)
-    %{tree | graph: graph}
+    %{tree | graph: graph, edge_meta: edge_meta}
   end
 
   # ============================================================================

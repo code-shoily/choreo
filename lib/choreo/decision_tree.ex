@@ -71,10 +71,11 @@ defmodule Choreo.DecisionTree do
   @type t :: %__MODULE__{
           graph: Yog.graph(),
           root: Yog.node_id() | nil,
-          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()}
+          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          strict: boolean()
         }
 
-  defstruct graph: nil, root: nil, edge_meta: %{}
+  defstruct graph: nil, root: nil, edge_meta: %{}, strict: false
 
   @node_schema [
     label: [
@@ -143,6 +144,12 @@ defmodule Choreo.DecisionTree do
   @doc """
   Creates a new empty decision tree.
 
+  ## Options
+
+    * `:strict` — if `true`, `branch/4` raises when parent or child does not
+      already exist in the tree. Default `false` (auto-creates missing nodes
+      as `:decision`).
+
   ## Examples
 
       iex> tree = Choreo.DecisionTree.new()
@@ -151,12 +158,13 @@ defmodule Choreo.DecisionTree do
       iex> Choreo.DecisionTree.root(tree)
       nil
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.directed(),
       root: nil,
-      edge_meta: %{}
+      edge_meta: %{},
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -198,7 +206,7 @@ defmodule Choreo.DecisionTree do
 
       iex> tree = Choreo.DecisionTree.new() |> Choreo.DecisionTree.set_root(:a, feature: "x")
       iex> Choreo.DecisionTree.set_root(tree, :b, feature: "y")
-      ** (ArgumentError) Tree already has a root
+      ** (ArgumentError) Tree already has root :a
   """
   @spec set_root(t(), Yog.node_id(), keyword()) :: t()
   def set_root(tree, id, opts \\ [])
@@ -214,8 +222,8 @@ defmodule Choreo.DecisionTree do
     }
   end
 
-  def set_root(%__MODULE__{}, _id, _opts) do
-    raise ArgumentError, "Tree already has a root"
+  def set_root(%__MODULE__{root: root}, _id, _opts) do
+    raise ArgumentError, "Tree already has root #{inspect(root)}"
   end
 
   @doc """
@@ -342,6 +350,16 @@ defmodule Choreo.DecisionTree do
   """
   @spec branch(t(), Yog.node_id(), Yog.node_id(), String.t()) :: t()
   def branch(%__MODULE__{} = tree, parent, child, condition) do
+    if tree.strict and not Yog.has_node?(tree.graph, parent) do
+      raise ArgumentError,
+            "Parent node #{inspect(parent)} does not exist (strict mode is enabled)"
+    end
+
+    if tree.strict and not Yog.has_node?(tree.graph, child) do
+      raise ArgumentError,
+            "Child node #{inspect(child)} does not exist (strict mode is enabled)"
+    end
+
     tree =
       if Yog.has_node?(tree.graph, parent) do
         tree
@@ -646,9 +664,9 @@ defimpl Choreo.Viewable, for: Choreo.DecisionTree do
         end
       end)
 
-    new_root =
+    {new_root, new_graph} =
       if Map.has_key?(new_graph.nodes, tree.root) do
-        tree.root
+        {tree.root, new_graph}
       else
         new_graph.nodes
         |> Enum.sort_by(fn {id, data} ->
@@ -656,8 +674,14 @@ defimpl Choreo.Viewable, for: Choreo.DecisionTree do
         end)
         |> List.first()
         |> case do
-          {id, _data} -> id
-          nil -> nil
+          {id, data} ->
+            # Retype the promoted node to :root so renderers style it correctly
+            new_data = Map.put(data, :node_type, :root)
+            new_graph = Yog.update_node(new_graph, id, data, fn _ -> new_data end)
+            {id, new_graph}
+
+          nil ->
+            {nil, new_graph}
         end
       end
 
