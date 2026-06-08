@@ -47,31 +47,31 @@ context_map =
 
   # Define Strategic DDD context-mapping relationships
   |> Domain.connect_contexts(:legacy_crm, :order_taking,
-       relationship: :acl,
-       label: "CRM Customer Translation"
-     )
+    relationship: :acl,
+    label: "CRM Customer Translation"
+  )
   |> Domain.connect_contexts(:shopping_cart, :order_taking,
-       relationship: :customer_supplier,
-       label: "Submit Cart Details"
-     )
+    relationship: :customer_supplier,
+    label: "Submit Cart Details"
+  )
   |> Domain.connect_contexts(:order_taking, :billing,
-       relationship: :customer_supplier,
-       label: "Invoice Requests"
-     )
+    relationship: :customer_supplier,
+    label: "Invoice Requests"
+  )
   |> Domain.connect_contexts(:order_taking, :inventory,
-       relationship: :shared_kernel,
-       label: "Stock Levels Sync"
-     )
+    relationship: :shared_kernel,
+    label: "Stock Levels Sync"
+  )
   |> Domain.connect_contexts(:order_taking, :shipping,
-       relationship: :conformist,
-       label: "Deliveries Feed"
-     )
+    relationship: :conformist,
+    label: "Deliveries Feed"
+  )
 
 # Render Strategic Map (Mermaid tab is primary)
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(context_map)),
-  "Graphviz": Kino.VizJS.render(Domain.to_dot(context_map))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(context_map)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(context_map))
+)
 ```
 
 ---
@@ -99,94 +99,94 @@ storming =
   # Define visual Event Storming sticky notes
   # Context: Order Taking
   |> Domain.add_actor(:customer,
-       label: "Customer",
-       description: "The buyer requesting an order placement."
-     )
+    label: "Customer",
+    description: "The buyer requesting an order placement."
+  )
   |> Domain.add_command(:place_order,
-       label: "Place Order",
-       cluster: "order_taking",
-       description: "Command to submit cart contents for validation."
-     )
+    label: "Place Order",
+    cluster: "order_taking",
+    description: "Command to submit cart contents for validation."
+  )
   |> Domain.add_aggregate(:order_agg,
-       label: "Order Aggregate",
-       cluster: "order_taking",
-       description: "Consistency boundary wrapping order entities and lines."
-     )
+    label: "Order Aggregate",
+    cluster: "order_taking",
+    description: "Consistency boundary wrapping order entities and lines."
+  )
   |> Domain.add_event(:order_placed,
-       label: "Order Placed Event",
-       cluster: "order_taking",
-       description: "Emitted when order is validation-cleared."
-     )
+    label: "Order Placed Event",
+    cluster: "order_taking",
+    description: "Emitted when order is validation-cleared."
+  )
 
   # Context: Billing
   |> Domain.add_policy(:payment_saga,
-       label: "Payment Saga Policy",
-       cluster: "billing",
-       description: "Saga executing payment collection on order placed."
-     )
+    label: "Payment Saga Policy",
+    cluster: "billing",
+    description: "Saga executing payment collection on order placed."
+  )
   |> Domain.add_command(:request_payment,
-       label: "Request Payment",
-       cluster: "billing",
-       description: "Triggers payment gateway processing."
-     )
+    label: "Request Payment",
+    cluster: "billing",
+    description: "Triggers payment gateway processing."
+  )
   |> Domain.add_aggregate(:billing_agg,
-       label: "Billing Aggregate",
-       cluster: "billing",
-       description: "Manages invoice status records."
-     )
+    label: "Billing Aggregate",
+    cluster: "billing",
+    description: "Manages invoice status records."
+  )
   |> Domain.add_event(:payment_received,
-       label: "Payment Received Event",
-       cluster: "billing",
-       description: "Emitted after payment validation."
-     )
+    label: "Payment Received Event",
+    cluster: "billing",
+    description: "Emitted after payment validation."
+  )
 
   # Context: Inventory
   |> Domain.add_policy(:allocation_saga,
-       label: "Allocation Saga Policy",
-       cluster: "inventory",
-       description: "Saga verifying stock levels once payment is secured."
-     )
+    label: "Allocation Saga Policy",
+    cluster: "inventory",
+    description: "Saga verifying stock levels once payment is secured."
+  )
   |> Domain.add_command(:reserve_inventory,
-       label: "Reserve Inventory",
-       cluster: "inventory",
-       description: "Deducts pending stock counts."
-     )
+    label: "Reserve Inventory",
+    cluster: "inventory",
+    description: "Deducts pending stock counts."
+  )
   |> Domain.add_aggregate(:inventory_agg,
-       label: "Inventory Aggregate",
-       cluster: "inventory",
-       description: "Maintains real-time stock balances."
-     )
+    label: "Inventory Aggregate",
+    cluster: "inventory",
+    description: "Maintains real-time stock balances."
+  )
   |> Domain.add_event(:inventory_reserved,
-       label: "Inventory Reserved Event",
-       cluster: "inventory",
-       description: "Emitted when stock is allocated."
-     )
+    label: "Inventory Reserved Event",
+    cluster: "inventory",
+    description: "Emitted when stock is allocated."
+  )
 
   # Context: Shipping
   |> Domain.add_policy(:shipment_saga,
-       label: "Shipment Saga Policy",
-       cluster: "shipping",
-       description: "Saga initiating shipping dispatch."
-     )
+    label: "Shipment Saga Policy",
+    cluster: "shipping",
+    description: "Saga initiating shipping dispatch."
+  )
   |> Domain.add_command(:ship_goods,
-       label: "Ship Goods",
-       cluster: "shipping",
-       description: "Commands warehouse to box items."
-     )
+    label: "Ship Goods",
+    cluster: "shipping",
+    description: "Commands warehouse to box items."
+  )
   |> Domain.add_aggregate(:shipping_agg,
-       label: "Shipping Aggregate",
-       cluster: "shipping",
-       description: "Handles shipping labels."
-     )
+    label: "Shipping Aggregate",
+    cluster: "shipping",
+    description: "Handles shipping labels."
+  )
   |> Domain.add_event(:goods_shipped,
-       label: "Goods Shipped Event",
-       cluster: "shipping",
-       description: "Emitted when package departs."
-     )
+    label: "Goods Shipped Event",
+    cluster: "shipping",
+    description: "Emitted when package departs."
+  )
   |> Domain.add_actor(:shipping_agent,
-       label: "Shipping Agent",
-       description: "Warehouse picker dispatcher."
-     )
+    label: "Shipping Agent",
+    description: "Warehouse picker dispatcher."
+  )
 
   # Connect the execution flow
   # Customer -> Order Placed
@@ -214,10 +214,14 @@ storming =
   |> Domain.connect(:goods_shipped, :shipping_agent)
 
 # Render Event Storming Flow
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(storming)),
-  "Graphviz": Kino.VizJS.render(Domain.to_dot(storming))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(storming)),
+  Graphviz:
+    Kino.VizJS.render(
+      Domain.to_dot(storming),
+      height: "1800px"
+    )
+)
 ```
 
 ---
@@ -236,42 +240,42 @@ algebraic_pipeline =
   Domain.new()
   # Define Domain Types with fields (renders as structured UML Class tables)
   |> Domain.add_type(:unvalidated_order,
-       label: "Unvalidated Order",
-       fields: [
-         {:customer_id, :string},
-         {:lines, "list of UnvalidatedLine"}
-       ]
-     )
+    label: "Unvalidated Order",
+    fields: [
+      {:customer_id, :string},
+      {:lines, "list of UnvalidatedLine"}
+    ]
+  )
   |> Domain.add_type(:validated_order,
-       label: "Validated Order",
-       fields: [
-         {:customer_info, "CustomerInfo"},
-         {:lines, "list of ValidatedLine"}
-       ]
-     )
+    label: "Validated Order",
+    fields: [
+      {:customer_info, "CustomerInfo"},
+      {:lines, "list of ValidatedLine"}
+    ]
+  )
   |> Domain.add_type(:priced_order,
-       label: "Priced Order",
-       fields: [
-         {:customer_info, "CustomerInfo"},
-         {:lines, "list of PricedLine"},
-         {:total_amount, :money}
-       ]
-     )
+    label: "Priced Order",
+    fields: [
+      {:customer_info, "CustomerInfo"},
+      {:lines, "list of PricedLine"},
+      {:total_amount, :money}
+    ]
+  )
   |> Domain.add_type(:order_acknowledgment_sent,
-       label: "Order Acknowledgment Sent",
-       fields: [
-         {:customer_email, :string},
-         {:pdf_receipt, :binary}
-       ]
-     )
+    label: "Order Acknowledgment Sent",
+    fields: [
+      {:customer_email, :string},
+      {:pdf_receipt, :binary}
+    ]
+  )
   |> Domain.add_type(:bill_requested,
-       label: "Bill Requested",
-       fields: [
-         {:invoice_id, :string},
-         {:total, :money},
-         {:payment_terms, [:due_on_receipt, :net_30, :net_60]}
-       ]
-     )
+    label: "Bill Requested",
+    fields: [
+      {:invoice_id, :string},
+      {:total, :money},
+      {:payment_terms, [:due_on_receipt, :net_30, :net_60]}
+    ]
+  )
 
   # Define Workflow action pipeline functions
   |> Domain.add_workflow(:validate_order, label: "Validate Order (Workflow)")
@@ -290,10 +294,10 @@ algebraic_pipeline =
   |> Domain.connect(:bill_customer, :bill_requested)
 
 # Render UML-like Pipeline Flow
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
-  "Graphviz": Kino.VizJS.render(Domain.to_dot(algebraic_pipeline))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1200px")
+)
 ```
 
 ---
@@ -312,41 +316,41 @@ Below, we detail the internal schemas of our **Order Aggregate** boundary. Insid
 aggregate_detail =
   Domain.new()
   |> Domain.add_aggregate(:order_root,
-       label: "Order (Aggregate Root Entity)",
-       fields: [
-         {:id, :uuid},
-         {:status, [:placed, :processing, :fulfilled]},
-         {:customer_info, "CustomerInfo (Value Object)"},
-         {:total_price, :money}
-       ]
-     )
+    label: "Order (Aggregate Root Entity)",
+    fields: [
+      {:id, :uuid},
+      {:status, [:placed, :processing, :fulfilled]},
+      {:customer_info, "CustomerInfo (Value Object)"},
+      {:total_price, :money}
+    ]
+  )
   |> Domain.add_type(:order_line,
-       label: "OrderLine (Entity)",
-       fields: [
-         {:id, :uuid},
-         {:product_id, :string},
-         {:quantity, :integer},
-         {:price, :money}
-       ]
-     )
+    label: "OrderLine (Entity)",
+    fields: [
+      {:id, :uuid},
+      {:product_id, :string},
+      {:quantity, :integer},
+      {:price, :money}
+    ]
+  )
   |> Domain.add_type(:customer_info_vo,
-       label: "CustomerInfo (Value Object)",
-       fields: [
-         {:customer_id, :uuid},
-         {:name, :string},
-         {:email, :string}
-       ]
-     )
+    label: "CustomerInfo (Value Object)",
+    fields: [
+      {:customer_id, :uuid},
+      {:name, :string},
+      {:email, :string}
+    ]
+  )
 
   # Connect internal relations inside the Aggregate
   |> Domain.connect(:order_root, :customer_info_vo, label: "contains")
   |> Domain.connect(:order_root, :order_line, label: "has 1..*")
 
 # Render detailed Aggregate structures
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
-  "Graphviz": Kino.VizJS.render(Domain.to_dot(aggregate_detail))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(aggregate_detail), height: "500px")
+)
 ```
 
 ---
@@ -406,15 +410,24 @@ With Choreo, you can highlight specific transaction scenarios (paths) and run se
 We highlight only the path from the customer's request down to the payment validation event, leaving the rest of the storming board grayed out.
 
 ```elixir
-payment_scenario = [:customer, :place_order, :order_agg, :order_placed, :payment_saga, :request_payment, :billing_agg, :payment_received]
+payment_scenario = [
+  :customer,
+  :place_order,
+  :order_agg,
+  :order_placed,
+  :payment_saga,
+  :request_payment,
+  :billing_agg,
+  :payment_received
+]
 
 highlighted_storm = Domain.focus_path(storming, payment_scenario)
 
 # Render highlighted scenario
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(Domain.to_mermaid(highlighted_storm)),
-  "Graphviz": Kino.VizJS.render(Domain.to_dot(highlighted_storm))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(highlighted_storm)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(highlighted_storm), height: "1600px")
+)
 ```
 
 ### Tracing Roots
