@@ -277,7 +277,7 @@ defmodule Choreo.Render.DOT do
         rows <>
         "</TABLE>"
     else
-      Map.get(data, :name, "")
+      Map.get(data, :label, "")
     end
   end
 

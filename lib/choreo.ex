@@ -17,9 +17,9 @@ defmodule Choreo do
 
       system =
         Choreo.new()
-        |> Choreo.add_database(:db, name: "Postgres", kind: :postgres)
-        |> Choreo.add_cache(:cache, name: "Redis", kind: :redis)
-        |> Choreo.add_service(:api, name: "API Gateway")
+        |> Choreo.add_database(:db, label: "Postgres", kind: :postgres)
+        |> Choreo.add_cache(:cache, label: "Redis", kind: :redis)
+        |> Choreo.add_service(:api, label: "API Gateway")
         |> Choreo.connect(:api, :cache, cost: 5)
         |> Choreo.connect(:api, :db, cost: 10)
 
