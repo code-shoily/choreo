@@ -360,11 +360,6 @@ defmodule Choreo.MindMap.Analysis do
   # Private helpers — paths
   # ============================================================================
 
-  defp do_paths(_map, _current, _path, acc, _visited) when length(acc) > 10_000 do
-    # Safety break for unexpected cycles
-    acc
-  end
-
   defp do_paths(map, current, path, acc, visited) do
     children =
       branch_successors(map, current)
