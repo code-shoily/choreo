@@ -28,7 +28,7 @@ defmodule Choreo.Render.DOT do
 
   ## Options
 
-    * `:theme` - `:default`, `:dark`, `:minimal`, or a `Choreo.Theme` struct
+    * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, or `:ocean`
     * `:subgraphs` - list of subgraph / cluster definitions (manual override)
     * `:ranks` - rank constraints
     * Any other option accepted by `Yog.Render.DOT.to_dot/2`

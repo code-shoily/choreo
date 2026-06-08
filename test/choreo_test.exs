@@ -111,6 +111,32 @@ defmodule ChoreoTest do
       assert Choreo.nodes(system)[:api].type == :generic
       assert Choreo.nodes(system)[:db].type == :generic
     end
+
+    test "connect/4 strict: true raises when source node is missing" do
+      system = Choreo.new() |> Choreo.add_service(:db)
+
+      assert_raise ArgumentError, ~r/source node :apii does not exist in strict mode/, fn ->
+        Choreo.connect(system, :apii, :db, strict: true)
+      end
+    end
+
+    test "connect/4 strict: true raises when target node is missing" do
+      system = Choreo.new() |> Choreo.add_service(:api)
+
+      assert_raise ArgumentError, ~r/target node :dbb does not exist in strict mode/, fn ->
+        Choreo.connect(system, :api, :dbb, strict: true)
+      end
+    end
+
+    test "connect/4 strict: true succeeds when both nodes exist" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api)
+        |> Choreo.add_database(:db, kind: :postgres)
+        |> Choreo.connect(:api, :db, strict: true)
+
+      assert [{:api, :db, 1}] = Choreo.edges(system)
+    end
   end
 
   describe "rendering" do

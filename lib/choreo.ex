@@ -53,6 +53,7 @@ defmodule Choreo do
   """
 
   alias __MODULE__
+  require Logger
 
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
@@ -186,6 +187,12 @@ defmodule Choreo do
       type: :string,
       required: false,
       doc: "Graphviz tailport override."
+    ],
+    strict: [
+      type: :boolean,
+      required: false,
+      default: false,
+      doc: "Whether to raise an error if the source or target node does not exist."
     ]
   ]
 
@@ -551,12 +558,12 @@ defmodule Choreo do
 
     updated_clusters =
       Enum.reduce(child_clusters, system.clusters, fn {c_name, c_meta}, acc ->
-        clean_name = String.replace(c_name, "cluster_", "")
+        clean_name = String.replace_prefix(to_string(c_name), "cluster_", "")
         new_name = Choreo.Internal.ensure_cluster_prefix(cluster_prefix <> clean_name)
 
         new_meta =
           if parent = c_meta[:parent] do
-            clean_parent = String.replace(parent, "cluster_", "")
+            clean_parent = String.replace_prefix(to_string(parent), "cluster_", "")
 
             Map.put(
               c_meta,
@@ -579,7 +586,7 @@ defmodule Choreo do
 
         node_cluster =
           if c = node_data[:cluster] do
-            clean_c = String.replace(c, "cluster_", "")
+            clean_c = String.replace_prefix(to_string(c), "cluster_", "")
             Choreo.Internal.ensure_cluster_prefix(cluster_prefix <> clean_c)
           else
             Choreo.Internal.ensure_cluster_prefix(cluster_name)
@@ -597,43 +604,42 @@ defmodule Choreo do
 
     # 3. Extract edges
     child_edge_meta = Map.get(child_diagram, :edge_meta, %{})
+    is_multigraph = match?(%Yog.Multi.Graph{}, child_diagram.graph)
 
     updated_state =
-      case Map.keys(child_edge_meta) do
-        [{_, _} | _] ->
-          # Simple graph edges
-          edges_list = Yog.all_edges(child_diagram.graph)
+      if is_multigraph do
+        # Multigraph parallel edges
+        child_edges = get_in(child_diagram, [Access.key(:graph), Access.key(:edges)]) || %{}
 
-          Enum.reduce(edges_list, {updated_graph, system.edge_meta}, fn {from, to, weight},
-                                                                        {g_acc, m_acc} ->
-            meta = Map.get(child_edge_meta, {from, to}, %{})
-            new_from = :"#{prefix}#{from}"
-            new_to = :"#{prefix}#{to}"
+        Enum.reduce(child_edge_meta, {updated_graph, system.edge_meta}, fn {edge_id, meta},
+                                                                           {g_acc, m_acc} ->
+          case Map.get(child_edges, edge_id) do
+            {from, to, weight} ->
+              new_from = :"#{prefix}#{from}"
+              new_to = :"#{prefix}#{to}"
 
-            {g_acc, edge_id} = Yog.Multi.add_edge(g_acc, new_from, new_to, weight)
-            m_acc = Map.put(m_acc, edge_id, meta)
-            {g_acc, m_acc}
-          end)
+              {g_acc, new_edge_id} = Yog.Multi.add_edge(g_acc, new_from, new_to, weight)
+              m_acc = Map.put(m_acc, new_edge_id, meta)
+              {g_acc, m_acc}
 
-        _ ->
-          # Multigraph parallel edges
-          child_edges = get_in(child_diagram, [Access.key(:graph), Access.key(:edges)]) || %{}
+            _ ->
+              {g_acc, m_acc}
+          end
+        end)
+      else
+        # Simple graph edges
+        edges_list = Yog.all_edges(child_diagram.graph)
 
-          Enum.reduce(child_edge_meta, {updated_graph, system.edge_meta}, fn {edge_id, meta},
-                                                                             {g_acc, m_acc} ->
-            case Map.get(child_edges, edge_id) do
-              {from, to, weight} ->
-                new_from = :"#{prefix}#{from}"
-                new_to = :"#{prefix}#{to}"
+        Enum.reduce(edges_list, {updated_graph, system.edge_meta}, fn {from, to, weight},
+                                                                      {g_acc, m_acc} ->
+          meta = Map.get(child_edge_meta, {from, to}, %{})
+          new_from = :"#{prefix}#{from}"
+          new_to = :"#{prefix}#{to}"
 
-                {g_acc, new_edge_id} = Yog.Multi.add_edge(g_acc, new_from, new_to, weight)
-                m_acc = Map.put(m_acc, new_edge_id, meta)
-                {g_acc, m_acc}
-
-              _ ->
-                {g_acc, m_acc}
-            end
-          end)
+          {g_acc, edge_id} = Yog.Multi.add_edge(g_acc, new_from, new_to, weight)
+          m_acc = Map.put(m_acc, edge_id, meta)
+          {g_acc, m_acc}
+        end)
       end
 
     {final_graph, final_edge_meta} = updated_state
@@ -744,6 +750,23 @@ defmodule Choreo do
   def connect(%__MODULE__{} = system, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @connect_schema)
     cost = opts[:cost]
+    strict = opts[:strict]
+
+    if strict do
+      if not Map.has_key?(system.graph.nodes, from) do
+        raise ArgumentError, "source node #{inspect(from)} does not exist in strict mode"
+      end
+
+      if not Map.has_key?(system.graph.nodes, to) do
+        raise ArgumentError, "target node #{inspect(to)} does not exist in strict mode"
+      end
+    else
+      if not Map.has_key?(system.graph.nodes, from) and not Map.has_key?(system.graph.nodes, to) do
+        Logger.warning(
+          "Both endpoints #{inspect(from)} and #{inspect(to)} do not exist and will be auto-created"
+        )
+      end
+    end
 
     system =
       if Map.has_key?(system.graph.nodes, from) do
@@ -885,7 +908,7 @@ defmodule Choreo do
 
   ## Options
 
-    * `:theme` - `:default`, `:dark`, or `:minimal`
+    * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, or `:ocean`
     * Any option accepted by `Yog.Render.DOT.to_dot/2`
 
   ## Examples
@@ -970,15 +993,19 @@ defimpl Choreo.Viewable, for: Choreo do
     %{system | graph: new_graph, edge_meta: new_edge_meta}
   end
 
-  def zoom_predicate(_, 0), do: fn _, d -> d[:type] == :service end
+  # Maps zoom tier → the node types visible at that level.
+  # Each tier is a superset of the previous; tier 0 is the most zoomed-out.
+  # When a new add_* builder introduces a type, add it here — one place only.
+  @zoom_tiers %{
+    0 => [:service],
+    1 => [:service, :database, :cache, :queue, :storage],
+    2 => [:service, :database, :cache, :queue, :storage, :load_balancer, :network]
+  }
 
-  def zoom_predicate(_, 1),
-    do: fn _, d -> d[:type] in [:service, :database, :cache, :queue, :storage] end
-
-  def zoom_predicate(_, 2),
-    do: fn _, d ->
-      d[:type] in [:service, :database, :cache, :queue, :storage, :load_balancer, :network]
-    end
+  def zoom_predicate(_, level) when is_map_key(@zoom_tiers, level) do
+    types = @zoom_tiers[level]
+    fn _, d -> d[:type] in types end
+  end
 
   def zoom_predicate(_, _), do: fn _, _ -> true end
 

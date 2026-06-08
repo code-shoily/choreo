@@ -25,8 +25,6 @@ defprotocol Choreo.Viewable do
       end
   """
 
-  @fallback_to_any true
-
   @doc """
   Rebuild the diagram after a graph transformation.
 

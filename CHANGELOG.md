@@ -1,6 +1,18 @@
 # Changelog
 
-## [0.9.0 - UNRELEASED]
+## [0.9.0] - 2026-06-08
+
+### Fixed
+
+- **Choreo.embed/4** — replaced fragile key-shape heuristic for determining simple-vs-multigraph with an explicit `match?(%Yog.Multi.Graph{}, ...)` struct check; eliminates silent branch fall-through when `edge_meta` is empty.
+- **Choreo.embed/4** — replaced `String.replace/3` with `String.replace_prefix/3` for cluster name sanitization to avoid corrupting cluster names that contain `"cluster_"` as an interior substring.
+- **Choreo.connect/4** — added `:strict` boolean option; when `true`, raises `ArgumentError` if either endpoint is missing; when `false` (default) and both endpoints are absent, emits a `Logger.warning/1` instead of silently auto-creating two generic nodes.
+- **Choreo.Viewable** — removed `@fallback_to_any true` directive (no `Any` implementation existed); Elixir's default protocol dispatch now produces the cleaner `Protocol.UndefinedError` for unimplemented types.
+- **Choreo.Render.DOT / Choreo** — corrected stale `:theme` option documentation in `Choreo.to_dot/2` and `Choreo.Render.DOT`; both now list all six supported themes (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`).
+
+### Changed
+
+- **Choreo** — centralized zoom-tier type taxonomy into a single `@zoom_tiers` module attribute inside `defimpl Choreo.Viewable, for: Choreo`; adding a new node type now requires touching one place instead of three `zoom_predicate/2` clauses.
 
 ### Deprecated
 
