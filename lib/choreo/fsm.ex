@@ -65,7 +65,11 @@ defmodule Choreo.FSM do
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
-          meta: map()
+          meta: %{
+            initial_state: Yog.node_id() | nil,
+            final_states: MapSet.t(Yog.node_id()),
+            strict: boolean()
+          }
         }
 
   defstruct graph: nil, edge_meta: %{}, meta: %{}
@@ -225,10 +229,7 @@ defmodule Choreo.FSM do
       :normal ->
         fsm
         |> remove_initial_state(id)
-        |> put_in(
-          [Access.key!(:meta), :final_states],
-          MapSet.delete(fsm.meta.final_states, id)
-        )
+        |> remove_final_state(id)
 
       nil ->
         fsm
@@ -433,18 +434,7 @@ defmodule Choreo.FSM do
     opts = NimbleOptions.validate!(opts, @add_transition_schema)
     label = build_transition_label(opts)
 
-    # Check distinct error messages for empty labels
-    cond do
-      is_nil(opts[:label]) and is_nil(opts[:guard]) ->
-        raise ArgumentError, "missing transition :label option"
-
-      label == "" ->
-        raise ArgumentError,
-              "epsilon transitions (empty labels) are not supported in DFAs"
-
-      true ->
-        :ok
-    end
+    validate_transition_label!(opts, label)
 
     # Check strict mode
     if fsm.meta.strict do
@@ -490,6 +480,20 @@ defmodule Choreo.FSM do
     [opts[:label], opts[:guard] && "[#{opts[:guard]}]"]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" ")
+  end
+
+  defp validate_transition_label!(opts, label) do
+    cond do
+      is_nil(opts[:label]) and is_nil(opts[:guard]) ->
+        raise ArgumentError, "missing transition :label option"
+
+      label == "" ->
+        raise ArgumentError,
+              "epsilon transitions (empty labels) are not supported in DFAs"
+
+      true ->
+        :ok
+    end
   end
 
   # ============================================================================

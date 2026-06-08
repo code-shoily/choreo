@@ -277,11 +277,8 @@ defmodule Choreo.FSM.Analysis do
       initial ->
         queue = [{initial, []}]
 
-        # Note: For strict DFAs, accepted strings are unique by construction.
-        # We keep Enum.uniq/1 as a safety measure.
         do_accepted_strings(fsm, queue, max_length, 0, [])
         |> Enum.reverse()
-        |> Enum.uniq()
     end
   end
 

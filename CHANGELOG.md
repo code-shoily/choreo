@@ -2,6 +2,16 @@
 
 ## [0.9.0 - UNRELEASED]
 
+### Deprecated
+
+- **Choreo.FSM**:
+  - Deprecated `Choreo.FSM.initial_states/1` in favor of `Choreo.FSM.initial_state/1`. It is scheduled for removal in version 0.10.
+
+### Removed
+
+- **Choreo.FSM.Analysis**:
+  - Removed `Analysis.deterministic?/1` and `Analysis.nondeterministic_states/1` since `Choreo.FSM` enforces DFA determinism strictly at build-time.
+
 ### Changed
 
 - **Choreo.C4 — Scoped Zooming & Relationship Roll-up**:
