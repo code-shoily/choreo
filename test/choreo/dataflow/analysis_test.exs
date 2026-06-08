@@ -163,14 +163,14 @@ defmodule Choreo.Dataflow.AnalysisTest do
       assert Analysis.dead_ends(flow) == [:d]
     end
 
-    test "returns all nodes when no sinks" do
+    test "returns empty when no sinks" do
       flow =
         Dataflow.new()
         |> Dataflow.add_source(:a)
         |> Dataflow.add_transform(:b)
         |> Dataflow.connect(:a, :b)
 
-      assert Enum.sort(Analysis.dead_ends(flow)) == [:a, :b]
+      assert Analysis.dead_ends(flow) == []
     end
 
     test "empty when all can reach sink" do
@@ -186,7 +186,7 @@ defmodule Choreo.Dataflow.AnalysisTest do
     end
   end
 
-  describe "bottlenecks/1" do
+  describe "fan_hubs/1" do
     test "finds high fan-in / fan-out nodes" do
       flow =
         Dataflow.new()
@@ -200,7 +200,7 @@ defmodule Choreo.Dataflow.AnalysisTest do
         |> Dataflow.connect(:hub, :c)
         |> Dataflow.connect(:hub, :d)
 
-      assert :hub in Analysis.bottlenecks(flow)
+      assert :hub in Analysis.fan_hubs(flow)
     end
 
     test "respects threshold" do
@@ -212,8 +212,22 @@ defmodule Choreo.Dataflow.AnalysisTest do
         |> Dataflow.connect(:a, :b)
         |> Dataflow.connect(:b, :c)
 
-      assert Analysis.bottlenecks(flow) == []
-      assert Analysis.bottlenecks(flow, threshold: 2) == [:b]
+      assert Analysis.fan_hubs(flow) == []
+      assert Analysis.fan_hubs(flow, threshold: 2) == [:b]
+    end
+  end
+
+  describe "bottlenecks/1" do
+    test "returns capacity bottlenecks" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_source(:a, rate: 100)
+        |> Dataflow.add_transform(:b, capacity: 50)
+        |> Dataflow.add_sink(:c)
+        |> Dataflow.connect(:a, :b)
+        |> Dataflow.connect(:b, :c)
+
+      assert Analysis.bottlenecks(flow) == [:b]
     end
   end
 
@@ -269,7 +283,7 @@ defmodule Choreo.Dataflow.AnalysisTest do
   end
 
   describe "unhandled_errors/1" do
-    test "finds nodes without error or dlq paths" do
+    test "finds transforms without error or dlq paths" do
       flow =
         Dataflow.new()
         |> Dataflow.add_source(:a)
@@ -286,11 +300,24 @@ defmodule Choreo.Dataflow.AnalysisTest do
       # :a is a source, doesn't need error path
       # :b has an error path, so it shouldn't be here
       # :c is a transform with no error path
-      # :d is a sink with no error path
       assert :c in errors
-      assert :d in errors
       refute :a in errors
       refute :b in errors
+    end
+  end
+
+  describe "unhandled_sinks/1" do
+    test "finds sinks without dead-letter paths" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_transform(:a)
+        |> Dataflow.add_sink(:b)
+        |> Dataflow.add_sink(:c)
+        |> Dataflow.connect(:a, :b)
+
+      sinks = Analysis.unhandled_sinks(flow)
+      assert :b in sinks
+      assert :c in sinks
     end
   end
 
