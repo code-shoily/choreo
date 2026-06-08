@@ -50,8 +50,8 @@ schema =
   |> ERD.add_relationship(:products, :order_items, cardinality: :zero_or_one_to_many, label: "ordered_in")
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(ERD.to_dot(schema))},
-  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(schema))}
+  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(schema))},
+  {"Graphviz", Kino.VizJS.render(ERD.to_dot(schema))}
 ]
 
 Kino.Layout.tabs(tabs)
@@ -90,11 +90,12 @@ Relationships support standard crow's foot multiplicities via the `:cardinality`
 
 | Cardinality Identifier | DOT Arrow Style | Mermaid Syntax Shape |
 | ---------------------- | --------------- | -------------------- |
-| `:one_to_one` | `teetee` / `teetee` | `\|\|--\|\|` |
-| `:one_to_many` | `teetee` / `crowodot` | `\|\|--o{` |
-| `:zero_or_one_to_many` | `odot` / `crowodot` | `\|o--o{` |
-| `:exactly_one_to_many` | `teetee` / `crowtee` | `\|\|--\|{` |
-| `:many_to_many` | `crowodot` / `crowodot` | `}o--o{` |
+
+| `:one_to_one`          | `teetee` / `teetee`     | `||--||`             |
+| `:one_to_many`         | `teetee` / `crowodot`   | `||--o{`             |
+| `:zero_or_one_to_many` | `odot` / `crowodot`     | `|o--o{`             |
+| `:exactly_one_to_many` | `teetee` / `crowtee`    | `||--|{`             |
+| `:many_to_many`        | `crowodot` / `crowodot` | `}o--o{`             |
 
 ```elixir
 # Example of a one-to-one profile link
@@ -108,8 +109,8 @@ profile_schema =
   |> ERD.add_relationship(:users, :profiles, cardinality: :one_to_one, label: "has_one")
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(ERD.to_dot(profile_schema))},
-  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(profile_schema))}
+  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(profile_schema))},
+  {"Graphviz", Kino.VizJS.render(ERD.to_dot(profile_schema))}
 ]
 
 Kino.Layout.tabs(tabs)

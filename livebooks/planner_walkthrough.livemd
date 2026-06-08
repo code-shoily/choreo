@@ -366,7 +366,7 @@ All built-in themes work across every render target.
 
 ```elixir
 for theme <- [:default, :dark, :warm, :forest, :ocean] do
-  dot = Planner.to_dot(sprint, theme: theme)
+  _dot = Planner.to_dot(sprint, theme: theme)
   IO.puts("Theme: #{theme}")
   # In a real notebook you'd render each one
 end

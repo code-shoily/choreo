@@ -1,4 +1,4 @@
-# Choreo.Infrastructure: Cloud Network Topology Walkthrough
+# Choreo Infrastructure: Cloud Network Topology Walkthrough
 
 ```elixir
 Mix.install([
