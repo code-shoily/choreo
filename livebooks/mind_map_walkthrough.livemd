@@ -1,7 +1,5 @@
 # Choreo MindMap: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 Mix.install([
   # For Hex publication/readers:
@@ -11,6 +9,8 @@ Mix.install([
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
+
+## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 > 
@@ -57,7 +57,7 @@ legend =
   |> MindMap.branch(:subtopic, :note)
 
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(MindMap.to_mermaid(legend)),
+  "Mermaid": Kino.Mermaid.new(MindMap.to_mermaid(legend, direction: :lr)),
   "Graphviz": Kino.VizJS.render(
     MindMap.to_dot(legend, theme: Choreo.MindMap.theme(:default, graph_rankdir: :lr))
   )
@@ -162,7 +162,7 @@ domain =
 Kino.Layout.tabs([
   "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :flowchart)),
   "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :mindmap)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "600px", width: "100%")
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(domain), height: "600px", width: "100%")
 ])
 ```
 
@@ -221,10 +221,11 @@ roadmap =
   # Cross-link: webhooks affect caching strategy
   |> MindMap.associate(:webhooks, :caching, label: "affects")
 
-Kino.Layout.tabs([
+Kino.Layout.tabs(
   "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :flowchart)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
-])
+  "Mermaid (Native)": Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :mindmap)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
+)
 ```
 
 ### Detect Orphans
@@ -351,23 +352,13 @@ Show only the big picture (root + topics):
 ```elixir
 alias Choreo.View
 
-overview = View.zoom(talk, level: 1)
+zoom_by = fn i -> View.zoom(talk, level: i) end
 
-Kino.Layout.tabs([
-  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(overview, syntax: :mindmap)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(overview), engine: "circo")
-])
-```
-
-Show root, topics, and subtopics (hide notes):
-
-```elixir
-mid = View.zoom(talk, level: 2)
-
-Kino.Layout.tabs([
-  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(mid, syntax: :mindmap)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(mid), height: "600px")
-])
+Kino.Layout.tabs(
+  "Mermaid (Level 1)": zoom_by.(1) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Mermaid.new(),
+  "Mermaid (Level 2)": zoom_by.(2) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Mermaid.new(),
+  "Mermaid (Level 3)": zoom_by.(3) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Mermaid.new()
+)
 ```
 
 ### Focus on a Branch
