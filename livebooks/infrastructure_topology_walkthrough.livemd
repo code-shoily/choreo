@@ -309,11 +309,10 @@ Kino.VizJS.render(Infrastructure.to_dot(multi_region, theme: :dark))
 
 ```elixir
 # Confirm no security warnings on the multi-region design
-Analysis.warnings(multi_region)
-|> case do
-  [] -> IO.puts("✅ Clean topology")
-  ws -> Enum.each(ws, &IO.puts("⚠️  #{&1}"))
-end
+[{:warning, message}] = Analysis.validate(multi_region)
+
+IO.puts("⚠️  message")
+
 ```
 
 ---

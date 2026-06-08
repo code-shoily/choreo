@@ -422,7 +422,7 @@ Kino.Layout.tabs([
 We can trace backward from the shipping event to determine all preceding triggers across contexts:
 
 ```elixir
-Domain.trace_cause(storming, :goods_shipped)
+Domain.causes(storming, :goods_shipped)
 ```
 
 ### Semantic Design Auditor
@@ -430,11 +430,8 @@ Domain.trace_cause(storming, :goods_shipped)
 We run semantic rule checks on our Event Storming board to verify that there are no dangling triggers or unhandled events.
 
 ```elixir
-warnings = Analysis.warnings(storming)
+[{:warning, wm}] = Analysis.warnings(storming)
 
-if warnings == [] do
-  IO.puts("✅ Clean Event Storming graph: All triggers and outputs resolve properly.")
-else
-  Enum.each(warnings, &IO.puts("⚠️  #{&1}"))
-end
+IO.puts("⚠️  #{wm}")
+
 ```

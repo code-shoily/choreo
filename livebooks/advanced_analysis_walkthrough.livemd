@@ -27,18 +27,18 @@ alias Choreo.Analysis
 ecommerce_system =
   Choreo.new()
   # Public entrypoint
-  |> Choreo.add_user(:customer, name: "Customer Browser")
+  |> Choreo.add_user(:customer, label: "Customer Browser")
   # Core gateway
-  |> Choreo.add_service(:api_gateway, name: "API Gateway")
+  |> Choreo.add_service(:api_gateway, label: "API Gateway")
   # Independent services
-  |> Choreo.add_service(:auth_service, name: "Auth Service")
-  |> Choreo.add_service(:product_catalog, name: "Product Catalog Svc")
+  |> Choreo.add_service(:auth_service, label: "Auth Service")
+  |> Choreo.add_service(:product_catalog, label: "Product Catalog Svc")
   # Business orchestration hub
-  |> Choreo.add_service(:order_service, name: "Order Processor")
+  |> Choreo.add_service(:order_service, label: "Order Processor")
   # Downstream fulfillment services
-  |> Choreo.add_service(:payment_gateway, name: "Payment Gateway Integration")
-  |> Choreo.add_service(:inventory_service, name: "Inventory Controller")
-  |> Choreo.add_service(:shipping_service, name: "Shipping & Fulfillment")
+  |> Choreo.add_service(:payment_gateway, label: "Payment Gateway Integration")
+  |> Choreo.add_service(:inventory_service, label: "Inventory Controller")
+  |> Choreo.add_service(:shipping_service, label: "Shipping & Fulfillment")
   
   # Connect the graph
   |> Choreo.connect(:customer, :api_gateway)
@@ -79,13 +79,13 @@ Let's model a **Billing Consensus & Ledger Cluster** where three database nodes 
 consensus_mesh = 
   Choreo.new()
   # Core consensus ring (3-core)
-  |> Choreo.add_database(:ledger_db1, name: "Ledger Replica 1")
-  |> Choreo.add_database(:ledger_db2, name: "Ledger Replica 2")
-  |> Choreo.add_database(:ledger_db3, name: "Ledger Replica 3")
+  |> Choreo.add_database(:ledger_db1, label: "Ledger Replica 1")
+  |> Choreo.add_database(:ledger_db2, label: "Ledger Replica 2")
+  |> Choreo.add_database(:ledger_db3, label: "Ledger Replica 3")
   # Coordinator
-  |> Choreo.add_service(:consensus_manager, name: "Consensus Manager")
+  |> Choreo.add_service(:consensus_manager, label: "Consensus Manager")
   # Periphery
-  |> Choreo.add_service(:log_shipper, name: "Log Shipper")
+  |> Choreo.add_service(:log_shipper, label: "Log Shipper")
   
   # Build the consensus mesh
   |> Choreo.connect(:ledger_db1, :ledger_db2)
