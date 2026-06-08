@@ -169,7 +169,7 @@
 
     /* Blueprint title block — top-right corner annotation */
     .hero::after {
-      content: 'CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.9  ·  ELIXIR / BEAM';
+      content: 'CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.9.0  ·  ELIXIR / BEAM';
       white-space: pre;
       position: absolute;
       top: 1.5rem;
@@ -720,6 +720,8 @@
       </div>
       <div class="nav-links">
         <a href="#showcase" class="nav-link">Showcase</a>
+        <a href="#embed" class="nav-link">Embed</a>
+        <a href="#tracing" class="nav-link">Tracing</a>
         <a href="#analysis" class="nav-link">Analysis</a>
         <a href="#types" class="nav-link">13 Types</a>
         <a href="https://hexdocs.pm/choreo" class="nav-link">HexDocs</a>
@@ -815,6 +817,8 @@ graph TD
         <button class="tab-btn"           onclick="switchTab('dependency', this)">Dependencies</button>
         <button class="tab-btn"           onclick="switchTab('dataflow', this)">Dataflow</button>
         <button class="tab-btn"           onclick="switchTab('decision', this)">Decision Tree</button>
+        <button class="tab-btn"           onclick="switchTab('embed', this)">Embed</button>
+        <button class="tab-btn"           onclick="switchTab('tracing', this)">Tracing</button>
       </div>
 
       <!-- FSM -->
@@ -1216,6 +1220,280 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
         </div>
       </div>
 
+      <!-- Embed tab -->
+      <div id="showcase-embed" class="showcase-content">
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">embed_example.exs</span>
+          </div>
+          <div class="showcase-code-block">
+            <pre class="language-elixir"><code class="language-elixir">alias Choreo
+alias Choreo.Dataflow
+alias Choreo.Workflow
+
+# ── Build two child diagrams ─────────────────────────
+ingestion =
+  Dataflow.new()
+  |> Dataflow.add_source(:kafka,   label: "Kafka")
+  |> Dataflow.add_transform(:parser,  label: "Parser")
+  |> Dataflow.add_transform(:enricher, label: "Enricher")
+  |> Dataflow.add_sink(:warehouse, label: "Warehouse")
+  |> Dataflow.connect(:kafka, :parser)
+  |> Dataflow.connect(:parser, :enricher)
+  |> Dataflow.connect(:enricher, :warehouse)
+
+orchestration =
+  Workflow.new()
+  |> Workflow.add_start(:trigger)
+  |> Workflow.add_task(:validate, label: "Validate", timeout_ms: 500)
+  |> Workflow.add_task(:publish,  label: "Publish",  timeout_ms: 2000)
+  |> Workflow.add_end(:done)
+  |> Workflow.connect(:trigger, :validate)
+  |> Workflow.connect(:validate, :publish)
+  |> Workflow.connect(:publish, :done)
+
+# ── Embed both into a parent Choreo system ───────────
+platform =
+  Choreo.new()
+  |> Choreo.add_cluster("ingestion",      label: "Data Ingestion")
+  |> Choreo.add_cluster("orchestration",  label: "Orchestration")
+  |> Choreo.embed(ingestion,     "ingestion",     prefix: "ing_")
+  |> Choreo.embed(orchestration, "orchestration", prefix: "orc_")
+  |> Choreo.connect(:ing_warehouse, :orc_trigger, label: "triggers")</code></pre>
+          </div>
+          <div class="showcase-diagram-block" id="diag-embed"></div>
+        </div>
+      </div>
+
+      <!-- Tracing tab -->
+      <div id="showcase-tracing" class="showcase-content">
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">cross_diagram_tracing.exs</span>
+          </div>
+          <div class="showcase-code-block">
+            <pre class="language-elixir"><code class="language-elixir">alias Choreo
+alias Choreo.Workflow
+alias Choreo.ERD
+
+# ── Domain schema ────────────────────────────────────
+schema =
+  ERD.new()
+  |> ERD.add_table(:users)
+  |> ERD.add_column(:users, :id,    :uuid,   primary_key: true)
+  |> ERD.add_column(:users, :email, :string, nullable: false)
+  |> ERD.add_table(:orders)
+  |> ERD.add_column(:orders, :id,      :uuid, primary_key: true)
+  |> ERD.add_column(:orders, :user_id, :uuid, foreign_key: {:users, :id})
+  |> ERD.connect(:users, :orders, label: "places", relationship: :one_to_many)
+
+# ── Checkout workflow ────────────────────────────────
+checkout =
+  Workflow.new()
+  |> Workflow.add_start(:begin)
+  |> Workflow.add_task(:auth,    label: "Authenticate User")
+  |> Workflow.add_task(:reserve, label: "Reserve Stock")
+  |> Workflow.add_task(:charge,  label: "Charge Payment")
+  |> Workflow.add_end(:complete)
+  |> Workflow.connect(:begin, :auth)
+  |> Workflow.connect(:auth, :reserve)
+  |> Workflow.connect(:reserve, :charge)
+  |> Workflow.connect(:charge, :complete)
+
+# ── Compose and declare cross-diagram traces ─────────
+platform =
+  Choreo.new()
+  |> Choreo.add_cluster("schema",   label: "Data Schema")
+  |> Choreo.add_cluster("checkout", label: "Checkout Workflow")
+  |> Choreo.embed(schema,   "schema",   prefix: "db_")
+  |> Choreo.embed(checkout, "checkout", prefix: "wf_")
+  # Workflow task reads users table
+  |> Choreo.trace(:wf_auth,    :db_users,  type: :reads)
+  # Workflow task writes orders table
+  |> Choreo.trace(:wf_charge,  :db_orders, type: :writes)
+
+# Show traces as dashed red arrows
+Choreo.to_mermaid(platform, show_traces: true)</code></pre>
+          </div>
+          <div class="showcase-diagram-block" id="diag-tracing"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Embed Feature Section -->
+  <section id="embed" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Composition</span>
+        <h2 class="section-title">Compose Diagrams with <code style="font-size:1.5rem;color:var(--primary)">embed/4</code></h2>
+        <p class="section-subtitle">Nest any Choreo diagram — Dataflow, Workflow, C4, ERD — as a labelled cluster inside a parent system. Nodes are prefixed to avoid ID collisions; edges carry their original metadata.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+        <!-- Step 1 -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">step 1 — build child diagrams independently</span>
+          </div>
+          <div class="showcase-code-block" style="height:220px">
+            <pre class="language-elixir"><code class="language-elixir"># Each child diagram is a stand-alone Choreo model
+ingestion =
+  Choreo.Dataflow.new()
+  |> Dataflow.add_source(:kafka,    label: "Kafka")
+  |> Dataflow.add_transform(:router, label: "Router")
+  |> Dataflow.add_sink(:db,         label: "DB Writer")
+  |> Dataflow.connect(:kafka, :router)
+  |> Dataflow.connect(:router, :db)
+
+orchestration =
+  Choreo.Workflow.new()
+  |> Workflow.add_start(:trigger)
+  |> Workflow.add_task(:process, label: "Process")
+  |> Workflow.add_end(:done)
+  |> Workflow.connect(:trigger, :process)
+  |> Workflow.connect(:process, :done)</code></pre>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">step 2 — embed into a parent system</span>
+          </div>
+          <div class="showcase-code-block" style="height:220px">
+            <pre class="language-elixir"><code class="language-elixir">platform =
+  Choreo.new()
+  # Create named cluster boundaries
+  |> Choreo.add_cluster("ingestion",     label: "Data Ingestion")
+  |> Choreo.add_cluster("orchestration", label: "Orchestration")
+  # Embed with unique prefixes — nodes become :ing_kafka, :orc_trigger …
+  |> Choreo.embed(ingestion,     "ingestion",     prefix: "ing_")
+  |> Choreo.embed(orchestration, "orchestration", prefix: "orc_")
+  # Connect across cluster boundaries
+  |> Choreo.connect(:ing_db, :orc_trigger, label: "triggers")
+
+# Render the unified diagram
+Choreo.to_mermaid(platform)</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rendered output -->
+      <div class="showcase-panel" style="margin-top:1.5rem">
+        <div class="showcase-panel-header">
+          <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+          <span class="panel-filename">rendered output — unified cross-schema diagram</span>
+        </div>
+        <div class="showcase-diagram-block" id="diag-embed-feature" style="height:380px">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cross-Diagram Tracing Section -->
+  <section id="tracing" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Semantic Tracing</span>
+        <h2 class="section-title">Cross-Diagram Impact Analysis</h2>
+        <p class="section-subtitle">Declare semantic links between nodes in different diagram schemas. <code style="color:var(--primary)">Choreo.trace/4</code> records a typed relationship (<code style="color:var(--primary)">:reads</code>, <code style="color:var(--primary)">:writes</code>, <code style="color:var(--primary)">:triggers</code>, …) that <code style="color:var(--primary)">Choreo.Analysis.Tracing</code> can walk transitively to answer &ldquo;if this table changes, what workflows break?&rdquo;</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:1.5rem;align-items:start">
+        <!-- Code example -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">cross_schema_trace.exs</span>
+          </div>
+          <div class="showcase-code-block" style="height:520px;overflow-y:auto">
+            <pre class="language-elixir"><code class="language-elixir">alias Choreo
+alias Choreo.Analysis.Tracing
+
+# Embed ERD schema + Workflow into one parent system
+platform =
+  Choreo.new()
+  |> Choreo.add_cluster("schema",   label: "Data Schema")
+  |> Choreo.add_cluster("checkout", label: "Checkout Workflow")
+  |> Choreo.embed(schema,   "schema",   prefix: "db_")
+  |> Choreo.embed(checkout, "checkout", prefix: "wf_")
+
+# Declare semantic cross-diagram traces
+platform =
+  platform
+  |> Choreo.trace(:wf_auth,   :db_users,  type: :reads)
+  |> Choreo.trace(:wf_charge, :db_orders, type: :writes)
+
+# Impact analysis — what is downstream of :db_users?
+Tracing.impact_analysis(platform, :db_users)
+# => [:wf_auth]
+
+# Cross-diagram execution path
+Tracing.trace_path(platform, :wf_auth, :db_orders)
+# => {:ok, [:wf_auth, :wf_charge, :db_orders]}
+
+# Render with trace arrows visible
+Choreo.to_dot(platform, show_traces: true)</code></pre>
+          </div>
+        </div>
+
+        <!-- How it works explanation -->
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <div class="showcase-panel">
+            <div class="showcase-panel-header">
+              <span class="panel-filename">what Choreo.trace/4 does</span>
+            </div>
+            <div style="padding:1.25rem;font-size:0.85rem;color:var(--text-2);line-height:1.65">
+              <p style="margin-bottom:0.75rem">Traces are stored as a separate edge layer — they are <strong style="color:var(--text)">invisible by default</strong> so they don&rsquo;t clutter normal diagrams. Pass <code style="color:var(--primary)">show_traces: true</code> to any renderer to make them appear as dashed red arrows.</p>
+              <p>Each trace carries a <code style="color:var(--primary)">:type</code> tag (<code style="color:var(--primary)">:reads</code>, <code style="color:var(--primary)">:writes</code>, <code style="color:var(--primary)">:triggers</code>, <code style="color:var(--primary)">:depends_on</code>) that the analysis engine uses to build the dependency graph.</p>
+            </div>
+          </div>
+
+          <div class="showcase-panel">
+            <div class="showcase-panel-header">
+              <span class="panel-filename">analysis functions</span>
+            </div>
+            <div style="padding:1.25rem">
+              <table style="width:100%;font-size:0.8rem;border-collapse:collapse">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <th style="text-align:left;padding:0.4rem 0.6rem;font-family:var(--font-mono);color:var(--primary);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em">Function</th>
+                    <th style="text-align:left;padding:0.4rem 0.6rem;font-family:var(--font-mono);color:var(--primary);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em">Returns</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:0.5rem 0.6rem;font-family:var(--font-mono);color:var(--text);font-size:0.75rem">impact_analysis/2</td>
+                    <td style="padding:0.5rem 0.6rem;color:var(--text-2)">All nodes downstream of a change</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:0.5rem 0.6rem;font-family:var(--font-mono);color:var(--text);font-size:0.75rem">trace_path/3</td>
+                    <td style="padding:0.5rem 0.6rem;color:var(--text-2)">Cross-diagram execution path</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0.5rem 0.6rem;font-family:var(--font-mono);color:var(--text);font-size:0.75rem">to_dot/2 show_traces:</td>
+                    <td style="padding:0.5rem 0.6rem;color:var(--text-2)">Renders trace arrows in DOT / Mermaid</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="showcase-panel">
+            <div class="showcase-panel-header">
+              <span class="panel-filename">rendered trace diagram</span>
+            </div>
+            <div class="showcase-diagram-block" id="diag-tracing-feature" style="height:320px;background:var(--surface-paper)">
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1461,7 +1739,7 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
       <div class="install-box">
         <pre id="install-code" style="margin:0;background:none;border:none;padding:0;font-family:var(--font-mono);font-size:0.9rem;color:var(--text);">def deps do
   [
-    {:choreo, "~> 0.8.0"}
+    {:choreo, "~> 0.9"}
   ]
 end</pre>
         <button class="btn-copy" onclick="copyInstall()">Copy snippet</button>
@@ -1726,7 +2004,56 @@ elixir((Elixir))
   style enterprise fill:#6366f1,color:#fff
   style pro fill:#3b82f6,color:#fff
   style discounted fill:#10b981,color:#fff
-  style free fill:#6b7280,color:#fff`
+  style free fill:#6b7280,color:#fff`,
+
+      embed: `graph LR
+  subgraph ing ["Data Ingestion"]
+    ing_kafka[/"Kafka"/]
+    ing_router{"Router"}
+    ing_db[("DB Writer")]
+  end
+  subgraph orc ["Orchestration"]
+    orc_trigger(("trigger"))
+    orc_process["Process"]
+    orc_done(("done"))
+  end
+  ing_kafka --> ing_router
+  ing_router --> ing_db
+  orc_trigger --> orc_process
+  orc_process --> orc_done
+  ing_db -->|triggers| orc_trigger
+
+  style ing_kafka fill:#3b82f6,color:#fff
+  style ing_db fill:#8b5cf6,color:#fff
+  style orc_trigger fill:#10b981,color:#fff
+  style orc_done fill:#6366f1,color:#fff`,
+
+      tracing: `graph LR
+  subgraph schema ["Data Schema"]
+    db_users["users"]
+    db_orders["orders"]
+    db_users -->|places| db_orders
+  end
+  subgraph checkout ["Checkout Workflow"]
+    wf_begin(("begin"))
+    wf_auth["Authenticate User"]
+    wf_reserve["Reserve Stock"]
+    wf_charge["Charge Payment"]
+    wf_complete(("complete"))
+  end
+  wf_begin --> wf_auth
+  wf_auth --> wf_reserve
+  wf_reserve --> wf_charge
+  wf_charge --> wf_complete
+  wf_auth -.->|reads| db_users
+  wf_charge -.->|writes| db_orders
+
+  style wf_begin fill:#10b981,color:#fff
+  style wf_complete fill:#6366f1,color:#fff
+  style db_users fill:#3b82f6,color:#fff
+  style db_orders fill:#3b82f6,color:#fff
+  linkStyle 6 stroke:#ef4444,stroke-dasharray:5 5
+  linkStyle 7 stroke:#ef4444,stroke-dasharray:5 5`
     };
 
     // Initialize Mermaid
@@ -1771,11 +2098,26 @@ elixir((Elixir))
       });
     }
 
+    // Render a Mermaid diagram into a static (non-tab) element by ID
+    async function renderStatic(elementId, code) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      try {
+        const { svg } = await mermaid.render(`static-${elementId}-${Date.now()}`, code);
+        el.innerHTML = svg;
+      } catch (err) {
+        console.warn('Static render error:', err);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', async () => {
       // Render teaser hero diagram
       mermaid.init(undefined, document.querySelectorAll('.teaser-diagram .mermaid'));
       // Render initial FSM tab
       await renderDiagram('fsm');
+      // Render feature-section static diagrams
+      await renderStatic('diag-embed-feature', tabPresets.embed);
+      await renderStatic('diag-tracing-feature', tabPresets.tracing);
     });
   </script>
 </body>
