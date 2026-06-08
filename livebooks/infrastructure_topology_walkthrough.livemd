@@ -70,12 +70,10 @@ legend =
   |> Infrastructure.connect(:app, :db)
   |> Infrastructure.connect(:app, :store)
 
-Kino.VizJS.render(Infrastructure.to_dot(legend))
-```
-
-```elixir
-# Mermaid output — rendered natively in Livebook
-Kino.Mermaid.new(Infrastructure.to_mermaid(legend))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Infrastructure.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(legend), height: "500px")
+)
 ```
 
 ---
@@ -126,11 +124,11 @@ prod =
   |> Infrastructure.connect(:worker, :rds, protocol: :tcp)
   |> Infrastructure.connect(:worker, :s3, protocol: :https)
 
-Kino.VizJS.render(Infrastructure.to_dot(prod))
-```
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Infrastructure.to_mermaid(prod)),
+  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(prod), height: "800px")
+)
 
-```elixir
-Kino.Mermaid.new(Infrastructure.to_mermaid(prod))
 ```
 
 ---
@@ -141,7 +139,7 @@ The analysis module runs structural audit rules against your topology.
 Each warning carries a `:rule`, `:message`, and `:nodes` list.
 
 ```elixir
-warnings = Analysis.warnings(prod)
+warnings = Analysis.validate(prod)
 
 if warnings == [] do
   IO.puts("✅ No security warnings — topology looks clean.")
@@ -173,9 +171,11 @@ broken =
   |> Infrastructure.connect(:lb, :app)
   |> Infrastructure.connect(:app, :db)
 
-Analysis.warnings(broken)
-|> Enum.each(fn message ->
-  IO.puts("⚠️  #{message}")
+Analysis.validate(broken)
+|> Enum.each(fn 
+  {:error, message} -> IO.puts("❌ #{message}")
+  {:warning, message} -> IO.puts("⚠️ #{message}")
+  {_, message} -> IO.puts("UNKNOWN: #{message}")
 end)
 ```
 
@@ -211,23 +211,12 @@ demo =
   |> Infrastructure.connect(:lb, :app, protocol: :http)
   |> Infrastructure.connect(:app, :db, protocol: :tcp)
 
-# Default (light)
-Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :default))
-```
-
-```elixir
-# Dark theme
-Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :dark))
-```
-
-```elixir
-# Ocean theme
-Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :ocean))
-```
-
-```elixir
-# Forest theme
-Kino.VizJS.render(Infrastructure.to_dot(demo, theme: :forest))
+Kino.Layout.tabs(
+  Default: Kino.Mermaid.new(Infrastructure.to_mermaid(demo)),
+  Warm: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, theme: :warm)),
+  Ocean: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, theme: :ocean)),
+  Forest: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, theme: :forest))
+)
 ```
 
 ---
@@ -304,7 +293,7 @@ multi_region =
   |> Infrastructure.connect(:api1, :s3, protocol: :https)
   |> Infrastructure.connect(:api2, :s3, protocol: :https)
 
-Kino.VizJS.render(Infrastructure.to_dot(multi_region, theme: :dark))
+Kino.Mermaid.new(Infrastructure.to_mermaid(multi_region))
 ```
 
 ```elixir
@@ -337,7 +326,7 @@ proto_demo =
   |> Infrastructure.connect(:api, :db, protocol: :tcp, label: "TCP/5432")
   |> Infrastructure.connect(:api, :store, protocol: :https, label: "TLS")
 
-Kino.VizJS.render(Infrastructure.to_dot(proto_demo))
+Kino.Mermaid.new(Infrastructure.to_mermaid(proto_demo))
 ```
 
 ---
@@ -365,16 +354,24 @@ full =
   |> Infrastructure.connect(:api, :db, protocol: :tcp)
   |> Infrastructure.connect(:api, :store, protocol: :https)
   |> Infrastructure.connect(:worker, :db, protocol: :tcp)
-
-# Focus: show API and its immediate 1-hop neighbourhood
-focused = View.focus(full, :api, radius: 1)
-Kino.VizJS.render(Infrastructure.to_dot(focused))
 ```
 
+Focus: show API and its immediate 1-hop neighbourhood
+
 ```elixir
-# Filter: show only compute nodes (and edges between them)
-compute_only = View.filter(full, fn _id, data -> data[:node_type] == :compute end)
-Kino.VizJS.render(Infrastructure.to_dot(compute_only))
+full
+|> View.focus(:api, radius: 1)
+|> Infrastructure.to_mermaid()
+|> Kino.Mermaid.new()
+```
+
+Filter: show only compute nodes (and edges between them)
+
+```elixir
+full
+|> View.filter(fn _id, data -> data[:node_type] == :compute end)
+|> Infrastructure.to_mermaid()
+|> Kino.Mermaid.new()
 ```
 
 ---
