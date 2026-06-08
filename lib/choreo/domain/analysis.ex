@@ -12,9 +12,14 @@ defmodule Choreo.Domain.Analysis do
   alias Choreo.Domain
 
   @doc """
-  Runs semantic audit rules against a domain model and returns a list of warning strings.
+  Runs semantic audit rules against a domain model and returns a list of
+  `{severity, message}` tuples for cross-module composability.
+
+  Severity levels:
+    * `:error` — structural issues (missing targets, missing causes)
+    * `:warning` — soft semantic checks (dead-ends, passive actors)
   """
-  @spec warnings(Domain.t()) :: [String.t()]
+  @spec warnings(Domain.t()) :: [{:error | :warning, String.t()}]
   def warnings(%Domain{} = domain) do
     nodes = Domain.nodes(domain)
     edges = Domain.edges(domain)
@@ -31,6 +36,14 @@ defmodule Choreo.Domain.Analysis do
     |> check_event_effects(nodes, outgoing_map)
     # Rule 4: Policy must trigger a Command
     |> check_policy_commands(nodes, outgoing_map)
+    # Rule 5: Aggregate with no incoming Command (orphan aggregate)
+    |> check_orphan_aggregates(nodes, incoming_map)
+    # Rule 6: Actor with no outgoing Command (passive actor)
+    |> check_passive_actors(nodes, outgoing_map)
+    # Rule 7: Type with no :fields (empty type)
+    |> check_empty_types(nodes)
+    # Rule 8: Context boundary with zero member nodes
+    |> check_empty_contexts(domain)
   end
 
   @doc """
@@ -46,7 +59,12 @@ defmodule Choreo.Domain.Analysis do
       |> Enum.sort_by(fn {id, data} -> data[:name] || to_string(id) end)
       |> Enum.map_join("\n", fn {id, data} ->
         term = data[:name] || to_string(id)
-        stereotype = String.capitalize(to_string(data[:type] || :generic))
+
+        stereotype =
+          (data[:type] || :generic)
+          |> to_string()
+          |> String.split("_")
+          |> Enum.map_join(" ", &String.capitalize/1)
 
         context_lbl =
           if cluster = data[:cluster] do
@@ -89,7 +107,8 @@ defmodule Choreo.Domain.Analysis do
           list
         else
           [
-            "Command '#{data[:name]}' is orphaned (it does not target any aggregate or workflow)."
+            {:error,
+             "Command '#{data[:name]}' is orphaned (it does not target any aggregate or workflow)."}
             | list
           ]
         end
@@ -114,7 +133,8 @@ defmodule Choreo.Domain.Analysis do
           list
         else
           [
-            "Domain Event '#{data[:name]}' is missing a cause (it is not emitted by any aggregate, workflow, or external system)."
+            {:error,
+             "Domain Event '#{data[:name]}' is missing a cause (it is not emitted by any aggregate, workflow, or external system)."}
             | list
           ]
         end
@@ -139,7 +159,8 @@ defmodule Choreo.Domain.Analysis do
           list
         else
           [
-            "Domain Event '#{data[:name]}' is a dead-end (it does not trigger any policies, read models, or notify actors)."
+            {:warning,
+             "Domain Event '#{data[:name]}' is a dead-end (it does not trigger any policies, read models, or notify actors)."}
             | list
           ]
         end
@@ -163,12 +184,102 @@ defmodule Choreo.Domain.Analysis do
         if has_valid_effect do
           list
         else
-          ["Policy '#{data[:name]}' does not trigger any commands." | list]
+          [{:error, "Policy '#{data[:name]}' does not trigger any commands."} | list]
         end
       else
         list
       end
     end)
+  end
+
+  defp check_orphan_aggregates(acc, nodes, incoming) do
+    Enum.reduce(nodes, acc, fn {id, data}, list ->
+      if data[:type] == :aggregate do
+        causes = Map.get(incoming, id, [])
+
+        has_command =
+          Enum.any?(causes, fn cause_id ->
+            cause_data = Map.get(nodes, cause_id, %{})
+            cause_data[:type] == :command
+          end)
+
+        if has_command do
+          list
+        else
+          [
+            {:warning, "Aggregate '#{data[:name]}' has no incoming commands."}
+            | list
+          ]
+        end
+      else
+        list
+      end
+    end)
+  end
+
+  defp check_passive_actors(acc, nodes, outgoing) do
+    Enum.reduce(nodes, acc, fn {id, data}, list ->
+      if data[:type] == :actor do
+        effects = Map.get(outgoing, id, [])
+
+        has_command =
+          Enum.any?(effects, fn effect_id ->
+            effect_data = Map.get(nodes, effect_id, %{})
+            effect_data[:type] == :command
+          end)
+
+        if has_command do
+          list
+        else
+          [
+            {:warning, "Actor '#{data[:name]}' has no outgoing commands."}
+            | list
+          ]
+        end
+      else
+        list
+      end
+    end)
+  end
+
+  defp check_empty_types(acc, nodes) do
+    Enum.reduce(nodes, acc, fn {_id, data}, list ->
+      if data[:type] == :type do
+        fields = data[:fields] || []
+
+        if fields == [] do
+          [{:warning, "Type '#{data[:name]}' has no fields."} | list]
+        else
+          list
+        end
+      else
+        list
+      end
+    end)
+  end
+
+  defp check_empty_contexts(acc, %Domain{graph: graph, clusters: clusters}) do
+    context_clusters =
+      clusters
+      |> Enum.filter(fn {_name, meta} -> meta[:cluster_type] == :context_boundary end)
+      |> Enum.map(fn {name, _meta} -> name end)
+
+    populated =
+      graph.nodes
+      |> Enum.flat_map(fn {_id, data} ->
+        if data[:cluster], do: [data[:cluster]], else: []
+      end)
+      |> MapSet.new()
+
+    empty =
+      Enum.reject(context_clusters, &MapSet.member?(populated, &1))
+
+    if empty == [] do
+      acc
+    else
+      labels = Enum.map(empty, &String.replace_prefix(&1, "cluster_", ""))
+      [{:warning, "Empty context boundaries: #{inspect(labels)}"} | acc]
+    end
   end
 
   # ============================================================================
