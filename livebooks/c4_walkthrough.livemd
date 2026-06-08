@@ -61,13 +61,10 @@ legend =
   |> C4.add_container(:container, label: "Container", technology: "Elixir", parent: :system)
   |> C4.add_component(:component, label: "Component", technology: "GenServer", parent: :container)
 
-# Render DOT (Graphviz)
-Kino.VizJS.render(C4.to_dot(legend))
-```
-
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(C4.to_mermaid(legend))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(C4.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(C4.to_dot(legend))
+)
 ```
 
 ---
@@ -211,12 +208,11 @@ By zooming to `level: 0`, Choreo hides all containers and components, collapsing
 ```elixir
 # Render DOT (Graphviz)
 context_view = Choreo.View.zoom(model, level: 0)
-Kino.VizJS.render(Choreo.C4.to_dot(context_view))
-```
 
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(Choreo.C4.to_mermaid(context_view))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.C4.to_mermaid(context_view, direction: :td)),
+  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(context_view, rankdir: :bt), height: "400px")
+)
 ```
 
 ---
@@ -230,12 +226,11 @@ All component-level relationships inside the API application roll up to target t
 ```elixir
 # Render DOT (Graphviz)
 container_view = Choreo.View.zoom(model, level: 1)
-Kino.VizJS.render(Choreo.C4.to_dot(container_view))
-```
 
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(Choreo.C4.to_mermaid(container_view))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.C4.to_mermaid(container_view)),
+  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(container_view, rankdir: :bt), height: "500px")
+)
 ```
 
 ---
@@ -253,12 +248,13 @@ component_view =
   |> C4.set_scope(:api)
   |> Choreo.View.zoom(level: 2)
 
-Kino.VizJS.render(Choreo.C4.to_dot(component_view))
-```
-
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(Choreo.C4.to_mermaid(component_view))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.C4.to_mermaid(component_view)),
+  Graphviz:
+    Kino.VizJS.render(Choreo.C4.to_dot(component_view, rankdir: :bt),
+      height: "800px"
+    )
+)
 ```
 
 ---
@@ -267,29 +263,23 @@ Kino.Mermaid.new(Choreo.C4.to_mermaid(component_view))
 
 Sometimes you only want to show a specific node and its immediate neighborhood rather than a complete level view.
 
-### 1-Hop Neighborhood around API
+### Neighborhood around DB
 
 ```elixir
-# Render DOT (Graphviz)
-focused = Choreo.View.focus(model, :api, radius: 1)
-Kino.VizJS.render(C4.to_dot(focused))
-```
+hops = fn i -> Choreo.View.focus(model, :db, radius: i) end
 
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(C4.to_mermaid(focused))
+Kino.Layout.tabs(
+  "1-Hop": hops.(1) |> C4.to_mermaid() |> Kino.Mermaid.new(),
+  "2-Hop": hops.(2) |> C4.to_mermaid() |> Kino.Mermaid.new(),
+  "3-Hop": hops.(3) |> C4.to_mermaid() |> Kino.Mermaid.new()
+)
+
 ```
 
 ### Shortest Path from Customer to Database
 
 ```elixir
-# Render DOT (Graphviz)
 path_view = Choreo.View.focus_between(model, :customer, :db)
-Kino.VizJS.render(C4.to_dot(path_view))
-```
-
-```elixir
-# Render Mermaid.js
 Kino.Mermaid.new(C4.to_mermaid(path_view))
 ```
 
@@ -299,40 +289,14 @@ Kino.Mermaid.new(C4.to_mermaid(path_view))
 
 Choreo supports standard theme overrides to produce professional and clean layouts. Let's render the component view in different styles.
 
-### Warm Theme
+### Themes
 
 ```elixir
-# Render DOT (Graphviz)
-Kino.VizJS.render(C4.to_dot(component_view, theme: :warm))
-```
-
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :warm))
-```
-
-### Ocean Theme
-
-```elixir
-# Render DOT (Graphviz)
-Kino.VizJS.render(C4.to_dot(component_view, theme: :ocean))
-```
-
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :ocean))
-```
-
-### Dark Theme
-
-```elixir
-# Render DOT (Graphviz)
-Kino.VizJS.render(C4.to_dot(component_view, theme: :dark))
-```
-
-```elixir
-# Render Mermaid.js
-Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :dark))
+Kino.Layout.tabs(
+  Warm: Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :warm)),
+  Ocean: Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :ocean)),
+  Forest: Kino.Mermaid.new(C4.to_mermaid(component_view, theme: :forest))
+)
 ```
 
 ---
@@ -416,13 +380,10 @@ Trace edges are hidden from normal visual outputs by default to keep the diagram
 In Graphviz (DOT), trace edges are automatically rendered with `constraint=false` so the trace lines do not warp or disrupt the layout of the static C4 or Workflow diagrams.
 
 ```elixir
-# Render DOT with traces highlighted
-Kino.VizJS.render(Choreo.to_dot(system, show_traces: true))
-```
-
-```elixir
-# Render Mermaid with traces highlighted
-Kino.Mermaid.new(Choreo.to_mermaid(system, show_traces: true))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(system, show_traces: true)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(system, show_traces: true), height: "800px")
+)
 ```
 
 ### 2. Performing Cross-Diagram Impact Analysis
@@ -451,12 +412,10 @@ If the composed system is very large, you can use the `Choreo.View.focus_trace/4
 # Filters the system diagram to show only the trace path
 trace_view = Choreo.View.focus_trace(system, :wf_verify_credentials, :erd_users)
 
-Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
-```
-
-```elixir
-# Render Mermaid of focused trace path
-Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
+)
 ```
 
 ---
