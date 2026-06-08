@@ -106,43 +106,42 @@ defmodule Choreo.Workflow.AnalysisTest do
   end
 
   describe "parallelizable_tasks/1" do
-    test "groups tasks by topological level" do
+    test "groups task nodes by topological level" do
       groups = Analysis.parallelizable_tasks(parallel_workflow())
-      # Level 0: start; Level 1: split; Level 2: a, b, c; Level 3: merge; Level 4: end
-      assert length(groups) == 5
-
-      assert [:a, :b, :c] in groups or
-               Enum.sort(hd(Enum.filter(groups, fn g -> length(g) == 3 end))) == [:a, :b, :c]
+      # Only :task nodes are returned; start/fork/join/end are filtered out
+      assert length(groups) == 1
+      assert Enum.sort(hd(groups)) == [:a, :b, :c]
     end
   end
 
-  describe "failure_scenarios/1" do
+  describe "compensable_tasks/1" do
     test "returns tasks with compensation edges" do
-      scenarios = Analysis.failure_scenarios(order_workflow())
+      scenarios = Analysis.compensable_tasks(order_workflow())
       assert :sufficient_stock in scenarios
     end
   end
 
   describe "uncompensated_paths/1" do
-    test "returns tasks that can fail without reaching terminal compensation" do
+    test "returns tasks that can fail without a terminating compensation chain" do
       workflow =
         Workflow.new()
         |> Workflow.add_start(:start)
         |> Workflow.add_task(:process_payment)
         |> Workflow.add_compensation(:rollback_payment, for: :process_payment)
-        |> Workflow.add_task(:dead_end_comp)
+        |> Workflow.add_compensation(:loop_back, for: :rollback_payment)
         |> Workflow.add_end(:done)
         |> Workflow.connect(:start, :process_payment)
         |> Workflow.connect(:process_payment, :done)
         |> Workflow.connect(:process_payment, :rollback_payment, edge_type: :error)
-        |> Workflow.connect(:rollback_payment, :dead_end_comp, edge_type: :compensation)
+        |> Workflow.connect(:rollback_payment, :loop_back, edge_type: :compensation)
+        |> Workflow.connect(:loop_back, :rollback_payment, edge_type: :compensation)
 
-      # dead_end_comp doesn't go to :done or :start, so process_payment is uncompensated
+      # rollback_payment <-> loop_back forms a compensation cycle with no terminator
 
       assert Analysis.uncompensated_paths(workflow) == [:process_payment]
     end
 
-    test "returns empty when compensation reaches end" do
+    test "returns empty when compensation chain terminates" do
       workflow =
         Workflow.new()
         |> Workflow.add_start(:start)

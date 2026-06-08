@@ -93,10 +93,11 @@ defmodule Choreo.Workflow do
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
-          clusters: %{String.t() => map()}
+          clusters: %{String.t() => map()},
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, clusters: %{}
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}, strict: false
 
   @add_swimlane_schema [
     label: [
@@ -259,7 +260,7 @@ defmodule Choreo.Workflow do
     ],
     edge_type: [
       type: {:in, [:sequence, :compensation, :retry, :failure, :timeout, :error]},
-      required: false
+      default: :sequence
     ],
     weight: [
       type: {:or, [:integer, :float]},
@@ -290,12 +291,13 @@ defmodule Choreo.Workflow do
       iex> Choreo.Workflow.ends(workflow)
       []
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},
-      clusters: %{}
+      clusters: %{},
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -558,21 +560,31 @@ defmodule Choreo.Workflow do
   """
   def connect(%__MODULE__{} = workflow, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @connect_schema)
-    edge_type = Keyword.get(opts, :edge_type, :sequence)
+    edge_type = opts[:edge_type]
     condition = opts[:condition]
 
     workflow =
       if Map.has_key?(workflow.graph.nodes, from) do
         workflow
       else
-        add_task(workflow, from, label: to_string(from))
+        if workflow.strict do
+          raise ArgumentError,
+                "connect/4 requires both nodes to exist, but #{inspect(from)} does not"
+        else
+          add_task(workflow, from, label: to_string(from))
+        end
       end
 
     workflow =
       if Map.has_key?(workflow.graph.nodes, to) do
         workflow
       else
-        add_task(workflow, to, label: to_string(to))
+        if workflow.strict do
+          raise ArgumentError,
+                "connect/4 requires both nodes to exist, but #{inspect(to)} does not"
+        else
+          add_task(workflow, to, label: to_string(to))
+        end
       end
 
     weight =
@@ -629,7 +641,7 @@ defmodule Choreo.Workflow do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
 
   ## Examples
 
@@ -852,7 +864,6 @@ defmodule Choreo.Workflow do
       opts
       |> Map.new()
       |> Map.merge(%{
-        type: :workflow_node,
         node_type: type,
         label: Keyword.get(opts, :label, to_string(id))
       })

@@ -103,12 +103,12 @@ defmodule Choreo.Workflow.Analysis do
     simple_graph = Workflow.to_simple_graph(workflow)
 
     if end_ids == [] do
-      Workflow.nodes(workflow)
+      []
     else
       transposed = Yog.transpose(simple_graph)
       can_reach_end = Choreo.Internal.bfs_reachable(transposed, end_ids)
       all = Workflow.nodes(workflow) |> MapSet.new()
-      MapSet.difference(all, can_reach_end) |> MapSet.to_list()
+      MapSet.difference(all, can_reach_end) |> MapSet.to_list() |> Enum.sort()
     end
   end
 
@@ -203,6 +203,9 @@ defmodule Choreo.Workflow.Analysis do
           levels = compute_levels(simple_graph, order)
 
           levels
+          |> Enum.filter(fn {id, _level} ->
+            (Yog.node(simple_graph, id) || %{})[:node_type] == :task
+          end)
           |> Enum.group_by(fn {_id, level} -> level end)
           |> Enum.sort_by(fn {level, _items} -> level end)
           |> Enum.map(fn {_level, items} -> Enum.map(items, &elem(&1, 0)) end)
@@ -223,13 +226,13 @@ defmodule Choreo.Workflow.Analysis do
       ...>   |> Choreo.Workflow.add_task(:process)
       ...>   |> Choreo.Workflow.add_compensation(:rollback)
       ...>   |> Choreo.Workflow.connect(:process, :rollback, edge_type: :compensation)
-      iex> Choreo.Workflow.Analysis.failure_scenarios(workflow)
+      iex> Choreo.Workflow.Analysis.compensable_tasks(workflow)
       [:process]
 
   This analysis answers the question: "Which tasks have compensation handlers?"
   """
-  @spec failure_scenarios(Workflow.t()) :: [Yog.node_id()]
-  def failure_scenarios(%Workflow{graph: graph, edge_meta: edge_meta}) do
+  @spec compensable_tasks(Workflow.t()) :: [Yog.node_id()]
+  def compensable_tasks(%Workflow{graph: graph, edge_meta: edge_meta}) do
     graph.nodes
     |> Map.keys()
     |> Enum.filter(fn id ->
@@ -241,12 +244,17 @@ defmodule Choreo.Workflow.Analysis do
     end)
   end
 
+  @doc false
+  @deprecated "Use compensable_tasks/1 instead"
+  def failure_scenarios(workflow), do: compensable_tasks(workflow)
+
   @doc """
   Returns tasks that can fail but have no valid compensation path.
 
   A task "can fail" if it has an outgoing `:error` edge.
   A valid compensation path is an unbroken chain of `:compensation` edges
-  leading to a `:start` or `:end` node.
+  that terminates (reaches a node with no further outgoing `:compensation`
+  edges). The terminus need not be a `:start` or `:end` node.
 
   ## Examples
 
@@ -262,12 +270,16 @@ defmodule Choreo.Workflow.Analysis do
       ...>   |> Choreo.Workflow.connect(:process_payment, :rollback_payment, edge_type: :error)
       ...>   |> Choreo.Workflow.connect(:rollback_payment, :dead_end_comp, edge_type: :compensation)
       iex> Choreo.Workflow.Analysis.uncompensated_paths(workflow)
-      [:process_payment]
+      []
 
   This analysis answers the question: "Which tasks can fail without a valid compensation path?"
+
+  A compensation chain is valid if it terminates (reaches a node with no
+  further outgoing `:compensation` edges). The example above terminates at
+  `:dead_end_comp`, so `:process_payment` is considered compensated.
   """
   @spec uncompensated_paths(Workflow.t()) :: [Yog.node_id()]
-  def uncompensated_paths(%Workflow{graph: graph, edge_meta: edge_meta} = flow) do
+  def uncompensated_paths(%Workflow{graph: graph, edge_meta: edge_meta}) do
     can_fail =
       graph.nodes
       |> Enum.filter(fn {id, _data} ->
@@ -293,8 +305,6 @@ defmodule Choreo.Workflow.Analysis do
         end
       end)
 
-    terminals = Workflow.starts(flow) ++ Workflow.ends(flow)
-
     can_fail
     |> Enum.reject(fn id ->
       error_targets =
@@ -307,7 +317,10 @@ defmodule Choreo.Workflow.Analysis do
 
       Enum.all?(error_targets, fn target ->
         reachable = Choreo.Internal.bfs_reachable(comp_graph, [target])
-        Enum.any?(terminals, fn t -> MapSet.member?(reachable, t) end)
+
+        Enum.any?(reachable, fn node ->
+          Yog.out_degree(comp_graph, node) == 0
+        end)
       end)
     end)
   end
@@ -410,14 +423,17 @@ defmodule Choreo.Workflow.Analysis do
       5000
       iex> result[:c].task_latency
       3000
-      iex> result[:c].retry_latency
-      200
+      iex> result[:c].cumulative_latency
+      8000
 
   This analysis answers the question: "What is the estimated latency for each task?"
+
+  Retry latency is not included — simulate models the happy path.
+  Use `critical_path/1` for worst-case latency including retries.
   """
   @spec simulate(Workflow.t()) :: %{optional(Yog.node_id()) => map()}
   def simulate(%Workflow{} = workflow) do
-    simple_graph = Workflow.to_simple_graph(workflow)
+    simple_graph = Workflow.to_simple_graph(workflow, combine: &max/2)
 
     if Yog.cyclic?(simple_graph) do
       %{}
@@ -473,6 +489,7 @@ defmodule Choreo.Workflow.Analysis do
     |> check_dead_ends(workflow)
     |> check_missing_compensations(workflow)
     |> check_unreachable_compensations(workflow)
+    |> check_invalid_compensation_references(workflow)
   end
 
   # ============================================================================
@@ -520,9 +537,7 @@ defmodule Choreo.Workflow.Analysis do
       end
 
     task_latency = data[:timeout_ms] || 0
-    retry_latency = compute_retry_latency(data)
-
-    total = cumulative_latency + task_latency + retry_latency
+    total = cumulative_latency + task_latency
 
     do_simulate(
       graph,
@@ -530,18 +545,10 @@ defmodule Choreo.Workflow.Analysis do
       edge_meta,
       Map.put(acc, id, %{
         cumulative_latency: total,
-        task_latency: task_latency,
-        retry_latency: retry_latency
+        task_latency: task_latency
       })
     )
   end
-
-  defp compute_retry_latency(%{retry: r, retry_backoff_ms: b}) when is_number(r) and r > 0 do
-    backoff = if is_number(b), do: b, else: 0
-    r * backoff
-  end
-
-  defp compute_retry_latency(_), do: 0
 
   # ============================================================================
   # Private helpers — validation
@@ -564,9 +571,9 @@ defmodule Choreo.Workflow.Analysis do
   end
 
   defp check_cycles(acc, workflow) do
-    simple_graph = Workflow.to_simple_graph(workflow)
+    sequence_graph = sequence_only_simple_graph(workflow)
 
-    if Yog.cyclic?(simple_graph) do
+    if Yog.cyclic?(sequence_graph) do
       [{:error, "Cycle detected in workflow"} | acc]
     else
       acc
@@ -609,6 +616,38 @@ defmodule Choreo.Workflow.Analysis do
     else
       [{:warning, "Unreachable compensation nodes: #{inspect(unreachable)}"} | acc]
     end
+  end
+
+  defp check_invalid_compensation_references(acc, %Workflow{graph: graph}) do
+    invalid =
+      graph.nodes
+      |> Enum.filter(fn {_id, data} ->
+        data[:node_type] == :compensation and
+          data[:target_task] != nil and
+          not Map.has_key?(graph.nodes, data[:target_task])
+      end)
+      |> Enum.map(fn {id, data} ->
+        {:warning,
+         "Compensation #{inspect(id)} references unknown task #{inspect(data[:target_task])}"}
+      end)
+
+    invalid ++ acc
+  end
+
+  defp sequence_only_simple_graph(%Workflow{graph: graph, edge_meta: edge_meta}) do
+    graph.edges
+    |> Enum.reduce(Yog.directed(), fn {edge_id, {src, dst, weight}}, acc ->
+      meta = Map.get(edge_meta, edge_id, %{})
+
+      if meta[:edge_type] == :sequence do
+        acc
+        |> Yog.add_node(src, Map.get(graph.nodes, src))
+        |> Yog.add_node(dst, Map.get(graph.nodes, dst))
+        |> Yog.add_edge_ensure(src, dst, weight)
+      else
+        acc
+      end
+    end)
   end
 
   @doc """

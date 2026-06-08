@@ -130,6 +130,22 @@ defmodule Choreo.WorkflowTest do
       assert "path1" in labels
       assert "path2" in labels
     end
+
+    test "strict mode raises on missing nodes" do
+      assert_raise ArgumentError, ~r/connect\/4 requires both nodes to exist/, fn ->
+        Workflow.new(strict: true)
+        |> Workflow.connect(:missing, :also_missing)
+      end
+    end
+
+    test "non-strict mode auto-creates missing nodes" do
+      workflow =
+        Workflow.new()
+        |> Workflow.connect(:a, :b)
+
+      assert :a in Workflow.nodes(workflow)
+      assert :b in Workflow.nodes(workflow)
+    end
   end
 
   describe "swimlanes" do
