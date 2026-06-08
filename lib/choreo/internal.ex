@@ -375,4 +375,84 @@ defmodule Choreo.Internal do
 
     %{graph | nodes: new_nodes, out_edges: new_out, in_edges: new_in}
   end
+
+  @doc """
+  Finds all elementary cycles in a directed multigraph.
+
+  Returns a list of cycles, where each cycle is a list of node IDs
+  starting at the canonical smallest node and listing each member once.
+  """
+  @spec dfs_cycles(Yog.Multi.Graph.t()) :: [[Yog.node_id()]]
+  def dfs_cycles(%Yog.Multi.Graph{} = graph) do
+    nodes = Map.keys(graph.nodes)
+
+    {cycles, _visited} =
+      Enum.reduce(nodes, {[], MapSet.new()}, fn node, {cycles_acc, visited} ->
+        {c, v} = do_dfs_cycles(graph, node, visited, [], MapSet.new(), [])
+        {cycles_acc ++ c, v}
+      end)
+
+    cycles
+    |> Enum.map(&normalize_cycle/1)
+    |> Enum.uniq()
+  end
+
+  defp do_dfs_cycles(graph, node, visited, path_list, path_set, cycles) do
+    cond do
+      MapSet.member?(path_set, node) ->
+        cycle = [node | Enum.take_while(path_list, &(&1 != node)) |> Enum.reverse()]
+        {[cycle | cycles], visited}
+
+      MapSet.member?(visited, node) ->
+        {cycles, visited}
+
+      true ->
+        path_set = MapSet.put(path_set, node)
+        path_list = [node | path_list]
+
+        successors =
+          Yog.Multi.successors(graph, node)
+          |> Enum.map(fn {dest, _eid, _w} -> dest end)
+
+        {cycles, visited} =
+          Enum.reduce(successors, {cycles, visited}, fn succ, {c_acc, v_acc} ->
+            do_dfs_cycles(graph, succ, v_acc, path_list, path_set, c_acc)
+          end)
+
+        visited = MapSet.put(visited, node)
+        {cycles, visited}
+    end
+  end
+
+  defp normalize_cycle(cycle) do
+    min_element = Enum.min(cycle)
+    {left, right} = Enum.split_while(cycle, &(&1 != min_element))
+    right ++ left
+  end
+
+  @doc """
+  Returns a list of functions required by `contract_id` that are not
+  implemented by `implementer_id`, comparing by name and arity.
+
+  Used by `Choreo.UML` for both build-time strict validation and
+  post-hoc `broken_contracts/1` analysis.
+  """
+  @spec unsatisfied_contract(map(), Yog.node_id(), Yog.node_id()) :: [map()]
+  def unsatisfied_contract(%{graph: graph}, implementer_id, contract_id) do
+    implementer = Map.get(graph.nodes, implementer_id, %{})
+    contract = Map.get(graph.nodes, contract_id, %{})
+
+    if contract[:type] in [:behavior, :protocol, :interface] do
+      target_funcs = contract[:functions] || []
+      source_funcs = implementer[:functions] || []
+
+      Enum.filter(target_funcs, fn tf ->
+        not Enum.any?(source_funcs, fn sf ->
+          sf[:name] == tf[:name] and (is_nil(tf[:arity]) or sf[:arity] == tf[:arity])
+        end)
+      end)
+    else
+      []
+    end
+  end
 end

@@ -1,8 +1,11 @@
 # Choreo ERD: Comprehensive Walkthrough
 
 ```elixir
+# For Hex publication/readers:
+# Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
+
+# For local development:
 Mix.install([
-  # {:choreo, "~> 0.9"},
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
@@ -45,20 +48,13 @@ schema =
   |> ERD.add_relationship(:users, :orders, cardinality: :one_to_many, label: "places")
   |> ERD.add_relationship(:orders, :order_items, cardinality: :exactly_one_to_many, label: "contains")
   |> ERD.add_relationship(:products, :order_items, cardinality: :zero_or_one_to_many, label: "ordered_in")
-```
 
-### Styled Graphviz Rendering
+tabs = [
+  {"Graphviz", Kino.VizJS.render(ERD.to_dot(schema))},
+  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(schema))}
+]
 
-```elixir
-ERD.to_dot(schema)
-|> Kino.VizJS.render()
-```
-
-### Native Mermaid.js erDiagram Rendering
-
-```elixir
-ERD.to_mermaid(schema)
-|> Kino.Mermaid.new()
+Kino.Layout.tabs(tabs)
 ```
 
 ---
@@ -94,12 +90,11 @@ Relationships support standard crow's foot multiplicities via the `:cardinality`
 
 | Cardinality Identifier | DOT Arrow Style | Mermaid Syntax Shape |
 | ---------------------- | --------------- | -------------------- |
-
-| `:one_to_one`          | `teetee` / `teetee`     | `||--||`             |
-| `:one_to_many`         | `teetee` / `crowodot`   | `||--o{`             |
-| `:zero_or_one_to_many` | `odot` / `crowodot`     | `|o--o{`             |
-| `:exactly_one_to_many` | `teetee` / `crowtee`    | `||--|{`             |
-| `:many_to_many`        | `crowodot` / `crowodot` | `}|--|{`             |
+| `:one_to_one` | `teetee` / `teetee` | `\|\|--\|\|` |
+| `:one_to_many` | `teetee` / `crowodot` | `\|\|--o{` |
+| `:zero_or_one_to_many` | `odot` / `crowodot` | `\|o--o{` |
+| `:exactly_one_to_many` | `teetee` / `crowtee` | `\|\|--\|{` |
+| `:many_to_many` | `crowodot` / `crowodot` | `}o--o{` |
 
 ```elixir
 # Example of a one-to-one profile link
@@ -112,13 +107,19 @@ profile_schema =
   ])
   |> ERD.add_relationship(:users, :profiles, cardinality: :one_to_one, label: "has_one")
 
-ERD.to_mermaid(profile_schema)
-|> Kino.Mermaid.new()
+tabs = [
+  {"Graphviz", Kino.VizJS.render(ERD.to_dot(profile_schema))},
+  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(profile_schema))}
+]
+
+Kino.Layout.tabs(tabs)
 ```
 
 ### Strict Column & Datatype Verification
 
 To ensure that your relationships point to valid columns and don't introduce mismatching datatypes, `Choreo.ERD` supports column-level mapping checks via `:from_column` and `:to_column` options.
+
+> **Column matching is opt-in**: passing only `:from_column` or only `:to_column` skips the check entirely. Both must be provided to trigger validation.
 
 Additionally, you can toggle a global `:strict_column_matching` flag when initializing your diagram:
 
@@ -173,22 +174,17 @@ strict_schema =
 All built-in themes are optimized specifically for HTML-like database record labels, adjusting header fills, fonts, card borders, and relationship paths dynamically:
 
 ```elixir
-# Let's inspect the Ocean theme on our standard e-commerce schema
-ERD.to_dot(schema, theme: :ocean)
-|> Kino.VizJS.render()
+tabs = [
+  {"Default", Kino.VizJS.render(ERD.to_dot(schema))},
+  {"Ocean", Kino.VizJS.render(ERD.to_dot(schema, theme: :ocean))},
+  {"Forest", Kino.VizJS.render(ERD.to_dot(schema, theme: :forest))},
+  {"Dark", Kino.VizJS.render(ERD.to_dot(schema, theme: :dark))}
+]
+
+Kino.Layout.tabs(tabs)
 ```
 
-```elixir
-# Let's inspect the Forest theme
-ERD.to_dot(schema, theme: :forest)
-|> Kino.VizJS.render()
-```
-
-```elixir
-# Let's inspect the Dark presentation theme
-ERD.to_dot(schema, theme: :dark)
-|> Kino.VizJS.render()
-```
+> **Note on Mermaid theming**: The native Mermaid `erDiagram` syntax has limited styling support. `ERD.to_mermaid/2` accepts a `:theme` option for API consistency but currently ignores it.
 
 ---
 
@@ -245,18 +241,28 @@ Determines table centrality. Tables with high outgoing/incoming degrees represen
 Analysis.table_degrees(schema)
 ```
 
+### 5. Normalization Score
+
+```elixir
+Analysis.normalization_score(schema)
+```
+
+> The default `:one_to_one` penalty is 0 because legitimate 1-1 splits (e.g., PII isolation) are common. Pass `weights: [one_to_one: 5]` to opt-in to penalizing them.
+
 ---
 
-## Cheat Sheet Cheat Sheet
+## Cheat Sheet
 
 | Task / Feature              | Command                                                             |
 | --------------------------- | ------------------------------------------------------------------- |
-| Create ERD                  | `ERD.new/0`                                                         |
+| Create ERD                  | `ERD.new/1`                                                         |
 | Add Database Table          | `ERD.add_table/3` (Opts: `:label`, `:columns`)                      |
 | Add Relationship            | `ERD.add_relationship/4` (Opts: `:label`, `:cardinality`)           |
 | Render Styled DOT Graphviz  | `ERD.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`) |
-| Render Native Mermaid       | `ERD.to_mermaid/2` (Opts: `:theme`)                                 |
+| Render Native Mermaid       | `ERD.to_mermaid/2`                                                  |
 | Discover Join Sequence      | `Analysis.shortest_join_path/3`                                     |
 | Detect FK Circular Cycles   | `Analysis.cycles/1`                                                 |
 | Find Disconnected Tables    | `Analysis.orphans/1`                                                |
 | Compute Coupling Centrality | `Analysis.table_degrees/1`                                          |
+| Validate Schema             | `Analysis.validate/1`                                               |
+| Score Normalization         | `Analysis.normalization_score/2`                                    |

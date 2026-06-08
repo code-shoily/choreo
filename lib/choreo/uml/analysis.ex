@@ -15,6 +15,9 @@ defmodule Choreo.UML.Analysis do
   Cycles in structural diagrams indicate high coupling and are a major source
   of compilation cascades in Elixir applications.
 
+  Returns a list of cycles, where each cycle is a list of node IDs
+  starting at the canonical smallest node and listing each member once.
+
   ## Examples
 
       iex> uml =
@@ -28,49 +31,7 @@ defmodule Choreo.UML.Analysis do
   """
   @spec cycles(Choreo.UML.t()) :: [[Choreo.UML.class_id()]]
   def cycles(%Choreo.UML{} = uml) do
-    graph = uml.graph
-    nodes = Map.keys(graph.nodes)
-
-    {cycles, _visited} =
-      Enum.reduce(nodes, {[], MapSet.new()}, fn node, {c_acc, v_acc} ->
-        dfs_cycles(graph, node, v_acc, [], MapSet.new(), c_acc)
-      end)
-
-    cycles
-    |> Enum.map(&normalize_cycle/1)
-    |> Enum.uniq()
-  end
-
-  defp dfs_cycles(graph, node, visited, path_list, path_set, cycles) do
-    cond do
-      MapSet.member?(path_set, node) ->
-        cycle = [node | Enum.take_while(path_list, &(&1 != node)) |> Enum.reverse()]
-        {[cycle | cycles], visited}
-
-      MapSet.member?(visited, node) ->
-        {cycles, visited}
-
-      true ->
-        path_set = MapSet.put(path_set, node)
-        path_list = [node | path_list]
-
-        successors =
-          Yog.Multi.successors(graph, node) |> Enum.map(fn {dest, _eid, _w} -> dest end)
-
-        {cycles, visited} =
-          Enum.reduce(successors, {cycles, visited}, fn succ, {c_acc, v_acc} ->
-            dfs_cycles(graph, succ, v_acc, path_list, path_set, c_acc)
-          end)
-
-        visited = MapSet.put(visited, node)
-        {cycles, visited}
-    end
-  end
-
-  defp normalize_cycle(cycle) do
-    min_element = Enum.min(cycle)
-    {left, right} = Enum.split_while(cycle, &(&1 != min_element))
-    right ++ left
+    Choreo.Internal.dfs_cycles(uml.graph)
   end
 
   @doc """
@@ -87,7 +48,11 @@ defmodule Choreo.UML.Analysis do
       ...>   # Struct missing the arity 1 verify function:
       ...>   |> Choreo.UML.add_class(:provider, type: :struct, functions: [%{name: "verify", arity: 2}])
       ...>   |> Choreo.UML.add_relationship(:provider, :auth, type: :realizes)
-      iex> [{:provider, :auth, [[visibility: :public, arity: 1, name: "verify"]]}] = Choreo.UML.Analysis.broken_contracts(contract)
+      iex> [{:provider, :auth, [missing]}] = Choreo.UML.Analysis.broken_contracts(contract)
+      iex> missing[:name]
+      "verify"
+      iex> missing[:arity]
+      1
   """
   @spec broken_contracts(Choreo.UML.t()) :: [
           {Choreo.UML.class_id(), Choreo.UML.class_id(), [map()]}
@@ -100,25 +65,10 @@ defmodule Choreo.UML.Analysis do
       case meta[:type] do
         type when type in [:realizes, :inherits] ->
           {from, to, _w} = Map.get(graph.edges, edge_id)
-          from_node = graph.nodes[from]
-          to_node = graph.nodes[to]
+          missing = Choreo.Internal.unsatisfied_contract(uml, from, to)
 
-          if to_node[:type] in [:behavior, :protocol, :interface] do
-            target_funcs = to_node[:functions] || []
-            source_funcs = from_node[:functions] || []
-
-            missing =
-              Enum.filter(target_funcs, fn tf ->
-                not Enum.any?(source_funcs, fn sf ->
-                  sf[:name] == tf[:name] and (is_nil(tf[:arity]) or sf[:arity] == tf[:arity])
-                end)
-              end)
-
-            if missing != [] do
-              [{from, to, missing} | acc]
-            else
-              acc
-            end
+          if missing != [] do
+            [{from, to, missing} | acc]
           else
             acc
           end

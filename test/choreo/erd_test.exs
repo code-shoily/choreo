@@ -216,7 +216,7 @@ defmodule Choreo.ERDTest do
   test "viewable protocol implementation", %{erd: erd} do
     assert is_function(Choreo.Viewable.zoom_predicate(erd, 1))
 
-    assert %{type: :uses, cardinality: :one_to_many, label: "virtual"} =
+    assert %{type: :uses, cardinality: :one_to_many, label: nil} =
              Choreo.Viewable.virtual_edge_meta(erd)
 
     # Rebuild
@@ -283,21 +283,19 @@ defmodule Choreo.ERDTest do
       # :god_table has 18 columns (> 15) -> -15 points
       # :lonely_table is orphan -> -10 points
       # :god_table is orphan -> -10 points
-      # :a -> :b is :one_to_one -> -5 points
-      # Total: 100 - (15 + 10 + 10 + 5) = 60
-      assert result.score == 60
+      # :a -> :b is :one_to_one -> 0 points (default penalty removed, but smell still emitted)
+      # Total: 100 - (15 + 10 + 10 + 0) = 65
+      assert result.score == 65
       assert length(result.smells) == 4
 
-      assert Enum.at(result.smells, 0) ==
-               "One-to-one relationship between 'a' and 'b' suggests a potential split entity."
+      assert Enum.any?(
+               result.smells,
+               &String.contains?(&1, "One-to-one relationship between :a and :b")
+             )
 
-      assert Enum.at(result.smells, 1) ==
-               "Table 'god_table' has 18 columns, exceeding the threshold of 15."
-
-      assert Enum.at(result.smells, 2) == "Table 'god_table' is orphaned (has no relationships)."
-
-      assert Enum.at(result.smells, 3) ==
-               "Table 'lonely_table' is orphaned (has no relationships)."
+      assert Enum.any?(result.smells, &String.contains?(&1, "Table :god_table has 18 columns"))
+      assert Enum.any?(result.smells, &String.contains?(&1, "Table :god_table is orphaned"))
+      assert Enum.any?(result.smells, &String.contains?(&1, "Table :lonely_table is orphaned"))
     end
 
     test "respects custom weights and thresholds" do

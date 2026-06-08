@@ -1,8 +1,11 @@
 # Choreo UML: Comprehensive Walkthrough
 
 ```elixir
+# For Hex publication/readers:
+# Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
+
+# For local development:
 Mix.install([
-  # {:choreo, "~> 0.9"},
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
@@ -52,25 +55,13 @@ uml =
   # Model relationship semantics
   |> UML.add_relationship(:user, :auth_provider, type: :realizes, label: "implements")
   |> UML.add_relationship(:auth_provider, :cache, type: :depends, label: "uses")
-```
 
-### Styled Graphviz Rendering
+tabs = [
+  {"Graphviz", Kino.VizJS.render(UML.to_dot(uml))},
+  {"Mermaid classDiagram", Kino.Mermaid.new(UML.to_mermaid(uml, syntax: :class_diagram))}
+]
 
-Graphviz DOT rendering constructs high-fidelity **three-compartment HTML-like tables** standard in UML tools:
-
-```elixir
-UML.to_dot(uml)
-|> Kino.VizJS.render()
-```
-
-### Native Mermaid.js classDiagram Rendering
-
-You can output directly to Mermaid's native, highly structured class diagram syntax:
-
-```elixir
-# Simply pass `syntax: :class_diagram`
-UML.to_mermaid(uml, syntax: :class_diagram)
-|> Kino.Mermaid.new()
+Kino.Layout.tabs(tabs)
 ```
 
 ---
@@ -81,8 +72,10 @@ Every class, struct, behavior, or interface is rigorously validated via `NimbleO
 
 ### Fields and Functions Validation
 
-* **Fields**: Supports `:name` (Required), `:type` (Optional), and `:visibility` (Optional: `:public` (`+`), `:private` (`-`), `:protected` (`#`), or `nil`).
-* **Functions**: Supports `:name` (Required), `:arity` (Optional), `:return` (Optional), and `:visibility` (Optional).
+* **Fields**: Supports `:name` (Required atom or string), `:type` (Optional), and `:visibility` (Optional: `:public` (`+`), `:private` (`-`), `:protected` (`#`), or `nil`).
+* **Functions**: Supports `:name` (Required atom or string), `:arity` (Optional), `:return` (Optional), and `:visibility` (Optional).
+
+> **Note on names**: Both `:name` and `"name"` are accepted, but they are stored as strings internally. Comparisons (e.g., in `broken_contracts/1`) use strict equality, so be consistent.
 
 ```elixir
 # Validation will trigger a clean schema error if fields are invalid
@@ -102,12 +95,10 @@ Relationships between software blocks map exactly to standard UML connectors:
 
 | Relationship Type | Arrow Style | Connector Style | Intended Semantics |
 | ----------------- | ----------- | --------------- | ------------------ |
-
-| `:inherits` | Hollow | Solid (`--  | >`) | Class inheritance or adopting a behavior. |
-| `:realizes` | Hollow | Dashed (`.. | >`) | Adopting/implementing an Elixir protocol. |
-
-| `:associates` | Solid | Solid (`-->`)  | Composition (e.g. struct nesting/embedding).        |
-| `:depends`    | Open  | Dashed (`..>`) | Run-time dependency or function calling invocation. |
+| `:inherits` | Hollow | Solid (`--\|>`) | Class inheritance or adopting a behavior. |
+| `:realizes` | Hollow | Dashed (`..\|>`) | Adopting/implementing an Elixir protocol. |
+| `:associates` | Solid | Solid (`-->`) | Composition (e.g. struct nesting/embedding). |
+| `:depends` | Open | Dashed (`..>`) | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance
@@ -117,8 +108,12 @@ inheritance_uml =
   |> UML.add_class(:http_handler, type: :class)
   |> UML.add_relationship(:http_handler, :base_handler, type: :inherits, label: "inherits_from")
 
-UML.to_mermaid(inheritance_uml, syntax: :class_diagram)
-|> Kino.Mermaid.new()
+tabs = [
+  {"Graphviz", Kino.VizJS.render(UML.to_dot(inheritance_uml))},
+  {"Mermaid", Kino.Mermaid.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram))}
+]
+
+Kino.Layout.tabs(tabs)
 ```
 
 ### Strict Contract Validation
@@ -163,14 +158,13 @@ All built-in presentation palettes are fully optimized to auto-skin each compone
 
 ```elixir
 # Let's inspect the Ocean theme on our UML architecture
-UML.to_dot(uml, theme: :ocean)
-|> Kino.VizJS.render()
-```
+tabs = [
+  {"Default", Kino.VizJS.render(UML.to_dot(uml))},
+  {"Ocean", Kino.VizJS.render(UML.to_dot(uml, theme: :ocean))},
+  {"Dark", Kino.VizJS.render(UML.to_dot(uml, theme: :dark))}
+]
 
-```elixir
-# Let's inspect the Dark theme
-UML.to_dot(uml, theme: :dark)
-|> Kino.VizJS.render()
+Kino.Layout.tabs(tabs)
 ```
 
 ---
@@ -183,8 +177,18 @@ Since `Choreo.UML` natively implements the `Choreo.Viewable` protocol, you can u
 # Focus only on the 'user' struct and its immediate dependencies
 focused_uml = Choreo.View.focus(uml, :user)
 
-UML.to_dot(focused_uml)
-|> Kino.VizJS.render()
+Kino.VizJS.render(UML.to_dot(focused_uml))
+```
+
+Zoom levels filter by component type:
+
+* **Level 0**: Behaviors, protocols, and interfaces only
+* **Level 1**: + Classes
+* **Level 2+**: Everything (including structs)
+
+```elixir
+zoomed = Choreo.View.zoom(uml, level: 0)
+Kino.VizJS.render(UML.to_dot(zoomed))
 ```
 
 ---
@@ -204,7 +208,7 @@ circular_uml =
   |> UML.add_relationship(:cache, :user, type: :depends, label: "references")
 
 Choreo.UML.Analysis.cycles(circular_uml)
-#=> [[:user, :auth_provider, :cache]]
+#=> [[:cache, :auth_provider, :user]]
 ```
 
 ### 2. Broken Behavior & Protocol Contracts
@@ -230,6 +234,8 @@ Choreo.UML.Analysis.broken_contracts(broken_uml)
 
 Evaluate Afferent Coupling ($C_a$), Efferent Coupling ($C_e$), and Instability ($I$):
 
+> **Note on parallel edges**: Coupling metrics collapse parallel relationships into a single edge before counting degrees.
+
 ```elixir
 Choreo.UML.Analysis.coupling_metrics(uml)
 ```
@@ -240,12 +246,12 @@ Choreo.UML.Analysis.coupling_metrics(uml)
 
 | Task / Feature              | Command                                                              |
 | --------------------------- | -------------------------------------------------------------------- |
-| Create UML Diagram          | `UML.new/0`                                                          |
+| Create UML Diagram          | `UML.new/1`                                                          |
 | Add Struct/Behavior/Class   | `UML.add_class/3` (Opts: `:type`, `:fields`, `:functions`, `:label`) |
 | Add Connection Relationship | `UML.add_relationship/4` (Opts: `:type`, `:label`)                   |
 | Render Styled DOT Graphviz  | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)  |
 | Render Native Mermaid Class | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)    |
-| Filter Graph via Lens focus | `Choreo.View.focus/2`                                                |
+| Filter Graph via Lens focus | `Choreo.View.focus/3`                                                |
 | Detect circular cycles      | `Choreo.UML.Analysis.cycles/1`                                       |
 | Verify behavior contracts   | `Choreo.UML.Analysis.broken_contracts/1`                             |
 | Compute coupling metrics    | `Choreo.UML.Analysis.coupling_metrics/1`                             |

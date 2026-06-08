@@ -61,8 +61,8 @@ defmodule Choreo.ERD.Analysis do
   Circular references can prevent clean database teardowns, complicate
   cascade triggers, and indicate suboptimal database normalization.
 
-  Returns a list of cycles, where each cycle is represented by a sequence of
-  table IDs starting and ending with the same node.
+  Returns a list of cycles, where each cycle is a list of node IDs
+  starting at the canonical smallest node and listing each member once.
 
   ## Examples
 
@@ -77,49 +77,7 @@ defmodule Choreo.ERD.Analysis do
   """
   @spec cycles(Choreo.ERD.t()) :: [[Choreo.ERD.table_id()]]
   def cycles(%Choreo.ERD{} = erd) do
-    nodes = Map.keys(erd.graph.nodes)
-
-    {cycles, _visited} =
-      Enum.reduce(nodes, {[], MapSet.new()}, fn node, {cycles_acc, visited} ->
-        {c, v} = dfs_cycles(erd.graph, node, visited, [], MapSet.new(), [])
-        {cycles_acc ++ c, v}
-      end)
-
-    cycles
-    |> Enum.map(&normalize_cycle/1)
-    |> Enum.uniq()
-  end
-
-  defp dfs_cycles(graph, node, visited, path_list, path_set, cycles) do
-    cond do
-      MapSet.member?(path_set, node) ->
-        cycle = [node | Enum.take_while(path_list, &(&1 != node)) |> Enum.reverse()]
-        {[cycle | cycles], visited}
-
-      MapSet.member?(visited, node) ->
-        {cycles, visited}
-
-      true ->
-        path_set = MapSet.put(path_set, node)
-        path_list = [node | path_list]
-
-        successors =
-          Yog.Multi.successors(graph, node) |> Enum.map(fn {dest, _eid, _w} -> dest end)
-
-        {cycles, visited} =
-          Enum.reduce(successors, {cycles, visited}, fn succ, {c_acc, v_acc} ->
-            dfs_cycles(graph, succ, v_acc, path_list, path_set, c_acc)
-          end)
-
-        visited = MapSet.put(visited, node)
-        {cycles, visited}
-    end
-  end
-
-  defp normalize_cycle(cycle) do
-    min_element = Enum.min(cycle)
-    {left, right} = Enum.split_while(cycle, &(&1 != min_element))
-    right ++ left
+    Choreo.Internal.dfs_cycles(erd.graph)
   end
 
   @doc """
@@ -177,13 +135,56 @@ defmodule Choreo.ERD.Analysis do
   end
 
   @doc """
+  Validates a schema and returns a list of issues.
+
+  Checks for:
+    * unclassified orphan tables
+    * direct many-to-many relationships without a junction table
+
+  Returns a list of `{severity, message}` tuples.
+
+  > ### Note on validation idiom
+  > ERD uses `normalization_score/2` for quality scoring rather than a
+  > binary pass/fail check. `validate/1` wraps the most critical smells
+  > into the standard tuple format for composability with other modules.
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :many_to_many)
+      iex> issues = Choreo.ERD.Analysis.validate(erd)
+      iex> Enum.any?(issues, fn {sev, _} -> sev == :error end)
+      true
+  """
+  @spec validate(Choreo.ERD.t()) :: [{:error | :warning, String.t()}]
+  def validate(%Choreo.ERD{} = erd) do
+    %{smells: smells} = normalization_score(erd)
+
+    Enum.map(smells, fn smell ->
+      if String.contains?(smell, "many-to-many") do
+        {:error, smell}
+      else
+        {:warning, smell}
+      end
+    end)
+  end
+
+  @doc """
   Calculates a database normalization and schema quality score.
 
   The score starts at 100 and is reduced by:
     * `:large_column` — Tables with more than 15 columns (default: -15)
     * `:many_to_many` — Direct `:many_to_many` relationships without a junction table (default: -10)
-    * `:one_to_one` — `:one_to_one` relationships indicating potential split entities (default: -5)
+    * `:one_to_one` — `:one_to_one` relationships indicating potential split entities (default: 0)
     * `:orphan` — Tables with no relationships (default: -10)
+
+  > ### Opinionated defaults
+  > The `:one_to_one` penalty defaults to 0 because legitimate 1-1 splits
+  > (e.g., PII isolation) are common. Pass `weights: [one_to_one: 5]` to
+  > opt-in to penalizing them.
 
   The score is capped at a minimum of 0.
 
@@ -202,7 +203,7 @@ defmodule Choreo.ERD.Analysis do
       iex> Choreo.ERD.Analysis.normalization_score(erd)
       %{
         score: 90,
-        smells: ["Direct many-to-many relationship between 'users' and 'posts'."]
+        smells: ["Direct many-to-many relationship between :users and :posts."]
       }
   """
   @spec normalization_score(Choreo.ERD.t(), keyword()) :: %{
@@ -213,7 +214,7 @@ defmodule Choreo.ERD.Analysis do
     weights = Keyword.get(opts, :weights, [])
     large_column_penalty = Keyword.get(weights, :large_column, 15)
     many_to_many_penalty = Keyword.get(weights, :many_to_many, 10)
-    one_to_one_penalty = Keyword.get(weights, :one_to_one, 5)
+    one_to_one_penalty = Keyword.get(weights, :one_to_one, 0)
     orphan_penalty = Keyword.get(weights, :orphan, 10)
 
     column_threshold = Keyword.get(opts, :column_threshold, 15)
@@ -225,7 +226,7 @@ defmodule Choreo.ERD.Analysis do
         if length(columns) > column_threshold do
           {deductions + large_column_penalty,
            [
-             "Table '#{table_id}' has #{length(columns)} columns, exceeding the threshold of #{column_threshold}."
+             "Table #{inspect(table_id)} has #{length(columns)} columns, exceeding the threshold of #{column_threshold}."
              | smells
            ]}
         else
@@ -242,12 +243,15 @@ defmodule Choreo.ERD.Analysis do
         cond do
           cardinality == :many_to_many ->
             {deductions + many_to_many_penalty,
-             ["Direct many-to-many relationship between '#{from}' and '#{to}'." | smells]}
+             [
+               "Direct many-to-many relationship between #{inspect(from)} and #{inspect(to)}."
+               | smells
+             ]}
 
           cardinality == :one_to_one ->
             {deductions + one_to_one_penalty,
              [
-               "One-to-one relationship between '#{from}' and '#{to}' suggests a potential split entity."
+               "One-to-one relationship between #{inspect(from)} and #{inspect(to)} suggests a potential split entity."
                | smells
              ]}
 
@@ -259,7 +263,7 @@ defmodule Choreo.ERD.Analysis do
     {orphan_deductions, orphan_smells} =
       Enum.reduce(orphans(erd), {0, []}, fn table_id, {deductions, smells} ->
         {deductions + orphan_penalty,
-         ["Table '#{table_id}' is orphaned (has no relationships)." | smells]}
+         ["Table #{inspect(table_id)} is orphaned (has no relationships)." | smells]}
       end)
 
     total_deductions = column_deductions + relationship_deductions + orphan_deductions

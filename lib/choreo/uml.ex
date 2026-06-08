@@ -53,16 +53,17 @@ defmodule Choreo.UML do
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
-          strict_contract_validation: boolean()
+          strict_contract_validation: boolean(),
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, strict_contract_validation: false
+  defstruct graph: nil, edge_meta: %{}, strict_contract_validation: false, strict: false
 
   @field_schema [
     name: [
-      type: :any,
+      type: {:or, [:atom, :string]},
       required: true,
-      doc: "The name of the attribute/field."
+      doc: "The name of the attribute/field (atom or string)."
     ],
     type: [
       type: :any,
@@ -79,9 +80,9 @@ defmodule Choreo.UML do
 
   @function_schema [
     name: [
-      type: :any,
+      type: {:or, [:atom, :string]},
       required: true,
-      doc: "The name of the function."
+      doc: "The name of the function (atom or string)."
     ],
     arity: [
       type: :integer,
@@ -146,6 +147,7 @@ defmodule Choreo.UML do
   ## Options
 
     * `:strict_contract_validation` - if `true`, validates that any class implementing a behavior/protocol/interface implements all its required functions (default: `false`).
+    * `:strict` - if `true`, `add_relationship/4` raises when an endpoint does not already exist (default: `false`).
 
   ## Examples
 
@@ -156,12 +158,11 @@ defmodule Choreo.UML do
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
-    strict = Keyword.get(opts, :strict_contract_validation, false)
-
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},
-      strict_contract_validation: strict
+      strict_contract_validation: Keyword.get(opts, :strict_contract_validation, false),
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -196,12 +197,14 @@ defmodule Choreo.UML do
 
     validated_fields =
       Enum.map(fields, fn f ->
-        NimbleOptions.validate!(Keyword.new(f), @field_schema)
+        validated = NimbleOptions.validate!(Keyword.new(f), @field_schema)
+        Keyword.update!(validated, :name, &to_string/1)
       end)
 
     validated_functions =
       Enum.map(functions, fn func ->
-        NimbleOptions.validate!(Keyword.new(func), @function_schema)
+        validated = NimbleOptions.validate!(Keyword.new(func), @function_schema)
+        Keyword.update!(validated, :name, &to_string/1)
       end)
 
     data = %{
@@ -235,6 +238,16 @@ defmodule Choreo.UML do
   def add_relationship(%__MODULE__{} = uml, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_relationship_schema)
 
+    if uml.strict and not Map.has_key?(uml.graph.nodes, from) do
+      raise ArgumentError,
+            "Source class #{inspect(from)} does not exist (strict mode is enabled)"
+    end
+
+    if uml.strict and not Map.has_key?(uml.graph.nodes, to) do
+      raise ArgumentError,
+            "Target class #{inspect(to)} does not exist (strict mode is enabled)"
+    end
+
     uml =
       if Map.has_key?(uml.graph.nodes, from) do
         uml
@@ -252,21 +265,11 @@ defmodule Choreo.UML do
     meta = Map.new(opts)
 
     if uml.strict_contract_validation and meta[:type] in [:realizes, :inherits] do
-      from_node = Map.get(uml.graph.nodes, from)
-      to_node = Map.get(uml.graph.nodes, to)
+      case Choreo.Internal.unsatisfied_contract(uml, from, to) do
+        [] ->
+          :ok
 
-      if to_node[:type] in [:behavior, :protocol, :interface] do
-        target_funcs = to_node[:functions] || []
-        source_funcs = from_node[:functions] || []
-
-        missing =
-          Enum.filter(target_funcs, fn tf ->
-            not Enum.any?(source_funcs, fn sf ->
-              sf[:name] == tf[:name] and (is_nil(tf[:arity]) or sf[:arity] == tf[:arity])
-            end)
-          end)
-
-        if missing != [] do
+        missing ->
           missing_strs =
             Enum.map_join(missing, ", ", fn f ->
               "#{f[:name]}/#{f[:arity] || "any"}"
@@ -274,7 +277,6 @@ defmodule Choreo.UML do
 
           raise ArgumentError,
                 "contract violation: class #{inspect(from)} does not implement required functions from #{inspect(to)}: #{missing_strs}"
-        end
       end
     end
 
@@ -355,14 +357,22 @@ defimpl Choreo.Viewable, for: Choreo.UML do
     %Choreo.UML{uml | graph: new_graph, edge_meta: edge_meta}
   end
 
+  def zoom_predicate(_uml, 0) do
+    fn _, d -> d[:type] in [:behavior, :protocol, :interface] end
+  end
+
+  def zoom_predicate(_uml, 1) do
+    fn _, d -> d[:type] in [:behavior, :protocol, :interface, :class] end
+  end
+
   def zoom_predicate(_uml, _level) do
-    fn _data -> true end
+    fn _, _ -> true end
   end
 
   def virtual_edge_meta(_uml) do
     %{
       type: :depends,
-      label: "virtual"
+      label: nil
     }
   end
 end

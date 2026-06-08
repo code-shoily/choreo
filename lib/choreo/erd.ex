@@ -54,10 +54,11 @@ defmodule Choreo.ERD do
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
-          strict_column_matching: boolean()
+          strict_column_matching: boolean(),
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, strict_column_matching: false
+  defstruct graph: nil, edge_meta: %{}, strict_column_matching: false, strict: false
 
   @column_schema [
     name: [
@@ -133,6 +134,7 @@ defmodule Choreo.ERD do
   ## Options
 
     * `:strict_column_matching` - if `true`, validates that any foreign key columns mapped between tables exist and have matching types (default: `false`).
+    * `:strict` - if `true`, `add_relationship/4` raises when an endpoint does not already exist (default: `false`).
 
   ## Examples
 
@@ -143,12 +145,11 @@ defmodule Choreo.ERD do
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
-    strict = Keyword.get(opts, :strict_column_matching, false)
-
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},
-      strict_column_matching: strict
+      strict_column_matching: Keyword.get(opts, :strict_column_matching, false),
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -208,6 +209,16 @@ defmodule Choreo.ERD do
   @spec add_relationship(t(), table_id(), table_id(), keyword()) :: t()
   def add_relationship(%__MODULE__{} = erd, from, to, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_relationship_schema)
+
+    if erd.strict and not Map.has_key?(erd.graph.nodes, from) do
+      raise ArgumentError,
+            "Source table #{inspect(from)} does not exist (strict mode is enabled)"
+    end
+
+    if erd.strict and not Map.has_key?(erd.graph.nodes, to) do
+      raise ArgumentError,
+            "Target table #{inspect(to)} does not exist (strict mode is enabled)"
+    end
 
     erd =
       if Map.has_key?(erd.graph.nodes, from) do
@@ -340,15 +351,21 @@ defimpl Choreo.Viewable, for: Choreo.ERD do
     %Choreo.ERD{erd | graph: new_graph, edge_meta: edge_meta}
   end
 
+  def zoom_predicate(erd, 0) do
+    fn id, _d ->
+      Yog.Multi.degree(erd.graph, id) > 0
+    end
+  end
+
   def zoom_predicate(_erd, _level) do
-    fn _data -> true end
+    fn _, _ -> true end
   end
 
   def virtual_edge_meta(_erd) do
     %{
       type: :uses,
       cardinality: :one_to_many,
-      label: "virtual"
+      label: nil
     }
   end
 end
