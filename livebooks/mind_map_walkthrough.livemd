@@ -4,7 +4,9 @@
 
 ```elixir
 Mix.install([
+  # For Hex publication/readers:
   # {:choreo, "~> 0.9"},
+  # For local development:
   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.8.0"}
 ])
@@ -54,13 +56,12 @@ legend =
   |> MindMap.branch(:topic, :subtopic)
   |> MindMap.branch(:subtopic, :note)
 
-Kino.VizJS.render(
-  MindMap.to_dot(legend, theme: Choreo.MindMap.theme(:default, graph_rankdir: :lr))
-)
-```
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(legend))
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(MindMap.to_mermaid(legend)),
+  "Graphviz": Kino.VizJS.render(
+    MindMap.to_dot(legend, theme: Choreo.MindMap.theme(:default, graph_rankdir: :lr))
+  )
+])
 ```
 
 ---
@@ -72,7 +73,7 @@ Map out the structure of a conference talk. The root is the talk title; topics a
 ```elixir
 talk =
   MindMap.new()
-  |> MindMap.set_root(:talk, label: "Building\nResilient\nElxir\nSystems")
+  |> MindMap.set_root(:talk, label: "Building\nResilient\nElixir\nSystems")
   |> MindMap.add_topic(:supervision, label: "Supervision\nTrees")
   |> MindMap.add_topic(:patterns, label: "Fault-Tolerance\nPatterns")
   |> MindMap.add_topic(:observability, label: "Observability")
@@ -98,11 +99,10 @@ talk =
   # Cross-link: circuit breakers improve telemetry signals
   |> MindMap.associate(:circuit_breaker, :telemetry, label: "improves")
 
-Kino.VizJS.render(MindMap.to_dot(talk), height: "800px")
-```
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(talk, syntax: :mindmap))
+Kino.Layout.tabs([
+  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(talk, syntax: :mindmap)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(talk), height: "800px")
+])
 ```
 
 ### Structural Metrics
@@ -159,17 +159,11 @@ domain =
   |> MindMap.associate(:cap, :sharding, label: "influences")
   |> MindMap.associate(:raft, :replication, label: "uses")
 
-Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "600px", width: "100%")
-```
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :flowchart))
-```
-
-Or use the native Mermaid mindmap syntax:
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :mindmap))
+Kino.Layout.tabs([
+  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :flowchart)),
+  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :mindmap)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(domain, theme: :dark), height: "600px", width: "100%")
+])
 ```
 
 ### Validation
@@ -227,11 +221,10 @@ roadmap =
   # Cross-link: webhooks affect caching strategy
   |> MindMap.associate(:webhooks, :caching, label: "affects")
 
-Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
-```
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :flowchart))
+Kino.Layout.tabs([
+  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :flowchart)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
+])
 ```
 
 ### Detect Orphans
@@ -289,11 +282,10 @@ deep =
 IO.puts("Depth: #{Analysis.depth(deep)}")
 IO.puts("Max width: #{Analysis.max_width(deep)}")
 IO.inspect(Analysis.leaves(deep), label: "Leaves")
-Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px", engine: "twopi")
-```
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(deep, syntax: :mindmap))
+Kino.Layout.tabs([
+  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(deep, syntax: :mindmap)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px", engine: "twopi")
+])
 ```
 
 ---
@@ -344,7 +336,7 @@ cyclic =
 Analysis.cyclic?(cyclic)
 ```
 
-Cycles in a mind map hierarchy are usually a mistake. They break depth calculation and root-to-leaf path enumeration.
+Cycles in a mind map hierarchy are usually a mistake. They break depth calculation and root-to-leaf path enumeration — the analysis functions detect cycles and terminate safely, but the results may be truncated.
 
 ---
 
@@ -360,18 +352,22 @@ Show only the big picture (root + topics):
 alias Choreo.View
 
 overview = View.zoom(talk, level: 1)
-Kino.VizJS.render(MindMap.to_dot(overview), engine: "circo")
-```
 
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(overview, syntax: :mindmap))
+Kino.Layout.tabs([
+  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(overview, syntax: :mindmap)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(overview), engine: "circo")
+])
 ```
 
 Show root, topics, and subtopics (hide notes):
 
 ```elixir
 mid = View.zoom(talk, level: 2)
-Kino.VizJS.render(MindMap.to_dot(mid), height: "600px")
+
+Kino.Layout.tabs([
+  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(mid, syntax: :mindmap)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(mid), height: "600px")
+])
 ```
 
 ### Focus on a Branch
@@ -413,7 +409,7 @@ Kino.VizJS.render(MindMap.to_dot(overview), height: "600px")
 Merge multiple related nodes into a single aggregate. All edges are rewired automatically:
 
 ```elixir
-# Merge all subtopics under "Concurrency" into one billing system node
+# Merge circuit breaker and bulkhead into a single aggregate node
 billing =
   View.collapse(talk, fn id, _data ->
     id in [:circuit_breaker, :bulkhead]
@@ -459,11 +455,10 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "600px")
-```
-
-```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(talk, theme: brand_theme, syntax: :flowchart))
+Kino.Layout.tabs([
+  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(talk, theme: brand_theme, syntax: :flowchart)),
+  "Graphviz": Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "600px")
+])
 ```
 
 ---

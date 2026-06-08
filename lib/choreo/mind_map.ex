@@ -10,7 +10,8 @@ defmodule Choreo.MindMap do
 
   Use `Choreo.MindMap` when brainstorming, documenting knowledge domains,
   planning talks, or structuring documentation. It enforces a single-root
-  invariant and detects orphaned concepts automatically.
+  invariant. Acyclicity, single-parent, and full reachability must be
+  verified post-hoc via `Analysis.validate/1`.
 
   ## Node types
 
@@ -84,10 +85,11 @@ defmodule Choreo.MindMap do
   @type t :: %__MODULE__{
           graph: Yog.graph(),
           root: Yog.node_id() | nil,
-          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()}
+          edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
+          strict: boolean()
         }
 
-  defstruct graph: nil, root: nil, edge_meta: %{}
+  defstruct graph: nil, root: nil, edge_meta: %{}, strict: false
 
   @node_schema [
     label: [
@@ -143,6 +145,12 @@ defmodule Choreo.MindMap do
   @doc """
   Creates a new empty mind map.
 
+  ## Options
+
+    * `:strict` — if `true`, `branch/4` and `associate/4` raise when an
+      endpoint does not already exist in the map. Default `false`
+      (auto-creates missing nodes as `:topic`).
+
   ## Examples
 
       iex> map = Choreo.MindMap.new()
@@ -151,12 +159,13 @@ defmodule Choreo.MindMap do
       iex> Choreo.MindMap.root(map)
       nil
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.directed(),
       root: nil,
-      edge_meta: %{}
+      edge_meta: %{},
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -198,14 +207,14 @@ defmodule Choreo.MindMap do
 
       iex> map = Choreo.MindMap.new() |> Choreo.MindMap.set_root(:a, label: "A")
       iex> Choreo.MindMap.set_root(map, :b, label: "B")
-      ** (ArgumentError) Mind map already has a root
+      ** (ArgumentError) Mind map already has root :a
   """
   @spec set_root(t(), Yog.node_id(), keyword()) :: t()
   def set_root(map, id, opts \\ [])
 
   def set_root(%__MODULE__{root: nil} = map, id, opts) do
     opts = NimbleOptions.validate!(opts, @set_root_schema)
-    data = node_data(:root, opts)
+    data = node_data(:root, id, opts)
 
     %{
       map
@@ -214,8 +223,8 @@ defmodule Choreo.MindMap do
     }
   end
 
-  def set_root(%__MODULE__{}, _id, _opts) do
-    raise ArgumentError, "Mind map already has a root"
+  def set_root(%__MODULE__{root: root}, _id, _opts) do
+    raise ArgumentError, "Mind map already has root #{inspect(root)}"
   end
 
   @doc """
@@ -249,7 +258,7 @@ defmodule Choreo.MindMap do
   @spec add_topic(t(), Yog.node_id(), keyword()) :: t()
   def add_topic(%__MODULE__{} = map, id, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_topic_schema)
-    data = node_data(:topic, opts)
+    data = node_data(:topic, id, opts)
     %{map | graph: Yog.add_node(map.graph, id, data)}
   end
 
@@ -284,7 +293,7 @@ defmodule Choreo.MindMap do
   @spec add_subtopic(t(), Yog.node_id(), keyword()) :: t()
   def add_subtopic(%__MODULE__{} = map, id, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_subtopic_schema)
-    data = node_data(:subtopic, opts)
+    data = node_data(:subtopic, id, opts)
     %{map | graph: Yog.add_node(map.graph, id, data)}
   end
 
@@ -319,7 +328,7 @@ defmodule Choreo.MindMap do
   @spec add_note(t(), Yog.node_id(), keyword()) :: t()
   def add_note(%__MODULE__{} = map, id, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_note_schema)
-    data = node_data(:note, opts)
+    data = node_data(:note, id, opts)
     %{map | graph: Yog.add_node(map.graph, id, data)}
   end
 
@@ -348,6 +357,16 @@ defmodule Choreo.MindMap do
   """
   @spec branch(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def branch(%__MODULE__{} = map, parent, child, opts \\ []) do
+    if map.strict and not Map.has_key?(map.graph.nodes, parent) do
+      raise ArgumentError,
+            "Parent node #{inspect(parent)} does not exist (strict mode is enabled)"
+    end
+
+    if map.strict and not Map.has_key?(map.graph.nodes, child) do
+      raise ArgumentError,
+            "Child node #{inspect(child)} does not exist (strict mode is enabled)"
+    end
+
     opts = NimbleOptions.validate!(opts, @connect_schema)
     label = opts[:label]
 
@@ -404,6 +423,16 @@ defmodule Choreo.MindMap do
   """
   @spec associate(t(), Yog.node_id(), Yog.node_id(), keyword()) :: t()
   def associate(%__MODULE__{} = map, from, to, opts \\ []) do
+    if map.strict and not Map.has_key?(map.graph.nodes, from) do
+      raise ArgumentError,
+            "Source node #{inspect(from)} does not exist (strict mode is enabled)"
+    end
+
+    if map.strict and not Map.has_key?(map.graph.nodes, to) do
+      raise ArgumentError,
+            "Target node #{inspect(to)} does not exist (strict mode is enabled)"
+    end
+
     opts = NimbleOptions.validate!(opts, @connect_schema)
     label = opts[:label]
 
@@ -636,13 +665,13 @@ defmodule Choreo.MindMap do
   # Private helpers
   # ============================================================================
 
-  defp node_data(type, opts) do
+  defp node_data(type, id, opts) do
     opts
     |> Map.new()
     |> Map.merge(%{
       type: :mind_map_node,
       node_type: type,
-      label: Keyword.get(opts, :label, to_string(opts[:feature] || ""))
+      label: Keyword.get(opts, :label, to_string(id))
     })
   end
 end
@@ -678,9 +707,9 @@ defimpl Choreo.Viewable, for: Choreo.MindMap do
         end
       end)
 
-    new_root =
+    {new_root, new_graph} =
       if Map.has_key?(new_graph.nodes, diagram.root) do
-        diagram.root
+        {diagram.root, new_graph}
       else
         new_graph.nodes
         |> Enum.sort_by(fn {id, data} ->
@@ -689,8 +718,14 @@ defimpl Choreo.Viewable, for: Choreo.MindMap do
         end)
         |> List.first()
         |> case do
-          {id, _data} -> id
-          nil -> nil
+          {id, data} ->
+            # Retype the promoted node to :root so renderers style it correctly
+            new_data = Map.put(data, :node_type, :root)
+            new_graph = Yog.update_node(new_graph, id, data, fn _ -> new_data end)
+            {id, new_graph}
+
+          nil ->
+            {nil, new_graph}
         end
       end
 

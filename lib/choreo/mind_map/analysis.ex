@@ -23,6 +23,8 @@ defmodule Choreo.MindMap.Analysis do
 
   A single-node map has depth 0.
 
+  Raises if the map contains a cycle — use `cyclic?/1` to check first.
+
   ## Examples
 
       iex> map = Choreo.MindMap.new()
@@ -43,7 +45,7 @@ defmodule Choreo.MindMap.Analysis do
   def depth(%MindMap{root: nil}), do: 0
 
   def depth(%MindMap{} = map) do
-    do_depth(map, map.root, 0)
+    do_depth(map, map.root, 0, MapSet.new([map.root]))
   end
 
   @doc """
@@ -114,10 +116,7 @@ defmodule Choreo.MindMap.Analysis do
   def orphan_nodes(%MindMap{root: nil}), do: []
 
   def orphan_nodes(%MindMap{} = map) do
-    reachable =
-      map.graph
-      |> branch_reachable([map.root])
-      |> MapSet.new()
+    reachable = branch_reachable(map, [map.root])
 
     all = MindMap.nodes(map) |> MapSet.new()
     MapSet.difference(all, reachable) |> MapSet.to_list()
@@ -125,6 +124,8 @@ defmodule Choreo.MindMap.Analysis do
 
   @doc """
   Returns the maximum number of nodes at any single depth level.
+
+  Each node is counted at most once, at its shallowest depth from the root.
 
   ## Examples
 
@@ -158,6 +159,8 @@ defmodule Choreo.MindMap.Analysis do
 
   Each path is a list of node IDs from root to leaf.
 
+  Raises if the map contains a cycle — use `cyclic?/1` to check first.
+
   ## Examples
 
       iex> map = Choreo.MindMap.new()
@@ -176,7 +179,7 @@ defmodule Choreo.MindMap.Analysis do
   def paths(%MindMap{root: nil}), do: []
 
   def paths(%MindMap{} = map) do
-    do_paths(map, map.root, [map.root], [])
+    do_paths(map, map.root, [map.root], [], MapSet.new([map.root]))
   end
 
   @doc """
@@ -204,7 +207,8 @@ defmodule Choreo.MindMap.Analysis do
   end
 
   @doc """
-  Checks whether the mind map contains a directed cycle via branch edges.
+  Checks whether the mind map contains a directed cycle (considering all
+  edges, including both branch and associative edges).
 
   ## Examples
 
@@ -227,7 +231,7 @@ defmodule Choreo.MindMap.Analysis do
       iex> Choreo.MindMap.Analysis.cyclic?(map)
       false
 
-  This analysis answers the question: "Is there a cycle in the hierarchy?"
+  This analysis answers the question: "Is there a cycle in the graph?"
   """
   @spec cyclic?(MindMap.t()) :: boolean()
   def cyclic?(%MindMap{graph: graph}) do
@@ -331,14 +335,23 @@ defmodule Choreo.MindMap.Analysis do
   # Private helpers — depth
   # ============================================================================
 
-  defp do_depth(map, current, depth) do
-    children = branch_successors(map, current)
+  defp do_depth(_map, _current, depth, _visited) when depth > 10_000 do
+    # Safety break for unexpected cycles
+    depth
+  end
+
+  defp do_depth(map, current, depth, visited) do
+    children =
+      branch_successors(map, current)
+      |> Enum.reject(&MapSet.member?(visited, &1))
 
     if children == [] do
       depth
     else
+      visited = MapSet.union(visited, MapSet.new(children))
+
       children
-      |> Enum.map(fn child -> do_depth(map, child, depth + 1) end)
+      |> Enum.map(fn child -> do_depth(map, child, depth + 1, visited) end)
       |> Enum.max()
     end
   end
@@ -347,14 +360,23 @@ defmodule Choreo.MindMap.Analysis do
   # Private helpers — paths
   # ============================================================================
 
-  defp do_paths(map, current, path, acc) do
-    children = branch_successors(map, current)
+  defp do_paths(_map, _current, _path, acc, _visited) when length(acc) > 10_000 do
+    # Safety break for unexpected cycles
+    acc
+  end
+
+  defp do_paths(map, current, path, acc, visited) do
+    children =
+      branch_successors(map, current)
+      |> Enum.reject(&MapSet.member?(visited, &1))
 
     if children == [] do
       [Enum.reverse(path) | acc]
     else
+      visited = MapSet.union(visited, MapSet.new(children))
+
       Enum.reduce(children, acc, fn child, acc ->
-        do_paths(map, child, [child | path], acc)
+        do_paths(map, child, [child | path], acc, visited)
       end)
     end
   end
@@ -364,17 +386,22 @@ defmodule Choreo.MindMap.Analysis do
   # ============================================================================
 
   defp nodes_by_depth(map) do
-    do_nodes_by_depth(map, map.root, 0, %{})
+    do_nodes_by_depth(map, map.root, 0, %{}, MapSet.new([map.root]))
   end
 
-  defp do_nodes_by_depth(_map, nil, _depth, acc), do: acc
+  defp do_nodes_by_depth(_map, nil, _depth, acc, _visited), do: acc
 
-  defp do_nodes_by_depth(map, id, depth, acc) do
+  defp do_nodes_by_depth(map, id, depth, acc, visited) do
     acc = Map.update(acc, depth, [id], &[id | &1])
-    children = branch_successors(map, id)
+
+    children =
+      branch_successors(map, id)
+      |> Enum.reject(&MapSet.member?(visited, &1))
+
+    visited = MapSet.union(visited, MapSet.new(children))
 
     Enum.reduce(children, acc, fn child, acc ->
-      do_nodes_by_depth(map, child, depth + 1, acc)
+      do_nodes_by_depth(map, child, depth + 1, acc, visited)
     end)
   end
 
@@ -395,19 +422,18 @@ defmodule Choreo.MindMap.Analysis do
     length(branch_successors(map, id))
   end
 
-  defp branch_reachable(graph, seeds) do
-    do_bfs(graph, seeds, MapSet.new(seeds))
+  defp branch_reachable(map, seeds) do
+    do_bfs(map, seeds, MapSet.new(seeds))
   end
 
-  defp do_bfs(_graph, [], visited), do: visited
+  defp do_bfs(_map, [], visited), do: visited
 
-  defp do_bfs(graph, [h | t], visited) do
+  defp do_bfs(map, [h | t], visited) do
     neighbors =
-      graph
-      |> Yog.successor_ids(h)
+      branch_successors(map, h)
       |> Enum.reject(&MapSet.member?(visited, &1))
 
-    do_bfs(graph, t ++ neighbors, MapSet.union(visited, MapSet.new(neighbors)))
+    do_bfs(map, t ++ neighbors, MapSet.union(visited, MapSet.new(neighbors)))
   end
 
   # ============================================================================

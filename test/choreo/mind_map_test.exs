@@ -29,7 +29,7 @@ defmodule Choreo.MindMapTest do
     test "raises when root already set" do
       map = MindMap.new() |> MindMap.set_root(:a)
 
-      assert_raise ArgumentError, "Mind map already has a root", fn ->
+      assert_raise ArgumentError, "Mind map already has root :a", fn ->
         MindMap.set_root(map, :b)
       end
     end
@@ -99,6 +99,35 @@ defmodule Choreo.MindMapTest do
       assert Yog.node(map.graph, :a).node_type == :topic
       assert Yog.node(map.graph, :b).node_type == :topic
     end
+
+    test "strict mode raises on missing parent" do
+      map = MindMap.new(strict: true) |> MindMap.set_root(:a)
+
+      assert_raise ArgumentError, ~r/Parent node :b does not exist/, fn ->
+        MindMap.branch(map, :b, :c)
+      end
+    end
+
+    test "strict mode raises on missing child" do
+      map = MindMap.new(strict: true) |> MindMap.set_root(:a)
+
+      assert_raise ArgumentError, ~r/Child node :c does not exist/, fn ->
+        MindMap.branch(map, :a, :c)
+      end
+    end
+
+    test "strict mode raises on missing associate endpoint" do
+      map = MindMap.new(strict: true) |> MindMap.set_root(:a)
+
+      assert_raise ArgumentError, ~r/Target node :b does not exist/, fn ->
+        MindMap.associate(map, :a, :b)
+      end
+    end
+
+    test "auto-created nodes fall back to id as label" do
+      map = MindMap.new() |> MindMap.add_topic(:processes)
+      assert Yog.node(map.graph, :processes).label == "processes"
+    end
   end
 
   describe "associate/4" do
@@ -138,6 +167,18 @@ defmodule Choreo.MindMapTest do
       assert :b in MindMap.nodes(map)
       assert Yog.node(map.graph, :a).node_type == :topic
       assert Yog.node(map.graph, :b).node_type == :topic
+    end
+
+    test "associates do not make a node non-orphan" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:root)
+        |> MindMap.add_topic(:a)
+        |> MindMap.add_note(:dangling)
+        |> MindMap.branch(:root, :a)
+        |> MindMap.associate(:a, :dangling)
+
+      assert Choreo.MindMap.Analysis.orphan_nodes(map) == [:dangling]
     end
   end
 

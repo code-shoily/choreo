@@ -27,6 +27,18 @@ defmodule Choreo.MindMap.AnalysisTest do
 
       assert Analysis.depth(map) == 2
     end
+
+    test "does not stack-overflow on cyclic maps" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:a)
+        |> MindMap.add_topic(:b)
+        |> MindMap.branch(:a, :b)
+        |> MindMap.branch(:b, :a)
+
+      # Should return a finite value instead of crashing
+      assert is_integer(Analysis.depth(map))
+    end
   end
 
   describe "breadth/1 and leaves/1" do
@@ -102,6 +114,21 @@ defmodule Choreo.MindMap.AnalysisTest do
 
       assert Analysis.max_width(map) == 3
     end
+
+    test "does not double-count nodes with multiple branch parents" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:a)
+        |> MindMap.add_topic(:b)
+        |> MindMap.add_subtopic(:d)
+        |> MindMap.branch(:a, :b)
+        |> MindMap.branch(:b, :d)
+        |> MindMap.branch(:a, :d)
+
+      # :d is reached at depth 1 from :a and depth 2 from :b;
+      # it should only be counted once, at its shallowest depth.
+      assert Analysis.max_width(map) == 2
+    end
   end
 
   describe "paths/1" do
@@ -128,6 +155,18 @@ defmodule Choreo.MindMap.AnalysisTest do
       paths = Analysis.paths(map)
       assert [:a, :b] in paths
       assert [:a, :c, :d] in paths
+    end
+
+    test "does not stack-overflow on cyclic maps" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:a)
+        |> MindMap.add_topic(:b)
+        |> MindMap.branch(:a, :b)
+        |> MindMap.branch(:b, :a)
+
+      # Should return a finite list instead of crashing
+      assert [[:a, :b]] == Analysis.paths(map)
     end
   end
 

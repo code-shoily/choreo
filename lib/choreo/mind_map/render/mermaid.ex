@@ -26,11 +26,21 @@ defmodule Choreo.MindMap.Render.Mermaid do
 
   ## Options
 
+    * `:syntax` — `:flowchart` (default) or `:mindmap`
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of `{from, to}` tuples to highlight
     * Any other option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
+
+  ## Native `:mindmap` syntax limitations
+
+  Mermaid's `mindmap` syntax is purely hierarchical — it cannot represent
+  associative (cross-link) edges. When `:syntax` is `:mindmap`:
+
+    * associative edges are silently omitted
+    * nodes with multiple branch parents are duplicated under each parent
+    * cycles will cause an infinite loop (use `Analysis.cyclic?/1` first)
 
   ## Examples
 
@@ -94,10 +104,15 @@ defmodule Choreo.MindMap.Render.Mermaid do
       raise ArgumentError, "MindMap must have a root set to be rendered"
     end
 
-    "mindmap\n" <> render_mindmap_node(map, map.root, 0) <> "\n"
+    if Choreo.MindMap.Analysis.cyclic?(map) do
+      raise ArgumentError,
+            "MindMap contains a cycle and cannot be rendered with :mindmap syntax"
+    end
+
+    "mindmap\n" <> render_mindmap_node(map, map.root, 0, MapSet.new([map.root])) <> "\n"
   end
 
-  defp render_mindmap_node(map, node_id, depth) do
+  defp render_mindmap_node(map, node_id, depth, visited) do
     data = Map.get(map.graph.nodes, node_id, %{})
     label = data[:label] || to_string(node_id)
 
@@ -110,11 +125,12 @@ defmodule Choreo.MindMap.Render.Mermaid do
       |> Yog.successor_ids(node_id)
       |> Enum.filter(fn child_id ->
         meta = Map.get(map.edge_meta, {node_id, child_id}, %{})
-        meta[:edge_type] == :branch
+        meta[:edge_type] == :branch and not MapSet.member?(visited, child_id)
       end)
       |> Enum.sort()
 
-    children_lines = Enum.map(children, &render_mindmap_node(map, &1, depth + 1))
+    visited = MapSet.union(visited, MapSet.new(children))
+    children_lines = Enum.map(children, &render_mindmap_node(map, &1, depth + 1, visited))
 
     Enum.join([line | children_lines], "\n")
   end
@@ -132,10 +148,6 @@ defmodule Choreo.MindMap.Render.Mermaid do
   def theme(name \\ :default, overrides \\ []) do
     resolve_theme(name) |> Choreo.Theme.override(overrides)
   end
-
-  # ============================================================================
-  # Theme helpers
-  # ============================================================================
 
   # ============================================================================
   # Theme helpers
