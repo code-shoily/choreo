@@ -21,7 +21,7 @@ defmodule Choreo.Planner do
         Choreo.Planner.new("Launch v1")
         |> Choreo.Planner.add_milestone(:v1, title: "V1 Launch")
         |> Choreo.Planner.add_task(:design, title: "Design", status: :done, estimate_hours: 16)
-        |> Choreo.Planner.add_task(:impl, title: "Implement", status: :in_progress, estimate_hours: 24)
+        |> Choreo.Planner.add_task(:impl, title: "Implement", status: :backlog, estimate_hours: 24)
         |> Choreo.Planner.add_task(:test, title: "Test", status: :backlog, estimate_hours: 8)
         |> Choreo.Planner.add_user(:alice, name: "Alice")
         |> Choreo.Planner.contains(:v1, :design)
@@ -32,7 +32,7 @@ defmodule Choreo.Planner do
         |> Choreo.Planner.assign(:design, :alice)
 
       Choreo.Planner.ready(project)
-      # => [{:impl, %{status: :in_progress, ...}}]
+      # => [{:impl, %{status: :backlog, ...}}]
 
       Choreo.Planner.Analysis.critical_path(project, milestone: :v1)
       # => {:ok, [:design, :impl, :test], total_estimate: 48}
@@ -77,10 +77,22 @@ defmodule Choreo.Planner do
   @doc """
   Creates a new empty planner.
   """
-  @spec new(String.t() | nil) :: t()
-  def new(name \\ nil) do
+  @spec new(keyword() | String.t() | nil) :: t()
+  def new(name_or_opts \\ [])
+
+  def new(nil), do: new([])
+
+  def new(name) when is_binary(name) do
     %__MODULE__{
       name: name,
+      graph: Yog.Multi.directed(),
+      edge_meta: %{}
+    }
+  end
+
+  def new(opts) when is_list(opts) do
+    %__MODULE__{
+      name: Keyword.get(opts, :name),
       graph: Yog.Multi.directed(),
       edge_meta: %{}
     }
@@ -256,8 +268,8 @@ defmodule Choreo.Planner do
   def relates(%__MODULE__{} = planner, a, b) do
     planner =
       planner
-      |> ensure_existing_node(a)
-      |> ensure_existing_node(b)
+      |> ensure_existing_node!(a)
+      |> ensure_existing_node!(b)
 
     {g1, eid1} = Yog.Multi.add_edge(planner.graph, a, b, 1)
     meta1 = Map.put(planner.edge_meta, eid1, %{type: :relates_to})
@@ -317,13 +329,25 @@ defmodule Choreo.Planner do
   end
 
   @doc """
+  Returns all parent milestone IDs for a given task.
+  """
+  @spec parents(t(), Yog.node_id()) :: [Yog.node_id()]
+  def parents(%__MODULE__{} = planner, id) do
+    planner
+    |> incoming_of_type(id, :contains)
+    |> Enum.map(fn {_eid, from, _to, _w} -> from end)
+  end
+
+  @doc """
   Returns the parent milestone ID for a given task, or `nil`.
+
+  If a task is contained in multiple milestones, this returns the first one
+  found. Use `parents/2` to retrieve the full list.
   """
   @spec parent(t(), Yog.node_id()) :: Yog.node_id() | nil
   def parent(%__MODULE__{} = planner, id) do
     planner
-    |> incoming_of_type(id, :contains)
-    |> Enum.map(fn {_eid, from, _to, _w} -> from end)
+    |> parents(id)
     |> List.first()
   end
 
@@ -352,13 +376,25 @@ defmodule Choreo.Planner do
   end
 
   @doc """
+  Returns all user IDs assigned to a task.
+  """
+  @spec assignees(t(), Yog.node_id()) :: [Yog.node_id()]
+  def assignees(%__MODULE__{} = planner, id) do
+    planner
+    |> outgoing_of_type(id, :assigned_to)
+    |> Enum.map(fn {_eid, _from, to, _w} -> to end)
+  end
+
+  @doc """
   Returns the user ID assigned to a task, or `nil`.
+
+  If a task is assigned to multiple users, this returns the first one found.
+  Use `assignees/2` to retrieve the full list.
   """
   @spec assignee(t(), Yog.node_id()) :: Yog.node_id() | nil
   def assignee(%__MODULE__{} = planner, id) do
     planner
-    |> outgoing_of_type(id, :assigned_to)
-    |> Enum.map(fn {_eid, _from, to, _w} -> to end)
+    |> assignees(id)
     |> List.first()
   end
 
@@ -399,13 +435,14 @@ defmodule Choreo.Planner do
 
   ## Options
 
-    * `:syntax` — `:kanban` (default), `:gantt`, or `:flowchart`
+    * `:syntax` — `:kanban` (default), `:kanban_compat`, `:gantt`, or `:flowchart`
     * Other options passed to the specific renderer
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
   def to_mermaid(%__MODULE__{} = planner, opts \\ []) do
     syntax = Keyword.get(opts, :syntax, :kanban)
-    Choreo.Planner.Render.Mermaid.to_mermaid(planner, [{:syntax, syntax} | opts])
+    opts = Keyword.put_new(opts, :syntax, syntax)
+    Choreo.Planner.Render.Mermaid.to_mermaid(planner, opts)
   end
 
   @doc """
@@ -503,6 +540,7 @@ defmodule Choreo.Planner do
           :milestone -> add_milestone(planner, id, title: to_string(id))
           :user -> add_user(planner, id, name: to_string(id))
           :label -> add_label(planner, id, title: to_string(id))
+          other -> raise ArgumentError, "unsupported node type: #{inspect(other)}"
         end
 
       data ->
@@ -517,12 +555,12 @@ defmodule Choreo.Planner do
     end
   end
 
-  defp ensure_existing_node(planner, id) do
-    if Map.has_key?(planner.graph.nodes, id) do
-      planner
-    else
-      add_task(planner, id, title: to_string(id))
+  defp ensure_existing_node!(planner, id) do
+    unless Map.has_key?(planner.graph.nodes, id) do
+      raise ArgumentError, "relates/3 requires both nodes to exist, but #{inspect(id)} does not"
     end
+
+    planner
   end
 
   # ============================================================================
@@ -541,7 +579,7 @@ defmodule Choreo.Planner do
       %{planner | graph: new_graph, edge_meta: new_meta}
     end
 
-    def zoom_predicate(_, _), do: fn _data -> true end
+    def zoom_predicate(_, _), do: fn _id, _data -> true end
     def virtual_edge_meta(_), do: %{type: :virtual}
   end
 

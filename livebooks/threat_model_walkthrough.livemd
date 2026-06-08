@@ -1,5 +1,7 @@
 # Choreo ThreatModel: Comprehensive Walkthrough
 
+## Section
+
 ```elixir
 # For Hex publication/readers:
 # Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
@@ -73,8 +75,8 @@ web_app =
   )
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(web_app))},
-  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(web_app))}
+  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(web_app))},
+  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(web_app))}
 ]
 
 Kino.Layout.tabs(tabs)
@@ -169,8 +171,8 @@ microservices =
   |> ThreatModel.data_flow(:payment_webhook, :order_service, label: "Event bus")
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(microservices))},
-  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(microservices))}
+  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(microservices))},
+  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(microservices))}
 ]
 
 Kino.Layout.tabs(tabs)
@@ -323,14 +325,14 @@ Kino.VizJS.render(ThreatModel.to_dot(saas))
 
 While Data Flow Diagrams illustrate security boundaries, Sequence Diagrams visualize interactions chronologically. Choreo supports both **Mermaid.js** and **PlantUML** formats.
 
-```elixir
+````elixir
 tabs = [
   {"Mermaid", Kino.Mermaid.new(ThreatModel.to_sequence(microservices))},
   {"PlantUML", Kino.Markdown.new("```plantuml\n#{ThreatModel.to_plantuml(microservices)}\n```")}
 ]
 
 Kino.Layout.tabs(tabs)
-```
+````
 
 You can copy these payloads directly into [PlantText](https://www.planttext.com/), Mermaid Live Editor, or your Confluence macro blocks securely.
 
@@ -448,7 +450,7 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 | Attack paths           | `Analysis.attack_paths/2`                                                                                                |
 | Validate model         | `Analysis.validate/1`                                                                                                    |
 | Summarise threats      | `Analysis.threat_summary/1`                                                                                              |
-| Render DFD             | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                      |
+| Render DFD             | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                       |
 | Render sequence        | `ThreatModel.to_sequence/2` (Mermaid), `ThreatModel.to_plantuml/2`                                                       |
 
 Threat modeling as code means your security review is version-controlled, diffable, and repeatable. Every pull request can include an updated threat model alongside the code changes.

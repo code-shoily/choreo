@@ -24,45 +24,45 @@ defmodule ChoreoTest do
   describe "node builders" do
     test "add_database/3" do
       system = Choreo.new() |> Choreo.add_database(:db, kind: :postgres)
-      assert Choreo.nodes(system)[:db].type == :database
+      assert Choreo.nodes(system)[:db].node_type == :database
       assert Choreo.nodes(system)[:db].kind == :postgres
-      assert Choreo.nodes(system)[:db].name == "db"
+      assert Choreo.nodes(system)[:db].label == "db"
     end
 
     test "add_cache/3" do
       system = Choreo.new() |> Choreo.add_cache(:cache, kind: :redis)
-      assert Choreo.nodes(system)[:cache].type == :cache
+      assert Choreo.nodes(system)[:cache].node_type == :cache
     end
 
     test "add_service/3" do
-      system = Choreo.new() |> Choreo.add_service(:api, name: "Gateway")
-      assert Choreo.nodes(system)[:api].type == :service
-      assert Choreo.nodes(system)[:api].name == "Gateway"
+      system = Choreo.new() |> Choreo.add_service(:api, label: "Gateway")
+      assert Choreo.nodes(system)[:api].node_type == :service
+      assert Choreo.nodes(system)[:api].label == "Gateway"
     end
 
     test "add_network/3" do
       system = Choreo.new() |> Choreo.add_network(:vpc)
-      assert Choreo.nodes(system)[:vpc].type == :network
+      assert Choreo.nodes(system)[:vpc].node_type == :network
     end
 
     test "add_user/3" do
       system = Choreo.new() |> Choreo.add_user(:client)
-      assert Choreo.nodes(system)[:client].type == :user
+      assert Choreo.nodes(system)[:client].node_type == :user
     end
 
     test "add_load_balancer/3" do
       system = Choreo.new() |> Choreo.add_load_balancer(:lb)
-      assert Choreo.nodes(system)[:lb].type == :load_balancer
+      assert Choreo.nodes(system)[:lb].node_type == :load_balancer
     end
 
     test "add_queue/3" do
       system = Choreo.new() |> Choreo.add_queue(:q, kind: :kafka)
-      assert Choreo.nodes(system)[:q].type == :queue
+      assert Choreo.nodes(system)[:q].node_type == :queue
     end
 
     test "add_storage/3" do
       system = Choreo.new() |> Choreo.add_storage(:s3)
-      assert Choreo.nodes(system)[:s3].type == :storage
+      assert Choreo.nodes(system)[:s3].node_type == :storage
     end
   end
 
@@ -108,8 +108,8 @@ defmodule ChoreoTest do
 
       assert :api in Map.keys(Choreo.nodes(system))
       assert :db in Map.keys(Choreo.nodes(system))
-      assert Choreo.nodes(system)[:api].type == :generic
-      assert Choreo.nodes(system)[:db].type == :generic
+      assert Choreo.nodes(system)[:api].node_type == :generic
+      assert Choreo.nodes(system)[:db].node_type == :generic
     end
 
     test "connect/4 strict: true raises when source node is missing" do
@@ -542,7 +542,7 @@ defmodule ChoreoTest do
       filtered =
         Choreo.View.filter(
           system,
-          fn _id, data -> data[:type] != :database end,
+          fn _id, data -> data[:node_type] != :database end,
           transitive: true
         )
 
@@ -763,7 +763,7 @@ defmodule ChoreoTest do
 
       filtered =
         Choreo.View.filter(system, fn _id, data ->
-          data[:type] != :database
+          data[:node_type] != :database
         end)
 
       assert Enum.sort(Map.keys(Choreo.nodes(filtered))) == [:api, :cache]
@@ -782,7 +782,7 @@ defmodule ChoreoTest do
         Choreo.View.filter(
           system,
           fn _id, data ->
-            data[:type] != :database
+            data[:node_type] != :database
           end,
           transitive: true
         )
@@ -824,7 +824,7 @@ defmodule ChoreoTest do
         Choreo.View.collapse(
           system,
           fn _id, data ->
-            data[:type] in [:database, :cache]
+            data[:node_type] in [:database, :cache]
           end,
           :data_layer
         )
@@ -853,7 +853,7 @@ defmodule ChoreoTest do
         Choreo.View.filter(
           system,
           fn _id, data ->
-            data[:type] != :database
+            data[:node_type] != :database
           end,
           transitive: true
         )

@@ -138,6 +138,22 @@ defmodule Choreo.DataflowTest do
         |> Dataflow.connect(:a, :b, data_type: "y")
       end
     end
+
+    test "strict mode raises on missing nodes" do
+      assert_raise ArgumentError, ~r/connect\/4 requires both nodes to exist/, fn ->
+        Dataflow.new(strict: true)
+        |> Dataflow.connect(:missing, :also_missing)
+      end
+    end
+
+    test "non-strict mode auto-creates missing nodes" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.connect(:a, :b)
+
+      assert :a in Dataflow.nodes(flow)
+      assert :b in Dataflow.nodes(flow)
+    end
   end
 
   describe "clusters" do
@@ -146,7 +162,7 @@ defmodule Choreo.DataflowTest do
         Dataflow.new()
         |> Dataflow.add_cluster("ingest", label: "Ingestion")
 
-      assert flow.clusters["cluster_ingest"].label == "Ingestion"
+      assert Dataflow.cluster(flow, "ingest").label == "Ingestion"
     end
 
     test "nodes can belong to clusters" do

@@ -111,11 +111,6 @@ defmodule Choreo.Infrastructure do
       type: :string,
       required: false,
       doc: "Image URL or path override."
-    ],
-    icon: [
-      type: :atom,
-      required: false,
-      doc: "Standard icon key."
     ]
   ]
 
@@ -323,7 +318,7 @@ defmodule Choreo.Infrastructure do
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = infra, opts \\ []) do
-    Choreo.Infrastructure.Render.DOT.to_dot(infra, opts)
+    Choreo.to_dot(to_choreo(infra), opts)
   end
 
   @doc """
@@ -338,7 +333,15 @@ defmodule Choreo.Infrastructure do
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
   def to_mermaid(%__MODULE__{} = infra, opts \\ []) do
-    Choreo.Infrastructure.Render.Mermaid.to_mermaid(infra, opts)
+    Choreo.to_mermaid(to_choreo(infra), opts)
+  end
+
+  def to_choreo(%__MODULE__{} = infra) do
+    %Choreo{
+      graph: infra.graph,
+      edge_meta: infra.edge_meta,
+      clusters: infra.clusters
+    }
   end
 
   # ============================================================================
@@ -373,11 +376,8 @@ defmodule Choreo.Infrastructure do
     data =
       rest_opts
       |> Map.new()
-      |> Map.merge(%{
-        type: :infrastructure_node,
-        node_type: type,
-        label: Keyword.get(rest_opts, :label, to_string(id))
-      })
+      |> Map.put(:node_type, type)
+      |> Map.put_new(:label, to_string(id))
 
     data =
       if cluster,
@@ -390,20 +390,16 @@ end
 
 defimpl Choreo.Viewable, for: Choreo.Infrastructure do
   def rebuild(infra, new_graph) do
-    new_edge_meta = Map.take(infra.edge_meta, Map.keys(new_graph.edges))
-
-    new_edge_meta =
-      Enum.reduce(Map.keys(new_graph.edges), new_edge_meta, fn eid, acc ->
-        Map.put_new(acc, eid, %{edge_type: :virtual, cost: 1})
-      end)
-
-    %{infra | graph: new_graph, edge_meta: new_edge_meta}
+    rebuilt = Choreo.Viewable.rebuild(Choreo.Infrastructure.to_choreo(infra), new_graph)
+    %{infra | graph: rebuilt.graph, edge_meta: rebuilt.edge_meta, clusters: rebuilt.clusters}
   end
 
   def zoom_predicate(_, 0), do: fn _id, d -> d[:node_type] in [:internet, :load_balancer] end
 
   def zoom_predicate(_, 1),
-    do: fn _id, d -> d[:node_type] in [:internet, :load_balancer, :compute] end
+    do: fn _id, d ->
+      d[:node_type] in [:internet, :load_balancer, :compute, :managed_db, :storage]
+    end
 
   def zoom_predicate(_, _), do: fn _id, _ -> true end
 
@@ -411,9 +407,9 @@ defimpl Choreo.Viewable, for: Choreo.Infrastructure do
 end
 
 defimpl Choreo.DOT, for: Choreo.Infrastructure do
-  def to_dot(infra, opts), do: Choreo.Infrastructure.to_dot(infra, opts)
+  def to_dot(infra, opts), do: Choreo.to_dot(Choreo.Infrastructure.to_choreo(infra), opts)
 end
 
 defimpl Choreo.Mermaid, for: Choreo.Infrastructure do
-  def to_mermaid(infra, opts), do: Choreo.Infrastructure.to_mermaid(infra, opts)
+  def to_mermaid(infra, opts), do: Choreo.to_mermaid(Choreo.Infrastructure.to_choreo(infra), opts)
 end

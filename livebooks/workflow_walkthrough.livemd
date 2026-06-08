@@ -344,7 +344,7 @@ Analysis.simulate(cicd)
 |> Enum.take(5)
 |> Enum.each(fn {id, vals} ->
   total = div(vals.cumulative_latency, 1000)
-  IO.puts("#{id}: #{total}s total (task: #{div(vals.task_latency, 1000)}s, retry: #{div(vals.retry_latency, 1000)}s)")
+  IO.puts("#{id}: #{total}s total (task: #{div(vals.task_latency, 1000)}s)")
 end)
 ```
 
@@ -409,8 +409,7 @@ Kino.Mermaid.new(Workflow.to_mermaid(approval))
 Which tasks have explicit compensation or failure paths?
 
 ```elixir
-Analysis.failure_scenarios(approval)
-|> IO.inspect(label: "Tasks with failure/compensation edges")
+Analysis.validate(approval)
 ```
 
 ### Uncompensated Paths

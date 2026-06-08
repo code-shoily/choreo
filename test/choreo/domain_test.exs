@@ -1,6 +1,8 @@
 defmodule Choreo.DomainTest do
   use ExUnit.Case, async: true
 
+  doctest Choreo.Domain
+
   alias Choreo.Domain
   alias Choreo.Domain.Analysis
 
@@ -101,11 +103,11 @@ defmodule Choreo.DomainTest do
       |> Domain.connect(:place_order, :order_agg)
       |> Domain.connect(:order_agg, :order_placed)
 
-    path = Domain.trace_cause(storm, :order_placed)
-    assert :order_placed in path
-    assert :order_agg in path
-    assert :place_order in path
-    assert :customer in path
+    ancestors = Domain.causes(storm, :order_placed)
+    assert :order_placed in ancestors
+    assert :order_agg in ancestors
+    assert :place_order in ancestors
+    assert :customer in ancestors
   end
 
   test "enforces semantic Event Storming validator rules" do
@@ -123,12 +125,23 @@ defmodule Choreo.DomainTest do
       |> Domain.add_policy(:dangling_policy, label: "Dangling Policy")
 
     warnings = Analysis.warnings(storm)
-    assert length(warnings) == 5
+    assert length(warnings) == 6
 
-    assert Enum.any?(warnings, fn w -> w =~ "Orphan Cmd" and w =~ "orphaned" end)
-    assert Enum.any?(warnings, fn w -> w =~ "Mysterious Event" and w =~ "missing a cause" end)
-    assert Enum.any?(warnings, fn w -> w =~ "Dead End Event" and w =~ "dead-end" end)
-    assert Enum.any?(warnings, fn w -> w =~ "Dangling Policy" and w =~ "does not trigger" end)
+    assert Enum.any?(warnings, fn {_sev, w} -> w =~ "Orphan Cmd" and w =~ "orphaned" end)
+
+    assert Enum.any?(warnings, fn {_sev, w} ->
+             w =~ "Mysterious Event" and w =~ "missing a cause"
+           end)
+
+    assert Enum.any?(warnings, fn {_sev, w} -> w =~ "Dead End Event" and w =~ "dead-end" end)
+
+    assert Enum.any?(warnings, fn {_sev, w} ->
+             w =~ "Dangling Policy" and w =~ "does not trigger"
+           end)
+
+    assert Enum.any?(warnings, fn {_sev, w} ->
+             w =~ "order_agg" and w =~ "no incoming commands"
+           end)
   end
 
   test "extracts term definitions into a Ubiquitous Language glossary table" do

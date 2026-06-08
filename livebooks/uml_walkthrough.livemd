@@ -57,8 +57,8 @@ uml =
   |> UML.add_relationship(:auth_provider, :cache, type: :depends, label: "uses")
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(UML.to_dot(uml))},
-  {"Mermaid classDiagram", Kino.Mermaid.new(UML.to_mermaid(uml, syntax: :class_diagram))}
+  {"Mermaid (Class Diagram)", Kino.Mermaid.new(UML.to_mermaid(uml, syntax: :class_diagram))},
+  {"Graphviz", Kino.VizJS.render(UML.to_dot(uml))}
 ]
 
 Kino.Layout.tabs(tabs)
@@ -95,10 +95,12 @@ Relationships between software blocks map exactly to standard UML connectors:
 
 | Relationship Type | Arrow Style | Connector Style | Intended Semantics |
 | ----------------- | ----------- | --------------- | ------------------ |
-| `:inherits` | Hollow | Solid (`--\|>`) | Class inheritance or adopting a behavior. |
-| `:realizes` | Hollow | Dashed (`..\|>`) | Adopting/implementing an Elixir protocol. |
-| `:associates` | Solid | Solid (`-->`) | Composition (e.g. struct nesting/embedding). |
-| `:depends` | Open | Dashed (`..>`) | Run-time dependency or function calling invocation. |
+
+| `:inherits` | Hollow | Solid (`--  | >`) | Class inheritance or adopting a behavior. |
+| `:realizes` | Hollow | Dashed (`.. | >`) | Adopting/implementing an Elixir protocol. |
+
+| `:associates` | Solid | Solid (`-->`)  | Composition (e.g. struct nesting/embedding).        |
+| `:depends`    | Open  | Dashed (`..>`) | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance
@@ -109,8 +111,8 @@ inheritance_uml =
   |> UML.add_relationship(:http_handler, :base_handler, type: :inherits, label: "inherits_from")
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(UML.to_dot(inheritance_uml))},
-  {"Mermaid", Kino.Mermaid.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram))}
+  {"Mermaid (Class Diagram)", Kino.Mermaid.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram))},
+  {"Graphviz", Kino.VizJS.render(UML.to_dot(inheritance_uml))}
 ]
 
 Kino.Layout.tabs(tabs)

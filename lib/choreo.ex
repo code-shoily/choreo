@@ -17,9 +17,9 @@ defmodule Choreo do
 
       system =
         Choreo.new()
-        |> Choreo.add_database(:db, name: "Postgres", kind: :postgres)
-        |> Choreo.add_cache(:cache, name: "Redis", kind: :redis)
-        |> Choreo.add_service(:api, name: "API Gateway")
+        |> Choreo.add_database(:db, label: "Postgres", kind: :postgres)
+        |> Choreo.add_cache(:cache, label: "Redis", kind: :redis)
+        |> Choreo.add_service(:api, label: "API Gateway")
         |> Choreo.connect(:api, :cache, cost: 5)
         |> Choreo.connect(:api, :db, cost: 10)
 
@@ -73,10 +73,10 @@ defmodule Choreo do
   ]
 
   @node_schema [
-    name: [
+    label: [
       type: :string,
       required: false,
-      doc: "Display name (defaults to the node id)."
+      doc: "Display label (defaults to the node id)."
     ],
     description: [
       type: :string,
@@ -138,6 +138,11 @@ defmodule Choreo do
       type: :string,
       required: false,
       doc: "Display label for the cluster."
+    ],
+    cluster_type: [
+      type: :atom,
+      required: false,
+      doc: "Semantic cluster type (e.g. `:vpc`, `:subnet_public`, `:subnet_private`)."
     ],
     style: [
       type: {:or, [:string, :atom]},
@@ -262,11 +267,11 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_database(:db, kind: :postgres)
-      iex> Choreo.nodes(system)[:db].type
+      iex> Choreo.nodes(system)[:db].node_type
       :database
       iex> Choreo.nodes(system)[:db].kind
       :postgres
-      iex> Choreo.nodes(system)[:db].name
+      iex> Choreo.nodes(system)[:db].label
       "db"
 
   ## Diagram
@@ -295,7 +300,7 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_cache(:cache, kind: :redis)
-      iex> Choreo.nodes(system)[:cache].type
+      iex> Choreo.nodes(system)[:cache].node_type
       :cache
 
   ## Diagram
@@ -323,10 +328,10 @@ defmodule Choreo do
 
   ## Examples
 
-      iex> system = Choreo.new() |> Choreo.add_service(:api, name: "Gateway")
-      iex> Choreo.nodes(system)[:api].type
+      iex> system = Choreo.new() |> Choreo.add_service(:api, label: "Gateway")
+      iex> Choreo.nodes(system)[:api].node_type
       :service
-      iex> Choreo.nodes(system)[:api].name
+      iex> Choreo.nodes(system)[:api].label
       "Gateway"
 
   ## Diagram
@@ -355,7 +360,7 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_network(:vpc)
-      iex> Choreo.nodes(system)[:vpc].type
+      iex> Choreo.nodes(system)[:vpc].node_type
       :network
 
   ## Diagram
@@ -385,7 +390,7 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_user(:client)
-      iex> Choreo.nodes(system)[:client].type
+      iex> Choreo.nodes(system)[:client].node_type
       :user
 
   ## Diagram
@@ -414,7 +419,7 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_load_balancer(:lb)
-      iex> Choreo.nodes(system)[:lb].type
+      iex> Choreo.nodes(system)[:lb].node_type
       :load_balancer
 
   ## Diagram
@@ -443,7 +448,7 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_queue(:q, kind: :kafka)
-      iex> Choreo.nodes(system)[:q].type
+      iex> Choreo.nodes(system)[:q].node_type
       :queue
 
   ## Diagram
@@ -473,7 +478,7 @@ defmodule Choreo do
   ## Examples
 
       iex> system = Choreo.new() |> Choreo.add_storage(:s3)
-      iex> Choreo.nodes(system)[:s3].type
+      iex> Choreo.nodes(system)[:s3].node_type
       :storage
 
   ## Diagram
@@ -493,16 +498,70 @@ defmodule Choreo do
   end
 
   @doc """
+  Adds an internet gateway or public internet entrypoint node.
+
+  ## Options
+
+  #{NimbleOptions.docs(@add_typed_node_schema)}
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_internet(:gw)
+      iex> Choreo.nodes(system)[:gw].node_type
+      :internet
+  """
+  @spec add_internet(t(), Yog.node_id(), keyword()) :: t()
+  def add_internet(system, id, opts \\ []) do
+    add_typed_node(system, id, :internet, opts)
+  end
+
+  @doc """
+  Adds a compute workload runner node (EC2, ECS task, Kubernetes pod).
+
+  ## Options
+
+  #{NimbleOptions.docs(@add_typed_node_schema)}
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_compute(:app)
+      iex> Choreo.nodes(system)[:app].node_type
+      :compute
+  """
+  @spec add_compute(t(), Yog.node_id(), keyword()) :: t()
+  def add_compute(system, id, opts \\ []) do
+    add_typed_node(system, id, :compute, opts)
+  end
+
+  @doc """
+  Adds a managed database node (RDS, Aurora, Cloud SQL).
+
+  ## Options
+
+  #{NimbleOptions.docs(@add_typed_node_schema)}
+
+  ## Examples
+
+      iex> system = Choreo.new() |> Choreo.add_managed_db(:db)
+      iex> Choreo.nodes(system)[:db].node_type
+      :managed_db
+  """
+  @spec add_managed_db(t(), Yog.node_id(), keyword()) :: t()
+  def add_managed_db(system, id, opts \\ []) do
+    add_typed_node(system, id, :managed_db, opts)
+  end
+
+  @doc """
   Adds a generic node to the system.
 
   Use this when none of the typed builders fit.
 
   ## Examples
 
-      iex> system = Choreo.new() |> Choreo.add_node(:misc, name: "Custom")
-      iex> Choreo.nodes(system)[:misc].type
+      iex> system = Choreo.new() |> Choreo.add_node(:misc, label: "Custom")
+      iex> Choreo.nodes(system)[:misc].node_type
       :generic
-      iex> Choreo.nodes(system)[:misc].name
+      iex> Choreo.nodes(system)[:misc].label
       "Custom"
   """
   @spec add_node(t(), Yog.node_id(), keyword()) :: t()
@@ -528,6 +587,63 @@ defmodule Choreo do
     opts = NimbleOptions.validate!(opts, @add_cluster_schema)
     name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
+    clusters = Map.put(system.clusters, name, cluster)
+    %{system | clusters: clusters}
+  end
+
+  @doc """
+  Adds a VPC cluster network boundary.
+
+  ## Options
+
+  #{NimbleOptions.docs(@add_cluster_schema)}
+  """
+  @spec add_vpc(t(), String.t(), keyword()) :: t()
+  def add_vpc(system, name, opts \\ []) do
+    add_typed_cluster(system, name, :vpc, opts)
+  end
+
+  @doc """
+  Adds a public subnet cluster boundary.
+
+  ## Options
+
+  #{NimbleOptions.docs(@add_cluster_schema)}
+  """
+  @spec add_subnet_public(t(), String.t(), keyword()) :: t()
+  def add_subnet_public(system, name, opts \\ []) do
+    add_typed_cluster(system, name, :subnet_public, opts)
+  end
+
+  @doc """
+  Adds a private subnet cluster boundary.
+
+  ## Options
+
+  #{NimbleOptions.docs(@add_cluster_schema)}
+  """
+  @spec add_subnet_private(t(), String.t(), keyword()) :: t()
+  def add_subnet_private(system, name, opts \\ []) do
+    add_typed_cluster(system, name, :subnet_private, opts)
+  end
+
+  defp add_typed_cluster(%__MODULE__{} = system, name, type, opts) do
+    opts = NimbleOptions.validate!(opts, @add_cluster_schema)
+    name = Choreo.Internal.ensure_cluster_prefix(name)
+
+    cluster =
+      opts
+      |> Map.new()
+      |> Map.put(:cluster_type, type)
+      |> Map.put_new(:label, name)
+
+    cluster =
+      if parent = cluster[:parent] do
+        Map.put(cluster, :parent, Choreo.Internal.ensure_cluster_prefix(parent))
+      else
+        cluster
+      end
+
     clusters = Map.put(system.clusters, name, cluster)
     %{system | clusters: clusters}
   end
@@ -592,7 +708,7 @@ defmodule Choreo do
             Choreo.Internal.ensure_cluster_prefix(cluster_name)
           end
 
-        node_name = node_data[:name] || node_data[:label] || to_string(node_id)
+        node_name = node_data[:label] || to_string(node_id)
 
         new_data =
           node_data
@@ -673,14 +789,14 @@ defmodule Choreo do
       if Map.has_key?(system.graph.nodes, from) do
         system
       else
-        add_node(system, from, name: to_string(from))
+        add_node(system, from, label: to_string(from))
       end
 
     system =
       if Map.has_key?(system.graph.nodes, to) do
         system
       else
-        add_node(system, to, name: to_string(to))
+        add_node(system, to, label: to_string(to))
       end
 
     meta = %{
@@ -703,8 +819,8 @@ defmodule Choreo do
     data =
       rest_opts
       |> Map.new()
-      |> Map.put(:type, type)
-      |> Map.put_new(:name, to_string(id))
+      |> Map.put(:node_type, type)
+      |> Map.put_new(:label, to_string(id))
 
     data =
       if cluster,
@@ -772,14 +888,14 @@ defmodule Choreo do
       if Map.has_key?(system.graph.nodes, from) do
         system
       else
-        add_node(system, from, name: to_string(from))
+        add_node(system, from, label: to_string(from))
       end
 
     system =
       if Map.has_key?(system.graph.nodes, to) do
         system
       else
-        add_node(system, to, name: to_string(to))
+        add_node(system, to, label: to_string(to))
       end
 
     meta =
@@ -1004,7 +1120,7 @@ defimpl Choreo.Viewable, for: Choreo do
 
   def zoom_predicate(_, level) when is_map_key(@zoom_tiers, level) do
     types = @zoom_tiers[level]
-    fn _, d -> d[:type] in types end
+    fn _, d -> d[:node_type] in types end
   end
 
   def zoom_predicate(_, _), do: fn _, _ -> true end

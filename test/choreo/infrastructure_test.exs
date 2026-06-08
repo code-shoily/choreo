@@ -58,8 +58,7 @@ defmodule Choreo.InfrastructureTest do
         description: "Main application",
         fontcolor: "#ffffff",
         style: "rounded",
-        image: "app.png",
-        icon: :server
+        image: "app.png"
       )
 
     dot = Infrastructure.to_dot(infra)

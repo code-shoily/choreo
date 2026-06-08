@@ -38,14 +38,14 @@ alias Choreo.Analysis
 
 legend =
   Choreo.new()
-  |> Choreo.add_database(:db, name: "Database")
-  |> Choreo.add_cache(:cache, name: "Cache")
-  |> Choreo.add_service(:svc, name: "Service")
-  |> Choreo.add_network(:net, name: "Network")
-  |> Choreo.add_user(:user, name: "User")
-  |> Choreo.add_load_balancer(:lb, name: "Load Balancer")
-  |> Choreo.add_queue(:queue, name: "Queue")
-  |> Choreo.add_storage(:storage, name: "Storage")
+  |> Choreo.add_database(:db, label: "Database")
+  |> Choreo.add_cache(:cache, label: "Cache")
+  |> Choreo.add_service(:svc, label: "Service")
+  |> Choreo.add_network(:net, label: "Network")
+  |> Choreo.add_user(:user, label: "User")
+  |> Choreo.add_load_balancer(:lb, label: "Load Balancer")
+  |> Choreo.add_queue(:queue, label: "Queue")
+  |> Choreo.add_storage(:storage, label: "Storage")
 
 Kino.VizJS.render(Choreo.to_dot(legend))
 ```
@@ -75,13 +75,13 @@ The simplest useful architecture: users hit a load balancer, which distributes t
 ```elixir
 three_tier =
   Choreo.new()
-  |> Choreo.add_user(:user, name: "End User", kind: :person)
-  |> Choreo.add_load_balancer(:alb, name: "ALB", kind: :alb)
-  |> Choreo.add_service(:web, name: "Web Servers", kind: :web)
-  |> Choreo.add_service(:api, name: "API Service", kind: :api)
-  |> Choreo.add_database(:postgres, name: "Postgres", kind: :postgres)
-  |> Choreo.add_cache(:redis, name: "Redis", kind: :redis)
-  |> Choreo.add_storage(:s3, name: "S3 Bucket", kind: :s3)
+  |> Choreo.add_user(:user, label: "End User", kind: :person)
+  |> Choreo.add_load_balancer(:alb, label: "ALB", kind: :alb)
+  |> Choreo.add_service(:web, label: "Web Servers", kind: :web)
+  |> Choreo.add_service(:api, label: "API Service", kind: :api)
+  |> Choreo.add_database(:postgres, label: "Postgres", kind: :postgres)
+  |> Choreo.add_cache(:redis, label: "Redis", kind: :redis)
+  |> Choreo.add_storage(:s3, label: "S3 Bucket", kind: :s3)
   |> Choreo.connect(:user, :alb, cost: 1, protocol: :https)
   |> Choreo.connect(:alb, :web, cost: 1, protocol: :http)
   |> Choreo.connect(:alb, :api, cost: 1, protocol: :http)
@@ -149,38 +149,38 @@ multi_region =
   |> Choreo.add_cluster("ue1b", label: "AZ-1b", parent: "us_east", fillcolor: "#eff6ff")
   |> Choreo.add_cluster("uw2a", label: "AZ-2a", parent: "us_west", fillcolor: "#f0fdf4")
   # Users and DNS (global)
-  |> Choreo.add_user(:end_user, name: "End User", cluster: "global")
-  |> Choreo.add_network(:route53, name: "Route 53", kind: :dns, cluster: "global")
-  |> Choreo.add_network(:cloudfront, name: "CloudFront", kind: :cdn, cluster: "global")
+  |> Choreo.add_user(:end_user,label: "End User", cluster: "global")
+  |> Choreo.add_network(:route53,label: "Route 53", kind: :dns, cluster: "global")
+  |> Choreo.add_network(:cloudfront,label: "CloudFront", kind: :cdn, cluster: "global")
   # US-East AZ-1a
-  |> Choreo.add_load_balancer(:alb_east_a, name: "ALB East A", cluster: "ue1a")
-  |> Choreo.add_service(:api_east_a, name: "API East A", cluster: "ue1a")
+  |> Choreo.add_load_balancer(:alb_east_a,label: "ALB East A", cluster: "ue1a")
+  |> Choreo.add_service(:api_east_a,label: "API East A", cluster: "ue1a")
   |> Choreo.add_database(:postgres_east_a,
-    name: "Postgres Primary",
+   label: "Postgres Primary",
     kind: :postgres,
     cluster: "ue1a"
   )
-  |> Choreo.add_cache(:redis_east_a, name: "Redis East A", cluster: "ue1a")
+  |> Choreo.add_cache(:redis_east_a,label: "Redis East A", cluster: "ue1a")
   # US-East AZ-1b
-  |> Choreo.add_load_balancer(:alb_east_b, name: "ALB East B", cluster: "ue1b")
-  |> Choreo.add_service(:api_east_b, name: "API East B", cluster: "ue1b")
+  |> Choreo.add_load_balancer(:alb_east_b,label: "ALB East B", cluster: "ue1b")
+  |> Choreo.add_service(:api_east_b,label: "API East B", cluster: "ue1b")
   |> Choreo.add_database(:postgres_east_b,
-    name: "Postgres Replica",
+   label: "Postgres Replica",
     kind: :postgres,
     cluster: "ue1b"
   )
-  |> Choreo.add_cache(:redis_east_b, name: "Redis East B", cluster: "ue1b")
+  |> Choreo.add_cache(:redis_east_b,label: "Redis East B", cluster: "ue1b")
   # US-West AZ-2a
-  |> Choreo.add_load_balancer(:alb_west_a, name: "ALB West A", cluster: "uw2a")
-  |> Choreo.add_service(:api_west_a, name: "API West A", cluster: "uw2a")
+  |> Choreo.add_load_balancer(:alb_west_a,label: "ALB West A", cluster: "uw2a")
+  |> Choreo.add_service(:api_west_a,label: "API West A", cluster: "uw2a")
   |> Choreo.add_database(:postgres_west_a,
-    name: "Postgres Replica",
+   label: "Postgres Replica",
     kind: :postgres,
     cluster: "uw2a"
   )
-  |> Choreo.add_cache(:redis_west_a, name: "Redis West A", cluster: "uw2a")
+  |> Choreo.add_cache(:redis_west_a,label: "Redis West A", cluster: "uw2a")
   # Cross-region replication queue
-  |> Choreo.add_queue(:kafka, name: "Kafka Replication", cluster: "global")
+  |> Choreo.add_queue(:kafka,label: "Kafka Replication", cluster: "global")
   # Connections
   |> Choreo.connect(:end_user, :route53, cost: 1)
   |> Choreo.connect(:route53, :cloudfront, cost: 1)
@@ -244,11 +244,11 @@ Given a set of services and the cost of connecting them, what's the cheapest way
 ```elixir
 cost_optimisation =
   Choreo.new(directed: false)
-  |> Choreo.add_service(:hq, name: "HQ Office")
-  |> Choreo.add_service(:branch_a, name: "Branch A")
-  |> Choreo.add_service(:branch_b, name: "Branch B")
-  |> Choreo.add_service(:datacenter, name: "Data Center")
-  |> Choreo.add_service(:cloud, name: "Cloud VPC")
+  |> Choreo.add_service(:hq, label: "HQ Office")
+  |> Choreo.add_service(:branch_a, label: "Branch A")
+  |> Choreo.add_service(:branch_b, label: "Branch B")
+  |> Choreo.add_service(:datacenter, label: "Data Center")
+  |> Choreo.add_service(:cloud, label: "Cloud VPC")
   |> Choreo.connect(:hq, :branch_a, cost: 50, label: "MPLS")
   |> Choreo.connect(:hq, :branch_b, cost: 80, label: "MPLS")
   |> Choreo.connect(:hq, :datacenter, cost: 20, label: "Fiber")
@@ -300,14 +300,14 @@ A resilient architecture has no single component whose failure partitions the sy
 ```elixir
 resilience =
   Choreo.new()
-  |> Choreo.add_user(:user, name: "User")
-  |> Choreo.add_load_balancer(:lb, name: "Load Balancer")
-  |> Choreo.add_service(:api, name: "API")
-  |> Choreo.add_service(:auth, name: "Auth")
-  |> Choreo.add_service(:orders, name: "Orders")
-  |> Choreo.add_database(:postgres, name: "Postgres")
-  |> Choreo.add_database(:redis, name: "Redis")
-  |> Choreo.add_queue(:kafka, name: "Kafka")
+  |> Choreo.add_user(:user, label: "User")
+  |> Choreo.add_load_balancer(:lb, label: "Load Balancer")
+  |> Choreo.add_service(:api, label: "API")
+  |> Choreo.add_service(:auth, label: "Auth")
+  |> Choreo.add_service(:orders, label: "Orders")
+  |> Choreo.add_database(:postgres, label: "Postgres")
+  |> Choreo.add_database(:redis, label: "Redis")
+  |> Choreo.add_queue(:kafka, label: "Kafka")
   |> Choreo.connect(:user, :lb)
   |> Choreo.connect(:lb, :api)
   |> Choreo.connect(:api, :auth)
@@ -358,14 +358,14 @@ A data pipeline has a natural execution order: ingest → clean → transform �
 ```elixir
 pipeline =
   Choreo.new()
-  |> Choreo.add_service(:ingest, name: "Ingestion")
-  |> Choreo.add_service(:validate, name: "Validation")
-  |> Choreo.add_service(:clean, name: "Cleaning")
-  |> Choreo.add_service(:enrich, name: "Enrichment")
-  |> Choreo.add_service(:aggregate, name: "Aggregation")
-  |> Choreo.add_service(:index, name: "Indexing")
-  |> Choreo.add_database(:warehouse, name: "Data Warehouse")
-  |> Choreo.add_service(:serve, name: "Query API")
+  |> Choreo.add_service(:ingest, label: "Ingestion")
+  |> Choreo.add_service(:validate, label: "Validation")
+  |> Choreo.add_service(:clean, label: "Cleaning")
+  |> Choreo.add_service(:enrich, label: "Enrichment")
+  |> Choreo.add_service(:aggregate, label: "Aggregation")
+  |> Choreo.add_service(:index, label: "Indexing")
+  |> Choreo.add_database(:warehouse, label: "Data Warehouse")
+  |> Choreo.add_service(:serve, label: "Query API")
   |> Choreo.add_dataflow(:ingest, :validate)
   |> Choreo.add_dataflow(:validate, :clean)
   |> Choreo.add_dataflow(:clean, :enrich)
@@ -426,10 +426,10 @@ Start with a design that has structural issues and use analysis to diagnose.
 ```elixir
 broken =
   Choreo.new()
-  |> Choreo.add_service(:api, name: "API")
-  |> Choreo.add_service(:auth, name: "Auth")
-  |> Choreo.add_database(:db, name: "Database")
-  |> Choreo.add_service(:orphan, name: "Orphan Service")
+  |> Choreo.add_service(:api, label: "API")
+  |> Choreo.add_service(:auth, label: "Auth")
+  |> Choreo.add_database(:db, label: "Database")
+  |> Choreo.add_service(:orphan, label: "Orphan Service")
   |> Choreo.connect(:api, :auth)
   |> Choreo.connect(:auth, :db)
   |> Choreo.connect(:db, :api)
@@ -460,10 +460,10 @@ Break the cycle by introducing a queue for async communication:
 ```elixir
 fixed =
   Choreo.new()
-  |> Choreo.add_service(:api, name: "API")
-  |> Choreo.add_service(:auth, name: "Auth")
-  |> Choreo.add_database(:db, name: "Database")
-  |> Choreo.add_queue(:event_bus, name: "Event Bus")
+  |> Choreo.add_service(:api, label: "API")
+  |> Choreo.add_service(:auth, label: "Auth")
+  |> Choreo.add_database(:db, label: "Database")
+  |> Choreo.add_queue(:event_bus, label: "Event Bus")
   |> Choreo.connect(:api, :auth)
   |> Choreo.connect(:auth, :db)
   |> Choreo.connect(:db, :event_bus)
@@ -485,10 +485,10 @@ The queue doesn't break the cycle because the edge direction still forms a loop.
 ```elixir
 really_fixed =
   Choreo.new()
-  |> Choreo.add_service(:api, name: "API")
-  |> Choreo.add_service(:auth, name: "Auth")
-  |> Choreo.add_database(:db, name: "Database")
-  |> Choreo.add_queue(:event_bus, name: "Event Bus")
+  |> Choreo.add_service(:api, label: "API")
+  |> Choreo.add_service(:auth, label: "Auth")
+  |> Choreo.add_database(:db, label: "Database")
+  |> Choreo.add_queue(:event_bus, label: "Event Bus")
   |> Choreo.connect(:api, :auth)
   |> Choreo.connect(:auth, :db)
   # db writes events to bus, but api reads from bus asynchronously
@@ -543,9 +543,9 @@ Real infrastructure often has more than one relationship between the same pair o
 ```elixir
 multigraph_example =
   Choreo.new()
-  |> Choreo.add_service(:api, name: "API Gateway")
-  |> Choreo.add_database(:postgres, name: "Postgres Primary")
-  |> Choreo.add_cache(:redis, name: "Redis")
+  |> Choreo.add_service(:api, label: "API Gateway")
+  |> Choreo.add_database(:postgres, label: "Postgres Primary")
+  |> Choreo.add_cache(:redis, label: "Redis")
   # Two distinct connections to the same database
   |> Choreo.connect(:api, :postgres, cost: 2, protocol: :tcp, label: "Reads")
   |> Choreo.connect(:api, :postgres, cost: 5, protocol: :tcp, label: "Writes")

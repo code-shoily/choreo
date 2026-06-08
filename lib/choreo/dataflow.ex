@@ -91,10 +91,11 @@ defmodule Choreo.Dataflow do
   @type t :: %__MODULE__{
           graph: Yog.graph(),
           edge_meta: %{optional({Yog.node_id(), Yog.node_id()}) => map()},
-          clusters: %{String.t() => map()}
+          clusters: %{String.t() => map()},
+          strict: boolean()
         }
 
-  defstruct graph: nil, edge_meta: %{}, clusters: %{}
+  defstruct graph: nil, edge_meta: %{}, clusters: %{}, strict: false
 
   @node_schema [
     label: [
@@ -207,7 +208,7 @@ defmodule Choreo.Dataflow do
     ],
     path_type: [
       type: {:in, [:normal, :error, :retry, :dead_letter]},
-      required: false
+      default: :normal
     ],
     weight: [
       type: {:or, [:integer, :float]},
@@ -232,12 +233,13 @@ defmodule Choreo.Dataflow do
       iex> Choreo.Dataflow.edges(flow)
       []
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
     %__MODULE__{
       graph: Yog.directed(),
       edge_meta: %{},
-      clusters: %{}
+      clusters: %{},
+      strict: Keyword.get(opts, :strict, false)
     }
   end
 
@@ -462,16 +464,31 @@ defmodule Choreo.Dataflow do
 
       iex> flow = Choreo.Dataflow.new()
       iex> flow = Choreo.Dataflow.add_cluster(flow, "ingest", label: "Ingestion")
-      iex> flow.clusters["cluster_ingest"].label
+      iex> Choreo.Dataflow.cluster(flow, "ingest").label
       "Ingestion"
   """
   @spec add_cluster(t(), String.t(), keyword()) :: t()
   def add_cluster(%__MODULE__{} = flow, name, opts \\ []) do
     opts = NimbleOptions.validate!(opts, @add_cluster_schema)
-    name = Choreo.Internal.ensure_cluster_prefix(name)
+    internal_name = Choreo.Internal.ensure_cluster_prefix(name)
     cluster = Map.new(opts)
-    clusters = Map.put(flow.clusters, name, cluster)
+    clusters = Map.put(flow.clusters, internal_name, cluster)
     %{flow | clusters: clusters}
+  end
+
+  @doc """
+  Returns cluster metadata by user-facing name.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = Choreo.Dataflow.add_cluster(flow, "ingest", label: "Ingestion")
+      iex> Choreo.Dataflow.cluster(flow, "ingest").label
+      "Ingestion"
+  """
+  @spec cluster(t(), String.t()) :: map() | nil
+  def cluster(%__MODULE__{} = flow, name) do
+    Map.get(flow.clusters, Choreo.Internal.ensure_cluster_prefix(name))
   end
 
   # ============================================================================
@@ -529,21 +546,30 @@ defmodule Choreo.Dataflow do
       if Map.has_key?(flow.graph.nodes, from) do
         flow
       else
-        add_transform(flow, from, label: to_string(from))
+        if flow.strict do
+          raise ArgumentError,
+                "connect/4 requires both nodes to exist, but #{inspect(from)} does not"
+        else
+          add_transform(flow, from, label: to_string(from))
+        end
       end
 
     flow =
       if Map.has_key?(flow.graph.nodes, to) do
         flow
       else
-        add_transform(flow, to, label: to_string(to))
+        if flow.strict do
+          raise ArgumentError,
+                "connect/4 requires both nodes to exist, but #{inspect(to)} does not"
+        else
+          add_transform(flow, to, label: to_string(to))
+        end
       end
 
     meta =
       opts
       |> Map.new()
       |> Map.put(:label, label)
-      |> Map.put_new(:path_type, :normal)
 
     weight = opts[:weight] || 1
 
@@ -703,7 +729,7 @@ defmodule Choreo.Dataflow do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
 
   ## Examples
 
@@ -782,7 +808,6 @@ defmodule Choreo.Dataflow do
       rest_opts
       |> Map.new()
       |> Map.merge(%{
-        type: :dataflow_node,
         node_type: type,
         label: Keyword.get(rest_opts, :label, to_string(id))
       })
@@ -830,12 +855,12 @@ defimpl Choreo.Viewable, for: Choreo.Dataflow do
   end
 
   def zoom_predicate(_flow, 0),
-    do: fn data -> data[:node_type] in [:source, :sink] end
+    do: fn _id, data -> data[:node_type] in [:source, :sink] end
 
   def zoom_predicate(_flow, 1),
-    do: fn data -> data[:node_type] in [:source, :sink, :transform] end
+    do: fn _id, data -> data[:node_type] in [:source, :sink, :transform] end
 
-  def zoom_predicate(_flow, _level), do: fn _data -> true end
+  def zoom_predicate(_flow, _level), do: fn _id, _data -> true end
 
   def virtual_edge_meta(_flow), do: %{path_type: :virtual, label: nil}
 end

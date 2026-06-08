@@ -499,7 +499,8 @@ defmodule Choreo.View do
     multi_subgraph(graph, kept_ids)
   end
 
-  defp graph_filter_nodes(graph, predicate), do: Yog.filter_nodes(graph, predicate)
+  defp graph_filter_nodes(graph, predicate),
+    do: Yog.Transform.filter_nodes_indexed(graph, predicate)
 
   defp graph_subgraph(%Yog.Multi.Graph{} = graph, ids), do: multi_subgraph(graph, ids)
   defp graph_subgraph(graph, ids), do: Yog.subgraph(graph, ids)

@@ -1,7 +1,5 @@
 # Choreo Dependency: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 # For Hex publication/readers:
 # Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
@@ -12,10 +10,6 @@ Mix.install([
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
-
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
-
----
 
 ## What is Choreo.Dependency?
 
@@ -66,9 +60,9 @@ legend =
   |> Dependency.depends_on(:test, :app, type: :dev)
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")},
   {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(legend))},
-  {"Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))}
+  {"Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))},
+  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")},
 ]
 
 Kino.Layout.tabs(tabs)
@@ -108,8 +102,8 @@ microservices =
   |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
 
 tabs = [
-  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")},
-  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(microservices))}
+  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(microservices))},
+  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")}
 ]
 
 Kino.Layout.tabs(tabs)

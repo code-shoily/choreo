@@ -129,6 +129,15 @@ defmodule Choreo.Domain do
     ]
   ]
 
+  @relationships [
+    :shared_kernel,
+    :customer_supplier,
+    :conformist,
+    :open_host_service,
+    :published_language,
+    :acl
+  ]
+
   @connect_schema [
     cost: [
       type: {:or, [:integer, :float]},
@@ -142,19 +151,16 @@ defmodule Choreo.Domain do
       doc: "Edge connection label."
     ],
     type: [
-      type: :atom,
+      type: {:in, [:sequence, :context_mapping, :virtual]},
       required: false,
+      default: :sequence,
       doc: "Connection type override."
+    ],
+    relationship: [
+      type: {:in, @relationships},
+      required: false,
+      doc: "DDD relationship type (stored on context-mapping edges)."
     ]
-  ]
-
-  @relationships [
-    :shared_kernel,
-    :customer_supplier,
-    :conformist,
-    :open_host_service,
-    :published_language,
-    :acl
   ]
 
   @connect_contexts_schema [
@@ -327,6 +333,22 @@ defmodule Choreo.Domain do
     rel = opts[:relationship]
     custom_lbl = opts[:label]
 
+    for id <- [upstream_id, downstream_id] do
+      case Map.get(domain.graph.nodes, id) do
+        %{type: :context} ->
+          :ok
+
+        %{type: type} ->
+          raise ArgumentError,
+                "connect_contexts/4 requires both endpoints to be :context nodes, " <>
+                  "but #{inspect(id)} is #{inspect(type)}"
+
+        nil ->
+          raise ArgumentError,
+                "connect_contexts/4 requires both endpoints to exist, but #{inspect(id)} does not"
+      end
+    end
+
     lbl =
       case rel do
         :shared_kernel -> "[Shared Kernel]"
@@ -339,7 +361,11 @@ defmodule Choreo.Domain do
 
     lbl = if custom_lbl, do: "#{lbl} (#{custom_lbl})", else: lbl
 
-    connect(domain, upstream_id, downstream_id, label: lbl, type: :context_mapping)
+    connect(domain, upstream_id, downstream_id,
+      label: lbl,
+      type: :context_mapping,
+      relationship: rel
+    )
   end
 
   # ============================================================================
@@ -366,19 +392,60 @@ defmodule Choreo.Domain do
   end
 
   @doc """
-  Traces the root cause sequence leading to a target node.
-  Returns a list of node IDs showing the path from the root triggers.
+  Clears the current scenario highlight.
+
+  ## Examples
+
+      iex> domain = Choreo.Domain.new()
+      ...>   |> Choreo.Domain.add_actor(:customer)
+      ...>   |> Choreo.Domain.add_command(:place_order)
+      ...>   |> Choreo.Domain.focus_path([:customer, :place_order])
+      ...>   |> Choreo.Domain.clear_focus()
+      iex> domain.highlighted_nodes
+      []
+      iex> domain.highlighted_edges
+      []
   """
-  @spec trace_cause(t(), Yog.node_id()) :: [Yog.node_id()]
-  def trace_cause(%Domain{graph: graph}, target) do
+  @spec clear_focus(t()) :: t()
+  def clear_focus(%Domain{} = domain) do
+    %{domain | highlighted_nodes: [], highlighted_edges: []}
+  end
+
+  @doc """
+  Returns all ancestor causes of a target node.
+
+  This is a **set**, not an ordered path — for branching cause graphs
+  (DAGs with multiple parents), all ancestors are returned collapsed into
+  one list with no path structure.
+
+  ## Examples
+
+      iex> domain = Choreo.Domain.new()
+      ...>   |> Choreo.Domain.add_actor(:customer)
+      ...>   |> Choreo.Domain.add_command(:place_order)
+      ...>   |> Choreo.Domain.add_aggregate(:order_agg)
+      ...>   |> Choreo.Domain.add_event(:order_placed)
+      ...>   |> Choreo.Domain.connect(:customer, :place_order)
+      ...>   |> Choreo.Domain.connect(:place_order, :order_agg)
+      ...>   |> Choreo.Domain.connect(:order_agg, :order_placed)
+      iex> ancestors = Choreo.Domain.causes(domain, :order_placed)
+      iex> :customer in ancestors
+      true
+      iex> :order_agg in ancestors
+      true
+  """
+  @spec causes(t(), Yog.node_id()) :: [Yog.node_id()]
+  def causes(%Domain{graph: graph}, target) do
     if Map.has_key?(graph.nodes, target) do
-      # Simple BFS/DFS traversal going backwards (predecessors)
       traverse_backwards(graph, [target], MapSet.new([target]))
-      |> Enum.reverse()
     else
       []
     end
   end
+
+  @doc false
+  @deprecated "Use causes/2 instead"
+  def trace_cause(domain, target), do: causes(domain, target)
 
   # ============================================================================
   # Queries
@@ -454,9 +521,10 @@ defmodule Choreo.Domain do
       |> Enum.sort_by(fn {id, _data} -> id end)
       |> Enum.map_join("\n", fn {id, data} ->
         stereotype =
-          case data[:type] do
-            :class -> ""
-            type -> "    <<#{type}>>"
+          if data[:type] do
+            "    <<#{data[:type]}>>"
+          else
+            ""
           end
 
         fields =
@@ -614,11 +682,30 @@ defimpl Choreo.Viewable, for: Choreo.Domain do
         Map.put_new(acc, eid, %{edge_type: :virtual, cost: 1})
       end)
 
-    %{domain | graph: new_graph, edge_meta: new_edge_meta}
+    kept_ids = MapSet.new(Map.keys(new_graph.nodes))
+
+    highlighted_nodes =
+      Enum.filter(domain.highlighted_nodes, &MapSet.member?(kept_ids, &1))
+
+    highlighted_edges =
+      Enum.filter(domain.highlighted_edges, fn {a, b} ->
+        MapSet.member?(kept_ids, a) and MapSet.member?(kept_ids, b)
+      end)
+
+    %{
+      domain
+      | graph: new_graph,
+        edge_meta: new_edge_meta,
+        highlighted_nodes: highlighted_nodes,
+        highlighted_edges: highlighted_edges
+    }
   end
 
   def zoom_predicate(_, 0), do: fn _id, d -> d[:type] in [:context, :actor] end
-  def zoom_predicate(_, 1), do: fn _id, d -> d[:type] in [:context, :actor, :command, :event] end
+
+  def zoom_predicate(_, 1),
+    do: fn _id, d -> d[:type] in [:context, :actor, :command, :aggregate, :event] end
+
   def zoom_predicate(_, _), do: fn _id, _ -> true end
 
   def virtual_edge_meta(_domain), do: %{edge_type: :virtual, cost: 1}

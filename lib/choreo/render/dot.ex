@@ -56,7 +56,15 @@ defmodule Choreo.Render.DOT do
     states_list = Map.keys(system.graph.nodes)
     id_map = Enum.into(states_list, %{}, fn id -> {id, dot_id(id)} end)
     safe_graph = Choreo.Internal.make_multi_graph_safe(system.graph, id_map)
-    safe_system = %{system | graph: safe_graph}
+
+    # Apply cluster-type theme defaults (VPC, subnet) before building subgraphs
+    styled_clusters =
+      system.clusters
+      |> Enum.into(%{}, fn {name, cluster} ->
+        {name, apply_cluster_theme_defaults(cluster, theme)}
+      end)
+
+    safe_system = %{system | graph: safe_graph, clusters: styled_clusters}
 
     subgraphs = Choreo.Internal.build_cluster_subgraphs(safe_system, theme)
 
@@ -139,13 +147,47 @@ defmodule Choreo.Render.DOT do
     |> Map.new()
   end
 
+  defp apply_cluster_theme_defaults(cluster, theme) do
+    is_dark = Theme.dark?(theme)
+
+    defaults =
+      case cluster[:cluster_type] do
+        :vpc ->
+          [
+            style: :dashed,
+            fillcolor: if(is_dark, do: "#1e293b", else: "#f8fafc"),
+            color: if(is_dark, do: "#475569", else: "#64748b")
+          ]
+
+        :subnet_public ->
+          [
+            style: :rounded,
+            fillcolor: if(is_dark, do: "#064e3b", else: "#f0fdf4"),
+            color: if(is_dark, do: "#10b981", else: "#22c55e")
+          ]
+
+        :subnet_private ->
+          [
+            style: :rounded,
+            fillcolor: if(is_dark, do: "#7f1d1d", else: "#fef2f2"),
+            color: if(is_dark, do: "#ef4444", else: "#ef4444")
+          ]
+
+        _ ->
+          []
+      end
+      |> Map.new()
+
+    Map.merge(defaults, cluster)
+  end
+
   # ============================================================================
   # Node styling
   # ============================================================================
 
   defp node_attributes_fn(_system, theme, hl_nodes) do
     fn id, data ->
-      type = Map.get(data, :type, :generic)
+      type = Map.get(data, :node_type, :generic)
       has_fields = not is_nil(data[:fields])
 
       shape = if has_fields, do: :plain, else: Map.get(data, :shape) || Theme.shape(theme, type)
@@ -166,10 +208,15 @@ defmodule Choreo.Render.DOT do
 
       # Only add fillcolor if node is NOT highlighted and has no fields.
       attrs =
-        if MapSet.member?(hl_nodes, id) or has_fields do
-          attrs
-        else
-          [{:fillcolor, color} | attrs]
+        cond do
+          MapSet.member?(hl_nodes, id) ->
+            [{:fillcolor, "#fef08a"}, {:fontcolor, "#1e293b"} | attrs]
+
+          has_fields ->
+            attrs
+
+          true ->
+            [{:fillcolor, color} | attrs]
         end
 
       attrs =
@@ -196,8 +243,8 @@ defmodule Choreo.Render.DOT do
 
   defp node_label(id, data, theme) do
     if fields = data[:fields] do
-      table_name = data[:name] || to_string(id)
-      type = Map.get(data, :type, :generic)
+      table_name = data[:label] || to_string(id)
+      type = Map.get(data, :node_type, :generic)
       header_bg = data[:fillcolor] || Theme.color(theme, type)
 
       header_fg =
@@ -230,7 +277,7 @@ defmodule Choreo.Render.DOT do
         rows <>
         "</TABLE>"
     else
-      Map.get(data, :name, "")
+      Map.get(data, :label, "")
     end
   end
 
@@ -270,7 +317,7 @@ defmodule Choreo.Render.DOT do
           target_data = Map.get(system.graph.nodes, to, %{})
 
           base =
-            if target_data[:type] == :database and is_nil(meta[:headport]) do
+            if target_data[:node_type] == :database and is_nil(meta[:headport]) do
               [{:headport, "n"} | base]
             else
               base
@@ -282,7 +329,7 @@ defmodule Choreo.Render.DOT do
 
           # Final highlighting override
           if MapSet.member?(hl_edges, edge_id) or MapSet.member?(hl_edges, {from, to}) do
-            Keyword.drop(base, [:color, :penwidth])
+            [{:color, "#ef4444"}, {:penwidth, 2.0} | Keyword.drop(base, [:color, :penwidth])]
           else
             base
           end

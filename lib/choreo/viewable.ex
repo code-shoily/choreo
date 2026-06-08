@@ -17,9 +17,9 @@ defprotocol Choreo.Viewable do
           # Prune edge_meta, resolve root, return new struct
         end
 
-        def zoom_predicate(_diagram, 0), do: fn data -> data[:node_type] == :root end
-        def zoom_predicate(_diagram, 1), do: fn data -> data[:node_type] in [:root, :topic] end
-        def zoom_predicate(_diagram, _level), do: fn _data -> true end
+        def zoom_predicate(_diagram, 0), do: fn _id, data -> data[:node_type] == :root end
+        def zoom_predicate(_diagram, 1), do: fn _id, data -> data[:node_type] in [:root, :topic] end
+        def zoom_predicate(_diagram, _level), do: fn _id, _data -> true end
 
         def virtual_edge_meta(_diagram), do: %{edge_type: :virtual}
       end
@@ -37,8 +37,8 @@ defprotocol Choreo.Viewable do
   @doc """
   Return a predicate for `Yog.filter_nodes/2` at the given zoom level.
 
-  The predicate receives node data (not the id) and returns a boolean.
-  Return `fn _data -> true end` for "show everything".
+  The predicate receives `(id, data)` and returns a boolean.
+  Return `fn _id, _data -> true end` for "show everything".
   """
   def zoom_predicate(diagram, level)
 

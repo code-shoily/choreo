@@ -22,6 +22,7 @@ defmodule Choreo.Dataflow.Analysis do
   """
 
   alias Choreo.Dataflow
+  alias Yog.Traversal.Sort
 
   @doc """
   Returns all source node IDs in the dataflow.
@@ -91,8 +92,9 @@ defmodule Choreo.Dataflow.Analysis do
   This analysis answers the question: "Is there a feedback loop in the data pipeline?"
   """
   @spec cyclic?(Dataflow.t()) :: boolean()
-  def cyclic?(%Dataflow{graph: graph}) do
-    Yog.cyclic?(graph)
+  def cyclic?(%Dataflow{graph: graph, edge_meta: edge_meta}) do
+    normal_edge_graph(graph, edge_meta)
+    |> Yog.cyclic?()
   end
 
   @doc """
@@ -117,7 +119,7 @@ defmodule Choreo.Dataflow.Analysis do
   """
   @spec topological_sort(Dataflow.t()) :: {:ok, [Yog.node_id()]} | {:error, :contains_cycle}
   def topological_sort(%Dataflow{graph: graph}) do
-    Yog.Traversal.Sort.topological_sort(graph)
+    Sort.topological_sort(graph)
   end
 
   @doc """
@@ -172,17 +174,17 @@ defmodule Choreo.Dataflow.Analysis do
     sink_ids = sinks(flow)
 
     if sink_ids == [] do
-      Dataflow.nodes(flow)
+      []
     else
       transposed = Yog.transpose(flow.graph)
       can_reach_sink = Choreo.Internal.bfs_reachable(transposed, sink_ids)
       all = Dataflow.nodes(flow) |> MapSet.new()
-      MapSet.difference(all, can_reach_sink) |> MapSet.to_list()
+      MapSet.difference(all, can_reach_sink) |> MapSet.to_list() |> Enum.sort()
     end
   end
 
   @doc """
-  Returns nodes with high combined fan-in and fan-out.
+  Returns nodes with high combined fan-in and fan-out (structural hubs).
 
   ## Options
 
@@ -201,13 +203,13 @@ defmodule Choreo.Dataflow.Analysis do
       ...>   |> Choreo.Dataflow.connect(:b, :hub)
       ...>   |> Choreo.Dataflow.connect(:hub, :c)
       ...>   |> Choreo.Dataflow.connect(:hub, :d)
-      iex> Choreo.Dataflow.Analysis.bottlenecks(flow)
+      iex> Choreo.Dataflow.Analysis.fan_hubs(flow)
       [:hub]
 
   This analysis answers the question: "Which stages have the highest fan-in and fan-out?"
   """
-  @spec bottlenecks(Dataflow.t(), keyword()) :: [Yog.node_id()]
-  def bottlenecks(%Dataflow{graph: graph}, opts \\ []) do
+  @spec fan_hubs(Dataflow.t(), keyword()) :: [Yog.node_id()]
+  def fan_hubs(%Dataflow{graph: graph}, opts \\ []) do
     threshold = Keyword.get(opts, :threshold, 3)
 
     graph.nodes
@@ -217,7 +219,16 @@ defmodule Choreo.Dataflow.Analysis do
       in_deg + out_deg >= threshold
     end)
     |> Enum.map(fn {id, _data} -> id end)
+    |> Enum.sort()
   end
+
+  @doc """
+  Alias for `capacity_bottlenecks/1`.
+
+  Returns nodes where simulated throughput exceeds capacity.
+  """
+  @spec bottlenecks(Dataflow.t()) :: [Yog.node_id()]
+  def bottlenecks(%Dataflow{} = flow), do: capacity_bottlenecks(flow)
 
   @doc """
   Finds the longest weighted path from any source to any sink.
@@ -249,12 +260,14 @@ defmodule Choreo.Dataflow.Analysis do
   This analysis answers the question: "What is the critical path that determines end-to-end latency?"
   """
   @spec longest_path(Dataflow.t()) :: {:ok, [Yog.node_id()], number()} | :error
-  def longest_path(%Dataflow{graph: graph} = flow) do
-    case topological_sort(flow) do
+  def longest_path(%Dataflow{graph: graph, edge_meta: edge_meta} = flow) do
+    normal_graph = normal_edge_graph(graph, edge_meta)
+
+    case Sort.topological_sort(normal_graph) do
       {:ok, order} ->
         source_set = sources(flow) |> MapSet.new()
         sink_set = sinks(flow) |> MapSet.new()
-        dp = Choreo.Internal.compute_dp(graph, order, source_set)
+        dp = Choreo.Internal.compute_dp(normal_graph, order, source_set)
 
         case Choreo.Internal.find_best_end_path(dp, sink_set) do
           nil ->
@@ -272,11 +285,12 @@ defmodule Choreo.Dataflow.Analysis do
   end
 
   @doc """
-  Identifies nodes that lack explicit error handling paths.
+  Identifies `:transform` nodes that lack explicit error handling paths.
 
-  Checks all `:transform` and `:sink` nodes. Returns a list of node IDs that do
-  not have any outgoing edge configured with `path_type: :error` or
-  `path_type: :dead_letter`.
+  Returns a list of transform node IDs that do not have any outgoing edge
+  configured with `path_type: :error` or `path_type: :dead_letter`.
+
+  Sinks are checked separately via `unhandled_sinks/1`.
 
   ## Examples
 
@@ -291,15 +305,15 @@ defmodule Choreo.Dataflow.Analysis do
       ...>   |> Choreo.Dataflow.connect(:c, :d)
       ...>   |> Choreo.Dataflow.add_error_path(:b, :d)
       iex> Enum.sort(Choreo.Dataflow.Analysis.unhandled_errors(flow))
-      [:c, :d]
+      [:c]
 
-  This analysis answers the question: "Which stages lack explicit error handling?"
+  This analysis answers the question: "Which transforms lack explicit error handling?"
   """
   @spec unhandled_errors(Dataflow.t()) :: [Yog.node_id()]
   def unhandled_errors(%Dataflow{} = flow) do
     flow.graph.nodes
     |> Enum.filter(fn {id, data} ->
-      is_target = data[:node_type] in [:transform, :sink]
+      is_transform = data[:node_type] == :transform
 
       has_handler =
         Enum.any?(Yog.successor_ids(flow.graph, id), fn to ->
@@ -307,9 +321,45 @@ defmodule Choreo.Dataflow.Analysis do
           meta[:path_type] in [:error, :dead_letter]
         end)
 
-      is_target and not has_handler
+      is_transform and not has_handler
     end)
     |> Enum.map(fn {id, _data} -> id end)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Identifies `:sink` nodes that lack explicit dead-letter paths.
+
+  Returns a list of sink node IDs that do not have any outgoing edge
+  configured with `path_type: :dead_letter`.
+
+  ## Examples
+
+      iex> flow = Choreo.Dataflow.new()
+      iex> flow = flow
+      ...>   |> Choreo.Dataflow.add_transform(:a)
+      ...>   |> Choreo.Dataflow.add_sink(:b)
+      ...>   |> Choreo.Dataflow.add_sink(:c)
+      ...>   |> Choreo.Dataflow.connect(:a, :b)
+      iex> Enum.sort(Choreo.Dataflow.Analysis.unhandled_sinks(flow))
+      [:b, :c]
+  """
+  @spec unhandled_sinks(Dataflow.t()) :: [Yog.node_id()]
+  def unhandled_sinks(%Dataflow{} = flow) do
+    flow.graph.nodes
+    |> Enum.filter(fn {id, data} ->
+      is_sink = data[:node_type] == :sink
+
+      has_dlq =
+        Enum.any?(Yog.successor_ids(flow.graph, id), fn to ->
+          meta = Map.get(flow.edge_meta, {id, to}, %{})
+          meta[:path_type] == :dead_letter
+        end)
+
+      is_sink and not has_dlq
+    end)
+    |> Enum.map(fn {id, _data} -> id end)
+    |> Enum.sort()
   end
 
   @doc """
@@ -388,10 +438,12 @@ defmodule Choreo.Dataflow.Analysis do
   @spec simulate(Dataflow.t()) :: %{
           optional(Yog.node_id()) => %{in_rate: number, out_rate: number, latency_ms: number}
         }
-  def simulate(%Dataflow{graph: graph} = flow) do
-    case topological_sort(flow) do
+  def simulate(%Dataflow{graph: graph, edge_meta: edge_meta}) do
+    normal_graph = normal_edge_graph(graph, edge_meta)
+
+    case Sort.topological_sort(normal_graph) do
       {:ok, order} ->
-        do_simulate(graph, order, %{})
+        do_simulate(normal_graph, order, %{})
 
       {:error, :contains_cycle} ->
         %{}
@@ -612,11 +664,13 @@ defmodule Choreo.Dataflow.Analysis do
         end)
       end
 
+    capacity = data[:capacity]
+
     out_rate =
       cond do
         node_type == :source -> data[:rate] || 0
         node_type == :sink -> 0
-        true -> in_rate
+        true -> min(in_rate, capacity || in_rate)
       end
 
     latency_ms = data[:latency_ms] || 0
@@ -683,5 +737,17 @@ defmodule Choreo.Dataflow.Analysis do
       [] -> acc
       nodes -> [{:warning, "Dead-end nodes: #{inspect(nodes)}"} | acc]
     end
+  end
+
+  defp normal_edge_graph(graph, edge_meta) do
+    Enum.reduce(Yog.all_edges(graph), graph, fn {from, to, _weight}, acc ->
+      meta = Map.get(edge_meta, {from, to}, %{})
+
+      if meta[:path_type] in [:error, :retry, :dead_letter] do
+        Yog.remove_edge(acc, from, to)
+      else
+        acc
+      end
+    end)
   end
 end
