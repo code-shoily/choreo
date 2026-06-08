@@ -722,6 +722,8 @@
         <a href="#showcase" class="nav-link">Showcase</a>
         <a href="#embed" class="nav-link">Embed</a>
         <a href="#tracing" class="nav-link">Tracing</a>
+        <a href="#filter" class="nav-link">Filter</a>
+        <a href="#zoom" class="nav-link">Zoom</a>
         <a href="#analysis" class="nav-link">Analysis</a>
         <a href="#types" class="nav-link">13 Types</a>
         <a href="https://hexdocs.pm/choreo" class="nav-link">HexDocs</a>
@@ -1394,6 +1396,115 @@ Choreo.to_dot(platform, show_traces: true)</code></pre>
     </div>
   </section>
 
+  <!-- Filter Feature Section -->
+  <section id="filter" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Predicate Filtering</span>
+        <h2 class="section-title">Filter Any Diagram by Node Type</h2>
+        <p class="section-subtitle"><code style="color:var(--primary)">Choreo.View.filter/2</code> keeps only nodes that match a predicate. Use it to remove internals for stakeholder decks, or isolate specific node types across any diagram module.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+        <!-- Code -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">filter_notes.exs</span>
+          </div>
+          <div class="showcase-code-block" style="height:280px">
+            <pre class="language-elixir"><code class="language-elixir">alias Choreo.MindMap
+alias Choreo.View
+
+map =
+  MindMap.new()
+  |> MindMap.set_root(:elixir, label: "Elixir")
+  |> MindMap.add_topic(:concurrency, label: "Concurrency")
+  |> MindMap.add_topic(:ecosystem, label: "Ecosystem")
+  |> MindMap.add_subtopic(:processes, label: "Processes")
+  |> MindMap.add_subtopic(:beam, label: "BEAM VM")
+  |> MindMap.add_note(:history, label: "Created 2011")
+  |> MindMap.branch(:elixir, :concurrency)
+  |> MindMap.branch(:elixir, :ecosystem)
+  |> MindMap.branch(:concurrency, :processes)
+  |> MindMap.branch(:ecosystem, :beam)
+
+# Remove all notes for a clean stakeholder deck
+clean =
+  View.filter(map, fn _id, data ->
+    data[:node_type] != :note
+  end)
+
+MindMap.to_dot(clean)</code></pre>
+          </div>
+        </div>
+
+        <!-- Rendered -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">rendered output — notes hidden</span>
+          </div>
+          <div class="showcase-diagram-block" id="diag-filter" style="height:280px">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Zoom Feature Section -->
+  <section id="zoom" class="section">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-label">Semantic Zoom</span>
+        <h2 class="section-title">Zoom In and Out of Detail Levels</h2>
+        <p class="section-subtitle"><code style="color:var(--primary)">Choreo.View.zoom/2</code> filters diagrams by module-defined zoom levels. Each type defines what level 0, 1, 2 … means — so zooming is semantic, not just geometric.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+        <!-- Code -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">zoom_overview.exs</span>
+          </div>
+          <div class="showcase-code-block" style="height:280px">
+            <pre class="language-elixir"><code class="language-elixir">alias Choreo.MindMap
+alias Choreo.View
+
+map =
+  MindMap.new()
+  |> MindMap.set_root(:elixir, label: "Elixir")
+  |> MindMap.add_topic(:concurrency, label: "Concurrency")
+  |> MindMap.add_topic(:ecosystem, label: "Ecosystem")
+  |> MindMap.add_subtopic(:processes, label: "Processes")
+  |> MindMap.add_subtopic(:beam, label: "BEAM VM")
+  |> MindMap.add_note(:history, label: "Created 2011")
+  |> MindMap.branch(:elixir, :concurrency)
+  |> MindMap.branch(:elixir, :ecosystem)
+  |> MindMap.branch(:concurrency, :processes)
+  |> MindMap.branch(:ecosystem, :beam)
+
+# Zoom out to show only root + topics
+overview = View.zoom(map, level: 1)
+
+MindMap.to_dot(overview)</code></pre>
+          </div>
+        </div>
+
+        <!-- Rendered -->
+        <div class="showcase-panel">
+          <div class="showcase-panel-header">
+            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
+            <span class="panel-filename">rendered output — zoom level 1</span>
+          </div>
+          <div class="showcase-diagram-block" id="diag-zoom" style="height:280px">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Static Analysis Engine Table -->
   <section id="analysis" class="section">
     <div class="container">
@@ -1950,7 +2061,19 @@ elixir((Elixir))
   style db_users fill:#3b82f6,color:#fff
   style db_orders fill:#3b82f6,color:#fff
   linkStyle 5 stroke:#ef4444,stroke-dasharray:5 5
-  linkStyle 6 stroke:#ef4444,stroke-dasharray:5 5`
+  linkStyle 6 stroke:#ef4444,stroke-dasharray:5 5`,
+
+      filter: `mindmap
+  elixir((Elixir))
+    concurrency(Concurrency)
+      processes[Processes]
+    ecosystem(Ecosystem)
+      beam[BEAM VM]`,
+
+      zoom: `mindmap
+  elixir((Elixir))
+    concurrency(Concurrency)
+    ecosystem(Ecosystem)`
     };
 
     // Initialize Mermaid
@@ -2015,6 +2138,8 @@ elixir((Elixir))
       // Render feature-section static diagrams
       await renderStatic('diag-embed-feature', tabPresets.embed);
       await renderStatic('diag-tracing-feature', tabPresets.tracing);
+      await renderStatic('diag-filter', tabPresets.filter);
+      await renderStatic('diag-zoom', tabPresets.zoom);
     });
   </script>
 </body>
