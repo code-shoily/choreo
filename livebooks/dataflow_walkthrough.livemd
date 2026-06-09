@@ -41,7 +41,9 @@ Nodes are typed: **sources**, **transforms**, **buffers**, **conditionals**, **m
 ```elixir
 alias Choreo.Dataflow
 alias Choreo.Dataflow.Analysis
+```
 
+```elixir
 legend =
   Dataflow.new()
   |> Dataflow.add_source(:source, label: "Source")
@@ -51,15 +53,23 @@ legend =
   |> Dataflow.add_merge(:merge, label: "Merge")
   |> Dataflow.add_sink(:sink, label: "Sink")
 
-Kino.VizJS.render(
-  Dataflow.to_dot(legend,
-    theme: Choreo.Dataflow.theme(:default, graph_rankdir: :tb)
+graphviz =
+  Kino.VizJS.render(
+    Dataflow.to_dot(legend,
+      theme: Choreo.Dataflow.theme(:default, graph_rankdir: :tb)
+    )
   )
-)
-Kino.Mermaid.new(
-  Dataflow.to_mermaid(legend,
-    theme: Choreo.Dataflow.theme(:default)
+
+mermaid =
+  Kino.Mermaid.new(
+    Dataflow.to_mermaid(legend,
+      theme: Choreo.Dataflow.theme(:default)
+    )
   )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
 )
 ```
 
@@ -82,8 +92,10 @@ etl =
   |> Dataflow.connect(:kafka, :enricher, data_type: "event")
   |> Dataflow.connect(:enricher, :timescaledb, data_type: "enriched row")
 
-Kino.VizJS.render(Dataflow.to_dot(etl))
-Kino.Mermaid.new(Dataflow.to_mermaid(etl))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(etl)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(etl, rankdir: :tb), height: "500px")
+)
 ```
 
 ### Basic Analysis
@@ -121,8 +133,10 @@ iot =
   |> Dataflow.connect(:rabbitmq, :aggregator)
   |> Dataflow.connect(:aggregator, :influxdb)
 
-Kino.VizJS.render(Dataflow.to_dot(iot))
-Kino.Mermaid.new(Dataflow.to_mermaid(iot))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(iot)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(iot), height: "500px")
+)
 ```
 
 ### Bottleneck Detection
@@ -187,12 +201,9 @@ resilient =
   |> Dataflow.connect(:retry_handler, :dlq, data_type: "failed", path_type: :dead_letter)
   |> Dataflow.connect(:dlq, :alerting, data_type: "alert", path_type: :error)
 
-Kino.VizJS.render(
-  Dataflow.to_dot(resilient, theme: Dataflow.theme(:default, graph_rankdir: :tb)),
-  height: "800px"
-)
-Kino.Mermaid.new(
-  Dataflow.to_mermaid(resilient, theme: Dataflow.theme(:default))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(resilient)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(resilient, rankdir: :tb), height: "500px")
 )
 ```
 
@@ -290,8 +301,16 @@ Kino.VizJS.render(
   height: "800px",
   engine: "twopi"
 )
-Kino.Mermaid.new(
-  Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default))
+
+Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)))
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(microservices)),
+  Graphviz:
+    Kino.VizJS.render(Dataflow.to_dot(microservices, rankdir: :bt),
+      engine: "twopi",
+      height: "1000px"
+    )
 )
 ```
 
@@ -340,8 +359,11 @@ broken =
   # orphan_processor has no inputs
   # never_reached has no inputs
 
-Kino.VizJS.render(Dataflow.to_dot(broken))
-Kino.Mermaid.new(Dataflow.to_mermaid(broken))
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(broken)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(broken, rankdir: :tb), height: "500px")
+)
 ```
 
 ### Diagnosis
@@ -367,8 +389,11 @@ fixed =
 
 IO.inspect(Analysis.orphan_nodes(fixed), label: "Orphans after fix")
 IO.inspect(Analysis.dead_ends(fixed), label: "Dead ends after fix")
-Kino.VizJS.render(Dataflow.to_dot(fixed))
-Kino.Mermaid.new(Dataflow.to_mermaid(fixed))
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(fixed)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(fixed))
+)
 ```
 
 ---
@@ -392,8 +417,14 @@ brand_theme =
     edge_color: "#94a3b8"
   )
 
-Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme), height: "800px", engine: "twopi")
-Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: brand_theme))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: brand_theme)),
+  Graphviz:
+    Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme),
+      height: "800px",
+      engine: "twopi"
+    )
+)
 ```
 
 ---
