@@ -88,9 +88,8 @@ end
 
 Relationships support standard crow's foot multiplicities via the `:cardinality` option:
 
-| Cardinality Identifier | DOT Arrow Style | Mermaid Syntax Shape |
-| ---------------------- | --------------- | -------------------- |
-
+| Cardinality Identifier | DOT Arrow Style         | Mermaid Syntax Shape |
+| ---------------------- | ----------------------- | -------------------- |
 | `:one_to_one`          | `teetee` / `teetee`     | `||--||`             |
 | `:one_to_many`         | `teetee` / `crowodot`   | `||--o{`             |
 | `:zero_or_one_to_many` | `odot` / `crowodot`     | `|o--o{`             |
