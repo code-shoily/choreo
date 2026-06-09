@@ -1,7 +1,5 @@
 # Choreo ThreatModel: Comprehensive Walkthrough
 
-## Section
-
 ```elixir
 # For Hex publication/readers:
 # Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.8.0"}])
@@ -12,6 +10,8 @@ Mix.install([
   {:kino_vizjs, "~> 0.8.0"}
 ])
 ```
+
+## Section
 
 > **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
 
