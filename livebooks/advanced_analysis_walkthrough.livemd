@@ -39,7 +39,7 @@ ecommerce_system =
   |> Choreo.add_service(:payment_gateway, label: "Payment Gateway Integration")
   |> Choreo.add_service(:inventory_service, label: "Inventory Controller")
   |> Choreo.add_service(:shipping_service, label: "Shipping & Fulfillment")
-  
+
   # Connect the graph
   |> Choreo.connect(:customer, :api_gateway)
   |> Choreo.connect(:api_gateway, :auth_service)
@@ -52,19 +52,28 @@ ecommerce_system =
 # Run cut vertex analysis and heat-map the graph
 spof_system = Analysis.heatmap(ecommerce_system, measure: :spof, palette: :heat)
 
-# Render DOT (Graphviz)
-Kino.Layout.grid([
-  Kino.VizJS.render(Choreo.to_dot(spof_system)),
-  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
-], columns: 2)
-```
+graphviz =
+  Kino.Layout.grid(
+    [
+      Kino.VizJS.render(Choreo.to_dot(spof_system)),
+      Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+    ],
+    columns: 2
+  )
 
-```elixir
-# Render Mermaid.js
-Kino.Layout.grid([
-  Kino.Mermaid.new(Choreo.to_mermaid(spof_system)),
-  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-], columns: 2)
+mermaid =
+  Kino.Layout.grid(
+    [
+      Kino.Mermaid.new(Choreo.to_mermaid(spof_system)),
+      Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
+    columns: 2
+  )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ---
@@ -76,7 +85,7 @@ Kino.Layout.grid([
 Let's model a **Billing Consensus & Ledger Cluster** where three database nodes form a highly connected consensus ring, coordinated by a manager, with log shippers at the periphery.
 
 ```elixir
-consensus_mesh = 
+consensus_mesh =
   Choreo.new()
   # Core consensus ring (3-core)
   |> Choreo.add_database(:ledger_db1, label: "Ledger Replica 1")
@@ -86,7 +95,7 @@ consensus_mesh =
   |> Choreo.add_service(:consensus_manager, label: "Consensus Manager")
   # Periphery
   |> Choreo.add_service(:log_shipper, label: "Log Shipper")
-  
+
   # Build the consensus mesh
   |> Choreo.connect(:ledger_db1, :ledger_db2)
   |> Choreo.connect(:ledger_db2, :ledger_db3)
@@ -101,19 +110,28 @@ consensus_mesh =
 # Highlight k-core depth
 core_system = Analysis.heatmap(consensus_mesh, measure: :k_core, palette: :cool)
 
-# Render DOT (Graphviz)
-Kino.Layout.grid([
-  Kino.VizJS.render(Choreo.to_dot(core_system)),
-  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :cool)))
-], columns: 2)
-```
+graphviz =
+  Kino.Layout.grid(
+    [
+      Kino.VizJS.render(Choreo.to_dot(core_system)),
+      Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :cool)))
+    ],
+    columns: 2
+  )
 
-```elixir
-# Render Mermaid.js
-Kino.Layout.grid([
-  Kino.Mermaid.new(Choreo.to_mermaid(core_system)),
-  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
-], columns: 2)
+mermaid =
+  Kino.Layout.grid(
+    [
+      Kino.Mermaid.new(Choreo.to_mermaid(core_system)),
+      Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
+    ],
+    columns: 2
+  )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ---
@@ -149,19 +167,28 @@ kyc_wf =
 # Heatmap by latency
 heat_wf = WorkflowAnalysis.heatmap(kyc_wf, palette: :spectral)
 
-# Render DOT (Graphviz)
-Kino.Layout.grid([
-  Kino.VizJS.render(Workflow.to_dot(heat_wf)),
-  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :spectral)))
-], columns: 2)
-```
+graphviz =
+  Kino.Layout.grid(
+    [
+      Kino.VizJS.render(Choreo.to_dot(heat_wf)),
+      Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :spectral)))
+    ],
+    columns: 2
+  )
 
-```elixir
-# Render Mermaid.js
-Kino.Layout.grid([
-  Kino.Mermaid.new(Workflow.to_mermaid(heat_wf)),
-  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
-], columns: 2)
+mermaid =
+  Kino.Layout.grid(
+    [
+      Kino.Mermaid.new(Choreo.to_mermaid(heat_wf)),
+      Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
+    ],
+    columns: 2
+  )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ---
@@ -195,19 +222,28 @@ telemetry_pipeline =
 # Heatmap showing processing bottlenecks
 heat_df = DataflowAnalysis.heatmap(telemetry_pipeline, palette: :heat)
 
-# Render DOT (Graphviz)
-Kino.Layout.grid([
-  Kino.VizJS.render(Dataflow.to_dot(heat_df)),
-  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
-], columns: 2)
-```
+graphviz =
+  Kino.Layout.grid(
+    [
+      Kino.VizJS.render(Choreo.to_dot(heat_df, rankdir: :tb), height: "600px"),
+      Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+    ],
+    columns: 2
+  )
 
-```elixir
-# Render Mermaid.js
-Kino.Layout.grid([
-  Kino.Mermaid.new(Dataflow.to_mermaid(heat_df)),
-  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-], columns: 2)
+mermaid =
+  Kino.Layout.grid(
+    [
+      Kino.Mermaid.new(Choreo.to_mermaid(heat_df)),
+      Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
+    columns: 2
+  )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ---
@@ -243,19 +279,29 @@ security_model =
 # Heatmap showing high risk concentration
 heat_tm = ThreatAnalysis.heatmap(security_model, palette: :heat)
 
-# Render DOT (Graphviz)
-Kino.Layout.grid([
-  Kino.VizJS.render(ThreatModel.to_dot(heat_tm)),
-  Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
-], columns: 2)
-```
+graphviz =
+  Kino.Layout.grid(
+    [
+      Kino.VizJS.render(Choreo.to_dot(heat_tm)),
+      Kino.VizJS.render(Choreo.to_dot(Analysis.legend(palette: :heat)))
+    ],
+    columns: 2
+  )
 
-```elixir
-# Render Mermaid.js
-Kino.Layout.grid([
-  Kino.Mermaid.new(ThreatModel.to_mermaid(heat_tm)),
-  Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-], columns: 2)
+mermaid =
+  Kino.Layout.grid(
+    [
+      Kino.Mermaid.new(Choreo.to_mermaid(heat_tm)),
+      Kino.Mermaid.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
+    columns: 2
+  )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
+
 ```
 
 ---
@@ -269,34 +315,43 @@ Let's model a **Microservice Deployment Dependency Graph** where circular or red
 ```elixir
 alias Choreo.Dependency
 
-deploy_deps = 
+deploy_deps =
   Dependency.new()
   |> Dependency.add_application(:api_gateway)
   |> Dependency.add_application(:auth_service)
   |> Dependency.add_application(:user_database)
-  
+
   # Declare dependencies
   |> Dependency.depends_on(:api_gateway, :auth_service)
   |> Dependency.depends_on(:auth_service, :user_database)
   # Redundant! The gateway depends on DB transitively via auth_service
-  |> Dependency.depends_on(:api_gateway, :user_database) 
+  |> Dependency.depends_on(:api_gateway, :user_database)
 
 # Run Transitive Reduction
 {:ok, reduced_deps} = Analysis.reduce_transitive(deploy_deps)
 
-# Render DOT (Graphviz) - Before vs After
-Kino.Layout.grid([
-  Kino.VizJS.render(Dependency.to_dot(deploy_deps)),
-  Kino.VizJS.render(Dependency.to_dot(reduced_deps))
-], columns: 2)
-```
+graphviz =
+  Kino.Layout.grid(
+    [
+      Kino.VizJS.render(Dependency.to_dot(deploy_deps)),
+      Kino.VizJS.render(Dependency.to_dot(reduced_deps))
+    ],
+    columns: 2
+  )
 
-```elixir
-# Render Mermaid.js - Before vs After
-Kino.Layout.grid([
-  Kino.Mermaid.new(Dependency.to_mermaid(deploy_deps)),
-  Kino.Mermaid.new(Dependency.to_mermaid(reduced_deps))
-], columns: 2)
+mermaid =
+  Kino.Layout.grid(
+    [
+      Kino.Mermaid.new(Dependency.to_mermaid(deploy_deps)),
+      Kino.Mermaid.new(Dependency.to_mermaid(reduced_deps))
+    ],
+    columns: 2
+  )
+
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ---
@@ -312,7 +367,7 @@ Minimize cumulative latency across tasks (shortest path search).
 ```elixir
 alias Choreo.Workflow
 
-order_flow = 
+order_flow =
   Workflow.new()
   |> Workflow.add_start(:start)
   # Parallel path A (Fast Lane - Automated payment & release)
@@ -321,7 +376,7 @@ order_flow =
   # Parallel path B (Slow Lane - Manual fraud check)
   |> Workflow.add_task(:fraud_review, label: "Fraud Investigation", timeout_ms: 5000)
   |> Workflow.add_end(:done)
-  
+
   # Connect fast path
   |> Workflow.connect(:start, :fast_payment)
   |> Workflow.connect(:fast_payment, :fast_ship)
@@ -333,13 +388,13 @@ order_flow =
 # Find the "Fastest Path" (minimum timeout_ms latency)
 {:ok, fast_path} = Analysis.path(order_flow, :start, :done, measure: :latency)
 
-# Render DOT (Graphviz) with the fast path highlighted in blue
-Kino.VizJS.render(Workflow.to_dot(order_flow, Analysis.highlight(fast_path)))
-```
+graphviz = Kino.VizJS.render(Workflow.to_dot(order_flow, Analysis.highlight(fast_path)))
+mermaid = Kino.Mermaid.new(Workflow.to_mermaid(order_flow, Analysis.highlight(fast_path)))
 
-```elixir
-# Render Mermaid.js with the fast path highlighted
-Kino.Mermaid.new(Workflow.to_mermaid(order_flow, Analysis.highlight(fast_path)))
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ### Widest Path (Dataflow Throughput Capacity)
@@ -367,13 +422,13 @@ route_pipeline =
 # Find the "Widest Path" (maximizing bottleneck throughput)
 {:ok, wide_path} = Analysis.path(route_pipeline, :ingest, :backup_store, measure: :throughput)
 
-# Render DOT (Graphviz) with the optimal routing highlighted
-Kino.VizJS.render(Dataflow.to_dot(route_pipeline, Analysis.highlight(wide_path)))
-```
+graphviz = Kino.VizJS.render(Dataflow.to_dot(route_pipeline, Analysis.highlight(wide_path)))
+mermaid = Kino.Mermaid.new(Dataflow.to_mermaid(route_pipeline, Analysis.highlight(wide_path)))
 
-```elixir
-# Render Mermaid.js with the optimal routing highlighted
-Kino.Mermaid.new(Dataflow.to_mermaid(route_pipeline, Analysis.highlight(wide_path)))
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ### Custom Weighted Paths
@@ -392,13 +447,13 @@ system = Choreo.new()
 # Find the cheapest path using the 'cost' variable
 {:ok, cost_path} = Analysis.path(system, :a, :c, measure: :cost)
 
-# Render DOT (Graphviz) with the cheapest path highlighted in blue
-Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(cost_path)))
-```
+graphviz = Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(cost_path)))
+mermaid = Kino.Mermaid.new(Choreo.to_mermaid(system, Analysis.highlight(cost_path)))
 
-```elixir
-# Render Mermaid.js with the cheapest path highlighted
-Kino.Mermaid.new(Choreo.to_mermaid(system, Analysis.highlight(cost_path)))
+Kino.Layout.tabs(
+  Mermaid: mermaid,
+  Graphviz: graphviz
+)
 ```
 
 ---
@@ -478,13 +533,10 @@ Trace edges are hidden from normal visual outputs by default to keep the diagram
 In DOT, trace edges render with `constraint=false` so the trace lines do not warp or disrupt the layout of the embedded diagrams.
 
 ```elixir
-# Render DOT (Graphviz) with trace edges highlighted in red dashed lines
-Kino.VizJS.render(Choreo.to_dot(composed_system, show_traces: true))
-```
-
-```elixir
-# Render Mermaid.js with trace edges highlighted
-Kino.Mermaid.new(Choreo.to_mermaid(composed_system, show_traces: true))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(composed_system, show_traces: true)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(composed_system, show_traces: true))
+)
 ```
 
 ### Performing Cross-Diagram Impact Analysis
@@ -513,12 +565,10 @@ If the composed system is very large, you can use the `Choreo.View.focus_trace/4
 # Filters the system diagram to show only the trace path
 trace_view = Choreo.View.focus_trace(composed_system, :wf_log_audit_trail, :erd_ledger_entries)
 
-Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
-```
-
-```elixir
-# Render Mermaid of focused trace path
-Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
+)
 ```
 
 ### Nested Semantic Lens Analysis
