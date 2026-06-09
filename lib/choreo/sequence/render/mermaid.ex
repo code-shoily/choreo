@@ -15,12 +15,12 @@ defmodule Choreo.Sequence.Render.Mermaid do
   def to_mermaid(%Sequence{} = seq, _opts \\ []) do
     header = "sequenceDiagram"
 
-    labels = participant_labels(seq)
+    labels = Sequence.participant_labels(seq)
 
     participants =
       seq
       |> Sequence.participants()
-      |> Enum.map(&render_participant(&1, seq.graph))
+      |> Enum.map(&render_participant(&1, labels, seq))
 
     body =
       seq
@@ -32,16 +32,9 @@ defmodule Choreo.Sequence.Render.Mermaid do
     |> String.trim_trailing()
   end
 
-  defp participant_labels(%Sequence{graph: graph}) do
-    Map.new(graph.nodes, fn {id, meta} ->
-      label = meta[:label] || Macro.camelize(Atom.to_string(id))
-      {id, label}
-    end)
-  end
-
-  defp render_participant(id, graph) do
-    meta = Map.get(graph.nodes, id) || %{}
-    label = meta[:label] || Macro.camelize(Atom.to_string(id))
+  defp render_participant(id, labels, seq) do
+    label = labels[id] || Macro.camelize(Atom.to_string(id))
+    meta = Sequence.participant(seq, id) || %{}
     kind = meta[:node_type] || :participant
 
     prefix =
@@ -63,7 +56,7 @@ defmodule Choreo.Sequence.Render.Mermaid do
 
     arrow =
       case meta[:type] do
-        :async -> "-->>"
+        :async -> "-)"
         :return -> "-->>"
         :self -> "->>"
         _ -> "->>"
@@ -94,14 +87,16 @@ defmodule Choreo.Sequence.Render.Mermaid do
           {"over", (labels[a] || to_string(a)) <> ", " <> (labels[b] || to_string(b))}
       end
 
-    "    Note #{position_word} #{target}: #{text}"
+    sanitized = text |> String.replace("\r\n", " ") |> String.replace("\n", " ")
+    "    Note #{position_word} #{target}: #{sanitized}"
   end
 
   defp render_event(
-         %{type: :fragment, action: :start, kind: kind, label: label},
+         %{type: :fragment, action: action, kind: kind, label: label},
          _edge_meta,
          _labels
-       ) do
+       )
+       when action in [:start, :arm] do
     prefix = "    " <> Atom.to_string(kind)
     if label, do: "#{prefix} #{label}", else: prefix
   end

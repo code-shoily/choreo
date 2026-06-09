@@ -132,6 +132,20 @@ defmodule Choreo.SequenceTest do
       assert length(frags) == 3
       assert Enum.map(frags, & &1.kind) == [:alt, :else, nil]
     end
+
+    test "alt/else does not count as unclosed fragment" do
+      seq =
+        Sequence.new()
+        |> Sequence.add_actor(:a)
+        |> Sequence.add_participant(:b)
+        |> Sequence.fragment(:alt, "x > 0")
+        |> Sequence.message(:a, :b, label: "positive")
+        |> Sequence.fragment(:else, "otherwise")
+        |> Sequence.message(:a, :b, label: "negative")
+        |> Sequence.end_fragment()
+
+      assert Analysis.unclosed_fragments(seq) == []
+    end
   end
 
   describe "Mermaid rendering" do
@@ -174,6 +188,27 @@ defmodule Choreo.SequenceTest do
 
       assert out =~ "Note over User: hi"
       assert out =~ "Note over User, Api: shared"
+    end
+
+    test "sanitizes note text with newlines" do
+      out =
+        Sequence.new()
+        |> Sequence.add_actor(:user, label: "User")
+        |> Sequence.note({:over, :user}, "line1\nline2")
+        |> Sequence.to_mermaid()
+
+      assert out =~ "Note over User: line1 line2"
+    end
+
+    test "renders async arrows" do
+      out =
+        Sequence.new()
+        |> Sequence.add_actor(:a)
+        |> Sequence.add_participant(:b)
+        |> Sequence.async(:a, :b, label: "fire")
+        |> Sequence.to_mermaid()
+
+      assert out =~ "A-)B: fire"
     end
 
     test "renders fragments" do
@@ -237,14 +272,33 @@ defmodule Choreo.SequenceTest do
       assert msg =~ "has no label"
     end
 
-    test "finds unknown participants" do
+    test "finds unknown participants in messages" do
       seq =
         Sequence.new()
         |> Sequence.add_actor(:user)
         |> Sequence.message(:user, :api, label: "ping")
 
       assert [{:error, msg}] = Analysis.unknown_participants(seq)
-      assert msg =~ "unknown"
+      assert msg =~ "Receiver at step 0 references unknown participant :api"
+    end
+
+    test "finds unknown participants in notes and activations" do
+      seq =
+        Sequence.new()
+        |> Sequence.add_actor(:user)
+        |> Sequence.note({:over, :ghost}, "hello")
+        |> Sequence.activate(:ghost)
+
+      issues = Analysis.unknown_participants(seq)
+      assert length(issues) == 2
+
+      assert Enum.any?(issues, fn {_, m} ->
+               m =~ "Note at step 0 references unknown participant :ghost"
+             end)
+
+      assert Enum.any?(issues, fn {_, m} ->
+               m =~ "Activation at step 1 references unknown participant :ghost"
+             end)
     end
 
     test "finds unbalanced activations" do

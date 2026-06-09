@@ -16,7 +16,7 @@ defmodule Choreo.Sequence.Render.DOT do
   """
   @spec to_dot(Sequence.t(), keyword()) :: String.t()
   def to_dot(%Sequence{} = seq, _opts \\ []) do
-    labels = participant_labels(seq)
+    labels = Sequence.participant_labels(seq)
     parts = Sequence.participants(seq)
     messages = Sequence.messages(seq)
 
@@ -47,13 +47,6 @@ defmodule Choreo.Sequence.Render.DOT do
     |> String.trim_trailing()
   end
 
-  defp participant_labels(%Sequence{graph: graph}) do
-    Map.new(graph.nodes, fn {id, meta} ->
-      label = meta[:label] || Macro.camelize(Atom.to_string(id))
-      {id, label}
-    end)
-  end
-
   defp render_participant_node(id, labels) do
     label = labels[id] || to_string(id)
     "\"#{id}\" [label=\"#{label}\", style=filled, fillcolor=\"#e8f4f8\"];"
@@ -75,7 +68,7 @@ defmodule Choreo.Sequence.Render.DOT do
 
     incoming =
       if from == to do
-        "#{from_node} -> \"#{step_id}\" [label=\"self\", style=dashed];"
+        ["#{from_node} -> \"#{step_id}\" [label=\"self\", style=dashed];"]
       else
         style = if type in [:async, :return], do: "dashed", else: "solid"
 
@@ -85,7 +78,7 @@ defmodule Choreo.Sequence.Render.DOT do
         ]
       end
 
-    List.wrap(step_node) ++ List.wrap(incoming)
+    [step_node | incoming]
   end
 
   defp render_activations(%Sequence{events: events}, labels) do

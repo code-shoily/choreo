@@ -45,7 +45,7 @@ defmodule Choreo.Sequence do
   @type message_type :: :sync | :async | :return | :self
   @type note_position ::
           {:over, atom()} | {:left, atom()} | {:right, atom()} | {:between, atom(), atom()}
-  @type fragment_kind :: :loop | :opt | :alt | :else | :par | :break | :critical
+  @type fragment_kind :: :loop | :opt | :alt | :else | :and | :par | :break | :critical
 
   @doc """
   Creates a new empty sequence diagram.
@@ -85,6 +85,7 @@ defmodule Choreo.Sequence do
     add_participant(seq, id, :participant, opts)
   end
 
+  # Re-adding an existing id silently replaces its metadata.
   defp add_participant(%Sequence{graph: g, participants: ps} = seq, id, type, opts) do
     label = opts[:label] || Macro.camelize(Atom.to_string(id))
     meta = %{node_type: type, label: label, description: opts[:description]}
@@ -112,13 +113,7 @@ defmodule Choreo.Sequence do
       when is_atom(from) and is_atom(to) do
     type = if from == to, do: :self, else: opts[:type] || :sync
 
-    {g, eid} =
-      if from == to do
-        {seq.graph, {:self, seq.next_order}}
-      else
-        {g, eid} = Yog.Multi.add_edge(seq.graph, from, to, 1)
-        {g, eid}
-      end
+    {g, eid} = Yog.Multi.add_edge(seq.graph, from, to, 1)
 
     meta = %{
       order: seq.next_order,
@@ -233,13 +228,15 @@ defmodule Choreo.Sequence do
   """
   @spec fragment(t(), fragment_kind(), String.t() | nil) :: t()
   def fragment(%Sequence{} = seq, kind, label \\ nil)
-      when kind in [:loop, :opt, :alt, :else, :par, :break, :critical] do
+      when kind in [:loop, :opt, :alt, :else, :and, :par, :break, :critical] do
+    action = if kind in [:else, :and], do: :arm, else: :start
+
     append_event(seq, %{
       type: :fragment,
       order: seq.next_order,
       kind: kind,
       label: label,
-      action: :start
+      action: action
     })
   end
 
@@ -275,6 +272,17 @@ defmodule Choreo.Sequence do
   @spec participant(t(), atom()) :: map() | nil
   def participant(%Sequence{graph: g}, id) do
     Map.get(g.nodes, id)
+  end
+
+  @doc """
+  Returns a map of participant IDs to display labels.
+  """
+  @spec participant_labels(t()) :: %{atom() => String.t()}
+  def participant_labels(%Sequence{graph: g}) do
+    Map.new(g.nodes, fn {id, meta} ->
+      label = meta[:label] || Macro.camelize(Atom.to_string(id))
+      {id, label}
+    end)
   end
 
   @doc """

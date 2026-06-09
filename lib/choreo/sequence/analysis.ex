@@ -61,22 +61,46 @@ defmodule Choreo.Sequence.Analysis do
   end
 
   @doc """
-  Returns messages that reference unknown participants.
+  Returns events that reference unknown participants.
   """
   @spec unknown_participants(Sequence.t()) :: [{:error, String.t()}]
   def unknown_participants(%Sequence{} = seq) do
     known = MapSet.new(Sequence.participants(seq))
 
     seq
-    |> Sequence.messages()
-    |> Enum.flat_map(fn msg ->
-      issues =
-        []
-        |> maybe_add_unknown(msg[:from], known)
-        |> maybe_add_unknown(msg[:to], known)
+    |> Sequence.events()
+    |> Enum.flat_map(fn ev ->
+      refs =
+        case ev.type do
+          :message ->
+            meta = Map.get(seq.edge_meta, ev.edge_id, %{})
+            [{meta[:from], "sender"}, {meta[:to], "receiver"}]
 
-      Enum.map(issues, fn {pid, dir} ->
-        {:error, "Message #{msg.order} references unknown #{dir} participant :#{pid}"}
+          :activation ->
+            [{ev.participant, "activation"}]
+
+          :note ->
+            ev.position
+            |> note_participants()
+            |> Enum.map(&{&1, "note"})
+
+          _ ->
+            []
+        end
+
+      Enum.flat_map(refs, fn
+        {nil, _} ->
+          []
+
+        {id, role} ->
+          if MapSet.member?(known, id) do
+            []
+          else
+            [
+              {:error,
+               "#{String.capitalize(role)} at step #{ev.order} references unknown participant :#{id}"}
+            ]
+          end
       end)
     end)
   end
@@ -116,51 +140,36 @@ defmodule Choreo.Sequence.Analysis do
   """
   @spec unclosed_fragments(Sequence.t()) :: [{:error, String.t()}]
   def unclosed_fragments(%Sequence{events: events}) do
-    events
-    |> Enum.filter(&(&1.type == :fragment))
-    |> Enum.reduce({[], 0}, fn ev, {issues, depth} ->
-      case ev.action do
-        :start ->
-          {issues, depth + 1}
+    {issues, depth} =
+      events
+      |> Enum.reverse()
+      |> Enum.filter(&(&1.type == :fragment))
+      |> Enum.reduce({[], 0}, fn ev, {issues, depth} ->
+        case ev.action do
+          :start ->
+            {issues, depth + 1}
 
-        :end ->
-          if depth > 0 do
-            {issues, depth - 1}
-          else
-            {[{:error, "Unexpected end of fragment at step #{ev.order}"} | issues], 0}
-          end
-      end
-    end)
-    |> elem(0)
-    |> then(fn issues ->
-      # We counted depth overall; if > 0 there are unclosed fragments.
-      # We don't know which specific ones without preserving the stack,
-      # so we emit a generic issue.
-      {_, depth} =
-        events
-        |> Enum.filter(&(&1.type == :fragment))
-        |> Enum.reduce({[], 0}, fn ev, {issues, depth} ->
-          case ev.action do
-            :start -> {issues, depth + 1}
-            :end -> if depth > 0, do: {issues, depth - 1}, else: {[ev | issues], 0}
-          end
-        end)
+          :arm ->
+            {issues, depth}
 
-      if depth > 0 do
-        [{:error, "#{depth} fragment(s) left unclosed"} | issues]
-      else
-        issues
-      end
-    end)
-  end
+          :end ->
+            if depth > 0 do
+              {issues, depth - 1}
+            else
+              {[{:error, "Unexpected end of fragment at step #{ev.order}"} | issues], 0}
+            end
+        end
+      end)
 
-  defp maybe_add_unknown(list, id, known) do
-    if MapSet.member?(known, id) do
-      list
+    if depth > 0 do
+      [{:error, "#{depth} fragment(s) left unclosed"} | issues]
     else
-      [{id, direction(id)} | list]
+      issues
     end
   end
 
-  defp direction(_), do: "to/from"
+  defp note_participants({:over, id}), do: [id]
+  defp note_participants({:left, id}), do: [id]
+  defp note_participants({:right, id}), do: [id]
+  defp note_participants({:between, a, b}), do: [a, b]
 end
