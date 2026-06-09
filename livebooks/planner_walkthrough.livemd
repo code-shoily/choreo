@@ -59,11 +59,10 @@ legend =
   |> Planner.assign(:t1, :u1)
   |> Planner.tag(:t1, :l1)
 
-Kino.VizJS.render(Planner.to_dot(legend))
-```
-
-```elixir
-Kino.Mermaid.new(Planner.to_mermaid(legend, syntax: :flowchart))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(legend, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(legend))
+)
 ```
 
 ---
@@ -125,11 +124,10 @@ Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-
 See the task network as a flowchart with color-coded status.
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :flowchart))
-```
-
-```elixir
-Kino.VizJS.render(Planner.to_dot(sprint))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint), height: "600px")
+)
 ```
 
 ---
@@ -190,11 +188,10 @@ release =
 ### Full Dependency Graph
 
 ```elixir
-Kino.VizJS.render(Planner.to_dot(release), height: "700px")
-```
-
-```elixir
-Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :flowchart, direction: :lr))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release), height: "600px")
+)
 ```
 
 ### Per-Milestone Kanban
@@ -366,16 +363,9 @@ All built-in themes work across every render target.
 
 ```elixir
 for theme <- [:default, :dark, :warm, :forest, :ocean] do
-  _dot = Planner.to_dot(sprint, theme: theme)
-  IO.puts("Theme: #{theme}")
-  # In a real notebook you'd render each one
+  {Atom.to_string(theme) |> String.capitalize(), Kino.VizJS.render(Planner.to_dot(sprint, theme: theme), height: "700px")}
 end
-
-:ok
-```
-
-```elixir
-Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :flowchart, theme: :dark))
+|> Kino.Layout.tabs()
 ```
 
 ---
