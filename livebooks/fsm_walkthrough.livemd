@@ -89,10 +89,11 @@ order_flow =
   |> FSM.add_transition(:fraud_check, :order_shipped, label: "passed")
   |> FSM.add_transition(:payment_pending, :cancelled, label: "declined")
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(order_flow)),
-  "Graphviz": Kino.VizJS.render(FSM.to_dot(order_flow))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(FSM.to_mermaid(order_flow)),
+  "Mermaid (State Diagram)": Kino.Mermaid.new(FSM.to_mermaid(order_flow, syntax: :state_diagram)),
+  Graphviz: Kino.VizJS.render(FSM.to_dot(order_flow))
+)
 ```
 
 ## Determinism
@@ -186,6 +187,8 @@ IO.inspect(Analysis.complete?(order_flow), label: "Complete?")
 
 `validate/1` returns a list of structural warnings/errors found in the FSM (such as unreachable states, trap/dead states, or incompleteness).
 
+Note that `state_diagram` syntax does not show orphan states.
+
 ```elixir
 incomplete_fsm =
   FSM.new()
@@ -201,10 +204,12 @@ Analysis.validate(incomplete_fsm)
   IO.puts("[#{severity}] #{msg}")
 end)
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(incomplete_fsm)),
-  "Graphviz": Kino.VizJS.render(FSM.to_dot(incomplete_fsm))
-])
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(FSM.to_mermaid(incomplete_fsm)),
+  "Mermaid (State Diagram)":
+    Kino.Mermaid.new(FSM.to_mermaid(incomplete_fsm, syntax: :state_diagram)),
+  Graphviz: Kino.VizJS.render(FSM.to_dot(incomplete_fsm))
+)
 ```
 
 ## Transforms
