@@ -51,7 +51,9 @@ Common use cases:
 ```elixir
 alias Choreo.Workflow
 alias Choreo.Workflow.Analysis
+```
 
+```elixir
 legend =
   Workflow.new()
   |> Workflow.add_start(:start)
@@ -63,13 +65,10 @@ legend =
   |> Workflow.add_compensation(:compensation, for: :task)
   |> Workflow.add_event(:event)
 
-Kino.VizJS.render(Workflow.to_dot(legend))
-```
-
-### Mermaid Rendering
-
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(legend))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(legend))
+)
 ```
 
 ---
@@ -124,11 +123,11 @@ order_saga =
   |> Workflow.connect(:sufficient_stock, :release_inventory, condition: "no", edge_type: :compensation)
   |> Workflow.connect(:refund_payment, :done, edge_type: :compensation)
 
-Kino.VizJS.render(Workflow.to_dot(order_saga), height: "800px")
-```
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(order_saga)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(order_saga), height: "800px")
+)
 
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(order_saga))
 ```
 
 ### Critical Path Analysis
@@ -224,11 +223,10 @@ parallel_order =
   |> Workflow.connect(:join_fulfillment, :ship_order)
   |> Workflow.connect(:ship_order, :done)
 
-Kino.VizJS.render(Workflow.to_dot(parallel_order), height: "900px")
-```
-
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(parallel_order))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(parallel_order)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(parallel_order), height: "900px")
+)
 ```
 
 ### Critical Path (Parallel)
@@ -319,11 +317,10 @@ cicd =
   |> Workflow.connect(:deploy_production, :run_smoke_tests)
   |> Workflow.connect(:run_smoke_tests, :live)
 
-Kino.VizJS.render(Workflow.to_dot(cicd, theme: :dark), height: "800px")
-```
-
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(cicd, theme: :dark))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(cicd)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(cicd), height: "900px")
+)
 ```
 
 ### Bottleneck Detection
@@ -397,11 +394,10 @@ approval =
   |> Workflow.connect(:manager_review, :auto_escalate, edge_type: :timeout)
   |> Workflow.connect(:auto_escalate, :escalated)
 
-Kino.VizJS.render(Workflow.to_dot(approval), height: "800px")
-```
-
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(approval))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(approval)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(approval), height: "900px")
+)
 ```
 
 ### Failure Scenarios
@@ -442,11 +438,10 @@ broken =
   # dead_end has no outputs
   # rollback has no incoming edge
 
-Kino.VizJS.render(Workflow.to_dot(broken))
-```
-
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(broken))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(broken)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(broken), height: "900px")
+)
 ```
 
 ### Diagnosis
@@ -484,18 +479,16 @@ fixed =
 
 IO.puts("After fix:")
 Analysis.validate(fixed) |> IO.inspect()
-Kino.VizJS.render(Workflow.to_dot(fixed), height: "600px")
-```
 
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(fixed))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(fixed)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(fixed), height: "600px")
+)
 ```
 
 ---
 
 ## Advanced: Custom Theming
-
-<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 brand_theme =
@@ -513,13 +506,10 @@ brand_theme =
   )
 
 
-  Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme), height: "800px")
-```
-
-### Mermaid Version
-
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(parallel_order, theme: brand_theme))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(parallel_order, theme: brand_theme)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme), height: "900px")
+)
 ```
 
 ---
@@ -539,11 +529,11 @@ multi_flow =
   |> Workflow.connect(:process, :done, label: "Event", weight: 200)
 
 IO.puts("Number of edges: #{length(Workflow.edges(multi_flow))}")
-Kino.VizJS.render(Workflow.to_dot(multi_flow))
-```
 
-```elixir
-Kino.Mermaid.new(Workflow.to_mermaid(multi_flow))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(multi_flow)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(multi_flow))
+)
 ```
 
 ---
