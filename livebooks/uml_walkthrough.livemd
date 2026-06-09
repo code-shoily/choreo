@@ -58,7 +58,7 @@ uml =
 
 tabs = [
   {"Mermaid (Class Diagram)", Kino.Mermaid.new(UML.to_mermaid(uml, syntax: :class_diagram))},
-  {"Graphviz", Kino.VizJS.render(UML.to_dot(uml))}
+  {"Graphviz", Kino.VizJS.render(UML.to_dot(uml), height: "500px")}
 ]
 
 Kino.Layout.tabs(tabs)
@@ -93,14 +93,12 @@ end
 
 Relationships between software blocks map exactly to standard UML connectors:
 
-| Relationship Type | Arrow Style | Connector Style | Intended Semantics |
-| ----------------- | ----------- | --------------- | ------------------ |
-
-| `:inherits` | Hollow | Solid (`--  | >`) | Class inheritance or adopting a behavior. |
-| `:realizes` | Hollow | Dashed (`.. | >`) | Adopting/implementing an Elixir protocol. |
-
-| `:associates` | Solid | Solid (`-->`)  | Composition (e.g. struct nesting/embedding).        |
-| `:depends`    | Open  | Dashed (`..>`) | Run-time dependency or function calling invocation. |
+| Relationship Type | Arrow Style | Connector Style | Intended Semantics                                  |
+| ----------------- | ----------- | --------------- | --------------------------------------------------- |
+| `:inherits`       | Hollow      | Solid (`--|>`)  | Class inheritance or adopting a behavior.           |
+| `:realizes`       | Hollow      | Dashed (`..|>`) | Adopting/implementing an Elixir protocol.           |
+| `:associates`     | Solid       | Solid (`-->`)   | Composition (e.g. struct nesting/embedding).        |
+| `:depends`        | Open        | Dashed (`..>`)  | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance
@@ -160,10 +158,12 @@ All built-in presentation palettes are fully optimized to auto-skin each compone
 
 ```elixir
 # Let's inspect the Ocean theme on our UML architecture
+height = "600px"
+
 tabs = [
-  {"Default", Kino.VizJS.render(UML.to_dot(uml))},
-  {"Ocean", Kino.VizJS.render(UML.to_dot(uml, theme: :ocean))},
-  {"Dark", Kino.VizJS.render(UML.to_dot(uml, theme: :dark))}
+  {"Default", Kino.VizJS.render(UML.to_dot(uml), height: height)},
+  {"Ocean", Kino.VizJS.render(UML.to_dot(uml, theme: :ocean), height: height)},
+  {"Dark", Kino.VizJS.render(UML.to_dot(uml, theme: :dark), height: height)}
 ]
 
 Kino.Layout.tabs(tabs)
