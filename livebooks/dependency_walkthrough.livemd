@@ -158,7 +158,10 @@ layers =
   # VIOLATION: API layer talks directly to another API module
   |> Dependency.depends_on(:web_socket, :api_controller, type: :calls)
 
-Kino.VizJS.render(Dependency.to_dot(layers), height: "500px")
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(layers)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(layers), height: "500px")
+)
 ```
 
 ### Layer Enforcement
@@ -177,8 +180,8 @@ layer_map = %{
 }
 
 Analysis.layer_violations(layers, layer_map)
-|> Enum.each(fn {from, to, desc} ->
-  IO.puts("❌ #{desc}")
+|> Enum.each(fn {_from, _to, desc} ->
+  IO.puts("❌  #{desc}")
 end)
 ```
 
@@ -221,7 +224,10 @@ messy =
   |> Dependency.depends_on(:order, :shipping, type: :calls)
   |> Dependency.depends_on(:order, :notification, type: :calls)
 
-Kino.VizJS.render(Dependency.to_dot(messy))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(messy)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(messy), height: "500px")
+)
 ```
 
 ### Finding Cycles
@@ -292,7 +298,10 @@ metrics =
   |> Dependency.depends_on(:orders, :logger, type: :uses)
   |> Dependency.depends_on(:orders, :config, type: :uses)
 
-Kino.VizJS.render(Dependency.to_dot(metrics))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(metrics)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(metrics), height: "500px")
+)
 ```
 
 ### Instability Scores
@@ -348,7 +357,10 @@ deep =
   |> Dependency.depends_on(:db_client, :connection_pool, type: :uses)
   |> Dependency.depends_on(:connection_pool, :tcp_stack, type: :uses)
 
-Kino.VizJS.render(Dependency.to_dot(deep, theme: Dependency.theme(:default, graph_rankdir: :lr)))
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(deep)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(deep), height: "800px")
+)
 ```
 
 ### Longest Chain
@@ -382,7 +394,11 @@ broken =
   # Circular: pdf_exporter calls back up to report_generator
   |> Dependency.depends_on(:pdf_exporter, :report_generator, type: :calls)
 
-Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo")
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(broken)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo")
+)
+
 ```
 
 ### Diagnosis
@@ -414,7 +430,11 @@ fixed =
 
 IO.puts("After applying DIP:")
 Analysis.validate(fixed) |> IO.inspect()
-Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px")
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(fixed)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px")
+)
 ```
 
 ---
@@ -438,7 +458,11 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "600px")
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(microservices, theme: brand_theme)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "500px")
+)
+
 ```
 
 ---
@@ -456,7 +480,11 @@ parallel_deps =
   |> Dependency.depends_on(:api, :auth, type: :dev)
 
 IO.puts("Number of dependencies: #{length(Dependency.edges(parallel_deps))}")
-Kino.VizJS.render(Dependency.to_dot(parallel_deps))
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(parallel_deps)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(parallel_deps))
+)
 ```
 
 ---
@@ -494,22 +522,23 @@ system =
 Compare all zoom levels side-by-side:
 
 ```elixir
-for level <- 0..4 do
-  view = View.zoom(system, level: level)
-
-  label =
-    case level do
-      0 -> "Level 0 — System Context"
-      1 -> "Level 1 — Containers"
-      2 -> "Level 2 — Components"
-      3 -> "Level 3 — Interfaces"
-      _ -> "Level 4+ — Everything"
-    end
-
-  IO.puts("\n#{label}")
-  IO.inspect(Dependency.nodes(view))
-  Kino.VizJS.render(Dependency.to_dot(view), height: "200px")
+label = fn level ->
+  case level do
+    0 -> "0. Context"
+    1 -> "1. Containers"
+    2 -> "2. Components"
+    3 -> "3. Interfaces"
+    _ -> "4. Everything"
+  end
 end
+
+zoomed_diagrams =
+  for level <- 0..4 do
+    view = View.zoom(system, level: level)
+    {label.(level), Kino.VizJS.render(Dependency.to_dot(view), height: "400px")}
+  end
+
+Kino.Layout.tabs(zoomed_diagrams)
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
