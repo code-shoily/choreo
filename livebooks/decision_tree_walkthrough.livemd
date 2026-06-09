@@ -357,24 +357,27 @@ redundant =
   |> DecisionTree.branch(:size_green, :stop_3, "small")
   |> DecisionTree.branch(:size_green, :stop_4, "large")
 
-IO.puts("Before pruning:")
+before_pruning =
+  Kino.Layout.tabs(
+    Mermaid: Kino.Mermaid.new(DecisionTree.to_mermaid(redundant)),
+    Graphviz: Kino.VizJS.render(DecisionTree.to_dot(redundant))
+  )
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(redundant)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(redundant))
-])
-```
-
-```elixir
 pruned = Analysis.prune_redundant(redundant)
 
-IO.puts("After pruning:")
-IO.puts("Depth: #{Analysis.depth(pruned)} (was #{Analysis.depth(redundant)})")
+after_pruning =
+  Kino.Layout.tabs(
+    Mermaid: Kino.Mermaid.new(DecisionTree.to_mermaid(pruned)),
+    Graphviz: Kino.VizJS.render(DecisionTree.to_dot(pruned))
+  )
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(pruned)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(pruned))
-])
+Kino.Layout.grid(
+  [
+    Kino.HTML.new("<h4>Before Pruning</h4>"),
+    before_pruning, 
+    Kino.HTML.new("<h4>After Pruning</h4>"),
+    after_pruning]
+)
 ```
 
 The `:color` and `:size` decisions were both redundant because every path ended at `Stop`. After pruning, the tree collapses to a single outcome node — the simplest possible representation.
@@ -511,40 +514,24 @@ zoom_tree =
 
 # Zoom out to Level 0 (Root only)
 root_only = View.zoom(zoom_tree, level: 0)
+level_0 = Kino.Mermaid.new(DecisionTree.to_mermaid(root_only))
 
-IO.puts("Zoom Level 0 (Root Only)")
-
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(root_only)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(root_only), height: "200px")
-])
-```
-
-```elixir
-# Zoom out to Level 1 (Decisions only)
 decision_view = View.zoom(zoom_tree, level: 1)
+level_1 = Kino.Mermaid.new(DecisionTree.to_mermaid(decision_view))
 
-IO.puts("Zoom Level 1 (Decisions Only)")
+full_view = View.zoom(zoom_tree, level: 2)
+level_2 = Kino.Mermaid.new(DecisionTree.to_mermaid(full_view))
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(decision_view)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(decision_view), height: "200px")
-])
+Kino.Layout.tabs(
+  "Zoom Level 0": level_0,
+  "Zoom Level 1": level_1,
+  "Full View": level_2
+)
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
 
-```elixir
-# Zoom in to Level 2 (Everything)
-full_view = View.zoom(zoom_tree, level: 2)
-
-IO.puts("Zoom Level 2 (Full Tree)")
-
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(full_view)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(full_view), height: "400px")
-])
-```
+<!-- livebook:{"break_markdown":true} -->
 
 ---
 
