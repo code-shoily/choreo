@@ -134,6 +134,17 @@
 
     .nav-links { display: flex; gap: 1.25rem; align-items: center; }
 
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--primary);
+      padding: 0.35rem 0.6rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+
     .nav-link {
       color: var(--text-2);
       text-decoration: none;
@@ -222,6 +233,7 @@
     .hero-actions {
       display: flex;
       justify-content: center;
+      flex-wrap: wrap;
       gap: 0.75rem;
       margin-bottom: 3.5rem;
     }
@@ -528,7 +540,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      overflow: hidden;
+      overflow-x: auto;
     }
 
     .analysis-table {
@@ -645,10 +657,16 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
       padding: 1.5rem 1.75rem;
       margin-top: 1.5rem;
       gap: 1rem;
       position: relative;
+    }
+
+    .install-code {
+      overflow-x: auto;
+      max-width: 100%;
     }
 
     /* Blueprint corner marks on install box */
@@ -700,12 +718,66 @@
       letter-spacing: 0.04em;
     }
 
+    /* Feature grids (embed, filter, zoom, tracing) */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .feature-grid--asymmetric {
+      grid-template-columns: 1.15fr 0.85fr;
+    }
+
     /* ── Responsive ───────────────────────────── */
     @media (max-width: 860px) {
       .teaser-content { grid-template-columns: 1fr; }
       .teaser-code { border-right: none; border-bottom: 1px solid var(--border); }
       .hero-title { font-size: 2.25rem; }
       .hero::after { display: none; }
+
+      .nav-container { position: relative; }
+      .nav-toggle { display: block; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: calc(100% + 0.75rem);
+        right: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        background: rgba(12, 26, 46, 0.98);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 0.75rem 1rem;
+        min-width: 180px;
+        gap: 0.5rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      }
+      .nav-links.open { display: flex; }
+      .nav-link { padding: 0.4rem 0; width: 100%; }
+      .btn-github { width: 100%; justify-content: center; margin-top: 0.25rem; }
+
+      .feature-grid,
+      .feature-grid--asymmetric { grid-template-columns: 1fr; }
+
+      .install-box { flex-direction: column; align-items: stretch; }
+      .install-code { white-space: pre-wrap; word-break: break-word; }
+
+      .showcase-code-block { height: 260px !important; }
+      .showcase-diagram-block { height: 320px !important; }
+
+      .section { padding: 3rem 0; }
+      .section-title { font-size: 1.6rem; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-title { font-size: 1.75rem; }
+      .hero-subtitle { font-size: 0.95rem; }
+      .container { padding: 0 1rem; }
+      .showcase-tabs { gap: 0.35rem; padding: 0.25rem; }
+      .tab-btn { padding: 0.35rem 0.6rem; font-size: 0.7rem; }
+      .showcase-code-block { height: 220px !important; }
+      .showcase-diagram-block { height: 260px !important; }
     }
 </style>
 </head>
@@ -718,7 +790,8 @@
         <div class="logo-icon">C</div>
         <span class="logo-text">Choreo</span>
       </div>
-      <div class="nav-links">
+      <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle menu">☰</button>
+      <div class="nav-links" id="nav-links">
         <a href="#showcase" class="nav-link">Showcase</a>
         <a href="#embed" class="nav-link">Embed</a>
         <a href="#tracing" class="nav-link">Tracing</a>
@@ -1232,7 +1305,7 @@ DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
         <p class="section-subtitle">Nest any Choreo diagram — Dataflow, Workflow, C4, ERD — as a labelled cluster inside a parent system. Nodes are prefixed to avoid ID collisions; edges carry their original metadata.</p>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+      <div class="feature-grid">
         <!-- Step 1 -->
         <div class="showcase-panel">
           <div class="showcase-panel-header">
@@ -1304,7 +1377,7 @@ Choreo.to_mermaid(platform)</code></pre>
         <p class="section-subtitle">Declare semantic links between nodes in different diagram schemas. <code style="color:var(--primary)">Choreo.trace/4</code> records a typed relationship (<code style="color:var(--primary)">:reads</code>, <code style="color:var(--primary)">:writes</code>, <code style="color:var(--primary)">:triggers</code>, …) that <code style="color:var(--primary)">Choreo.Analysis.Tracing</code> can walk transitively to answer &ldquo;if this table changes, what workflows break?&rdquo;</p>
       </div>
 
-      <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:1.5rem;align-items:start">
+      <div class="feature-grid feature-grid--asymmetric">
         <!-- Code example -->
         <div class="showcase-panel">
           <div class="showcase-panel-header">
@@ -1405,7 +1478,7 @@ Choreo.to_dot(platform, show_traces: true)</code></pre>
         <p class="section-subtitle"><code style="color:var(--primary)">Choreo.View.filter/2</code> keeps only nodes that match a predicate. Use it to remove internals for stakeholder decks, or isolate specific node types across any diagram module.</p>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+      <div class="feature-grid">
         <!-- Code -->
         <div class="showcase-panel">
           <div class="showcase-panel-header">
@@ -1461,7 +1534,7 @@ MindMap.to_dot(clean)</code></pre>
         <p class="section-subtitle"><code style="color:var(--primary)">Choreo.View.zoom/2</code> filters diagrams by module-defined zoom levels. Each type defines what level 0, 1, 2 … means — so zooming is semantic, not just geometric.</p>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+      <div class="feature-grid">
         <!-- Code -->
         <div class="showcase-panel">
           <div class="showcase-panel-header">
@@ -2108,6 +2181,17 @@ elixir((Elixir))
       if (container) container.classList.add('active');
       renderDiagram(tabId);
     }
+
+    function toggleNav() {
+      document.getElementById('nav-links').classList.toggle('open');
+    }
+
+    // Close mobile nav when a link is clicked
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        document.getElementById('nav-links').classList.remove('open');
+      });
+    });
 
     function copyInstall() {
       const text = document.getElementById('install-code').textContent;
