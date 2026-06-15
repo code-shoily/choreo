@@ -241,6 +241,8 @@ To view components, we zoom to `level: 2`. We set the active scope to the contai
 
 Choreo expands `:api` to show all of its internal components (`:signin_controller`, `:auth_service`, etc.) inside a dashed container boundary, while keeping other containers (`:web_app`, `:db`) collapsed at the container level!
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 # Render DOT (Graphviz)
 component_view =

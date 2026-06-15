@@ -328,6 +328,8 @@ end)
 
 A data pipeline has a natural execution order: ingest → clean → transform → store → serve. Topological sort gives you that order.
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 pipeline =
   Choreo.new()
@@ -506,7 +508,7 @@ brand_theme =
 
 Kino.Layout.tabs(
   Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(multi_region, theme: brand_theme)),
-  Graphviz: Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme))
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(multi_region, theme: brand_theme), height: "600px")
 )
 ```
 
