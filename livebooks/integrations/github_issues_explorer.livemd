@@ -1,0 +1,569 @@
+# GitHub Issues → Choreo Planner & Mind Map
+
+```elixir
+Mix.install([
+  {:choreo, "~> 0.9.0"},
+  {:kino_vizjs, "~> 0.9.0"},
+  {:req, "~> 0.5"}
+])
+```
+
+## Introduction
+
+This notebook fetches issues from any **public GitHub repository** and builds two complementary Choreo diagrams:
+
+1. **`Choreo.Planner`** — a project plan with milestones, tasks, labels, assignees, and dependency edges. Renders as a Kanban board, Gantt chart, or dependency flowchart. Includes analysis: ready work, blocked tasks, critical path, and bottlenecks.
+
+2. **`Choreo.MindMap`** — a radial concept map of the issue landscape. The repo is the root; labels are topics; issues are subtopics grouped under their labels. Great for getting a "lay of the land" overview.
+
+### No API Key Required
+
+The GitHub REST API allows **60 unauthenticated requests/hour** per IP for public repos. For private repos or higher rate limits, provide a [Personal Access Token](https://github.com/settings/tokens).
+
+## Configuration
+
+```elixir
+repo_input = Kino.Input.text("GitHub repo (owner/repo)", default: "elixir-lang/elixir")
+state_input = Kino.Input.select("Issue state", [{"Open", "open"}, {"Closed", "closed"}, {"All", "all"}], default: "open")
+limit_input = Kino.Input.number("Max issues to fetch", default: 100)
+token_input = Kino.Input.password("GitHub token (optional, for private repos)")
+
+Kino.Layout.grid([repo_input, state_input, limit_input, token_input], columns: 2)
+```
+
+## The GitHub Fetcher
+
+```elixir
+defmodule GitHubFetcher do
+  @moduledoc """
+  Fetches issues and milestones from the GitHub REST API.
+
+  Paginates automatically up to a configured limit. Filters out
+  pull requests (which the GitHub issues API includes by default).
+  """
+
+  @github_api "https://api.github.com"
+
+  @doc """
+  Fetches issues for the given `owner/repo`.
+
+  Returns `{:ok, %{issues: [...], milestones: [...], labels: [...]}}`.
+  """
+  def fetch(repo, opts \\ []) do
+    state = Keyword.get(opts, :state, "open")
+    limit = Keyword.get(opts, :limit, 100)
+    token = Keyword.get(opts, :token, nil)
+    headers = build_headers(token)
+
+    with {:ok, issues} <- fetch_issues(repo, state, limit, headers),
+         {:ok, milestones} <- fetch_milestones(repo, headers) do
+      labels =
+        issues
+        |> Enum.flat_map(& &1.labels)
+        |> Enum.uniq_by(& &1.name)
+        |> Enum.sort_by(& &1.name)
+
+      {:ok, %{issues: issues, milestones: milestones, labels: labels}}
+    end
+  end
+
+  defp build_headers(nil), do: [{"accept", "application/vnd.github+json"}]
+  defp build_headers(""), do: build_headers(nil)
+  defp build_headers(token), do: [{"accept", "application/vnd.github+json"}, {"authorization", "Bearer #{token}"}]
+
+  defp fetch_issues(repo, state, limit, headers) do
+    do_paginate("#{@github_api}/repos/#{repo}/issues", [state: state], limit, headers, [])
+  end
+
+  defp fetch_milestones(repo, headers) do
+    url = "#{@github_api}/repos/#{repo}/milestones"
+
+    case Req.get(url, headers: headers, params: [state: "all", per_page: 100]) do
+      {:ok, %{status: 200, body: body}} ->
+        milestones =
+          body
+          |> Enum.map(fn m ->
+            %{
+              number: m["number"],
+              title: m["title"],
+              state: m["state"],
+              open_issues: m["open_issues"],
+              closed_issues: m["closed_issues"],
+              due_on: m["due_on"]
+            }
+          end)
+
+        {:ok, milestones}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, "Milestones HTTP #{status}: #{inspect(body["message"])}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp do_paginate(_url, _params, limit, _headers, acc) when length(acc) >= limit do
+    {:ok, Enum.take(acc, limit)}
+  end
+
+  defp do_paginate(url, params, limit, headers, acc) do
+    per_page = min(limit - length(acc), 100)
+
+    page = div(length(acc), per_page) + 1
+
+    case Req.get(url, headers: headers, params: [{:per_page, per_page}, {:page, page} | params]) do
+      {:ok, %{status: 200, body: body}} when is_list(body) ->
+        parsed =
+          body
+          |> Enum.reject(fn issue -> Map.has_key?(issue, "pull_request") end)
+          |> Enum.map(&parse_issue/1)
+
+        all = acc ++ parsed
+
+        if length(body) < per_page do
+          {:ok, Enum.take(all, limit)}
+        else
+          do_paginate(url, params, limit, headers, all)
+        end
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body["message"])}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_issue(issue) do
+    %{
+      number: issue["number"],
+      title: issue["title"],
+      state: issue["state"],
+      labels: Enum.map(issue["labels"] || [], fn l ->
+        %{name: l["name"], color: l["color"]}
+      end),
+      assignees: Enum.map(issue["assignees"] || [], fn a -> a["login"] end),
+      milestone: if(issue["milestone"], do: issue["milestone"]["title"]),
+      milestone_number: if(issue["milestone"], do: issue["milestone"]["number"]),
+      created_at: issue["created_at"],
+      closed_at: issue["closed_at"],
+      html_url: issue["html_url"]
+    }
+  end
+end
+```
+
+## Fetching Issues
+
+```elixir
+repo = Kino.Input.read(repo_input)
+state = Kino.Input.read(state_input)
+limit = Kino.Input.read(limit_input)
+
+token =
+  case Kino.Input.read(token_input) do
+    nil -> nil
+    "" -> nil
+    t -> t
+  end
+
+IO.puts("🔍 Fetching issues from #{repo}...")
+
+{:ok, data} = GitHubFetcher.fetch(repo, state: state, limit: limit, token: token)
+
+IO.puts("✅ Fetched #{length(data.issues)} issues, #{length(data.milestones)} milestones, #{length(data.labels)} labels")
+
+Kino.DataTable.new(
+  data.issues
+  |> Enum.map(fn issue ->
+    %{
+      "#" => issue.number,
+      "Title" => issue.title,
+      "State" => issue.state,
+      "Labels" => Enum.map_join(issue.labels, ", ", & &1.name),
+      "Assignees" => Enum.join(issue.assignees, ", "),
+      "Milestone" => issue.milestone || "—"
+    }
+  end),
+  name: "GitHub Issues"
+)
+```
+
+## Part 1: Choreo Planner
+
+The Planner maps GitHub issues to a project plan:
+
+- **Milestones** → `Planner.add_milestone/3`
+- **Issues** → `Planner.add_task/3` with status mapped from GitHub state
+- **Labels** → `Planner.add_label/3`
+- **Assignees** → `Planner.add_user/3`
+- Milestone containment → `Planner.contains/3`
+- Label tagging → `Planner.tag/3`
+- User assignment → `Planner.assign/3`
+
+```elixir
+alias Choreo.Planner
+alias Choreo.Planner.Analysis
+
+# Map GitHub state to Planner status
+status_for = fn issue ->
+  case issue.state do
+    "closed" -> :done
+    "open" -> :backlog
+    _ -> :backlog
+  end
+end
+
+plan = Planner.new(repo)
+
+# Add milestones
+plan =
+  data.milestones
+  |> Enum.reduce(plan, fn ms, p ->
+    id = :"milestone_#{ms.number}"
+    Planner.add_milestone(p, id, title: ms.title)
+  end)
+
+# Add labels
+plan =
+  data.labels
+  |> Enum.reduce(plan, fn label, p ->
+    id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+    Planner.add_label(p, id, title: label.name)
+  end)
+
+# Collect unique assignees
+all_assignees =
+  data.issues
+  |> Enum.flat_map(& &1.assignees)
+  |> Enum.uniq()
+
+plan =
+  all_assignees
+  |> Enum.reduce(plan, fn login, p ->
+    Planner.add_user(p, :"user_#{login}", name: login)
+  end)
+
+# Add issues as tasks
+plan =
+  data.issues
+  |> Enum.reduce(plan, fn issue, p ->
+    task_id = :"issue_#{issue.number}"
+    title = "##{issue.number}: #{issue.title}"
+
+    p = Planner.add_task(p, task_id, title: title, status: status_for.(issue))
+
+    # Assign to milestone
+    p =
+      if issue.milestone_number do
+        ms_id = :"milestone_#{issue.milestone_number}"
+        Planner.contains(p, ms_id, task_id)
+      else
+        p
+      end
+
+    # Tag with labels
+    p =
+      issue.labels
+      |> Enum.reduce(p, fn label, acc ->
+        label_id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+        Planner.tag(acc, task_id, label_id)
+      end)
+
+    # Assign to users
+    p =
+      issue.assignees
+      |> Enum.reduce(p, fn login, acc ->
+        Planner.assign(acc, task_id, :"user_#{login}")
+      end)
+
+    p
+  end)
+
+IO.puts("📊 Planner built with #{length(Planner.tasks(plan))} tasks")
+```
+
+### Kanban Board
+
+Issues grouped by status (backlog / done):
+
+```elixir
+Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :kanban_compat))
+```
+
+### Dependency Flowchart
+
+The full task graph showing milestones, assignments, and labels:
+
+```elixir
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(plan), height: "700px")
+)
+```
+
+### Per-Milestone Kanban
+
+View tasks for a specific milestone (pick the first one with issues):
+
+```elixir
+milestones_with_tasks =
+  data.milestones
+  |> Enum.filter(fn ms -> ms.open_issues + ms.closed_issues > 0 end)
+  |> Enum.sort_by(fn ms -> -(ms.open_issues + ms.closed_issues) end)
+
+case milestones_with_tasks do
+  [ms | _] ->
+    ms_id = :"milestone_#{ms.number}"
+    IO.puts("📌 Showing Kanban for milestone: #{ms.title}")
+    Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :kanban_compat, milestone: ms_id))
+
+  [] ->
+    IO.puts("ℹ️  No milestones with issues found")
+    Kino.nothing()
+end
+```
+
+### Planner Analysis
+
+```elixir
+# Ready work — tasks whose dependencies are all :done
+ready = Analysis.ready(plan)
+
+IO.puts("✅ Ready to work on (#{length(ready)} tasks):\n")
+Enum.each(ready, fn {id, task_data} ->
+  IO.puts("  • #{task_data.title}")
+end)
+```
+
+```elixir
+# Orphan tasks — not assigned to any milestone
+orphans = Analysis.orphans(plan)
+
+IO.puts("🔮 Orphan tasks (no milestone): #{length(orphans)}\n")
+Enum.take(orphans, 10)
+|> Enum.each(fn {id, task_data} ->
+  IO.puts("  • #{task_data.title}")
+end)
+
+if length(orphans) > 10, do: IO.puts("  ... and #{length(orphans) - 10} more")
+```
+
+```elixir
+# Validation
+case Analysis.validate(plan) do
+  [] ->
+    IO.puts("✅ Planner graph is structurally sound")
+
+  issues ->
+    Enum.each(issues, fn {sev, msg} ->
+      icon = if sev == :error, do: "❌", else: "⚠️"
+      IO.puts("#{icon} #{msg}")
+    end)
+end
+```
+
+---
+
+## Part 2: Choreo Mind Map
+
+A different lens on the same data — issues grouped by **label** in a radial concept map.
+
+- **Root** → the repository name
+- **Topics** → each label (colored by GitHub label color)
+- **Subtopics** → issues tagged with that label
+- **Notes** → unlabeled issues go under an "Unlabeled" topic
+- **Associations** → issues that share multiple labels get cross-links
+
+```elixir
+alias Choreo.MindMap
+alias Choreo.MindMap.Analysis
+
+root_id = :"repo"
+
+mindmap = MindMap.new()
+mindmap = MindMap.set_root(mindmap, root_id, label: repo)
+
+# Add label topics
+mindmap =
+  data.labels
+  |> Enum.reduce(mindmap, fn label, mm ->
+    label_id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+    mm
+    |> MindMap.add_topic(label_id, label: label.name)
+    |> MindMap.branch(root_id, label_id)
+  end)
+
+# Add "Unlabeled" topic for issues with no labels
+unlabeled_issues = Enum.filter(data.issues, fn i -> i.labels == [] end)
+
+mindmap =
+  if unlabeled_issues != [] do
+    mindmap
+    |> MindMap.add_topic(:unlabeled, label: "Unlabeled")
+    |> MindMap.branch(root_id, :unlabeled)
+  else
+    mindmap
+  end
+
+# Add issues as subtopics under their FIRST label (to keep tree structure)
+# then cross-link additional labels via associations
+mindmap =
+  data.issues
+  |> Enum.reduce(mindmap, fn issue, mm ->
+    issue_id = :"issue_#{issue.number}"
+    issue_label = "##{issue.number}: #{String.slice(issue.title, 0, 40)}"
+    issue_label = if String.length(issue.title) > 40, do: issue_label <> "…", else: issue_label
+
+    mm = MindMap.add_subtopic(mm, issue_id, label: issue_label)
+
+    case issue.labels do
+      [] ->
+        # No labels — branch under "Unlabeled"
+        MindMap.branch(mm, :unlabeled, issue_id)
+
+      [primary | rest] ->
+        primary_id = :"label_#{primary.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+        mm = MindMap.branch(mm, primary_id, issue_id)
+
+        # Cross-link to additional labels
+        rest
+        |> Enum.reduce(mm, fn label, acc ->
+          other_id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+          MindMap.associate(acc, issue_id, other_id, label: "also")
+        end)
+    end
+  end)
+
+IO.puts("🧠 Mind map built: #{length(MindMap.nodes(mindmap))} nodes")
+```
+
+### Mind Map Visualisation
+
+```elixir
+Kino.Layout.tabs(
+  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(mindmap, syntax: :mindmap)),
+  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(mindmap, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(mindmap), height: "800px")
+)
+```
+
+### Zoomed Views
+
+Zoom out to just the label landscape (no individual issues):
+
+```elixir
+alias Choreo.View
+
+Kino.Layout.tabs(
+  "Level 1 (Labels only)":
+    View.zoom(mindmap, level: 1)
+    |> MindMap.to_mermaid(syntax: :mindmap)
+    |> Kino.Mermaid.new(),
+  "Level 2 (Labels + Issues)":
+    View.zoom(mindmap, level: 2)
+    |> MindMap.to_mermaid(syntax: :mindmap)
+    |> Kino.Mermaid.new()
+)
+```
+
+### Focus on a Label
+
+Pick the most popular label and zoom into it:
+
+```elixir
+most_popular_label =
+  data.issues
+  |> Enum.flat_map(& &1.labels)
+  |> Enum.frequencies_by(& &1.name)
+  |> Enum.sort_by(fn {_, count} -> -count end)
+  |> List.first()
+
+case most_popular_label do
+  {label_name, count} ->
+    label_id = :"label_#{label_name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+    IO.puts("🔎 Focusing on label '#{label_name}' (#{count} issues)")
+
+    focused = View.focus(mindmap, label_id, radius: 1)
+    Kino.VizJS.render(MindMap.to_dot(focused), height: "600px")
+
+  nil ->
+    IO.puts("ℹ️  No labels found")
+    Kino.nothing()
+end
+```
+
+### Mind Map Analysis
+
+```elixir
+IO.puts("📐 Depth: #{Analysis.depth(mindmap)}")
+IO.puts("🌿 Breadth (leaves): #{Analysis.breadth(mindmap)}")
+IO.puts("📏 Max width: #{Analysis.max_width(mindmap)}")
+IO.puts("")
+
+Analysis.type_frequencies(mindmap)
+|> Enum.each(fn {type, count} ->
+  IO.puts("  #{type}: #{count}")
+end)
+```
+
+```elixir
+case Analysis.validate(mindmap) do
+  [] ->
+    IO.puts("✅ Mind map is structurally sound")
+
+  issues ->
+    Enum.each(issues, fn {sev, msg} ->
+      icon = if sev == :error, do: "❌", else: "⚠️"
+      IO.puts("#{icon} #{msg}")
+    end)
+end
+```
+
+### Label Distribution
+
+A table showing how issues are spread across labels:
+
+```elixir
+label_counts =
+  data.issues
+  |> Enum.flat_map(fn issue ->
+    case issue.labels do
+      [] -> ["(unlabeled)"]
+      labels -> Enum.map(labels, & &1.name)
+    end
+  end)
+  |> Enum.frequencies()
+  |> Enum.sort_by(fn {_, count} -> -count end)
+
+Kino.DataTable.new(
+  Enum.map(label_counts, fn {label, count} ->
+    bar = String.duplicate("█", min(count, 50))
+    %{"Label" => label, "Issues" => count, "Distribution" => bar}
+  end),
+  name: "Label Distribution"
+)
+```
+
+---
+
+## Summary
+
+This notebook turns a GitHub repo's issue tracker into two Choreo diagrams:
+
+| Diagram               | What you see                                   | Best for                                   |
+| --------------------- | ---------------------------------------------- | ------------------------------------------ |
+| **Planner**           | Kanban, Gantt, dependency flowchart             | Sprint planning, workload, milestone status |
+| **Mind Map**          | Radial concept map grouped by label             | Getting oriented in a new repo, big picture |
+
+| Analysis                          | Planner                          | Mind Map                         |
+| --------------------------------- | -------------------------------- | -------------------------------- |
+| Ready / blocked work              | `Planner.Analysis.ready/1`       | —                                |
+| Orphan tasks (no milestone)       | `Planner.Analysis.orphans/1`     | —                                |
+| Structural validation             | `Planner.Analysis.validate/1`    | `MindMap.Analysis.validate/1`    |
+| Depth / breadth                   | —                                | `MindMap.Analysis.depth/1`       |
+| Zoom / focus views                | —                                | `View.zoom/2`, `View.focus/3`    |
+| Label distribution                | _(data table)_                   | `MindMap.Analysis.max_width/1`   |
+
+Try it with `phoenixframework/phoenix`, `elixir-lang/elixir`, `livebook-dev/livebook`, or your own repos!
