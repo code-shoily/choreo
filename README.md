@@ -82,6 +82,19 @@ Choreo supports 13 different artifact modeling vocabularies. They are categorize
 
 ---
 
+## Interactive Notebooks
+
+The `livebooks/` directory contains interactive walkthroughs and integration examples that you can run directly in [Livebook](https://livebook.dev/):
+
+- **`livebooks/guides/`** — step-by-step introductions to each Choreo module and diagram type.
+- **`livebooks/integrations/`** — notebooks that bridge Choreo with third-party tools and data sources:
+  - [Finitomata](livebooks/integrations/choreo_finitomata.livemd) — design FSMs in Choreo, run them with Finitomata, and analyze them back in Choreo.
+  - [GitHub Issues](livebooks/integrations/github_issues_explorer.livemd) — turn a public repo's issues into a Planner and Mind Map.
+  - [Hex Dependencies](livebooks/integrations/hex_dependency_explorer.livemd) — crawl any Hex package's dependency tree.
+  - [Mix Xref](livebooks/integrations/mix_xref_explorer.livemd) — visualize and analyze internal Elixir project dependencies.
+
+---
+
 ## Graph Analysis & Heatmaps
 
 Choreo provides graph analysis tools to identify "hotspots" in your architecture, workflows, and pipelines. Use `heatmap/2` to automatically color nodes based on importance or performance metrics.
