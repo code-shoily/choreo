@@ -135,7 +135,7 @@ defmodule XrefParser do
         _ -> nil
       end
 
-    cluster = if cluster_label, do: String.replace(cluster_label, "/", "_")
+    cluster = if cluster_label, do: String.replace(cluster_label, ~r/[^a-zA-Z0-9_]/, "_")
 
     %{
       id: String.to_atom(path),
