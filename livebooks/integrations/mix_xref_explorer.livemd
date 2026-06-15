@@ -1,0 +1,348 @@
+# Mix Xref Explorer
+
+```elixir
+Mix.install([
+  {:choreo, "~> 0.9.0"},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## Setup Styles
+
+```elixir
+Kino.HTML.new("""
+<style>
+/* Prevent Mermaid SVGs from scaling down to tiny, unreadable sizes */
+svg[id^="mermaid-"], .mermaid svg, [data-elixir-kino="Kino.Mermaid"] svg {
+  max-width: none !important;
+  height: auto !important;
+}
+div:has(> svg[id^="mermaid-"]), .mermaid, [data-elixir-kino="Kino.Mermaid"] {
+  overflow-x: auto !important;
+  width: 100% !important;
+}
+</style>
+""")
+```
+
+## Introduction
+
+This notebook analyzes the internal source file dependencies of an Elixir project using `mix xref` and visualizes them using **Choreo.Dependency** diagrams. It highlights circular dependencies (which slow down compilation), calculates coupling metrics, and performs impact analysis to see what files would need recompilation if a given file changes.
+
+### How It Works
+
+1. You provide the absolute path to a local Elixir project.
+2. The notebook executes `mix xref graph --format dot --output -` to retrieve the compile/export/runtime dependencies in Graphviz DOT format.
+3. The parser extracts the dependency graph and maps:
+   - **Internal files** to `:module` or `:test` nodes.
+   - **Compile-time dependencies** to `:imports` edges.
+   - **Exports dependencies** to `:uses` edges.
+   - **Runtime dependencies** to `:calls` edges.
+   - Files are grouped into clusters based on their directories (e.g. `lib/choreo/c4`).
+4. Visualizations are rendered as Mermaid Flowcharts, Mermaid Class Diagrams, and Graphviz graphs.
+5. Structural analysis evaluates cycles, instability, centrality, and impact.
+
+## Configuration
+
+```elixir
+project_input = Kino.Input.text("Elixir Project Path", default: File.cwd!())
+label_input = Kino.Input.select("Filter dependency type", [
+  {"all", "All (Compile, Export & Runtime)"},
+  {"compile", "Compile-time only"},
+  {"export", "Export only"},
+  {"runtime", "Runtime only"}
+], default: "all")
+
+Kino.Layout.grid([project_input, label_input], columns: 2)
+```
+
+## The Xref Parser
+
+```elixir
+defmodule XrefParser do
+  @moduledoc """
+  Runs `mix xref` in the specified directory and parses its DOT output.
+  """
+
+  @doc """
+  Runs `mix xref` and returns the parsed nodes and edges.
+  """
+  def analyze(project_path, type_filter) do
+    mix_exs_path = Path.join(project_path, "mix.exs")
+
+    if not File.exists?(mix_exs_path) do
+      {:error, "No mix.exs found at #{project_path}. Please check the path."}
+    else
+      args = ["xref", "graph", "--format", "dot", "--output", "-"]
+      args = if type_filter != "all", do: args ++ ["--label", type_filter], else: args
+
+      case System.cmd("mix", args, cd: project_path, env: [{"MIX_ENV", "dev"}]) do
+        {dot_string, 0} ->
+          {:ok, parse_dot(dot_string)}
+        {output, status} ->
+          {:error, "mix xref failed with exit status #{status}:\n\n#{output}"}
+      end
+    end
+  end
+
+  defp parse_dot(dot_string) do
+    # Regex to match edges: "node1" -> "node2" [label="(type)"] or "node1" -> "node2"
+    edge_regex = ~r/^\s*"([^"]+)"\s*->\s*"([^"]+)"(?:\s*\[label="([^"]+)"\])?/m
+    # Regex to match nodes: "node1"
+    node_regex = ~r/^\s*"([^"]+)"\s*$/m
+
+    edges =
+      Regex.scan(edge_regex, dot_string)
+      |> Enum.map(fn
+        [_, from, to, label] -> {from, to, parse_edge_label(label)}
+        [_, from, to] -> {from, to, :calls}
+      end)
+
+    nodes =
+      Regex.scan(node_regex, dot_string)
+      |> Enum.map(fn [_, node] -> node end)
+      |> Enum.uniq()
+
+    # Capture any nodes that might only be mentioned in edges
+    all_nodes =
+      (nodes ++ Enum.map(edges, &elem(&1, 0)) ++ Enum.map(edges, &elem(&1, 1)))
+      |> Enum.uniq()
+      |> Enum.map(&parse_node/1)
+
+    %{nodes: all_nodes, edges: edges}
+  end
+
+  defp parse_edge_label("(compile)"), do: :imports
+  defp parse_edge_label("(export)"), do: :uses
+  defp parse_edge_label(_), do: :calls
+
+  defp parse_node(path) do
+    type =
+      cond do
+        String.starts_with?(path, "test/") or String.ends_with?(path, "_test.exs") ->
+          :test
+        String.contains?(path, "behaviour") or String.contains?(path, "protocol") ->
+          :interface
+        true ->
+          :module
+      end
+
+    cluster =
+      case Path.split(path) do
+        ["lib", app, sub | _] -> "#{app}/#{sub}"
+        ["lib", app | _] -> app
+        ["test" | _] -> "test"
+        _ -> nil
+      end
+
+    %{
+      id: String.to_atom(path),
+      label: Path.basename(path),
+      path: path,
+      type: type,
+      cluster: cluster
+    }
+  end
+end
+```
+
+## Running the Analysis
+
+```elixir
+project_path = Kino.Input.read(project_input) |> String.trim()
+type_filter = Kino.Input.read(label_input)
+
+IO.puts("🔍 Analyzing xref dependencies in #{project_path}...")
+
+data =
+  case XrefParser.analyze(project_path, type_filter) do
+    {:ok, result} ->
+      IO.puts("✅ Analyzed #{length(result.nodes)} files and #{length(result.edges)} dependencies")
+      result
+    {:error, reason} ->
+      IO.puts("❌ Error: #{reason}")
+      %{nodes: [], edges: []}
+  end
+```
+
+## Building the Choreo Dependency Graph
+
+```elixir
+alias Choreo.Dependency
+alias Choreo.Dependency.Analysis
+
+graph = Dependency.new()
+
+# Add clusters
+clusters =
+  data.nodes
+  |> Enum.map(& &1.cluster)
+  |> Enum.reject(&is_nil/1)
+  |> Enum.uniq()
+
+graph =
+  clusters
+  |> Enum.reduce(graph, fn cluster_name, g ->
+    Dependency.add_cluster(g, cluster_name, label: cluster_name)
+  end)
+
+# Add nodes
+graph =
+  data.nodes
+  |> Enum.reduce(graph, fn node, g ->
+    case node.type do
+      :test ->
+        Dependency.add_test(g, node.id, label: node.label, cluster: node.cluster)
+      :interface ->
+        Dependency.add_interface(g, node.id, label: node.label, cluster: node.cluster)
+      _ ->
+        Dependency.add_module(g, node.id, label: node.label, cluster: node.cluster)
+    end
+  end)
+
+# Add edges
+graph =
+  data.edges
+  |> Enum.reduce(graph, fn {from, to, type}, g ->
+    Dependency.depends_on(g, String.to_atom(from), String.to_atom(to), type: type)
+  end)
+
+IO.puts("📊 Choreo.Dependency graph constructed with #{length(Dependency.nodes(graph))} nodes")
+```
+
+## Visualisation
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+brand_theme =
+  Choreo.Theme.custom(
+    colors: %{
+      application: "#6366f1",
+      library: "#f59e0b",
+      module: "#10b981",
+      interface: "#8b5cf6",
+      test: "#ec4899"
+    },
+    node_fontcolor: "white",
+    edge_color: "#64748b",
+    graph_bgcolor: "#0f172a"
+  )
+
+tabs = [
+  {"Mermaid Flowchart", Kino.Mermaid.new(Dependency.to_mermaid(graph))},
+  {"Mermaid Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(graph, syntax: :class_diagram))},
+  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")},
+  {"Graphviz (dark)", Kino.VizJS.render(Dependency.to_dot(graph, theme: brand_theme), height: "700px")}
+]
+
+Kino.Layout.tabs(tabs)
+```
+
+## Structural Analysis
+
+### Validation & Diagnostics
+
+```elixir
+case Analysis.validate(graph) do
+  [] ->
+    IO.puts("✅ No structural validation issues found!")
+  issues ->
+    Enum.each(issues, fn {sev, msg} ->
+      icon = if sev == :error, do: "❌", else: "⚠️"
+      IO.puts("#{icon} #{msg}")
+    end)
+end
+```
+
+### Circular Dependencies (Compile-time Cycle Finder)
+
+Circular dependencies (especially compile-time ones) force Elixir to recompile large groups of files whenever a single file in the cycle changes, slow down builds, and increase testing overhead.
+
+```elixir
+cycles = Analysis.cyclic_dependencies(graph)
+
+if cycles == [] do
+  IO.puts("✅ No circular dependencies detected!")
+else
+  IO.puts("🔁 Found #{length(cycles)} circular dependency path(s):\n")
+
+  Enum.each(cycles, fn cycle ->
+    path =
+      cycle
+      |> Enum.map(&to_string/1)
+      |> Enum.join(" → ")
+
+    IO.puts("  🔴 #{path}")
+  end)
+end
+```
+
+### Instability Metrics
+
+Robert C. Martin's instability metric ($I = C_e / (C_a + C_e)$):
+* **0.0** (Highly Stable): Nothing depends on it, but it has many dependents. It is risky to modify because of downstream impact.
+* **1.0** (Highly Unstable): Depends on many other components, but nothing depends on it. Safe to modify.
+
+```elixir
+instability_scores = Analysis.instability(graph)
+
+if Enum.empty?(instability_scores) do
+  IO.puts("No instability metrics available.")
+else
+  instability_scores
+  |> Enum.sort_by(fn {_id, score} -> score end, :asc)
+  |> Enum.take(20) # Top 20 most stable files
+  |> IO.inspect(label: "Top 20 Stable Files (Risky to change, low instability)")
+
+  IO.puts("\nDetailed Instability Ratings:")
+  instability_scores
+  |> Enum.sort_by(fn {_id, score} -> score end)
+  |> Enum.each(fn {id, score} ->
+    bar = String.duplicate("█", ceil(score * 20))
+    label = if score >= 0.7, do: "🟢 (unstable/safe)", else: if(score >= 0.3, do: "🟡 (medium)", else: "🔴 (stable/risky)")
+    IO.puts("  #{id}: #{:erlang.float_to_binary(score, decimals: 2)} #{bar} #{label}")
+  end)
+end
+```
+
+### Most Connected Files (Centrality)
+
+Files that act as hubs or central coupling points in your project structure:
+
+```elixir
+Analysis.centrality(graph, limit: 15)
+|> Enum.with_index(1)
+|> Enum.each(fn {id, idx} ->
+  IO.puts("  #{idx}. #{id}")
+end)
+```
+
+## Impact Analysis
+
+Select a file to see exactly what downstream files are transitively affected and would require recompilation (or re-testing) if it is changed.
+
+```elixir
+# Create a selection list of files
+file_options =
+  data.nodes
+  |> Enum.map(fn node -> {to_string(node.path), node.id} end)
+  |> Enum.sort()
+
+target_file_input = Kino.Input.select("Target File", file_options)
+```
+
+```elixir
+target_file_id = Kino.Input.read(target_file_input)
+
+affected = Analysis.affected_by(graph, target_file_id)
+
+if Enum.empty?(affected) do
+  IO.puts("✅ Changing #{target_file_id} has no downstream impact.")
+else
+  IO.puts("⚠️ Changing #{target_file_id} will affect #{length(affected)} downstream file(s):")
+  Enum.each(affected, fn aff ->
+    IO.puts("  → #{aff}")
+  end)
+end
+```
