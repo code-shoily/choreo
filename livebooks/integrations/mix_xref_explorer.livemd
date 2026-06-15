@@ -193,13 +193,16 @@ graph =
 graph =
   data.nodes
   |> Enum.reduce(graph, fn node, g ->
+    opts = [label: node.label]
+    opts = if node.cluster, do: [cluster: node.cluster] ++ opts, else: opts
+
     case node.type do
       :test ->
-        Dependency.add_test(g, node.id, label: node.label, cluster: node.cluster)
+        Dependency.add_test(g, node.id, opts)
       :interface ->
-        Dependency.add_interface(g, node.id, label: node.label, cluster: node.cluster)
+        Dependency.add_interface(g, node.id, opts)
       _ ->
-        Dependency.add_module(g, node.id, label: node.label, cluster: node.cluster)
+        Dependency.add_module(g, node.id, opts)
     end
   end)
 
@@ -238,8 +241,7 @@ tabs = [
   {"Graphviz", Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")},
   {"Graphviz (dark)", Kino.VizJS.render(Dependency.to_dot(graph, theme: brand_theme), height: "700px")}
 ]
-
-Kino.Layout.tabs(tabs)
+|> Kino.Layout.tabs()
 ```
 
 ## Structural Analysis
