@@ -99,6 +99,7 @@ defmodule Choreo.Dependency.Render.Mermaid do
       |> Enum.sort_by(fn {id, _data} -> id end)
       |> Enum.map_join("\n", fn {id, data} ->
         label = data[:label] || to_string(id)
+        safe_id = id |> to_string() |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
 
         stereotype =
           case data[:node_type] do
@@ -111,9 +112,9 @@ defmodule Choreo.Dependency.Render.Mermaid do
           end
 
         if stereotype != "" do
-          "  class #{id}[\"#{label}\"] {\n    #{stereotype}\n  }"
+          "  class #{safe_id}[\"#{label}\"] {\n    #{stereotype}\n  }"
         else
-          "  class #{id}[\"#{label}\"]"
+          "  class #{safe_id}[\"#{label}\"]"
         end
       end)
 
@@ -137,7 +138,9 @@ defmodule Choreo.Dependency.Render.Mermaid do
           end
 
         label = meta[:label] || to_string(type)
-        "  #{from} #{arrow} #{to} : #{label}"
+        safe_from = from |> to_string() |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
+        safe_to = to |> to_string() |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
+        "  #{safe_from} #{arrow} #{safe_to} : #{label}"
       end)
 
     "classDiagram\n" <> direction_part <> class_defs <> "\n" <> relations <> "\n"
@@ -417,15 +420,15 @@ defmodule Choreo.Dependency.Render.Mermaid do
   end
 
   defp dep_type_attrs(:imports, theme),
-    do: [{:stroke, theme.edge_color}, {:stroke_dasharray, "5 5"}, {:stroke_width, "2px"}]
+    do: [{:stroke, theme.edge_color}, {:stroke_width, "2px"}]
 
   defp dep_type_attrs(:calls, theme),
-    do: [{:stroke, theme.edge_color}, {:stroke_dasharray, "2 3"}, {:stroke_width, "2px"}]
+    do: [{:stroke, theme.edge_color}, {:stroke_width, "2px"}]
 
   defp dep_type_attrs(:inherits, theme), do: [{:stroke, theme.edge_color}, {:stroke_width, "3px"}]
 
   defp dep_type_attrs(:dev, _theme),
-    do: [{:stroke, "#9ca3af"}, {:stroke_dasharray, "5 5"}, {:stroke_width, "1.5px"}]
+    do: [{:stroke, "#9ca3af"}, {:stroke_width, "1.5px"}]
 
   defp dep_type_attrs(_, theme), do: [{:stroke, theme.edge_color}, {:stroke_width, "2px"}]
 
