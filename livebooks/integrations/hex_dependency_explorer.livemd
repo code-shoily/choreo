@@ -1,0 +1,483 @@
+# Hex Dependency Explorer
+
+```elixir
+Mix.install([
+  {:choreo, "~> 0.9.0"},
+  {:kino_vizjs, "~> 0.9.0"},
+  {:req, "~> 0.5"}
+])
+```
+
+## Introduction
+
+This notebook takes any [Hex.pm](https://hex.pm) package name, crawls its dependency tree using the Hex public API, and builds a **Choreo.Dependency** graph you can visualise, zoom, and analyse — cycles, instability, impact, the works.
+
+### How It Works
+
+1. You enter a package name (e.g. `phoenix`, `ecto`, `choreo`)
+2. The crawler fetches the latest release's `requirements` via `GET /api/packages/{name}/releases/{version}`
+3. It recursively crawls each dependency (with a configurable depth limit)
+4. The results are assembled into a `Choreo.Dependency` graph with:
+   * **Applications** for the root package
+   * **Libraries** for each dependency
+   * `:uses` edges for required deps, `:dev` edges for optional deps
+   * Clusters grouping direct vs transitive dependencies
+5. Full Choreo analysis is run: cycles, instability, centrality, and more
+
+## Configuration
+
+```elixir
+package_input = Kino.Input.text("Hex package name", default: "phoenix")
+depth_input = Kino.Input.number("Max crawl depth", default: 2)
+
+Kino.Layout.grid([package_input, depth_input], columns: 2)
+```
+
+## The Hex Crawler
+
+```elixir
+defmodule HexCrawler do
+  @moduledoc """
+  Crawls the Hex.pm API to build a dependency tree.
+
+  For each package, fetches the latest stable release and extracts
+  its `requirements` map. Recurses into each requirement up to a
+  configurable depth.
+  """
+
+  @hex_api "https://hex.pm/api"
+
+  @doc """
+  Crawls the dependency tree for `package_name` up to `max_depth` levels.
+
+  Returns a map of:
+
+      %{
+        nodes: [%{id: atom, label: String.t(), depth: non_neg_integer}],
+        edges: [%{from: atom, to: atom, version: String.t(), optional: boolean}]
+      }
+  """
+  def crawl(package_name, max_depth \\ 2) do
+    state = %{nodes: [], edges: [], visited: MapSet.new()}
+    result = do_crawl(package_name, 0, max_depth, state)
+
+    %{
+      nodes: Enum.reverse(result.nodes),
+      edges: Enum.reverse(result.edges)
+    }
+  end
+
+  defp do_crawl(package_name, depth, max_depth, state) when depth > max_depth, do: state
+
+  defp do_crawl(package_name, depth, max_depth, state) do
+    pkg = String.downcase(to_string(package_name))
+    pkg_atom = String.to_atom(pkg)
+
+    if MapSet.member?(state.visited, pkg_atom) do
+      state
+    else
+      state = %{state | visited: MapSet.put(state.visited, pkg_atom)}
+
+      case fetch_package(pkg) do
+        {:ok, %{version: version, requirements: requirements, description: description}} ->
+          label = "#{pkg} #{version}"
+
+          state = %{state | nodes: [%{id: pkg_atom, label: label, depth: depth, description: description} | state.nodes]}
+
+          requirements
+          |> Enum.reduce(state, fn {dep_name, dep_info}, acc ->
+            dep_atom = String.to_atom(dep_name)
+
+            acc = %{acc | edges: [
+              %{
+                from: pkg_atom,
+                to: dep_atom,
+                version: dep_info.requirement,
+                optional: dep_info.optional
+              } | acc.edges
+            ]}
+
+            do_crawl(dep_name, depth + 1, max_depth, acc)
+          end)
+
+        {:error, reason} ->
+          # If we can't fetch the package, still add it as a node with no edges out
+          state = %{state | nodes: [%{id: pkg_atom, label: pkg, depth: depth, description: nil} | state.nodes]}
+          state
+      end
+    end
+  end
+
+  defp fetch_package(package_name) do
+    url = "#{@hex_api}/packages/#{package_name}"
+
+    case Req.get(url, headers: [{"accept", "application/json"}]) do
+      {:ok, %{status: 200, body: body}} ->
+        latest_version = body["latest_stable_version"] || body["latest_version"]
+
+        if latest_version do
+          fetch_release(package_name, latest_version, body["meta"]["description"])
+        else
+          {:error, :no_versions}
+        end
+
+      {:ok, %{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp fetch_release(package_name, version, description) do
+    url = "#{@hex_api}/packages/#{package_name}/releases/#{version}"
+
+    case Req.get(url, headers: [{"accept", "application/json"}]) do
+      {:ok, %{status: 200, body: body}} ->
+        requirements =
+          (body["requirements"] || %{})
+          |> Enum.map(fn {name, info} ->
+            {name, %{
+              requirement: info["requirement"],
+              optional: info["optional"] || false,
+              app: info["app"]
+            }}
+          end)
+          |> Map.new()
+
+        {:ok, %{version: version, requirements: requirements, description: description}}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+end
+```
+
+## Crawling the Dependencies
+
+```elixir
+package_name = Kino.Input.read(package_input)
+max_depth = Kino.Input.read(depth_input)
+
+IO.puts("🔍 Crawling #{package_name} (depth: #{max_depth})...")
+
+tree = HexCrawler.crawl(package_name, max_depth)
+
+IO.puts("✅ Found #{length(tree.nodes)} packages and #{length(tree.edges)} dependency edges")
+
+Kino.DataTable.new(
+  tree.nodes
+  |> Enum.map(fn node ->
+    %{
+      "Package" => node.label,
+      "Depth" => node.depth,
+      "Description" => node.description || "—"
+    }
+  end)
+  |> Enum.sort_by(& &1["Depth"]),
+  name: "Discovered Packages"
+)
+```
+
+## Building the Choreo Dependency Graph
+
+```elixir
+alias Choreo.Dependency
+alias Choreo.Dependency.Analysis
+
+root_id = String.to_atom(String.downcase(package_name))
+
+# Group nodes by depth for clustering
+depth_groups =
+  tree.nodes
+  |> Enum.group_by(& &1.depth)
+  |> Enum.sort_by(fn {depth, _} -> depth end)
+
+# Build the Choreo graph
+graph =
+  Dependency.new()
+
+# Add clusters for each depth level
+graph =
+  depth_groups
+  |> Enum.reduce(graph, fn {depth, _nodes}, g ->
+    cluster_label =
+      case depth do
+        0 -> "Root Package"
+        1 -> "Direct Dependencies"
+        n -> "Transitive (depth #{n})"
+      end
+
+    cluster_color =
+      case depth do
+        0 -> "#dbeafe"
+        1 -> "#dcfce7"
+        _ -> "#fef3c7"
+      end
+
+    Dependency.add_cluster(g, "depth_#{depth}", label: cluster_label, fillcolor: cluster_color)
+  end)
+
+# Add nodes — root as application, everything else as library
+graph =
+  tree.nodes
+  |> Enum.reduce(graph, fn node, g ->
+    if node.id == root_id do
+      Dependency.add_application(g, node.id,
+        label: node.label,
+        cluster: "depth_#{node.depth}"
+      )
+    else
+      Dependency.add_library(g, node.id,
+        label: node.label,
+        cluster: "depth_#{node.depth}"
+      )
+    end
+  end)
+
+# Add edges
+graph =
+  tree.edges
+  |> Enum.reduce(graph, fn edge, g ->
+    type = if edge.optional, do: :dev, else: :uses
+    Dependency.depends_on(g, edge.from, edge.to, type: type)
+  end)
+
+IO.puts("📊 Graph built: #{length(Dependency.nodes(graph))} nodes, #{length(Dependency.edges(graph))} edges")
+```
+
+## Visualisation
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+brand_theme =
+  Choreo.Theme.custom(
+    colors: %{
+      application: "#6366f1",
+      library: "#f59e0b",
+      module: "#10b981",
+      interface: "#8b5cf6",
+      test: "#ec4899"
+    },
+    node_fontcolor: "white",
+    edge_color: "#64748b",
+    graph_bgcolor: "#0f172a"
+  )
+
+tabs = [
+  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(graph))},
+  {"Mermaid (class)", Kino.Mermaid.new(Dependency.to_mermaid(graph, syntax: :class_diagram))},
+  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")},
+  {"Graphviz (dark)", Kino.VizJS.render(Dependency.to_dot(graph, theme: brand_theme), height: "700px")},
+]
+
+Kino.Layout.tabs(tabs)
+```
+
+## Zoomed Views
+
+`Choreo.View.zoom/2` lets you control the level of detail:
+
+* **Level 0**: Applications only (the root package)
+* **Level 1**: Applications + Libraries (direct deps)
+* **Level 2+**: Everything including transitive deps
+
+<!-- livebook:{"output_size":"wide"} -->
+
+```elixir
+alias Choreo.View
+
+label = fn level ->
+  case level do
+    0 -> "0. Root Only"
+    1 -> "1. Direct Deps"
+    2 -> "2. All Packages"
+    _ -> "#{level}. Full Detail"
+  end
+end
+
+max_level = Enum.min([max_depth + 1, 4])
+
+zoomed_diagrams =
+  for level <- 0..max_level do
+    view = View.zoom(graph, level: level)
+    {label.(level), Kino.VizJS.render(Dependency.to_dot(view), height: "500px")}
+  end
+
+Kino.Layout.tabs(zoomed_diagrams)
+```
+
+## Analysis
+
+### Dependency Validation
+
+Check for cycles, orphans, and structural issues:
+
+```elixir
+case Analysis.validate(graph) do
+  [] ->
+    IO.puts("✅ No issues found — clean dependency graph!")
+
+  issues ->
+    Enum.each(issues, fn {sev, msg} ->
+      icon = if sev == :error, do: "❌", else: "⚠️"
+      IO.puts("#{icon} #{msg}")
+    end)
+end
+```
+
+### Circular Dependencies
+
+```elixir
+cycles = Analysis.cyclic_dependencies(graph)
+
+if cycles == [] do
+  IO.puts("✅ No circular dependencies detected")
+else
+  IO.puts("🔁 Found #{length(cycles)} cycle(s):\n")
+
+  Enum.each(cycles, fn cycle ->
+    path = Enum.join(cycle, " → ")
+    IO.puts("  🔁 #{path}")
+  end)
+end
+```
+
+### Instability Scores
+
+Robert C. Martin's instability metric — **0.0** means maximally stable (everything depends on it, risky to change), **1.0** means maximally unstable (depends on everything, safe to change).
+
+```elixir
+Analysis.instability(graph)
+|> Enum.sort_by(fn {_id, score} -> score end, :desc)
+|> Enum.each(fn {id, score} ->
+  bar = String.duplicate("█", ceil(score * 20))
+  label = if score >= 0.7, do: "🔴", else: if(score >= 0.4, do: "🟡", else: "🟢")
+  IO.puts("#{label} #{id}: #{:erlang.float_to_binary(score, decimals: 2)} #{bar}")
+end)
+```
+
+### Most Central Packages
+
+Which packages are the most connected (highest coupling)?
+
+```elixir
+Analysis.centrality(graph, limit: 10)
+|> Enum.with_index(1)
+|> Enum.each(fn {id, rank} ->
+  IO.puts("  #{rank}. #{id}")
+end)
+```
+
+### Impact Analysis
+
+Pick a core dependency and see what breaks if it changes:
+
+```elixir
+# Find the most depended-upon package (the one with the most incoming edges)
+most_depended =
+  tree.edges
+  |> Enum.frequencies_by(& &1.to)
+  |> Enum.sort_by(fn {_, count} -> count end, :desc)
+  |> List.first()
+
+case most_depended do
+  {pkg, count} ->
+    IO.puts("📌 Most depended-upon package: #{pkg} (#{count} direct dependents)\n")
+    IO.puts("If #{pkg} changes, these packages are affected:\n")
+
+    Analysis.affected_by(graph, pkg)
+    |> Enum.each(fn id ->
+      IO.puts("  ⚡ #{id}")
+    end)
+
+  nil ->
+    IO.puts("No dependencies found")
+end
+```
+
+### Leaves and Roots
+
+```elixir
+leaves = Analysis.leaves(graph)
+roots = Analysis.roots(graph)
+
+IO.puts("🌿 Leaf packages (no dependents — safe to change):")
+Enum.each(leaves, &IO.puts("  #{&1}"))
+
+IO.puts("\n🌳 Root packages (no dependencies — foundations):")
+Enum.each(roots, &IO.puts("  #{&1}"))
+```
+
+### Longest Dependency Chain
+
+```elixir
+case Analysis.longest_dependency_chain(graph) do
+  {:ok, chain, length} ->
+    IO.puts("📏 Longest chain (#{length} hops):")
+    IO.puts("  " <> Enum.join(chain, " → "))
+
+  :error ->
+    IO.puts("⚠️  Graph contains cycles — longest chain is undefined")
+end
+```
+
+### Isolated Subsystems
+
+```elixir
+subsystems = Analysis.isolated_subsystems(graph)
+
+IO.puts("🏘️  Found #{length(subsystems)} connected component(s):\n")
+
+subsystems
+|> Enum.with_index(1)
+|> Enum.each(fn {component, idx} ->
+  IO.puts("  Group #{idx} (#{length(component)} packages): #{Enum.join(Enum.sort(component), ", ")}")
+end)
+```
+
+## Edge Listing
+
+A table of every dependency edge for reference:
+
+```elixir
+Kino.DataTable.new(
+  tree.edges
+  |> Enum.map(fn edge ->
+    %{
+      "From" => edge.from,
+      "To" => edge.to,
+      "Version Requirement" => edge.version,
+      "Optional?" => if(edge.optional, do: "✓", else: "—")
+    }
+  end)
+  |> Enum.sort_by(& &1["From"]),
+  name: "All Dependency Edges"
+)
+```
+
+## Summary
+
+This notebook demonstrates how to combine the **Hex.pm API** with **Choreo.Dependency** to get a live, analysable dependency graph for any Hex package.
+
+| What you get                   | How                                   |
+| ------------------------------ | ------------------------------------- |
+| Interactive dependency diagram | `Dependency.to_mermaid/2`, `to_dot/2` |
+| Cycle detection                | `Analysis.cyclic_dependencies/1`      |
+| Instability metrics            | `Analysis.instability/1`              |
+| Impact analysis                | `Analysis.affected_by/2`              |
+| Centrality ranking             | `Analysis.centrality/2`               |
+| Longest chain                  | `Analysis.longest_dependency_chain/1` |
+| Zoom levels                    | `View.zoom/2`                         |
+| Leaf / root identification     | `Analysis.leaves/1`, `roots/1`        |
+| Connected component detection  | `Analysis.isolated_subsystems/1`      |
+
+Try it with `phoenix`, `ecto`, `nerves`, `nx`, or your own packages!

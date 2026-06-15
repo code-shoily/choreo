@@ -3,3 +3,4 @@
 This directory contains notebooks that bridge Choreo with other Elixir libraries and tools. They show how to use Choreo alongside runtime systems, visualization packages, and third-party DSLs.
 
 - [`choreo_finitomata.livemd`](./choreo_finitomata.livemd) — design FSMs in Choreo, run them with Finitomata, and analyze them back in Choreo.
+- [`hex_dependency_explorer.livemd`](./hex_dependency_explorer.livemd) — crawl any Hex package's dependency tree via the Hex API and build an interactive Choreo.Dependency diagram with cycle detection, instability metrics, and impact analysis.
