@@ -2,7 +2,7 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
+  {:choreo, path: "/home/mafinar/repos/elixir/choreo"},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -45,7 +45,7 @@ This notebook analyzes the internal source file dependencies of an Elixir projec
 ## Configuration
 
 ```elixir
-project_input = Kino.Input.text("Elixir Project Path", default: File.cwd!())
+project_input = Kino.Input.text("Elixir Project Path", default: Path.expand("../..", __DIR__))
 label_input = Kino.Input.select("Filter dependency type", [
   {"all", "All (Compile, Export & Runtime)"},
   {"compile", "Compile-time only"},
