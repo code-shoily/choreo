@@ -84,7 +84,7 @@ Choreo supports 13 different artifact modeling vocabularies. They are categorize
 
 ## Graph Analysis & Heatmaps
 
-Choreo provides powerful graph analysis tools to identify "hotspots" in your architecture, workflows, and pipelines. Use `heatmap/2` to automatically color nodes based on importance or performance metrics.
+Choreo provides graph analysis tools to identify "hotspots" in your architecture, workflows, and pipelines. Use `heatmap/2` to automatically color nodes based on importance or performance metrics.
 
 | Metric | Measure | Question | Best for |
 |--------|---------|----------|----------|
