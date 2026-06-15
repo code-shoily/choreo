@@ -2,13 +2,13 @@
 
 ```elixir
 # For Hex publication/readers:
-# Mix.install([{:choreo, "~> 0.9"}, {:kino_vizjs, "~> 0.9.0"}])
+Mix.install([{:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"}])
 
 # For local development:
-Mix.install([
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
-  {:kino_vizjs, "~> 0.9.0"}
-])
+# Mix.install([
+#   {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+#   {:kino_vizjs, "~> 0.9.0"}
+# ])
 ```
 
 ## What is Choreo.Dependency?
