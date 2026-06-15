@@ -34,11 +34,11 @@ This notebook analyzes the internal source file dependencies of an Elixir projec
 1. You provide the absolute path to a local Elixir project.
 2. The notebook executes `mix xref graph --format dot --output -` to retrieve the compile/export/runtime dependencies in Graphviz DOT format.
 3. The parser extracts the dependency graph and maps:
-   - **Internal files** to `:module` or `:test` nodes.
-   - **Compile-time dependencies** to `:imports` edges.
-   - **Exports dependencies** to `:uses` edges.
-   - **Runtime dependencies** to `:calls` edges.
-   - Files are grouped into clusters based on their directories (e.g. `lib/choreo/c4`).
+   * **Internal files** to `:module` or `:test` nodes.
+   * **Compile-time dependencies** to `:imports` edges.
+   * **Exports dependencies** to `:uses` edges.
+   * **Runtime dependencies** to `:calls` edges.
+   * Files are grouped into clusters based on their directories (e.g. `lib/choreo/c4`).
 4. Visualizations are rendered as Mermaid Flowcharts, Mermaid Class Diagrams, and Graphviz graphs.
 5. Structural analysis evaluates cycles, instability, centrality, and impact.
 
@@ -127,7 +127,7 @@ defmodule XrefParser do
           :module
       end
 
-    cluster =
+    cluster_label =
       case Path.split(path) do
         ["lib", app, sub | _] -> "#{app}/#{sub}"
         ["lib", app | _] -> app
@@ -135,12 +135,15 @@ defmodule XrefParser do
         _ -> nil
       end
 
+    cluster = if cluster_label, do: String.replace(cluster_label, "/", "_")
+
     %{
       id: String.to_atom(path),
       label: Path.basename(path),
       path: path,
       type: type,
-      cluster: cluster
+      cluster: cluster,
+      cluster_label: cluster_label
     }
   end
 end
@@ -176,14 +179,14 @@ graph = Dependency.new()
 # Add clusters
 clusters =
   data.nodes
-  |> Enum.map(& &1.cluster)
-  |> Enum.reject(&is_nil/1)
+  |> Enum.filter(& &1.cluster)
+  |> Enum.map(fn node -> {node.cluster, node.cluster_label} end)
   |> Enum.uniq()
 
 graph =
   clusters
-  |> Enum.reduce(graph, fn cluster_name, g ->
-    Dependency.add_cluster(g, cluster_name, label: cluster_name)
+  |> Enum.reduce(graph, fn {cluster_id, cluster_label}, g ->
+    Dependency.add_cluster(g, cluster_id, label: cluster_label)
   end)
 
 # Add nodes
@@ -281,6 +284,7 @@ end
 ### Instability Metrics
 
 Robert C. Martin's instability metric ($I = C_e / (C_a + C_e)$):
+
 * **0.0** (Highly Stable): Nothing depends on it, but it has many dependents. It is risky to modify because of downstream impact.
 * **1.0** (Highly Unstable): Depends on many other components, but nothing depends on it. Safe to modify.
 
