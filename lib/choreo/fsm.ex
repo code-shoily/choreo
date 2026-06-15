@@ -748,6 +748,15 @@ defmodule Choreo.FSM do
   def theme(name \\ :default, overrides \\ []) do
     Choreo.FSM.Render.DOT.theme(name, overrides)
   end
+
+  @doc """
+  Converts the multigraph to a simple graph.
+  """
+  @spec to_simple_graph(t(), keyword()) :: Yog.Graph.t()
+  def to_simple_graph(%__MODULE__{graph: graph}, opts \\ []) do
+    combine = Keyword.get(opts, :combine, fn _k, v1, _v2 -> v1 end)
+    Yog.Multi.to_simple_graph(graph, combine)
+  end
 end
 
 defimpl Choreo.DOT, for: Choreo.FSM do

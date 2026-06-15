@@ -279,6 +279,7 @@ defmodule Choreo.FSM.Analysis do
 
         do_accepted_strings(fsm, queue, max_length, 0, [])
         |> Enum.reverse()
+        |> Enum.uniq()
     end
   end
 
@@ -760,10 +761,15 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-    Validates that a path of states satisfies the given temporal constraint.
+    Checks whether the FSM graph contains a forbidden state sequence.
+
+    This is a static check: it looks for a connected path of transitions
+    matching the sequence given in `:forbid_path`. It does not simulate a
+    particular execution trace.
 
     Supported options:
-      * `:forbid_path` - a list of state IDs that must not be traversed consecutively in this sequence.
+      * `:forbid_path` - a list of state IDs that must not appear as a
+        consecutive path of transitions in the FSM.
 
     ## Examples
 

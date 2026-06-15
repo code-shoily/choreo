@@ -47,6 +47,21 @@ defmodule Choreo.HeatmapTest do
     assert nodes[:e].fillcolor
   end
 
+  test "heatmap for fsm" do
+    fsm =
+      Choreo.FSM.new()
+      |> Choreo.FSM.add_initial_state(:a)
+      |> Choreo.FSM.add_state(:b)
+      |> Choreo.FSM.add_final_state(:c)
+      |> Choreo.FSM.add_transition(:a, :b, label: "x")
+      |> Choreo.FSM.add_transition(:b, :c, label: "y")
+
+    heat = Analysis.heatmap(fsm, palette: :heat)
+    nodes = heat.graph.nodes
+    assert nodes[:a].fillcolor
+    assert nodes[:c].fillcolor
+  end
+
   test "different palettes produce different colors" do
     system =
       Choreo.new() |> Choreo.add_service(:a) |> Choreo.add_service(:b) |> Choreo.connect(:a, :b)
