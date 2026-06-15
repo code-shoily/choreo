@@ -24,7 +24,7 @@ The GitHub REST API allows **60 unauthenticated requests/hour** per IP for publi
 
 ```elixir
 repo_input = Kino.Input.text("GitHub repo (owner/repo)", default: "elixir-lang/elixir")
-state_input = Kino.Input.select("Issue state", [{"Open", "open"}, {"Closed", "closed"}, {"All", "all"}], default: "Open")
+state_input = Kino.Input.select("Issue state", [{"open", "Open"}, {"closed", "Closed"}, {"all", "All"}], default: "open")
 limit_input = Kino.Input.number("Max issues to fetch", default: 100)
 token_input = Kino.Input.password("GitHub token (optional, for private repos)")
 
@@ -72,7 +72,7 @@ defmodule GitHubFetcher do
   defp build_headers(token), do: [{"accept", "application/vnd.github+json"}, {"authorization", "Bearer #{token}"}]
 
   defp fetch_issues(repo, state, limit, headers) do
-    do_paginate("#{@github_api}/repos/#{repo}/issues", [state: state], limit, headers, [])
+    do_paginate("#{@github_api}/repos/#{repo}/issues", [state: state], limit, headers, 1, [])
   end
 
   defp fetch_milestones(repo, headers) do
@@ -95,22 +95,17 @@ defmodule GitHubFetcher do
 
         {:ok, milestones}
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, "Milestones HTTP #{status}: #{inspect(body["message"])}"}
-
-      {:error, reason} ->
-        {:error, reason}
+      _error ->
+        {:ok, []}
     end
   end
 
-  defp do_paginate(_url, _params, limit, _headers, acc) when length(acc) >= limit do
+  defp do_paginate(_url, _params, limit, _headers, _page, acc) when length(acc) >= limit do
     {:ok, Enum.take(acc, limit)}
   end
 
-  defp do_paginate(url, params, limit, headers, acc) do
+  defp do_paginate(url, params, limit, headers, page, acc) do
     per_page = min(limit - length(acc), 100)
-
-    page = div(length(acc), per_page) + 1
 
     case Req.get(url, headers: headers, params: [{:per_page, per_page}, {:page, page} | params]) do
       {:ok, %{status: 200, body: body}} when is_list(body) ->
@@ -124,11 +119,14 @@ defmodule GitHubFetcher do
         if length(body) < per_page do
           {:ok, Enum.take(all, limit)}
         else
-          do_paginate(url, params, limit, headers, all)
+          do_paginate(url, params, limit, headers, page + 1, all)
         end
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, "HTTP #{status}: #{inspect(body["message"])}"}
+      {:ok, %{status: _status, body: body}} when is_map(body) ->
+        {:error, body["message"] || "Unknown API error"}
+
+      {:ok, response} ->
+        {:error, "HTTP #{response.status}"}
 
       {:error, reason} ->
         {:error, reason}
@@ -170,9 +168,16 @@ token =
 
 IO.puts("🔍 Fetching issues from #{repo}...")
 
-{:ok, data} = GitHubFetcher.fetch(repo, state: state, limit: limit, token: token)
+data =
+  case GitHubFetcher.fetch(repo, state: state, limit: limit, token: token) do
+    {:ok, result} ->
+      IO.puts("✅ Fetched #{length(result.issues)} issues, #{length(result.milestones)} milestones, #{length(result.labels)} labels")
+      result
 
-IO.puts("✅ Fetched #{length(data.issues)} issues, #{length(data.milestones)} milestones, #{length(data.labels)} labels")
+    {:error, reason} ->
+      IO.puts("❌ Error fetching issues: #{inspect(reason)}")
+      %{issues: [], milestones: [], labels: []}
+  end
 
 Kino.DataTable.new(
   data.issues
@@ -288,6 +293,8 @@ IO.puts("📊 Planner built with #{length(Planner.tasks(plan))} tasks")
 
 Issues grouped by status (backlog / done):
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :kanban_compat))
 ```
@@ -296,10 +303,12 @@ Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :kanban_compat))
 
 The full task graph showing milestones, assignments, and labels:
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 Kino.Layout.tabs(
   Mermaid: Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(plan), height: "700px")
+  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, layout: :circo), height: "1200px")
 )
 ```
 
@@ -357,7 +366,7 @@ case Analysis.validate(plan) do
     IO.puts("✅ Planner graph is structurally sound")
 
   issues ->
-    Enum.each(issues, fn {sev, msg} ->
+    Enum.each(issues, fn {sev, _, msg} ->
       icon = if sev == :error, do: "❌", else: "⚠️"
       IO.puts("#{icon} #{msg}")
     end)
@@ -380,7 +389,7 @@ A different lens on the same data — issues grouped by **label** in a radial co
 alias Choreo.MindMap
 alias Choreo.MindMap.Analysis
 
-root_id = :"repo"
+root_id = :repo
 
 mindmap = MindMap.new()
 mindmap = MindMap.set_root(mindmap, root_id, label: repo)
@@ -441,11 +450,13 @@ IO.puts("🧠 Mind map built: #{length(MindMap.nodes(mindmap))} nodes")
 
 ### Mind Map Visualisation
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 Kino.Layout.tabs(
   "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(mindmap, syntax: :mindmap)),
   "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(mindmap, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(MindMap.to_dot(mindmap), height: "800px")
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(mindmap, layout: :circo),height: "800px")
 )
 ```
 
