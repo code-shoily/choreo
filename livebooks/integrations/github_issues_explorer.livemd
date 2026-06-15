@@ -24,7 +24,7 @@ The GitHub REST API allows **60 unauthenticated requests/hour** per IP for publi
 
 ```elixir
 repo_input = Kino.Input.text("GitHub repo (owner/repo)", default: "elixir-lang/elixir")
-state_input = Kino.Input.select("Issue state", [{"Open", "open"}, {"Closed", "closed"}, {"All", "all"}], default: "open")
+state_input = Kino.Input.select("Issue state", [{"Open", "open"}, {"Closed", "closed"}, {"All", "all"}], default: "Open")
 limit_input = Kino.Input.number("Max issues to fetch", default: 100)
 token_input = Kino.Input.password("GitHub token (optional, for private repos)")
 
@@ -194,13 +194,13 @@ Kino.DataTable.new(
 
 The Planner maps GitHub issues to a project plan:
 
-- **Milestones** → `Planner.add_milestone/3`
-- **Issues** → `Planner.add_task/3` with status mapped from GitHub state
-- **Labels** → `Planner.add_label/3`
-- **Assignees** → `Planner.add_user/3`
-- Milestone containment → `Planner.contains/3`
-- Label tagging → `Planner.tag/3`
-- User assignment → `Planner.assign/3`
+* **Milestones** → `Planner.add_milestone/3`
+* **Issues** → `Planner.add_task/3` with status mapped from GitHub state
+* **Labels** → `Planner.add_label/3`
+* **Assignees** → `Planner.add_user/3`
+* Milestone containment → `Planner.contains/3`
+* Label tagging → `Planner.tag/3`
+* User assignment → `Planner.assign/3`
 
 ```elixir
 alias Choreo.Planner
@@ -370,11 +370,11 @@ end
 
 A different lens on the same data — issues grouped by **label** in a radial concept map.
 
-- **Root** → the repository name
-- **Topics** → each label (colored by GitHub label color)
-- **Subtopics** → issues tagged with that label
-- **Notes** → unlabeled issues go under an "Unlabeled" topic
-- **Associations** → issues that share multiple labels get cross-links
+* **Root** → the repository name
+* **Topics** → each label (colored by GitHub label color)
+* **Subtopics** → issues tagged with that label
+* **Notes** → unlabeled issues go under an "Unlabeled" topic
+* **Associations** → issues that share multiple labels get cross-links
 
 ```elixir
 alias Choreo.MindMap
@@ -552,18 +552,18 @@ Kino.DataTable.new(
 
 This notebook turns a GitHub repo's issue tracker into two Choreo diagrams:
 
-| Diagram               | What you see                                   | Best for                                   |
-| --------------------- | ---------------------------------------------- | ------------------------------------------ |
-| **Planner**           | Kanban, Gantt, dependency flowchart             | Sprint planning, workload, milestone status |
-| **Mind Map**          | Radial concept map grouped by label             | Getting oriented in a new repo, big picture |
+| Diagram      | What you see                        | Best for                                    |
+| ------------ | ----------------------------------- | ------------------------------------------- |
+| **Planner**  | Kanban, Gantt, dependency flowchart | Sprint planning, workload, milestone status |
+| **Mind Map** | Radial concept map grouped by label | Getting oriented in a new repo, big picture |
 
-| Analysis                          | Planner                          | Mind Map                         |
-| --------------------------------- | -------------------------------- | -------------------------------- |
-| Ready / blocked work              | `Planner.Analysis.ready/1`       | —                                |
-| Orphan tasks (no milestone)       | `Planner.Analysis.orphans/1`     | —                                |
-| Structural validation             | `Planner.Analysis.validate/1`    | `MindMap.Analysis.validate/1`    |
-| Depth / breadth                   | —                                | `MindMap.Analysis.depth/1`       |
-| Zoom / focus views                | —                                | `View.zoom/2`, `View.focus/3`    |
-| Label distribution                | _(data table)_                   | `MindMap.Analysis.max_width/1`   |
+| Analysis                    | Planner                       | Mind Map                       |
+| --------------------------- | ----------------------------- | ------------------------------ |
+| Ready / blocked work        | `Planner.Analysis.ready/1`    | —                            |
+| Orphan tasks (no milestone) | `Planner.Analysis.orphans/1`  | —                            |
+| Structural validation       | `Planner.Analysis.validate/1` | `MindMap.Analysis.validate/1`  |
+| Depth / breadth             | —                           | `MindMap.Analysis.depth/1`     |
+| Zoom / focus views          | —                           | `View.zoom/2`, `View.focus/3`  |
+| Label distribution          | _(data table)_                | `MindMap.Analysis.max_width/1` |
 
 Try it with `phoenixframework/phoenix`, `elixir-lang/elixir`, `livebook-dev/livebook`, or your own repos!
