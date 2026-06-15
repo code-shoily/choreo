@@ -64,7 +64,7 @@ defmodule Choreo.MixProject do
   defp package do
     [
       name: "choreo",
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE guides),
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE guides livebooks),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url
@@ -73,7 +73,7 @@ defmodule Choreo.MixProject do
   end
 
   defp docs do
-    livebooks = Path.wildcard("livebooks/*.livemd") |> Enum.sort()
+    livebooks = Path.wildcard("livebooks/**/*.livemd") |> Enum.sort()
 
     [
       main: "readme",
@@ -181,13 +181,15 @@ defmodule Choreo.MixProject do
         ]
       ],
       groups_for_extras: [
-        Guides: [
+        "Getting Started": [
           "README.md",
           "guides/architecture_and_design.md",
           "guides/behavior_and_flows.md",
           "guides/data_and_structure.md"
         ],
-        Livebooks: livebooks,
+        "Walkthrough Guides": ["livebooks/guides/*"],
+        Integrations: ["livebooks/integrations/*"],
+        Projects: ["livebooks/projects/*"],
         Resources: [
           "CHANGELOG.md"
         ]

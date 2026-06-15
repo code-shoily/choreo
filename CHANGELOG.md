@@ -58,7 +58,7 @@
   - Implemented scenario highlighting lens via `focus_path/2` to visually gray-out nodes outside of targeted execution paths.
   - Implemented recursive root-cause verification using `trace_cause/2`.
   - Implemented semantic audit validations in `Choreo.Domain.Analysis` checking for orphaned commands, dead-end events, parentless events, and dangling saga policies.
-  - Added interactive walkthrough notebook (`livebooks/domain_modeling_walkthrough.livemd`).
+  - Added interactive walkthrough notebook (`livebooks/guides/domain_modeling_walkthrough.livemd`).
 
 - **Cross-Diagram Semantic Tracing & Impact Analysis**:
   - Implemented `Choreo.trace/5` for declaring semantic connections (traces) between nodes across different diagram schemas (e.g. Workflow task -> C4 component -> ERD table).
@@ -96,7 +96,7 @@
   - Implemented native Mermaid `erDiagram` visual syntax rendering (`Choreo.ERD.Render.Mermaid`).
   - Implemented a topological analysis suite (`Choreo.ERD.Analysis`) including undirected BFS join path discovery, DFS circular foreign key cycle detection, isolated orphan entity tracking, and table coupling metrics.
   - Implemented `Choreo.Viewable` protocol for `Choreo.ERD` to enable standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
-  - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/erd_walkthrough.livemd`).
+  - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/guides/erd_walkthrough.livemd`).
 
 - **Choreo.UML — Class & Struct Diagrams**:
   - Implemented `Choreo.UML` schema builder with strict `NimbleOptions` field, arity, visibility, and relationship constraint validation.
@@ -104,7 +104,7 @@
   - Implemented Mermaid visual syntax rendering (`Choreo.UML.Render.Mermaid`) supporting both flowchart layouts and native `classDiagram` rendering.
   - Implemented `Choreo.Viewable` protocol for standard graph lens operations (`focus`, `zoom`, `filter`, `collapse`).
   - Implemented a static analysis suite (`Choreo.UML.Analysis`) including circular dependency detection, behavior contract validation, and Robert C. Martin's coupling & stability metrics.
-  - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/uml_walkthrough.livemd`).
+  - Added ExDoc groupings and a full interactive Livebook walkthrough guide (`livebooks/guides/uml_walkthrough.livemd`).
 
 - **Choreo.Planner — Project Planning Diagrams**:
   - Implemented `Choreo.Planner` builder for project planning with tasks, milestones, users, and labels.
@@ -112,7 +112,7 @@
   - Implemented native Mermaid rendering (`Choreo.Planner.Render.Mermaid`) supporting `:kanban`, `:kanban_compat`, `:gantt`, and `:flowchart` syntaxes with status columns, color coding, and dependency scheduling.
   - Implemented themed DOT flowchart rendering (`Choreo.Planner.Render.DOT`) via `Yog.Multi.DOT`.
   - Implemented a planning analysis suite (`Choreo.Planner.Analysis`) including `ready/1`, `blocked/1`, `critical_path/2`, `bottlenecks/1`, and `validate/1`.
-  - Added a full interactive Livebook walkthrough guide (`livebooks/planner_walkthrough.livemd`).
+  - Added a full interactive Livebook walkthrough guide (`livebooks/guides/planner_walkthrough.livemd`).
 
 - **Choreo.C4 — C4 Model Architecture Diagrams**:
   - Implemented `Choreo.C4` schema builder for L1–L3 C4 modeling with `add_person/3`, `add_software_system/3`, `add_container/3`, and `add_component/3`.
@@ -121,7 +121,7 @@
   - Implemented themed DOT rendering (`Choreo.C4.Render.DOT`) with C4-specific visual conventions: persons as ellipses, systems as boxes, containers as rounded boxes, and components as dashed boxes.
   - Implemented native Mermaid rendering (`Choreo.C4.Render.Mermaid`) with matching shapes and built-in theme support.
   - Implemented a structural analysis suite (`Choreo.C4.Analysis`) including missing parent detection, missing description/technology detection, isolated node detection, missing relationship labels, and general `validate/1`.
-  - Added a full interactive Livebook walkthrough guide (`livebooks/c4_walkthrough.livemd`).
+  - Added a full interactive Livebook walkthrough guide (`livebooks/guides/c4_walkthrough.livemd`).
 
 - **Choreo.Sequence — Sequence Diagrams**:
   - Implemented `Choreo.Sequence` builder for ordered participant interactions with `add_actor/3`, `add_participant/3`, `message/4`, `async/4`, `return/4`, and `self_message/3`.
@@ -129,7 +129,7 @@
   - Implemented native Mermaid `sequenceDiagram` rendering (`Choreo.Sequence.Render.Mermaid`) with actors, participants, activation boxes, notes, and fragments.
   - Implemented a best-effort DOT timeline fallback (`Choreo.Sequence.Render.DOT`) for static image and PDF pipelines.
   - Implemented a quality analysis suite (`Choreo.Sequence.Analysis`) including missing labels, unknown participants, isolated participants, unbalanced activations, unclosed fragments, and general `validate/1`.
-  - Added a full interactive Livebook walkthrough guide (`livebooks/sequence_walkthrough.livemd`).
+  - Added a full interactive Livebook walkthrough guide (`livebooks/guides/sequence_walkthrough.livemd`).
 
 - **Native Mermaid Visualizers & Syntaxes**:
   - **`Choreo.FSM`**: Added native `:state_diagram` (`stateDiagram-v2`) syntax support mapping initial/final states to entry/acceptance targets (`[*] --> state` and `state --> [*]`) and mapping custom labels.

@@ -1,0 +1,869 @@
+# Choreo ⇄ Finitomata: Design, Run, Analyze
+
+```elixir
+Mix.install([
+  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, github: "code-shoily/choreo", ref: "e8a0822"},
+  {:finitomata, "~> 0.41"},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## Introduction
+
+**Choreo** and **Finitomata** are complementary Elixir libraries for finite-state machines:
+
+|                | Choreo.FSM                           | Finitomata                            |
+| -------------- | ------------------------------------ | ------------------------------------- |
+| **Feature**    | Design-time analysis & visualization | Runtime FSM execution with OTP        |
+| **FSM Format** | Graph-based (`Yog.Multi.Graph`)      | Transition list (`[%Transition{}]`)   |
+| **Use case**   | Model, visualize, validate, minimize | Spawn, transition, persist, supervise |
+
+This notebook demonstrates how to bridge them — design in Choreo, run in Finitomata, then import back into Choreo for post-hoc analysis.
+
+## The Adapter
+
+This module provides bidirectional conversion between `Choreo.FSM` and `Finitomata`.
+
+```elixir
+defmodule FinitomataAdapter do
+  @moduledoc """
+  Bidirectional adapter between Choreo.FSM and Finitomata.
+
+  - `to_finitomata_dsl/2` — Choreo FSM → Mermaid DSL string for `use Finitomata`
+  - `from_finitomata/1`   — Finitomata module or transition list → Choreo FSM
+
+  ## Supported syntaxes
+
+    * `:flowchart` (default) — Mermaid flowchart syntax. Initial/final states are
+      implicit; use `auto_terminate: true` in Finitomata to handle final states.
+    * `:state_diagram` — Mermaid/PlantUML state-diagram syntax. Explicitly emits
+      `[*]` entry and exit transitions, preserving initial/final state semantics.
+
+  ## Limitations
+
+    * Finitomata allows a single event to target multiple states (non-determinism).
+      Choreo.FSM is DFA-only, so such transitions are split into distinct labels
+      like `event→target1`, `event→target2`. Replaying the original event on the
+      imported Choreo FSM will not work without remapping.
+    * Choreo transition guards are not represented in Finitomata DSL.
+  """
+
+  alias Choreo.FSM
+
+  @synthetic_events ~w(__start__ __end__ finitomata_back)a
+
+  # ── Choreo → Finitomata DSL ─────────────────────────────────────────────
+
+  @doc """
+  Converts a Choreo FSM to a Finitomata-compatible Mermaid DSL string.
+
+  ## Options
+
+    * `:syntax` — `:flowchart` (default) or `:state_diagram`
+  """
+  def to_finitomata_dsl(%FSM{} = fsm, opts \\ []) do
+    case Keyword.get(opts, :syntax, :flowchart) do
+      :state_diagram -> to_state_diagram_dsl(fsm)
+      :flowchart -> to_flowchart_dsl(fsm)
+    end
+  end
+
+  defp to_flowchart_dsl(fsm) do
+    fsm.graph.edges
+    |> Enum.map(fn {_eid, {from, to, label}} -> {from, to, label} end)
+    |> Enum.reject(fn {from, to, _} -> from == :* or to == :* end)
+    |> Enum.sort()
+    |> Enum.map_join("\n", fn {from, to, label} ->
+      "#{from} --> |#{label}| #{to}"
+    end)
+  end
+
+  defp to_state_diagram_dsl(fsm) do
+    initial = FSM.initial_state(fsm)
+    finals = FSM.final_states(fsm) |> MapSet.new()
+
+    entry_lines =
+      if initial do
+        ["[*] --> #{initial} : __start__"]
+      else
+        []
+      end
+
+    exit_lines =
+      finals
+      |> Enum.sort()
+      |> Enum.map(fn final -> "#{final} --> [*] : __end__" end)
+
+    transition_lines =
+      fsm.graph.edges
+      |> Enum.map(fn {_eid, {from, to, label}} -> {from, to, label} end)
+      |> Enum.reject(fn {from, to, _} -> from == :* or to == :* end)
+      |> Enum.sort()
+      |> Enum.map(fn {from, to, label} ->
+        "#{from} --> #{to} : #{label}"
+      end)
+
+    (entry_lines ++ transition_lines ++ exit_lines)
+    |> Enum.join("\n")
+  end
+
+  # ── Finitomata → Choreo ─────────────────────────────────────────────────
+
+  @doc "Builds a Choreo FSM from a compiled Finitomata module."
+  def from_finitomata(finitomata_module) when is_atom(finitomata_module) do
+    unless function_exported?(finitomata_module, :__config__, 1) do
+      raise ArgumentError,
+            "#{inspect(finitomata_module)} does not appear to `use Finitomata`"
+    end
+
+    finitomata_module.__config__(:fsm) |> from_finitomata()
+  end
+
+  def from_finitomata(transitions) when is_list(transitions) do
+    user_transitions = Enum.reject(transitions, &(&1.event in @synthetic_events))
+
+    initial_states =
+      transitions
+      |> Enum.filter(&(&1.from == :*))
+      |> Enum.flat_map(&List.wrap(&1.to))
+      |> Enum.uniq()
+
+    final_states =
+      transitions
+      |> Enum.filter(&(&1.to == :* or (is_list(&1.to) and :* in &1.to)))
+      |> Enum.map(& &1.from)
+      |> Enum.uniq()
+
+    all_states =
+      transitions
+      |> Enum.flat_map(&[&1.from | List.wrap(&1.to)])
+      |> Enum.reject(&(&1 == :*))
+      |> Enum.uniq()
+
+    choreo =
+      Enum.reduce(all_states, FSM.new(), fn state, acc ->
+        cond do
+          state in initial_states and state in final_states ->
+            acc |> FSM.add_initial_state(state) |> FSM.add_final_state(state)
+
+          state in initial_states ->
+            FSM.add_initial_state(acc, state)
+
+          state in final_states ->
+            FSM.add_final_state(acc, state)
+
+          true ->
+            FSM.add_state(acc, state)
+        end
+      end)
+
+    Enum.reduce(user_transitions, choreo, fn t, acc ->
+      if t.from == :* or t.to == :* or (is_list(t.to) and :* in t.to) do
+        acc
+      else
+        targets = List.wrap(t.to)
+        event_str = to_string(t.event)
+
+        if length(targets) > 1 do
+          Enum.reduce(targets, acc, fn target, inner_acc ->
+            FSM.add_transition(inner_acc, t.from, target, label: "#{event_str}→#{target}")
+          end)
+        else
+          FSM.add_transition(acc, t.from, hd(targets), label: event_str)
+        end
+      end
+    end)
+  end
+end
+```
+
+## Part 1: Design in Choreo → Generate Finitomata
+
+Let's model an **order processing** workflow in Choreo, then generate the Finitomata DSL from it.
+
+### 1.1 — Build the FSM
+
+```elixir
+alias Choreo.FSM
+alias Choreo.FSM.Analysis
+
+order_fsm =
+  FSM.new()
+  |> FSM.add_initial_state(:cart)
+  |> FSM.add_state(:checkout)
+  |> FSM.add_state(:payment_pending)
+  |> FSM.add_state(:payment_failed)
+  |> FSM.add_state(:processing)
+  |> FSM.add_state(:shipped)
+  |> FSM.add_final_state(:delivered)
+  |> FSM.add_final_state(:cancelled)
+  |> FSM.add_final_state(:refunded)
+  # Happy path
+  |> FSM.add_transition(:cart, :checkout, label: "begin_checkout")
+  |> FSM.add_transition(:checkout, :payment_pending, label: "submit_payment")
+  |> FSM.add_transition(:payment_pending, :processing, label: "payment_confirmed")
+  |> FSM.add_transition(:processing, :shipped, label: "ship")
+  |> FSM.add_transition(:shipped, :delivered, label: "deliver")
+  # Payment retry
+  |> FSM.add_transition(:payment_pending, :payment_failed, label: "payment_declined")
+  |> FSM.add_transition(:payment_failed, :payment_pending, label: "retry_payment")
+  # Cancellation
+  |> FSM.add_transition(:cart, :cancelled, label: "cancel")
+  |> FSM.add_transition(:checkout, :cancelled, label: "cancel")
+  |> FSM.add_transition(:payment_failed, :cancelled, label: "abandon")
+  # Refund
+  |> FSM.add_transition(:shipped, :refunded, label: "refund")
+
+:ok
+```
+
+### 1.2 — Visualize with Mermaid
+
+<!-- livebook:{"output_size":"wide"} -->
+
+```elixir
+mermaid =
+  order_fsm
+  |> FSM.to_mermaid()
+  |> Kino.Mermaid.new()
+
+mermaid_state_diagram =
+  order_fsm
+  |> FSM.to_mermaid(syntax: :state_diagram)
+  |> Kino.Mermaid.new()
+
+dot =
+  order_fsm
+  |> FSM.to_dot()
+  |> Kino.VizJS.render(height: "600px")
+
+Kino.Layout.tabs(
+  Graphviz: dot,
+  Mermaid: mermaid,
+  "Mermaid (State Diagram)": mermaid_state_diagram
+)
+```
+
+### 1.3 — Run Analysis Before Deploying
+
+Before we turn this into a Finitomata module, let's verify structural soundness.
+
+```elixir
+IO.puts("═══ Structural Validation ═══\n")
+
+validation = Analysis.validate(order_fsm)
+
+case validation do
+  [] -> IO.puts("✅ No structural issues found.")
+  issues -> Enum.each(issues, fn {level, msg} -> IO.puts("  #{level}: #{msg}") end)
+end
+
+IO.puts("\n═══ Reachability ═══\n")
+
+reachable = Analysis.reachable_states(order_fsm)
+all_states = FSM.states(order_fsm)
+unreachable = all_states -- reachable
+
+IO.puts("  Reachable: #{inspect(Enum.sort(reachable))}")
+IO.puts("  Unreachable: #{inspect(unreachable)}")
+
+IO.puts("\n═══ Dead States ═══\n")
+
+dead = Analysis.dead_states(order_fsm)
+
+case dead do
+  [] -> IO.puts("  ✅ No dead states (all states can reach a final state).")
+  states -> IO.puts("  ⚠️  Dead: #{inspect(states)}")
+end
+
+IO.puts("\n═══ Livelock Detection ═══\n")
+
+livelocks = Analysis.livelock_states(order_fsm)
+
+case livelocks do
+  [] -> IO.puts("  ✅ No livelock states.")
+  states -> IO.puts("  ⚠️  Livelock: #{inspect(states)}")
+end
+
+IO.puts("\n═══ Determinism ═══\n")
+
+if Analysis.deterministic?(order_fsm) do
+  IO.puts("  ✅ FSM is deterministic.")
+else
+  IO.puts("  ⚠️  FSM is non-deterministic (same label from same state to different targets).")
+end
+
+IO.puts("\n═══ Shortest Accepting Path ═══\n")
+
+case Analysis.shortest_accepting_path(order_fsm) do
+  {:ok, path} -> IO.puts("  #{Enum.join(path, " → ")}")
+  :error -> IO.puts("  ❌ No accepting path found.")
+end
+```
+
+### 1.4 — Generate Test Cases
+
+Choreo can automatically generate test paths covering all states or all transitions:
+
+```elixir
+IO.puts("═══ State-Coverage Test Cases ═══\n")
+
+state_cases = Analysis.generate_test_cases(order_fsm, :state)
+
+state_cases
+|> Enum.with_index(1)
+|> Enum.each(fn {path, i} ->
+  IO.puts("  Test #{i}: #{Enum.join(path, " → ")}")
+end)
+
+IO.puts("\n═══ Transition-Coverage Test Cases ═══\n")
+
+transition_cases = Analysis.generate_test_cases(order_fsm, :transition)
+
+transition_cases
+|> Enum.with_index(1)
+|> Enum.each(fn {path, i} ->
+  IO.puts("  Test #{i}: #{Enum.join(path, " → ")}")
+end)
+```
+
+### 1.5 — Generate Finitomata DSL
+
+Now that the FSM is validated, generate the DSL string for Finitomata.
+
+The adapter supports two Mermaid syntaxes:
+
+* **`:flowchart` (default)** — compact, but initial/final states are implicit. Use `auto_terminate: true` in Finitomata to handle final states.
+* **`:state_diagram`** — explicitly emits `[*]` entry and exit transitions, so initial/final state semantics round-trip faithfully.
+
+```elixir
+IO.puts("═══ Flowchart DSL (default) ═══\n")
+flowchart_dsl = FinitomataAdapter.to_finitomata_dsl(order_fsm)
+IO.puts(flowchart_dsl)
+
+IO.puts("\n\n═══ State Diagram DSL ═══\n")
+state_diagram_dsl = FinitomataAdapter.to_finitomata_dsl(order_fsm, syntax: :state_diagram)
+IO.puts(state_diagram_dsl)
+```
+
+> **Note:** Finitomata can also represent non-deterministic transitions (one event → multiple target states). Choreo.FSM is DFA-only, so the adapter splits those into synthetic labels like `event→target`. The language is preserved topologically, but event replay requires remapping.
+
+## Part 2: Run in Finitomata
+
+Let's take the generated DSL and use it to define a real Finitomata process.
+
+### 2.1 — Define the Finitomata Module
+
+```elixir
+defmodule OrderProcess do
+  @moduledoc "Order processing FSM powered by Finitomata."
+
+  use Finitomata,
+    fsm: """
+    cart --> |begin_checkout| checkout
+    cart --> |cancel| cancelled
+    checkout --> |cancel| cancelled
+    checkout --> |submit_payment| payment_pending
+    payment_failed --> |abandon| cancelled
+    payment_failed --> |retry_payment| payment_pending
+    payment_pending --> |payment_confirmed| processing
+    payment_pending --> |payment_declined| payment_failed
+    processing --> |ship| shipped
+    shipped --> |deliver| delivered
+    shipped --> |refund| refunded
+    """,
+    auto_terminate: true,
+    impl_for: :all
+
+  @impl Finitomata
+  def on_transition(current_state, event, _event_payload, state_data) do
+    updated = Map.update(state_data, :history, [{current_state, event}], &[{current_state, event} | &1])
+    Finitomata.Transition.guess_next_state(__config__(:fsm), current_state, event, updated)
+  end
+end
+```
+
+### 2.2 — Verify the Compiled Config
+
+```elixir
+IO.puts("═══ Compiled Finitomata Config ═══\n")
+
+IO.puts("Entry event: #{inspect(OrderProcess.__config__(:entry))}")
+IO.puts("States: #{inspect(OrderProcess.__config__(:states))}")
+IO.puts("Events: #{inspect(OrderProcess.__config__(:events))}")
+
+IO.puts("\n═══ Transition List ═══\n")
+
+OrderProcess.__config__(:fsm)
+|> Enum.reject(&(&1.from == :* or &1.to == :*))
+|> Enum.each(fn t ->
+  IO.puts("  #{t.from} --#{t.event}--> #{inspect(t.to)}")
+end)
+```
+
+### 2.3 — Execute a Live FSM
+
+```elixir
+# Ensure the Finitomata supervision tree is started in our Livebook session
+unless Process.whereis(Finitomata.Supervisor), do: Finitomata.start_link()
+
+# Start the happy path
+Finitomata.start_fsm(OrderProcess, "order-42", %{user_id: 42, items: ["widget"]})
+Process.sleep(50)
+
+# Walk through the happy path
+[:begin_checkout, :submit_payment, :payment_confirmed, :ship, :deliver]
+|> Enum.each(fn event ->
+  Finitomata.transition("order-42", {event, nil})
+  Process.sleep(20)
+end)
+
+# Give auto_terminate time
+Process.sleep(100)
+
+IO.puts("✅ Order 42 completed the happy path.")
+```
+
+```elixir
+# Ensure Finitomata is running
+unless Process.whereis(Finitomata.Supervisor), do: Finitomata.start_link()
+
+# Start the retry + cancel path
+Finitomata.start_fsm(OrderProcess, "order-99", %{user_id: 99, items: ["gizmo"]})
+Process.sleep(50)
+
+[:begin_checkout, :submit_payment, :payment_declined, :retry_payment, :payment_declined, :abandon]
+|> Enum.each(fn event ->
+  Finitomata.transition("order-99", {event, nil})
+  Process.sleep(20)
+end)
+
+Process.sleep(100)
+
+IO.puts("✅ Order 99 completed the retry→cancel path.")
+```
+
+## Part 3: Import Finitomata Back into Choreo
+
+Now let's demonstrate the reverse — taking a compiled Finitomata module and importing it into Choreo for analysis.
+
+### 3.1 — Import from Module
+
+```elixir
+imported_fsm = FinitomataAdapter.from_finitomata(OrderProcess)
+
+IO.puts("═══ Imported FSM ═══\n")
+IO.puts("States: #{inspect(Enum.sort(FSM.states(imported_fsm)))}")
+IO.puts("Initial: #{inspect(FSM.initial_state(imported_fsm))}")
+IO.puts("Final: #{inspect(Enum.sort(FSM.final_states(imported_fsm)))}")
+IO.puts("Transitions: #{length(FSM.transitions(imported_fsm))}")
+```
+
+### 3.2 — Visualize the Imported FSM
+
+<!-- livebook:{"output_size":"wide"} -->
+
+```elixir
+mermaid =
+  imported_fsm
+  |> FSM.to_mermaid()
+  |> Kino.Mermaid.new()
+
+mermaid_state_diagram =
+  imported_fsm
+  |> FSM.to_mermaid(syntax: :state_diagram)
+  |> Kino.Mermaid.new()
+
+dot = 
+  imported_fsm
+  |> FSM.to_dot()
+  |> Kino.VizJS.render(height: "600px")
+
+Kino.Layout.tabs(
+  Graphviz: dot,
+  Mermaid: mermaid,
+  "Mermaid (State Diagram)": mermaid_state_diagram
+)
+```
+
+### 3.3 — Round-Trip Verification
+
+Let's verify that the round-trip preserves the topology:
+
+```elixir
+IO.puts("═══ Round-Trip Check ═══\n")
+
+original_states = FSM.states(order_fsm) |> Enum.sort()
+imported_states = FSM.states(imported_fsm) |> Enum.sort()
+
+original_transitions =
+  FSM.transitions(order_fsm)
+  |> Enum.map(fn {from, to, label} -> {from, to, label} end)
+  |> Enum.sort()
+
+imported_transitions =
+  FSM.transitions(imported_fsm)
+  |> Enum.map(fn {from, to, label} -> {from, to, label} end)
+  |> Enum.sort()
+
+IO.puts("States match: #{original_states == imported_states}")
+IO.puts("Transitions match: #{original_transitions == imported_transitions}")
+IO.puts("Initial match: #{FSM.initial_state(order_fsm) == FSM.initial_state(imported_fsm)}")
+
+final_match =
+  Enum.sort(FSM.final_states(order_fsm)) == Enum.sort(FSM.final_states(imported_fsm))
+
+IO.puts("Finals match: #{final_match}")
+IO.puts("Behaviorally equivalent? #{Analysis.equivalent?(order_fsm, imported_fsm)}")
+```
+
+## Part 4: Analyze a Separately-Created Finitomata
+
+Here's where the real power lies — importing an FSM you didn't design in Choreo and finding issues.
+
+### 4.1 — A Finitomata With Problems
+
+```elixir
+defmodule BuggyWorkflow do
+  @moduledoc "A workflow with hidden structural issues."
+
+  use Finitomata,
+    fsm: """
+    idle --> |start| validating
+    validating --> |valid| processing
+    validating --> |invalid| rejected
+    processing --> |complete| done
+    processing --> |hang| stuck
+    stuck --> |recover| looping
+    looping --> |fail| stuck
+    """,
+    auto_terminate: true,
+    impl_for: :all
+
+  @impl Finitomata
+  def on_transition(current, event, _payload, state_data) do
+    Finitomata.Transition.guess_next_state(__config__(:fsm), current, event, state_data)
+  end
+end
+```
+
+### 4.2 — Import and Analyze
+
+```elixir
+buggy = FinitomataAdapter.from_finitomata(BuggyWorkflow)
+```
+
+```elixir
+IO.puts("═══ Analysis of BuggyWorkflow ═══\n")
+
+IO.puts("── Validation ──")
+case Analysis.validate(buggy) do
+  [] -> IO.puts("  ✅ No issues")
+  issues -> Enum.each(issues, fn {level, msg} -> IO.puts("  #{level}: #{msg}") end)
+end
+
+IO.puts("\n── Dead States ──")
+dead = Analysis.dead_states(buggy)
+case dead do
+  [] -> IO.puts("  ✅ None")
+  _ -> IO.puts("  ⚠️  #{inspect(dead)} — these states can never reach a final state!")
+end
+
+IO.puts("\n── Livelock ──")
+livelocks = Analysis.livelock_states(buggy)
+case livelocks do
+  [] -> IO.puts("  ✅ None")
+  _ -> IO.puts("  🔄 #{inspect(livelocks)} — these states can cycle forever without reaching acceptance!")
+end
+
+IO.puts("\n── Determinism ──")
+IO.puts("  #{if Analysis.deterministic?(buggy), do: "✅ Deterministic", else: "⚠️  Non-deterministic"}")
+
+IO.puts("\n── Completeness ──")
+IO.puts("  #{if Analysis.complete?(buggy), do: "✅ Complete", else: "⚠️  Incomplete — some states don't handle all events"}")
+
+IO.puts("\n── Shortest Accepting Path ──")
+case Analysis.shortest_accepting_path(buggy) do
+  {:ok, path} -> IO.puts("  #{Enum.join(path, " → ")}")
+  :error -> IO.puts("  ❌ None")
+end
+```
+
+### 4.3 — Visualize the Buggy FSM
+
+```elixir
+mermaid =
+  buggy
+  |> FSM.to_mermaid()
+  |> Kino.Mermaid.new()
+
+mermaid_state_diagram =
+  buggy
+  |> FSM.to_mermaid(syntax: :state_diagram)
+  |> Kino.Mermaid.new()
+
+dot = 
+  buggy
+  |> FSM.to_dot()
+  |> Kino.VizJS.render(height: "600px")
+
+Kino.Layout.tabs(
+  Graphviz: dot,
+  Mermaid: mermaid,
+  "Mermaid (State Diagram)": mermaid_state_diagram
+)
+```
+
+### 4.4 — Invariant Checking
+
+Check if specific properties hold:
+
+```elixir
+IO.puts("═══ Invariant Checks ═══\n")
+
+# Can every reachable state reach at least one final state?
+productive? = Enum.empty?(Analysis.dead_states(buggy))
+IO.puts("All reachable states productive: #{productive?}")
+
+# Are there any unreachable states?
+unreachable = FSM.states(buggy) -- Analysis.reachable_states(buggy)
+IO.puts("Unreachable states: #{inspect(unreachable)}")
+
+# Is a forbidden state sequence present anywhere in the graph?
+# (This is a static pattern check, not a trace validation.)
+forbidden_present = Analysis.violates_invariant?(buggy, forbid_path: [:stuck, :looping, :stuck])
+IO.puts("Forbidden loop present? #{forbidden_present}")
+```
+
+## Part 5: FSM Minimization
+
+Choreo can minimize an FSM by merging equivalent states, producing a smaller machine that accepts the same language.
+
+### 5.1 — A Redundant FSM
+
+```elixir
+redundant =
+  FSM.new()
+  |> FSM.add_initial_state(:s0)
+  |> FSM.add_state(:s1)
+  |> FSM.add_state(:s2)
+  |> FSM.add_state(:s3)
+  |> FSM.add_state(:s4)
+  |> FSM.add_final_state(:s5)
+  |> FSM.add_final_state(:s6)
+  # s1 and s2 are equivalent (same outgoing transitions to equivalent targets)
+  |> FSM.add_transition(:s0, :s1, label: "a")
+  |> FSM.add_transition(:s0, :s2, label: "b")
+  |> FSM.add_transition(:s1, :s3, label: "x")
+  |> FSM.add_transition(:s2, :s4, label: "x")
+  # s3,s4 → equivalent final states
+  |> FSM.add_transition(:s3, :s5, label: "done")
+  |> FSM.add_transition(:s4, :s6, label: "done")
+
+IO.puts("Before: #{length(FSM.states(redundant))} states, #{length(FSM.transitions(redundant))} transitions")
+```
+
+```elixir
+redundant
+|> FSM.to_dot()
+|> Kino.VizJS.render(height: "600px")
+```
+
+### 5.2 — Minimize
+
+```elixir
+minimized = Analysis.minimize(redundant)
+
+IO.puts("After: #{length(FSM.states(minimized))} states, #{length(FSM.transitions(minimized))} transitions")
+IO.puts("Equivalent? #{Analysis.equivalent?(redundant, minimized)}")
+```
+
+```elixir
+minimized
+|> FSM.to_dot()
+|> Kino.VizJS.render(height: "600px")
+```
+
+### 5.3 — Minimize the Order FSM
+
+```elixir
+minimized_order = Analysis.minimize(order_fsm)
+
+IO.puts("Order FSM: #{length(FSM.states(order_fsm))} states → #{length(FSM.states(minimized_order))} states")
+IO.puts("Equivalent? #{Analysis.equivalent?(order_fsm, minimized_order)}")
+```
+
+## Part 6: Side-by-Side Comparison Table
+
+```elixir
+fsms = %{
+  "Order (Choreo-designed)" => order_fsm,
+  "Order (Finitomata-imported)" => imported_fsm,
+  "BuggyWorkflow (imported)" => buggy,
+  "Redundant (before minimize)" => redundant,
+  "Redundant (after minimize)" => minimized
+}
+
+header = "| FSM | States | Transitions | Deterministic? | Dead States | Livelocks | Shortest Path |"
+separator = "|-----|--------|-------------|----------------|-------------|-----------|---------------|"
+
+rows =
+  Enum.map(fsms, fn {name, fsm} ->
+    states = length(FSM.states(fsm))
+    transitions = length(FSM.transitions(fsm))
+    det = if Analysis.deterministic?(fsm), do: "✅", else: "❌"
+    dead = length(Analysis.dead_states(fsm))
+    livelocks = length(Analysis.livelock_states(fsm))
+
+    shortest =
+      case Analysis.shortest_accepting_path(fsm) do
+        {:ok, path} -> "#{length(path)} steps"
+        :error -> "none"
+      end
+
+    "| #{name} | #{states} | #{transitions} | #{det} | #{dead} | #{livelocks} | #{shortest} |"
+  end)
+
+[header, separator | rows]
+|> Enum.join("\n")
+|> Kino.Markdown.new()
+```
+
+## Part 7: Dynamic Runtime Monitoring with Choreo Heatmaps
+
+Choreo can not only validate and design FSMs, but it can also serve as a **live monitoring and visualization tool** for running Finitomata instances.
+
+In this section, we will:
+
+1. Spawn 50 simultaneous `OrderProcess` instances representing active user shopping sessions.
+2. Advance them randomly to different stages of the checkout lifecycle.
+3. Query the live state of all running Finitomata FSMs using `Finitomata.all/1`.
+4. Aggregate state frequencies and render a **live traffic heatmap** of our production system using Choreo's heatmap generator.
+
+### 7.1 — Spawn and Simulate Live Workload
+
+```elixir
+# Ensure Finitomata is running
+unless Process.whereis(Finitomata.Supervisor), do: Finitomata.start_link()
+
+# Spawn 50 random orders
+order_ids = Enum.map(1..50, fn i -> "order-sim-#{i}" end)
+
+Enum.each(order_ids, fn id ->
+  Finitomata.start_fsm(OrderProcess, id, %{user_id: :rand.uniform(10_000)})
+end)
+
+# Let the FSMs initialize
+Process.sleep(50)
+
+# Simulate different user behaviors by transitioning FSMs randomly:
+# - Some users stay in cart
+# - Some go to checkout
+# - Some complete, fail, retry, or cancel
+Enum.each(order_ids, fn id ->
+  # Roll a die to decide how far the order goes
+  die = :rand.uniform(6)
+
+  cond do
+    die == 1 ->
+      # Abandon immediately
+      Finitomata.transition(id, {:cancel, nil})
+
+    die == 2 ->
+      # Stay in checkout
+      Finitomata.transition(id, {:begin_checkout, nil})
+
+    die == 3 ->
+      # Fail payment and abandon
+      Finitomata.transition(id, {:begin_checkout, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:submit_payment, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:payment_declined, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:abandon, nil})
+
+    die == 4 ->
+      # Fail payment, retry, and stay pending
+      Finitomata.transition(id, {:begin_checkout, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:submit_payment, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:payment_declined, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:retry_payment, nil})
+
+    die >= 5 ->
+      # Happy path (processing, shipped, or delivered)
+      Finitomata.transition(id, {:begin_checkout, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:submit_payment, nil})
+      Process.sleep(10)
+      Finitomata.transition(id, {:payment_confirmed, nil})
+      
+      if die == 6 do
+        Process.sleep(10)
+        Finitomata.transition(id, {:ship, nil})
+        if :rand.uniform(2) == 1 do
+          Process.sleep(10)
+          Finitomata.transition(id, {:deliver, nil})
+        end
+      end
+  end
+end)
+
+# Wait a moment for transitions to settle
+Process.sleep(100)
+
+IO.puts("Simulation finished. Live instances are resting in various states.")
+```
+
+### 7.2 — Gather Active States and Render Heatmap
+
+Now we query the registry of all active Finitomata processes, read their current state, and pass those counts to `Choreo.Analysis.heatmap/2`.
+
+<!-- livebook:{"output_size":"wide"} -->
+
+```elixir
+# Retrieve all active FSM names
+active_fsms = Finitomata.all() |> Map.keys()
+
+# Count the frequency of each state.
+state_counts =
+  active_fsms
+  |> Enum.reduce(%{}, fn name, acc ->
+    case Finitomata.state(name) do
+      %Finitomata.State{current: state} ->
+        Map.update(acc, state, 1, &(&1 + 1))
+      nil ->
+        acc
+    end
+  end)
+
+# Account for non-active FSMs. With auto_terminate: true, most of these
+# terminated cleanly, but crashes or failed starts would also appear here.
+total_active = Enum.sum(Map.values(state_counts))
+non_active_count = 50 - total_active
+IO.puts("Active FSMs: #{total_active}, Non-active (mostly auto-terminated): #{non_active_count}")
+IO.inspect(state_counts, label: "Active State Frequencies")
+
+# Render the heatmap
+order_fsm
+|> Choreo.Analysis.heatmap(scores: state_counts, palette: :heat)
+|> Choreo.FSM.to_dot()
+|> Kino.VizJS.render(height: "600px")
+```
+
+## Summary
+
+This notebook demonstrated the full lifecycle:
+
+1. **Design** an FSM in Choreo with rich visualization
+2. **Validate** it with reachability, deadlock, livelock, and determinism checks
+3. **Generate test cases** automatically for state and transition coverage
+4. **Export** to Finitomata DSL in `:flowchart` or `:state_diagram` syntax and run it as a supervised OTP process
+5. **Import** an existing Finitomata module back into Choreo
+6. **Analyze** imported FSMs for structural issues you couldn't see at runtime
+7. **Minimize** redundant FSMs while preserving behavioral equivalence
+8. **Monitor** live running Finitomata workloads in real-time using Choreo heatmaps
