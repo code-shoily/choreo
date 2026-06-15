@@ -128,7 +128,7 @@ defmodule XrefParser do
       end
 
     cluster_label =
-      case Path.split(path) do
+      case Path.split(Path.dirname(path)) do
         ["lib", app, sub | _] -> "#{app}/#{sub}"
         ["lib", app | _] -> app
         ["test" | _] -> "test"
