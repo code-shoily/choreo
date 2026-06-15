@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Choreo.FSM.Analysis — Advanced Analysis Suite**:
+  - Added `Analysis.deterministic?/1` to check if an FSM is deterministic (verifies no epsilon transitions or duplicate transition labels exist).
+  - Added `Analysis.generate_test_cases/2` to generate transition sequences for `:state` and `:transition` test coverage.
+  - Added `Analysis.equivalent?/2` to check equivalence of two FSMs using product automaton BFS traversal.
+  - Added `Analysis.minimize/1` to minimize a DFA using Partition Refinement (Moore's algorithm).
+  - Added `Analysis.violates_invariant?/2` to validate safety/liveness state invariants.
+
 ## [0.9.0] - 2026-06-09
 
 ### Fixed

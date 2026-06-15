@@ -401,4 +401,86 @@ defmodule Choreo.FSM.AnalysisTest do
       assert Analysis.validate(FSM.new()) == []
     end
   end
+
+  describe "new advanced analysis functions" do
+    test "deterministic?/1" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      assert Analysis.deterministic?(fsm)
+    end
+
+    test "generate_test_cases/2" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_final_state(:c)
+        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:b, :c, label: "y")
+
+      # Use Enum.sort on both sides or compare set representation for robust assertion
+      test_states = Analysis.generate_test_cases(fsm, :state) |> Enum.sort()
+      assert test_states == [[], ["x"], ["x", "y"]]
+
+      test_transitions = Analysis.generate_test_cases(fsm, :transition) |> Enum.sort()
+      assert test_transitions == [["x"], ["x", "y"]]
+    end
+
+    test "equivalent?/2" do
+      fsm1 =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      fsm2 =
+        FSM.new()
+        |> FSM.add_initial_state(:c)
+        |> FSM.add_final_state(:d)
+        |> FSM.add_transition(:c, :d, label: "x")
+
+      fsm3 =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:b)
+        |> FSM.add_transition(:a, :b, label: "y")
+
+      assert Analysis.equivalent?(fsm1, fsm2)
+      refute Analysis.equivalent?(fsm1, fsm3)
+    end
+
+    test "minimize/1" do
+      # A DFA with equivalent states :b and :c
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_state(:c)
+        |> FSM.add_final_state(:d)
+        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:a, :c, label: "y")
+        |> FSM.add_transition(:b, :d, label: "z")
+        |> FSM.add_transition(:c, :d, label: "z")
+
+      minimized = Analysis.minimize(fsm)
+      assert minimized.meta.initial_state == :a
+      # Minimize should merge the redundant paths/states
+      assert length(FSM.states(minimized)) < length(FSM.states(fsm))
+    end
+
+    test "violates_invariant?/2" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      assert Analysis.violates_invariant?(fsm, forbid_path: [:a, :b])
+      refute Analysis.violates_invariant?(fsm, forbid_path: [:b, :a])
+    end
+  end
 end
