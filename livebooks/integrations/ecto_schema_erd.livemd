@@ -1,0 +1,701 @@
+# Ecto Schema → Choreo ERD
+
+```elixir
+Mix.install([
+  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## Introduction
+
+This notebook introspects the Ecto schemas of a Phoenix/Elixir project and renders them as a `Choreo.ERD` diagram. It is useful for:
+
+* Visualizing the data model of an existing Phoenix app.
+* Finding orphan tables, circular foreign-key references, and highly coupled entities.
+* Onboarding teammates by giving them a navigable ERD of the codebase.
+
+### How it works
+
+1. You point the notebook at a local Elixir project.
+2. The notebook writes a temporary extraction script into the project and runs `mix run`.
+3. The script compiles the project, finds every module that uses `Ecto.Schema`, and extracts table names, fields, primary keys, and associations.
+4. The notebook translates that metadata into `Choreo.ERD` and renders it.
+
+### Caveats
+
+* The target project must compile successfully under `mix compile`, unless you enable "Use compiled _build".
+* Only modules that successfully load after compilation are inspected.
+* `belongs_to` is rendered as a `one_to_many` relationship from the referenced table to the referencing table. If you have optional or unique foreign keys, the cardinality may need manual adjustment.
+* Embedded schemas and schemaless changesets are skipped by default.
+* Table and column identifiers are sanitized for Mermaid/Graphviz compatibility (dots, slashes, and other special characters become underscores). The original names are preserved as labels and will appear in Graphviz output.
+
+## Configuration
+
+```elixir
+project_input =
+  Kino.Input.text("Elixir Project Path",
+    default: Path.expand("../..", __DIR__)
+  )
+
+build_env_input =
+  Kino.Input.select("Build environment", [
+    {"dev", "dev"},
+    {"test", "test"},
+    {"prod", "prod"}
+  ], default: "dev")
+
+skip_compile_input =
+  Kino.Input.checkbox("Use compiled _build (skip mix compile)",
+    default: false
+  )
+
+include_embeds_input =
+  Kino.Input.checkbox("Include embedded schemas as separate entities",
+    default: false
+  )
+
+Kino.Layout.grid([project_input, build_env_input, skip_compile_input, include_embeds_input], columns: 2)
+```
+
+## The Ecto Extractor
+
+This module shells out to the target project and extracts schema metadata via Ecto's reflection API. By default it compiles the project first; you can skip compilation if the project is already compiled.
+
+```elixir
+defmodule EctoSchemaExtractor do
+  @moduledoc """
+  Extracts Ecto schema metadata from a local Elixir project.
+  """
+
+  @doc """
+  Runs extraction in `project_path` and returns `{:ok, %{schemas: [...]}}`.
+
+  ## Options
+
+    * `:include_embeds` — include embedded schemas as separate entities (default: `false`)
+    * `:skip_compile` — load beams from `_build/<env>/lib/*/ebin` instead of running `mix compile` (default: `false`)
+    * `:build_env` — build environment to use when `skip_compile` is `true` (default: `"dev"`)
+
+  Each schema entry is a map with:
+
+    * `:module` — the Elixir module name (string)
+    * `:source` — the database table name (string)
+    * `:fields` — list of `%{name: atom, type: String.t, primary: boolean}`
+    * `:associations` — list of `%{kind: atom, related: module, cardinality: atom, ...}`
+    * `:embeds` — list of embedded schema references
+  """
+  def extract(project_path, opts \\ []) do
+    include_embeds = Keyword.get(opts, :include_embeds, false)
+    build_env = Keyword.get(opts, :build_env, "dev")
+    skip_compile = Keyword.get(opts, :skip_compile, false)
+
+    script = extraction_script(include_embeds: include_embeds, skip_compile: skip_compile, build_env: build_env)
+    script_path = Path.join(System.tmp_dir!(), "choreo_ecto_extract_#{:erlang.unique_integer([:positive])}.exs")
+    output_path = Path.join(System.tmp_dir!(), "choreo_ecto_output_#{:erlang.unique_integer([:positive])}.txt")
+
+    File.write!(script_path, script)
+
+    try do
+      env = [
+        {"MIX_ENV", build_env},
+        {"CHOREO_ECTO_OUTPUT", output_path},
+        {"CHOREO_BUILD_ENV", build_env}
+      ]
+
+      base_args = ["run", "--no-start"]
+      args = if skip_compile, do: base_args ++ ["--no-compile", script_path], else: base_args ++ [script_path]
+
+      case System.cmd("mix", args,
+             cd: project_path,
+             env: env,
+             stderr_to_stdout: true
+           ) do
+        {_output, 0} ->
+          case File.read(output_path) do
+            {:ok, encoded} ->
+              data = :erlang.binary_to_term(Base.decode64!(encoded))
+              {:ok, data}
+
+            {:error, reason} ->
+              {:error, "could not read extraction output: #{inspect(reason)}"}
+          end
+
+        {output, status} ->
+          {:error, "mix run failed with exit status #{status}:\n\n#{output}"}
+      end
+    after
+      File.rm_rf(script_path)
+      File.rm_rf(output_path)
+    end
+  end
+
+  defp extraction_script(opts) do
+    include_embeds = Keyword.fetch!(opts, :include_embeds)
+    skip_compile = Keyword.fetch!(opts, :skip_compile)
+    build_env = Keyword.fetch!(opts, :build_env)
+
+    # ~S disables interpolation, so every #{...} below becomes literal text in
+    # the generated script. We substitute the few outer values via placeholders.
+    ~S"""
+    defmodule Choreo.EctoExtraction do
+      def run do
+        skip_compile = __SKIP_COMPILE__
+        build_env = "__BUILD_ENV__"
+
+        {compile_us, _} =
+          :timer.tc(fn ->
+            if skip_compile do
+              load_compiled_beams(build_env)
+            else
+              Mix.Task.run("compile", [])
+            end
+          end)
+
+        {discover_us, candidate_modules} =
+          :timer.tc(fn ->
+            find_candidate_modules()
+            |> Enum.map(&Module.concat/1)
+          end)
+
+        {filter_us, schema_modules} =
+          :timer.tc(fn ->
+            Enum.filter(candidate_modules, &schema_module?/1)
+          end)
+
+        {extract_us, schemas} =
+          :timer.tc(fn ->
+            Enum.map(schema_modules, &extract_schema/1)
+          end)
+
+        IO.puts(
+          "[choreo-ecto] compile/load: #{format_us(compile_us)}, " <>
+          "discover: #{format_us(discover_us)}, " <>
+          "filter: #{format_us(filter_us)}, " <>
+          "extract: #{format_us(extract_us)} " <>
+          "(#{length(schema_modules)} schema modules)"
+        )
+
+        %{schemas: schemas, include_embeds: __INCLUDE_EMBEDS__}
+        |> then(&:erlang.term_to_binary/1)
+        |> Base.encode64()
+        |> then(&File.write!(System.get_env("CHOREO_ECTO_OUTPUT"), &1))
+      end
+
+      defp format_us(us) do
+        ms = us / 1000
+        if ms >= 1000, do: "#{Float.round(ms / 1000, 2)}s", else: "#{Float.round(ms, 1)}ms"
+      end
+
+      defp load_compiled_beams(build_env) do
+        build_root = "_build/#{build_env}/lib"
+
+        unless File.dir?(build_root) do
+          raise "No compiled build found at #{build_root}. Run `mix compile` first or uncheck 'Use compiled _build'."
+        end
+
+        ebins = Path.wildcard("#{build_root}/*/ebin")
+
+        if ebins == [] do
+          raise "No ebin directories found under #{build_root}. Run `mix compile` first or uncheck 'Use compiled _build'."
+        end
+
+        Enum.each(ebins, &Code.append_path/1)
+      end
+
+      defp find_candidate_modules do
+        # Fast path: ask Mix for the OTP app's modules.
+        app_modules =
+          case Mix.Project.config()[:app] do
+            nil -> []
+            app -> List.wrap(Application.spec(app, :modules))
+          end
+
+        if app_modules != [] do
+          Enum.map(app_modules, &Module.split/1)
+        else
+          # Fallback for non-OTP projects: scan source files.
+          Path.wildcard("lib/**/*.ex")
+          |> Enum.flat_map(&modules_from_file/1)
+        end
+      end
+
+      defp modules_from_file(path) do
+        path
+        |> File.read!()
+        |> String.split("\n")
+        |> Enum.reduce([], fn line, acc ->
+          case Regex.run(~r/^\s*defmodule\s+([A-Za-z0-9_.]+)\s+do\s*$/, line) do
+            [_, name] -> [module_parts(name) | acc]
+            nil -> acc
+          end
+        end)
+      end
+
+      defp module_parts(name) do
+        name |> String.split(".") |> Enum.map(&String.to_atom/1)
+      end
+
+      defp schema_module?(mod) do
+        Code.ensure_loaded?(mod) and function_exported?(mod, :__schema__, 1)
+      end
+
+      defp extract_schema(mod) do
+        source = mod.__schema__(:source)
+        fields = mod.__schema__(:fields)
+        primary_key = mod.__schema__(:primary_key)
+        field_types = Map.new(fields, fn f -> {f, mod.__schema__(:type, f)} end)
+
+        field_data =
+          Enum.map(fields, fn f ->
+            %{
+              name: f,
+              type: format_type(field_types[f]),
+              primary: f in primary_key
+            }
+          end)
+
+        associations =
+          mod.__schema__(:associations)
+          |> Enum.map(fn name -> {name, mod.__schema__(:association, name)} end)
+          |> Enum.map(fn {name, refl} ->
+            %{
+              name: name,
+              kind: association_kind(refl),
+              cardinality: refl.cardinality,
+              related: refl.related,
+              owner_key: Map.get(refl, :owner_key),
+              related_key: Map.get(refl, :related_key),
+              join_keys: Map.get(refl, :join_keys),
+              join_through: Map.get(refl, :join_through)
+            }
+          end)
+
+        embeds =
+          mod.__schema__(:embeds)
+          |> Enum.map(fn name -> {name, mod.__schema__(:embed, name)} end)
+          |> Enum.map(fn {name, embed} ->
+            %{
+              name: name,
+              related: embed.related,
+              cardinality: embed.cardinality
+            }
+          end)
+
+        %{
+          module: inspect(mod),
+          source: source,
+          fields: field_data,
+          associations: associations,
+          embeds: embeds
+        }
+      end
+
+      defp format_type(type) do
+        case type do
+          :id -> "id"
+          :binary_id -> "binary_id"
+          :integer -> "integer"
+          :float -> "float"
+          :boolean -> "boolean"
+          :string -> "string"
+          :binary -> "binary"
+          :map -> "map"
+          :decimal -> "decimal"
+          :date -> "date"
+          :time -> "time"
+          :time_usec -> "time_usec"
+          :naive_datetime -> "naive_datetime"
+          :naive_datetime_usec -> "naive_datetime_usec"
+          :utc_datetime -> "utc_datetime"
+          :utc_datetime_usec -> "utc_datetime_usec"
+          {:parameterized, {Ecto.Enum, _}} -> "enum"
+          {:parameterized, {Ecto.Embedded, _}} -> "embedded"
+          {:parameterized, {module, _}} -> module |> Module.split() |> List.last() |> Macro.underscore()
+          {:array, inner} -> "array_#{format_type(inner)}"
+          module when is_atom(module) -> module |> to_string() |> String.trim_leading(":")
+          other ->
+            other
+            |> inspect()
+            |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
+            |> String.replace(~r/_+/, "_")
+            |> String.trim("_")
+            |> String.slice(0, 50)
+        end
+      end
+
+      defp association_kind(%{__struct__: Ecto.Association.Has, cardinality: :one}), do: :has_one
+      defp association_kind(%{__struct__: Ecto.Association.Has}), do: :has_many
+      defp association_kind(%{__struct__: Ecto.Association.BelongsTo}), do: :belongs_to
+      defp association_kind(%{__struct__: Ecto.Association.ManyToMany}), do: :many_to_many
+      defp association_kind(_), do: :unknown
+    end
+
+    Choreo.EctoExtraction.run()
+    """
+    |> String.replace("__SKIP_COMPILE__", to_string(skip_compile))
+    |> String.replace("__BUILD_ENV__", build_env)
+    |> String.replace("__INCLUDE_EMBEDS__", to_string(include_embeds))
+  end
+end
+```
+
+## Extract Schemas
+
+```elixir
+project_path = Kino.Input.read(project_input) |> String.trim()
+build_env = Kino.Input.read(build_env_input)
+skip_compile = Kino.Input.read(skip_compile_input)
+include_embeds = Kino.Input.read(include_embeds_input)
+
+IO.puts("🔍 Extracting Ecto schemas from #{project_path}...")
+
+extract_result =
+  case EctoSchemaExtractor.extract(project_path,
+         include_embeds: include_embeds,
+         skip_compile: skip_compile,
+         build_env: build_env
+       ) do
+    {:ok, %{schemas: schemas}} ->
+      table_count = Enum.count(schemas, & &1.source)
+      IO.puts("✅ Found #{length(schemas)} schema module(s), #{table_count} with a table source")
+      {:ok, schemas}
+
+    {:error, reason} ->
+      IO.puts("❌ Extraction failed: #{reason}")
+      {:error, reason}
+  end
+```
+
+## Schema Overview
+
+```elixir
+{:ok, schemas} = extract_result
+
+table_rows =
+  schemas
+  |> Enum.filter(& &1.source)
+  |> Enum.map(fn s ->
+    %{
+      "Module" => s.module,
+      "Table" => s.source,
+      "Columns" => length(s.fields),
+      "Associations" => length(s.associations),
+      "Embeds" => length(s.embeds)
+    }
+  end)
+
+Kino.DataTable.new(table_rows, name: "Ecto Schemas")
+```
+
+## Build the Choreo ERD
+
+```elixir
+defmodule EctoToERD do
+  @moduledoc """
+  Converts extracted Ecto schema metadata into a `Choreo.ERD` diagram.
+  """
+
+  alias Choreo.ERD
+
+  @doc """
+  Builds an `ERD.t()` from the extracted schemas.
+  """
+  def build(schemas, opts \\ []) do
+    include_embeds = Keyword.get(opts, :include_embeds, false)
+
+    schemas = if include_embeds, do: schemas, else: Enum.filter(schemas, & &1.source)
+
+    module_to_source =
+      schemas
+      |> Enum.map(fn s -> {module_atom(s.module), source_id(s)} end)
+      |> Map.new()
+
+    erd = ERD.new()
+
+    erd =
+      Enum.reduce(schemas, erd, fn schema, acc ->
+        add_table(acc, schema)
+      end)
+
+    relationships =
+      schemas
+      |> Enum.flat_map(fn schema ->
+        Enum.map(schema.associations, fn assoc ->
+          relationship_def(schema, assoc, module_to_source)
+        end)
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> deduplicate_relationships()
+
+    Enum.reduce(relationships, erd, fn {from, to, opts}, acc ->
+      ERD.add_relationship(acc, from, to, opts)
+    end)
+  end
+
+  defp module_atom(module_string) do
+    module_string |> String.split(".") |> Module.concat()
+  end
+
+  defp source_id(%{source: source, module: module}) do
+    raw = source || "embedded_#{Macro.underscore(module)}"
+    String.to_atom(safe_id(raw))
+  end
+
+  # Mermaid/Graphviz identifiers cannot contain dots, slashes, or other special
+  # characters. Ecto sources can include schema prefixes ("tenant.users") and
+  # module names contain dots, so we normalize them here while keeping the
+  # original name as the display label.
+  defp safe_id(name) do
+    name
+    |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
+    |> String.replace(~r/_+/, "_")
+    |> String.trim("_")
+  end
+
+  defp add_table(erd, schema) do
+    id = source_id(schema)
+    label = schema.source || schema.module
+
+    columns =
+      Enum.map(schema.fields, fn field ->
+        %{
+          name: safe_id(to_string(field.name)),
+          type: field.type,
+          key: if(field.primary, do: :pk, else: nil)
+        }
+      end)
+
+    # Mark foreign key columns based on belongs_to associations.
+    fk_columns =
+      schema.associations
+      |> Enum.filter(&(&1.kind == :belongs_to and &1.owner_key))
+      |> Enum.map(&to_string(&1.owner_key))
+      |> MapSet.new()
+
+    columns =
+      Enum.map(columns, fn col ->
+        if col.key != :pk and col.name in fk_columns do
+          %{col | key: :fk}
+        else
+          col
+        end
+      end)
+
+    ERD.add_table(erd, id, label: label, columns: columns)
+  end
+
+  defp relationship_def(schema, assoc, module_to_source) do
+    owner_source = source_id(schema)
+    related_source = Map.get(module_to_source, assoc.related)
+
+    if is_nil(related_source) do
+      nil
+    else
+      case assoc.kind do
+        :has_many ->
+          {owner_source, related_source, cardinality: :one_to_many, label: to_string(assoc.name)}
+
+        :has_one ->
+          {owner_source, related_source, cardinality: :one_to_one, label: to_string(assoc.name)}
+
+        :belongs_to ->
+          {related_source, owner_source, cardinality: :one_to_many, label: to_string(assoc.name)}
+
+        :many_to_many ->
+          {owner_source, related_source, cardinality: :many_to_many, label: to_string(assoc.name)}
+
+        _ ->
+          nil
+      end
+    end
+  end
+
+  defp deduplicate_relationships(relationships) do
+    relationships
+    |> Enum.group_by(fn {from, to, _opts} -> {from, to} end)
+    |> Enum.map(fn {{from, to}, group} ->
+      # Prefer more specific cardinalities; many_to_many wins over one_to_many.
+      opts =
+        group
+        |> Enum.map(fn {_, _, opts} -> opts end)
+        |> Enum.max_by(fn opts ->
+          case opts[:cardinality] do
+            :many_to_many -> 3
+            :one_to_many -> 2
+            :one_to_one -> 1
+            _ -> 0
+          end
+        end)
+
+      {from, to, opts}
+    end)
+  end
+end
+```
+
+```elixir
+erd = EctoToERD.build(schemas, include_embeds: include_embeds)
+
+table_count = map_size(erd.graph.nodes)
+relationship_count = map_size(erd.graph.edges)
+IO.puts("📊 ERD built with #{table_count} tables and #{relationship_count} relationships")
+```
+
+## Visualisations
+
+```elixir
+mermaid = Choreo.ERD.to_mermaid(erd)
+dot = Choreo.ERD.to_dot(erd)
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(mermaid),
+  Graphviz: Kino.VizJS.render(dot, height: "900px")
+)
+
+```
+
+## Analysis
+
+### Orphan Tables
+
+Tables with no incoming or outgoing relationships:
+
+```elixir
+orphans = Choreo.ERD.Analysis.orphans(erd)
+
+if orphans == [] do
+  IO.puts("✅ No orphan tables found")
+else
+  IO.puts("⚠️  #{length(orphans)} orphan table(s):")
+  Enum.each(orphans, &IO.puts("  • #{&1}"))
+end
+```
+
+### Circular Foreign-Key References
+
+```elixir
+cycles = Choreo.ERD.Analysis.cycles(erd)
+
+if cycles == [] do
+  IO.puts("✅ No circular foreign-key references")
+else
+  IO.puts("🔁 #{length(cycles)} circular reference(s) found:")
+
+  Enum.each(cycles, fn cycle ->
+    path = Enum.join(cycle, " → ")
+    IO.puts("  • #{path}")
+  end)
+end
+```
+
+### Table Coupling
+
+Tables with the most relationships:
+
+```elixir
+degrees = Choreo.ERD.Analysis.table_degrees(erd)
+
+rows =
+  degrees
+  |> Enum.sort_by(fn {_id, d} -> d.total end, :desc)
+  |> Enum.take(15)
+  |> Enum.map(fn {id, d} ->
+    %{"Table" => id, "In" => d.in, "Out" => d.out, "Total" => d.total}
+  end)
+
+Kino.DataTable.new(rows, name: "Most Connected Tables")
+```
+
+### Normalization Score
+
+```elixir
+%{score: score, smells: smells} = Choreo.ERD.Analysis.normalization_score(erd)
+
+IO.puts("📐 Normalization score: #{score}/100")
+
+if smells == [] do
+  IO.puts("✅ No schema smells detected")
+else
+  IO.puts("\nSchema smells:")
+  Enum.each(smells, &IO.puts("  • #{&1}"))
+end
+```
+
+### Find Join Path
+
+Pick two tables and see the shortest join path between them:
+
+```elixir
+table_options =
+  erd.graph.nodes
+  |> Map.keys()
+  |> Enum.sort()
+  |> Enum.map(fn ls -> {ls, Atom.to_string(ls)} end)
+
+from_input = Kino.Input.select("From table", table_options)
+to_input = Kino.Input.select("To table", table_options)
+
+Kino.Layout.grid([from_input, to_input], columns: 2)
+```
+
+```elixir
+from_table = Kino.Input.read(from_input) 
+to_table = Kino.Input.read(to_input) 
+case Choreo.ERD.Analysis.shortest_join_path(erd, from_table, to_table) do
+  {:ok, path} ->
+    IO.puts("Shortest join path:")
+    IO.puts("  " <> Enum.join(path, " → "))
+
+  :error ->
+    IO.puts("❌ No join path found between #{from_table} and #{to_table}")
+end
+```
+
+### Focus View
+
+Pick a table and a radius to see only its connected neighborhood — useful for zooming into one part of a large schema.
+
+```elixir
+focus_table_options =
+  erd.graph.nodes
+  |> Map.keys()
+  |> Enum.sort()
+  |> Enum.map(fn t -> {t, Atom.to_string(t)} end)
+
+focus_table_input = Kino.Input.select("Focus table", focus_table_options)
+focus_radius_input = Kino.Input.number("Radius (hops)", default: 1)
+
+Kino.Layout.grid([focus_table_input, focus_radius_input], columns: 2)
+```
+
+```elixir
+focus_table = Kino.Input.read(focus_table_input)
+focus_radius = Kino.Input.read(focus_radius_input)
+
+focused_erd = Choreo.View.focus(erd, focus_table, radius: focus_radius)
+
+IO.puts("🔎 Focused on #{focus_table} (radius: #{focus_radius})")
+IO.puts("Showing #{map_size(focused_erd.graph.nodes)} of #{map_size(erd.graph.nodes)} tables")
+
+Kino.Layout.tabs(
+  Mermaid: Kino.Mermaid.new(Choreo.ERD.to_mermaid(focused_erd)),
+  Graphviz: Kino.VizJS.render(Choreo.ERD.to_dot(focused_erd), height: "700px")
+)
+```
+
+## Summary
+
+This notebook turns the Ecto schemas of any Phoenix/Elixir project into a live, analysable ERD using Choreo.
+
+| What you get              | How                                         |
+| ------------------------- | ------------------------------------------- |
+| Interactive ERD diagram   | `ERD.to_mermaid/2` and `ERD.to_dot/2`       |
+| Orphan table detection    | `Choreo.ERD.Analysis.orphans/1`             |
+| Circular FK detection     | `Choreo.ERD.Analysis.cycles/1`              |
+| Table coupling            | `Choreo.ERD.Analysis.table_degrees/1`       |
+| Normalization smell score | `Choreo.ERD.Analysis.normalization_score/1` |
+| Optimal join paths        | `Choreo.ERD.Analysis.shortest_join_path/3`  |
+| Focused neighborhood view | `Choreo.View.focus/3`                       |
+
+Try it on your own Phoenix project, or on popular open-source Elixir projects like `hexpm/hex` or `elixir-lang/ecto`.

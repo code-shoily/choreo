@@ -92,6 +92,7 @@ The `livebooks/` directory contains interactive walkthroughs and integration exa
   - [GitHub Issues](livebooks/integrations/github_issues_explorer.livemd) — turn a public repo's issues into a Planner and Mind Map.
   - [Hex Dependencies](livebooks/integrations/hex_dependency_explorer.livemd) — crawl any Hex package's dependency tree.
   - [Mix Xref](livebooks/integrations/mix_xref_explorer.livemd) — visualize and analyze internal Elixir project dependencies.
+  - [Ecto Schema ERD](livebooks/integrations/ecto_schema_erd.livemd) — introspect Ecto schemas and render them as an interactive ERD.
 
 ---
 
