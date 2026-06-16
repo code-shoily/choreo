@@ -1,0 +1,521 @@
+# (Beta) Extending Choreo: Adding a Git Graph Diagram
+
+```elixir
+Mix.install([
+  {:choreo, "~> 0.9.0"},
+  {:kino, "~> 0.19.0"}
+])
+```
+
+## Section
+
+This notebook is a hands-on tutorial in extending Choreo with a brand-new diagram vocabulary.
+
+Instead of creating files on disk, we will define every module **inline** in this Livebook. Each section tells you which file the code would live in if you were shipping it as part of Choreo:
+
+* `lib/choreo/git_graph.ex` — the builder API
+* `lib/choreo/git_graph/render/mermaid.ex` — the Mermaid renderer
+* `test/choreo/git_graph_test.exs` — doctests and assertions
+* `lib/choreo/git_graph/git.ex` — a small adapter that reads a real `git log`
+
+By the end you will be able to turn a git history into a Mermaid `gitGraph` diagram.
+
+## Why Git Graph?
+
+Choreo already supports architecture diagrams, dataflows, ERDs, and more. A GitGraph module is a good extension exercise because:
+
+1. The domain is familiar — every project has git history.
+2. Mermaid has a dedicated `gitGraph` dialect, so we only need one renderer.
+3. The builder maps cleanly to git operations: `commit`, `branch`, `checkout`, `merge`.
+4. It is a good example of a diagram that does **not** map well to DOT/Graphviz, so we learn when to skip a renderer.
+
+## Setup
+
+We need Choreo and Kino for rendering the output.
+
+<!-- livebook:{"break_markdown":true} -->
+
+> **Note for publication:** When this notebook is published independently, swap the `path:` dependency for `{:choreo, github: "code-shoily/choreo", branch: "main"}` so it works without the local source tree.
+
+## A note on Mermaid `gitGraph` syntax
+
+Mermaid's `gitGraph` is command-based and supports a limited set of attributes:
+
+* `commit id: "..." tag: "..." type: HIGHLIGHT`
+* `branch feature`
+* `checkout feature`
+* `merge feature id: "..." tag: "..." type: REVERSE`
+
+Importantly, **there is no `msg:` attribute**. The `id` is the displayed commit label, and `tag` adds an additional label. We will map our "commit message" concept to Mermaid's `tag` attribute, which is the closest available equivalent.
+
+## Step 1: The Builder — `lib/choreo/git_graph.ex`
+
+The builder records a sequence of git operations that the renderer will replay into Mermaid syntax.
+
+The state we need is small:
+
+* `operations` — the ordered list of git commands (`:commit`, `:branch`, `:checkout`, `:merge`).
+* `branches` — the set of branch names we have declared.
+* `current_branch` — the branch that commits and merges apply to.
+
+```elixir
+defmodule Choreo.GitGraph do
+  @moduledoc """
+  Git branch/merge diagram builder for Choreo.
+
+  Models a simplified git history as a sequence of operations that can be
+  rendered to Mermaid's `gitGraph` syntax.
+
+  ## Example
+
+      alias Choreo.GitGraph
+
+      graph =
+        GitGraph.new()
+        |> GitGraph.commit("a1b2c3d", tag: "initial")
+        |> GitGraph.branch("feature")
+        |> GitGraph.checkout("feature")
+        |> GitGraph.commit("b2c3d4e", tag: "add feature")
+        |> GitGraph.checkout("main")
+        |> GitGraph.merge("feature", id: "m1n2o3p", tag: "merge feature")
+
+      GitGraph.Render.Mermaid.to_mermaid(graph)
+
+  ## Supported options
+
+    * `commit/3` — options: `:tag`, `:type` (`:normal`, `:reverse`, `:highlight`).
+    * `merge/3` — options: `:id`, `:tag`, `:type`.
+
+  ## Limitations
+
+  This is a diagram vocabulary, not a full git simulator. It is designed for
+  high-level branch/merge narratives rather than pixel-perfect reproductions
+  of `git log --graph`.
+  """
+
+  defstruct operations: [], branches: MapSet.new(["main"]), current_branch: "main"
+
+  @type t :: %__MODULE__{
+          operations: [operation()],
+          branches: MapSet.t(String.t()),
+          current_branch: String.t()
+        }
+
+  @type commit_type :: :normal | :reverse | :highlight
+
+  @type operation ::
+          {:commit, String.t(), keyword()}
+          | {:branch, String.t()}
+          | {:checkout, String.t()}
+          | {:merge, String.t(), keyword()}
+
+  @doc """
+  Creates a new GitGraph.
+
+  ## Options
+
+    * `:branch` — the name of the initial branch (defaults to `"main"`).
+  """
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
+    branch = Keyword.get(opts, :branch, "main")
+
+    %__MODULE__{
+      operations: [],
+      branches: MapSet.new([branch]),
+      current_branch: branch
+    }
+  end
+
+  @doc """
+  Records a commit on the current branch.
+
+  ## Options
+
+    * `:tag` — an additional label for the commit (mapped to Mermaid `tag:`).
+    * `:type` — `:normal`, `:reverse`, or `:highlight` (defaults to `:normal`).
+  """
+  @spec commit(t(), String.t(), keyword()) :: t()
+  def commit(%__MODULE__{} = graph, id, opts \\ []) do
+    %{graph | operations: graph.operations ++ [{:commit, id, opts}]}
+  end
+
+  @doc """
+  Declares a new branch from the current position.
+  """
+  @spec branch(t(), String.t()) :: t()
+  def branch(%__MODULE__{} = graph, name) do
+    if MapSet.member?(graph.branches, name) do
+      raise ArgumentError, "branch #{inspect(name)} already exists"
+    end
+
+    %{
+      graph
+      | operations: graph.operations ++ [{:branch, name}],
+        branches: MapSet.put(graph.branches, name)
+    }
+  end
+
+  @doc """
+  Switches the current branch.
+  """
+  @spec checkout(t(), String.t()) :: t()
+  def checkout(%__MODULE__{} = graph, name) do
+    unless MapSet.member?(graph.branches, name) do
+      raise ArgumentError, "branch #{inspect(name)} does not exist"
+    end
+
+    %{graph | operations: graph.operations ++ [{:checkout, name}], current_branch: name}
+  end
+
+  @doc """
+  Records a merge of `branch_name` into the current branch.
+
+  ## Options
+
+    * `:id` — the merge commit id (displayed by Mermaid).
+    * `:tag` — an additional label for the merge commit.
+    * `:type` — `:normal`, `:reverse`, or `:highlight`.
+  """
+  @spec merge(t(), String.t(), keyword()) :: t()
+  def merge(%__MODULE__{} = graph, branch_name, opts \\ []) do
+    unless MapSet.member?(graph.branches, branch_name) do
+      raise ArgumentError, "branch #{inspect(branch_name)} does not exist"
+    end
+
+    %{graph | operations: graph.operations ++ [{:merge, branch_name, opts}]}
+  end
+end
+```
+
+Notice how the builder does not try to validate topological correctness. It records intent, just like the other Choreo builders. The renderer is responsible for syntax, and the user is responsible for making the history meaningful.
+
+## Step 2: The Mermaid Renderer — `lib/choreo/git_graph/render/mermaid.ex`
+
+Git graphs do not map cleanly to DOT/Graphviz, so we will implement **only** a Mermaid renderer. This is a deliberate choice and a good lesson: not every Choreo module needs both renderers.
+
+Mermaid `gitGraph` syntax is command-based:
+
+```mermaid
+gitGraph
+   commit id: "abc1234" tag: "initial"
+   branch feature
+   checkout feature
+   commit id: "def5678" tag: "add feature"
+   checkout main
+   merge feature id: "ghi9012" tag: "merge feature"
+```
+
+Our renderer walks the operations list and emits one command per operation.
+
+```elixir
+defmodule Choreo.GitGraph.Render.Mermaid do
+  @moduledoc """
+  Mermaid.js `gitGraph` renderer for `Choreo.GitGraph`.
+
+  Produces command-based Mermaid output. Note that `gitGraph` does **not**
+  support a `msg:` attribute; commit labels use `id:` and optional `tag:`.
+
+  ## Options
+
+    * `:indent` — indentation string (defaults to three spaces).
+  """
+
+  alias Choreo.GitGraph
+
+  @doc """
+  Renders a `Choreo.GitGraph` to a Mermaid `gitGraph` string.
+  """
+  @spec to_mermaid(GitGraph.t(), keyword()) :: String.t()
+  def to_mermaid(%GitGraph{} = graph, opts \\ []) do
+    indent = Keyword.get(opts, :indent, "   ")
+
+    body =
+      graph.operations
+      |> Enum.map(&render_op/1)
+      |> Enum.join("\n" <> indent)
+
+    "gitGraph\n" <> indent <> body
+  end
+
+  defp render_op({:commit, id, opts}) do
+    tag = Keyword.get(opts, :tag, "")
+    type = Keyword.get(opts, :type, :normal)
+
+    ["commit"]
+    |> maybe_add("id: \"#{sanitize(id)}\"")
+    |> maybe_add("tag: \"#{escape(tag)}\"")
+    |> maybe_add(render_type_opt(type))
+    |> Enum.join(" ")
+  end
+
+  defp render_op({:branch, name}) do
+    "branch #{sanitize(name)}"
+  end
+
+  defp render_op({:checkout, name}) do
+    "checkout #{sanitize(name)}"
+  end
+
+  defp render_op({:merge, branch_name, opts}) do
+    id = Keyword.get(opts, :id, "")
+    tag = Keyword.get(opts, :tag, "")
+    type = Keyword.get(opts, :type, :normal)
+
+    ["merge #{sanitize(branch_name)}"]
+    |> maybe_add("id: \"#{sanitize(id)}\"")
+    |> maybe_add("tag: \"#{escape(tag)}\"")
+    |> maybe_add(render_type_opt(type))
+    |> Enum.join(" ")
+  end
+
+  defp maybe_add(parts, ""), do: parts
+  defp maybe_add(parts, value), do: parts ++ [value]
+
+  defp render_type_opt(:normal), do: ""
+  defp render_type_opt(type), do: "type: #{render_type(type)}"
+
+  defp render_type(:reverse), do: "REVERSE"
+  defp render_type(:highlight), do: "HIGHLIGHT"
+
+  # Mermaid gitGraph identifiers should be simple.
+  defp sanitize(value) do
+    value
+    |> to_string()
+    |> String.replace(~r/[^a-zA-Z0-9_\-]/, "_")
+  end
+
+  defp escape(value) do
+    value
+    |> to_string()
+    |> String.replace("\\", "\\\\")
+    |> String.replace("\"", "\\\"")
+  end
+end
+```
+
+A few implementation notes:
+
+* `sanitize/1` keeps Mermaid happy by replacing special characters in identifiers.
+* `escape/1` escapes tag text so quotes do not break the generated string.
+* We use `maybe_add/2` to omit empty attributes, keeping the output tidy.
+* Commit types map to Mermaid's uppercase keywords.
+* There is no `to_dot/2`. If a user tries to call `Choreo.to_dot(git_graph)`, Choreo will not find a renderer. That is OK — we document the limitation.
+
+## Step 3: Tests — `test/choreo/git_graph_test.exs`
+
+When you ship a new Choreo module, you should add tests. In this Livebook we cannot run `mix test`, but we can write the same assertions inside a code cell so the notebook validates itself.
+
+```elixir
+# These assertions mirror what you would put in test/choreo/git_graph_test.exs
+import ExUnit.Assertions
+alias Choreo.GitGraph
+
+graph =
+  GitGraph.new()
+  |> GitGraph.commit("a1b2c3d", tag: "initial")
+  |> GitGraph.commit("e4f5a6b", tag: "add README")
+  |> GitGraph.branch("feature")
+  |> GitGraph.checkout("feature")
+  |> GitGraph.commit("c7d8e9f", tag: "implement parser")
+  |> GitGraph.checkout("main")
+  |> GitGraph.merge("feature", id: "m1n2o3p", tag: "merge feature")
+
+mermaid = GitGraph.Render.Mermaid.to_mermaid(graph)
+
+# The output should be a valid gitGraph block.
+assert String.starts_with?(mermaid, "gitGraph\n")
+
+# Each operation should appear in order.
+assert String.contains?(mermaid, "commit id: \"a1b2c3d\" tag: \"initial\"")
+assert String.contains?(mermaid, "commit id: \"e4f5a6b\" tag: \"add README\"")
+assert String.contains?(mermaid, "branch feature")
+assert String.contains?(mermaid, "checkout feature")
+assert String.contains?(mermaid, "commit id: \"c7d8e9f\" tag: \"implement parser\"")
+assert String.contains?(mermaid, "checkout main")
+assert String.contains?(mermaid, "merge feature id: \"m1n2o3p\" tag: \"merge feature\"")
+
+# Quoted tags are escaped.
+graph_with_quotes = GitGraph.new() |> GitGraph.commit("x1y2z3w", tag: "fix \"bug\"")
+assert String.contains?(
+         GitGraph.Render.Mermaid.to_mermaid(graph_with_quotes),
+         "tag: \"fix \\\"bug\\\"\""
+       )
+
+# Highlight type is rendered.
+highlight_graph = GitGraph.new() |> GitGraph.commit("h1h2h3h", tag: "release", type: :highlight)
+assert String.contains?(GitGraph.Render.Mermaid.to_mermaid(highlight_graph), "type: HIGHLIGHT")
+
+IO.puts(mermaid)
+```
+
+If the cell above evaluates without raising, your builder and renderer are behaving correctly.
+
+## Step 4: Real Git Log Adapter — `lib/choreo/git_graph/git.ex`
+
+So far we have a working GitGraph builder. The final step is reading a real repository. Reconstructing full git topology automatically is surprisingly hard, so we will keep the adapter simple: it reads one branch's linear history and builds commits on that branch.
+
+You can then layer branches and merges on top using the builder API.
+
+```elixir
+defmodule Choreo.GitGraph.Git do
+  @moduledoc """
+  Small adapter that turns `git log` output into a `Choreo.GitGraph`.
+
+  This is intentionally minimal. It reads a single branch's first-parent
+  history as a linear sequence of commits. For branch/merge diagrams, add
+  branches manually after importing the base history.
+  """
+
+  alias Choreo.GitGraph
+
+  @doc """
+  Reads the commit history of `branch` in `path` and returns a `GitGraph`
+  with all commits placed on `branch`.
+
+  ## Options
+
+    * `:branch` — the branch or ref to read (defaults to `"HEAD"`).
+    * `:short` — whether to use short hashes (defaults to `true`).
+    * `:max_subject` — maximum length of the subject used as a tag (defaults to `40`).
+  """
+  @spec from_log(String.t(), keyword()) :: GitGraph.t()
+  def from_log(path \\ ".", opts \\ []) do
+    branch = Keyword.get(opts, :branch, "HEAD")
+    short? = Keyword.get(opts, :short, true)
+    max_subject = Keyword.get(opts, :max_subject, 40)
+
+    {output, 0} =
+      System.cmd("git", ["-C", path, "log", branch, "-10", "--pretty=format:%H|%s"],
+        stderr_to_stdout: true
+      )
+
+    entries =
+      output
+      |> String.split("\n", trim: true)
+      |> Enum.reverse()
+      |> Enum.map(fn line ->
+        [hash, message] = String.split(line, "|", parts: 2)
+        id = if short?, do: String.slice(hash, 0, 7), else: hash
+        tag = truncate(message, max_subject)
+        {id, tag}
+      end)
+
+    graph = GitGraph.new(branch: if(branch == "HEAD", do: "main", else: branch))
+
+    Enum.reduce(entries, graph, fn {id, tag}, g ->
+      GitGraph.commit(g, id, tag: tag)
+    end)
+  end
+
+  defp truncate(message, max) do
+    if String.length(message) <= max do
+      message
+    else
+      String.slice(message, 0, max - 3) <> "..."
+    end
+  end
+end
+```
+
+Now let's use it on this repository. The cell below reads the current branch's history and renders it.
+
+````elixir
+alias Choreo.GitGraph
+
+this_repo = Path.expand("../..", __DIR__)
+
+git_graph =
+  Choreo.GitGraph.Git.from_log(this_repo,
+    branch: "HEAD",
+    short: true,
+    max_subject: 40
+  )
+
+mermaid_output = GitGraph.Render.Mermaid.to_mermaid(git_graph)
+
+Kino.Markdown.new("""
+```text
+#{mermaid_output}
+```
+""")
+````
+
+And how it looks like:
+
+```elixir
+mermaid_output |> Kino.Mermaid.new()
+```
+
+## Putting It Together: A Branched Example
+
+Here is a more interesting example that combines the builder with manual branch and merge operations. It visualizes a pretend release cycle.
+
+````elixir
+alias Choreo.GitGraph
+
+graph =
+  GitGraph.new()
+  |> GitGraph.commit("abc0001", tag: "scaffold project")
+  |> GitGraph.commit("abc0002", tag: "add CI")
+  |> GitGraph.branch("feature/auth")
+  |> GitGraph.checkout("feature/auth")
+  |> GitGraph.commit("abc0003", tag: "add auth module")
+  |> GitGraph.commit("abc0004", tag: "add auth tests")
+  |> GitGraph.checkout("main")
+  |> GitGraph.commit("abc0005", tag: "update deps")
+  |> GitGraph.merge("feature/auth", id: "abc0006", tag: "merge auth")
+  |> GitGraph.branch("release/v1.0")
+  |> GitGraph.checkout("release/v1.0")
+  |> GitGraph.commit("abc0007", tag: "bump version")
+
+graph_mermaid = GitGraph.Render.Mermaid.to_mermaid(graph)
+
+Kino.Markdown.new("""
+```text
+#{graph_mermaid}
+```
+""")
+````
+
+This is how it looks like:
+
+```elixir
+graph_mermaid |> Kino.Mermaid.new()
+```
+
+## What We Built
+
+If you extracted every code block from this notebook into real files, your project would look like this:
+
+```text
+lib/choreo/git_graph.ex
+lib/choreo/git_graph/render/mermaid.ex
+lib/choreo/git_graph/git.ex
+test/choreo/git_graph_test.exs
+```
+
+And you would register the new module in `lib/choreo.ex` so that `Choreo.to_mermaid/2` dispatches to it.
+
+### Key takeaways
+
+1. **A new diagram type is just a builder + renderer.** You do not have to change Choreo's core graph model unless your domain needs special analysis.
+2. **Render only what makes sense.** We skipped DOT because git graphs are not a natural fit for Graphviz.
+3. **Keep the builder domain-focused.** `Choreo.GitGraph` knows about commits and branches, not about Mermaid syntax.
+4. **Map domain concepts to the target syntax carefully.** Mermaid gitGraph has no `msg:` attribute, so we mapped "message" to `tag:` instead.
+5. **Adapters are separate.** The `Git` adapter reads external data and feeds the builder. You could add adapters for GitHub, GitLab, or libgit2 later without touching the builder.
+
+## Exercises
+
+Try extending your new module:
+
+1. **Add a `cherry_pick/2` operation.** Mermaid supports `cherry-pick id: "..."`.
+2. **Add analysis.** Write a function that counts commits per branch, or finds the longest chain of commits.
+3. **Add a `from_log/2` variant that reads all branches.** This is harder because you must reconstruct branch topology from parent/child relationships. Start with a repo that has one feature branch.
+4. **Register with Choreo.** Modify `lib/choreo.ex` so `Choreo.to_mermaid(git_graph)` works directly.
+
+## Further Reading
+
+* [Mermaid Git Graph syntax](https://mermaid.js.org/syntax/gitgraph.html)
+* `Choreo.Dataflow` in the Choreo source — a module with a similar builder/renderer split.
+* `Choreo.Sequence` — another operation-sequence-based diagram.
