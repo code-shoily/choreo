@@ -155,6 +155,50 @@ defmodule Choreo.ERDTest do
     assert dot =~ "color=\"#ef4444\""
   end
 
+  test "to_dot highlights edges by tuple", %{erd: erd} do
+    dot = ERD.to_dot(erd, highlighted_edges: [{:users, :posts}])
+    assert dot =~ "users"
+    assert dot =~ "posts"
+  end
+
+  test "to_dot renders all cardinalities" do
+    erd =
+      ERD.new()
+      |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:c, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:d, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:e, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:a, :b, cardinality: :one_to_one)
+      |> ERD.add_relationship(:a, :c, cardinality: :zero_or_one_to_many)
+      |> ERD.add_relationship(:a, :d, cardinality: :exactly_one_to_many)
+      |> ERD.add_relationship(:a, :e, cardinality: :many_to_many)
+
+    dot = ERD.to_dot(erd)
+    assert dot =~ "arrowtail=\"teetee\""
+    assert dot =~ "arrowhead=\"crowodot\""
+    assert dot =~ "arrowtail=\"odot\""
+    assert dot =~ "arrowhead=\"crowtee\""
+  end
+
+  test "to_dot supports custom and fallback themes" do
+    erd = ERD.new() |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+
+    custom =
+      Choreo.Theme.custom(
+        colors: %{header_bg: "#ff0000"},
+        node_fontcolor: "white"
+      )
+
+    assert ERD.to_dot(erd, theme: custom) =~ "#ff0000"
+    assert ERD.to_dot(erd, theme: :unknown_theme) =~ "label=<<TABLE"
+  end
+
+  test "render via Choreo protocol delegations", %{erd: erd} do
+    assert Choreo.to_dot(erd) =~ "digraph"
+    assert Choreo.to_mermaid(erd) =~ "erDiagram"
+  end
+
   test "to_mermaid native erDiagram rendering", %{erd: erd} do
     mermaid = ERD.to_mermaid(erd)
 
@@ -164,6 +208,40 @@ defmodule Choreo.ERDTest do
     assert mermaid =~ "varchar email \"unique email\""
     assert mermaid =~ "users ||--o{ posts : \"writes\""
     assert mermaid =~ "posts ||--o{ comments : \"has\""
+  end
+
+  test "to_mermaid renders all cardinalities" do
+    erd =
+      ERD.new()
+      |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:c, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:d, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:e, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:a, :b, cardinality: :one_to_one)
+      |> ERD.add_relationship(:a, :c, cardinality: :zero_or_one_to_many)
+      |> ERD.add_relationship(:a, :d, cardinality: :exactly_one_to_many)
+      |> ERD.add_relationship(:a, :e, cardinality: :many_to_many)
+
+    mermaid = ERD.to_mermaid(erd)
+    assert mermaid =~ "||--||"
+    assert mermaid =~ "|o--o{"
+    assert mermaid =~ "||--|{"
+    assert mermaid =~ "}|--|{"
+  end
+
+  test "zoom level 0 filters isolated tables" do
+    erd =
+      ERD.new()
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:logs, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+
+    zoomed = Choreo.View.zoom(erd, level: 0)
+    refute :logs in Map.keys(zoomed.graph.nodes)
+    assert :users in Map.keys(zoomed.graph.nodes)
+    assert :posts in Map.keys(zoomed.graph.nodes)
   end
 
   test "shortest join path BFS", %{erd: erd} do
@@ -251,6 +329,58 @@ defmodule Choreo.ERDTest do
     end
   end
 
+  test "validate/1 returns issues for problematic schemas" do
+    erd =
+      ERD.new()
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:users, :posts, cardinality: :many_to_many)
+
+    issues = Analysis.validate(erd)
+    assert {:error, "Direct many-to-many relationship between :users and :posts."} in issues
+  end
+
+  test "validate/1 returns empty for clean schemas", %{erd: erd} do
+    assert Analysis.validate(erd) == []
+  end
+
+  test "shortest_join_path/3 raises for missing tables" do
+    erd =
+      ERD.new()
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+
+    assert_raise ArgumentError, ~r/table :posts does not exist/, fn ->
+      Analysis.shortest_join_path(erd, :users, :posts)
+    end
+
+    assert_raise ArgumentError, ~r/table :posts does not exist/, fn ->
+      Analysis.shortest_join_path(erd, :posts, :users)
+    end
+  end
+
+  test "strict mode raises when relationship endpoint is missing" do
+    assert_raise ArgumentError, ~r/Source table :users does not exist/, fn ->
+      ERD.new(strict: true)
+      |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+    end
+
+    assert_raise ArgumentError, ~r/Target table :posts does not exist/, fn ->
+      ERD.new(strict: true)
+      |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+    end
+  end
+
+  test "add_relationship auto-creates missing tables" do
+    erd =
+      ERD.new()
+      |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+
+    assert Map.has_key?(erd.graph.nodes, :users)
+    assert Map.has_key?(erd.graph.nodes, :posts)
+  end
+
   describe "normalization_score/2" do
     test "perfect schema receives a score of 100" do
       erd =
@@ -332,6 +462,98 @@ defmodule Choreo.ERDTest do
       # 1 many_to_many (120) = 120 points deduction
       result = Analysis.normalization_score(erd, weights: [many_to_many: 120])
       assert result.score == 0
+    end
+
+    test "empty schema scores 100 with no smells" do
+      result = Analysis.normalization_score(ERD.new())
+      assert result.score == 100
+      assert result.smells == []
+    end
+
+    test "cycles returns empty for empty and acyclic schemas" do
+      assert Analysis.cycles(ERD.new()) == []
+
+      acyclic =
+        ERD.new()
+        |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:a, :b, cardinality: :one_to_one)
+
+      assert Analysis.cycles(acyclic) == []
+    end
+  end
+
+  describe "dependency analyses" do
+    test "affected_by/2 returns transitive dependents", %{erd: erd} do
+      assert Enum.sort(Analysis.affected_by(erd, :users)) == [:comments, :posts]
+      assert Enum.sort(Analysis.affected_by(erd, :posts)) == [:comments]
+      assert Analysis.affected_by(erd, :comments) == []
+    end
+
+    test "depends_on/2 returns transitive dependencies", %{erd: erd} do
+      assert Enum.sort(Analysis.depends_on(erd, :users)) == [:comments, :posts]
+      assert Enum.sort(Analysis.depends_on(erd, :posts)) == [:comments]
+      assert Analysis.depends_on(erd, :comments) == []
+    end
+
+    test "affected_by/2 and depends_on/2 handle missing targets" do
+      erd = ERD.new() |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+      assert Analysis.affected_by(erd, :missing) == []
+      assert Analysis.depends_on(erd, :missing) == []
+    end
+
+    test "transitive_reduction/1 identifies redundant edges" do
+      erd =
+        ERD.new()
+        |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:comments, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+        |> ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
+        |> ERD.add_relationship(:users, :comments, cardinality: :one_to_many)
+
+      assert Analysis.transitive_reduction(erd) == [{:users, :comments}]
+    end
+
+    test "transitive_reduction/1 returns empty for acyclic chains with no redundancy" do
+      erd =
+        ERD.new()
+        |> ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:comments, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+        |> ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
+
+      assert Analysis.transitive_reduction(erd) == []
+    end
+
+    test "transitive_reduction/1 and longest_dependency_chain/1 return safe values for cycles" do
+      erd =
+        ERD.new()
+        |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:b, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_table(:c, columns: [%{name: :id, type: :integer}])
+        |> ERD.add_relationship(:a, :b, cardinality: :one_to_one)
+        |> ERD.add_relationship(:b, :c, cardinality: :one_to_one)
+        |> ERD.add_relationship(:c, :a, cardinality: :one_to_one)
+
+      assert Analysis.transitive_reduction(erd) == []
+      assert Analysis.longest_dependency_chain(erd) == :error
+    end
+
+    test "longest_dependency_chain/1 finds the deepest cascade", %{erd: erd} do
+      assert Analysis.longest_dependency_chain(erd) ==
+               {:ok, [:users, :posts, :comments], 2}
+    end
+
+    test "longest_dependency_chain/1 handles empty and single-node schemas" do
+      assert Analysis.longest_dependency_chain(ERD.new()) == :error
+
+      single =
+        ERD.new()
+        |> ERD.add_table(:a, columns: [%{name: :id, type: :integer}])
+
+      assert Analysis.longest_dependency_chain(single) == {:ok, [:a], 0}
     end
   end
 end

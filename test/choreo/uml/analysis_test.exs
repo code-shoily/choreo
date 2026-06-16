@@ -94,4 +94,57 @@ defmodule Choreo.UML.AnalysisTest do
 
     assert Analysis.law_of_demeter_violations(uml) == [{:a, :b, :c}]
   end
+
+  test "coupling_metrics/1 handles empty and isolated diagrams" do
+    assert Analysis.coupling_metrics(UML.new()) == %{}
+
+    isolated =
+      UML.new()
+      |> UML.add_class(:a)
+      |> UML.add_class(:b)
+
+    metrics = Analysis.coupling_metrics(isolated)
+    assert metrics[:a] == %{afferent: 0, efferent: 0, instability: 0.0}
+    assert metrics[:b] == %{afferent: 0, efferent: 0, instability: 0.0}
+  end
+
+  test "broken_contracts/1 returns empty when contract is satisfied" do
+    uml =
+      UML.new()
+      |> UML.add_class(:auth_behavior,
+        type: :behavior,
+        functions: [%{name: "verify", arity: 1}]
+      )
+      |> UML.add_class(:provider,
+        type: :struct,
+        functions: [%{name: "verify", arity: 1}]
+      )
+      |> UML.add_relationship(:provider, :auth_behavior, type: :realizes)
+
+    assert Analysis.broken_contracts(uml) == []
+  end
+
+  test "broken_contracts/1 returns empty for unrelated relationships" do
+    uml =
+      UML.new()
+      |> UML.add_class(:a)
+      |> UML.add_class(:b)
+      |> UML.add_relationship(:a, :b, type: :depends)
+
+    assert Analysis.broken_contracts(uml) == []
+  end
+
+  test "law_of_demeter_violations/1 returns empty for empty and acyclic diagrams" do
+    assert Analysis.law_of_demeter_violations(UML.new()) == []
+
+    acyclic =
+      UML.new()
+      |> UML.add_class(:a)
+      |> UML.add_class(:b)
+      |> UML.add_class(:c)
+      |> UML.add_relationship(:a, :b, type: :depends)
+      |> UML.add_relationship(:b, :c, type: :depends)
+
+    assert Analysis.law_of_demeter_violations(acyclic) == []
+  end
 end
