@@ -553,8 +553,8 @@ defmodule Choreo.FSM.Analysis do
 
       is_nil(init1) or is_nil(init2) ->
         # One is nil, the other isn't. They are equivalent only if the non-nil one accepts nothing
-        non_nil_fsm = init1 || init2
-        shortest_accepting_path(non_nil_fsm) == :error
+        fsm_with_init = if is_nil(init1), do: fsm2, else: fsm1
+        shortest_accepting_path(fsm_with_init) == :error
 
       true ->
         # Both are non-nil, run product automaton reachability check
@@ -681,9 +681,19 @@ defmodule Choreo.FSM.Analysis do
             is_final = Enum.any?(group, &(&1 in FSM.final_states(fsm)))
 
             cond do
-              is_initial -> FSM.add_initial_state(acc, rep)
-              is_final -> FSM.add_final_state(acc, rep)
-              true -> FSM.add_state(acc, rep)
+              is_initial and is_final ->
+                acc
+                |> FSM.add_initial_state(rep)
+                |> FSM.add_state(rep, type: :final)
+
+              is_initial ->
+                FSM.add_initial_state(acc, rep)
+
+              is_final ->
+                FSM.add_final_state(acc, rep)
+
+              true ->
+                FSM.add_state(acc, rep)
             end
           end
         end)

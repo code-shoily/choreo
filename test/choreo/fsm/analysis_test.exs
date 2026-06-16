@@ -482,5 +482,66 @@ defmodule Choreo.FSM.AnalysisTest do
       assert Analysis.violates_invariant?(fsm, forbid_path: [:a, :b])
       refute Analysis.violates_invariant?(fsm, forbid_path: [:b, :a])
     end
+
+    test "generate_test_cases/2 returns empty when no initial state" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_final_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      assert Analysis.generate_test_cases(fsm, :state) == []
+      assert Analysis.generate_test_cases(fsm, :transition) == []
+    end
+
+    test "equivalent?/2 handles missing initial states" do
+      with_init =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      without_init =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      assert Analysis.equivalent?(FSM.new(), FSM.new())
+      refute Analysis.equivalent?(with_init, without_init)
+    end
+
+    test "minimize/1 handles empty and already-minimal machines" do
+      assert Analysis.minimize(FSM.new()) == FSM.new()
+
+      single =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:a)
+
+      assert Analysis.minimize(single).meta.initial_state == :a
+      assert :a in FSM.final_states(Analysis.minimize(single))
+
+      minimal =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_final_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      minimized = Analysis.minimize(minimal)
+      assert Enum.sort(FSM.states(minimized)) == [:a, :b]
+    end
+
+    test "violates_invariant?/2 handles invalid options" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      refute Analysis.violates_invariant?(fsm, [])
+      refute Analysis.violates_invariant?(fsm, forbid_path: [:a])
+      refute Analysis.violates_invariant?(fsm, forbid_path: [])
+    end
   end
 end

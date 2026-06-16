@@ -547,15 +547,6 @@ defmodule Choreo.FSM do
   def initial_state(%__MODULE__{meta: %{initial_state: state}}), do: state
   def initial_state(%__MODULE__{}), do: nil
 
-  @deprecated "Use initial_state/1 instead"
-  @spec initial_states(t()) :: MapSet.t(Yog.node_id())
-  def initial_states(%__MODULE__{} = fsm) do
-    case initial_state(fsm) do
-      nil -> MapSet.new()
-      state -> MapSet.new([state])
-    end
-  end
-
   @doc """
   Returns all final state IDs.
 

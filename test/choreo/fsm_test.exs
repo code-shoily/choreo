@@ -400,6 +400,50 @@ defmodule Choreo.FSMTest do
       assert String.contains?(mermaid, "both")
       assert String.contains?(mermaid, "stroke-width:3px")
     end
+
+    test "to_dot/2 highlights nodes and edges" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_final_state(:c)
+        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:b, :c, label: "y")
+
+      dot = FSM.to_dot(fsm, highlighted_nodes: [:b], highlighted_edges: [{:a, :b}])
+      assert String.contains?(dot, "a")
+      assert String.contains?(dot, "b")
+      assert String.contains?(dot, "c")
+    end
+
+    test "to_mermaid/2 supports warm, forest, and ocean themes" do
+      fsm = FSM.new() |> FSM.add_initial_state(:a) |> FSM.add_final_state(:b)
+
+      warm = FSM.to_mermaid(fsm, theme: :warm)
+      forest = FSM.to_mermaid(fsm, theme: :forest)
+      ocean = FSM.to_mermaid(fsm, theme: :ocean)
+
+      assert String.contains?(warm, "graph LR")
+      assert String.contains?(forest, "graph LR")
+      assert String.contains?(ocean, "graph LR")
+      refute warm == forest
+      refute forest == ocean
+    end
+
+    test "to_mermaid/2 supports highlighted nodes and edges" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_final_state(:c)
+        |> FSM.add_transition(:a, :b, label: "x")
+        |> FSM.add_transition(:b, :c, label: "y")
+
+      mermaid = FSM.to_mermaid(fsm, highlighted_nodes: [:b], highlighted_edges: [{:a, :b}])
+      assert String.contains?(mermaid, "a")
+      assert String.contains?(mermaid, "b")
+      assert String.contains?(mermaid, "c")
+    end
   end
 
   describe "transforms" do
@@ -559,6 +603,28 @@ defmodule Choreo.FSMTest do
       assert String.contains?(mermaid, "[*] --> my_state")
       assert String.contains?(mermaid, "my_state --> another_state_ : go")
       assert String.contains?(mermaid, "another_state_ --> [*]")
+    end
+  end
+
+  describe "to_simple_graph/2" do
+    test "converts multigraph to simple graph" do
+      fsm =
+        FSM.new()
+        |> FSM.add_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_transition(:a, :b, label: "x")
+
+      simple = FSM.to_simple_graph(fsm)
+      assert simple.kind == :directed
+      assert :a in Map.keys(simple.nodes)
+      assert :b in Map.keys(simple.nodes)
+    end
+
+    test "returns empty graph for empty fsm" do
+      simple = FSM.to_simple_graph(FSM.new())
+      assert simple.nodes == %{}
+      assert simple.out_edges == %{}
+      assert simple.in_edges == %{}
     end
   end
 end

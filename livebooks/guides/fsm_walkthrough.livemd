@@ -263,9 +263,13 @@ Kino.Layout.tabs([
 | Demote            | `remove_initial_state/2`, `remove_final_state/2`                                           |
 | Query             | `FSM.initial_state/1`, `FSM.final_states/1`, `FSM.states/1`                                |
 | Acceptance        | `Analysis.accepts?/2`                                                                      |
-| Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`                                    |
+| Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`, `Analysis.livelock_states/1`      |
 | Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                        |
+| Test Cases        | `Analysis.generate_test_cases/2`                                                           |
+| Equivalence       | `Analysis.equivalent?/2`                                                                   |
+| Minimization      | `Analysis.minimize/1`                                                                      |
+| Invariants        | `Analysis.violates_invariant?/2`                                                           |
 | Validation        | `Analysis.validate/1`                                                                      |
-| Transforms        | `FSM.complement/1`, `FSM.prune/1`                                                          |
+| Transforms        | `FSM.complement/1`, `FSM.prune/1`, `FSM.to_simple_graph/2`                                 |
 | Render to DOT     | `FSM.to_dot/2`                                                                             |
 | Render to Mermaid | `FSM.to_mermaid/2`                                                                         |
