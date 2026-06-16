@@ -79,7 +79,7 @@ Analysis.feature_importance(tree)  #=> %{"weather" => 1, "wind" => 1}
 pruned = Analysis.prune_redundant(tree)
 ```
 
-**Features:** exact-match decision evaluation, path enumeration with conditions, redundant-branch pruning, feature-importance counting, tree validation.
+**Features:** exact-match decision evaluation, path enumeration with conditions, IF-THEN rule extraction, test-case generation, orphan-node detection, missing-branch completeness checks, redundant-branch pruning, feature-importance counting, tree validation.
 
 ```mermaid
 graph TD
