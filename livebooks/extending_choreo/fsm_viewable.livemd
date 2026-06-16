@@ -1,0 +1,272 @@
+# Extending Choreo: Making FSM Viewable
+
+```elixir
+Mix.install(
+  [
+    {:choreo, "~> 0.9.0"},
+    {:kino, "~> 0.14"}
+  ],
+  consolidate_protocols: false
+)
+```
+
+## Section
+
+This notebook is a focused tutorial on one Choreo extension point: the `Choreo.Viewable` protocol. Instead of building a new diagram type from scratch, we take an existing module (`Choreo.FSM`) and teach it how to be **zoomed**, **focused**, and **filtered**.
+
+As in the other extending tutorials, the implementation is defined **inline** in the Livebook. The section header tells you which file the code would live in if you were shipping it:
+
+* `lib/choreo/fsm.ex` — the `Choreo.Viewable` protocol implementation appended to the existing module
+
+## Why add Viewable to FSM?
+
+`Choreo.FSM` is a finite-state machine builder. Small FSMs do not need zooming — you can show every state and transition on one screen. That makes FSM a great teaching example: we are not adding Viewable because FSM *needs* it; we are adding it to learn the protocol without the noise of a brand-new builder or renderer.
+
+After this notebook you will know how to make any Choreo module respond to:
+
+* `Choreo.View.zoom/2`
+* `Choreo.View.focus/3`
+* `Choreo.View.filter/2`
+* `Choreo.View.focus_between/3`
+* `Choreo.View.collapse/4`
+
+## Setup
+
+> **Why `consolidate_protocols: false`?** We are going to define a new `Choreo.Viewable` implementation inside this notebook. If protocols are consolidated, the runtime will ignore new implementations added after compilation. Disabling consolidation lets us extend the protocol interactively.
+> 
+> **Note for publication:** When this notebook is published independently, swap the `path:` dependency for `{:choreo, github: "code-shoily/choreo", branch: "main"}`.
+
+## The example FSM
+
+We will use a tiny order-lifecycle state machine. Build it first so we have something to zoom and focus.
+
+```elixir
+alias Choreo.FSM
+
+order_fsm =
+  FSM.new()
+  |> FSM.add_initial_state(:pending, label: "Pending")
+  |> FSM.add_state(:paid, label: "Paid")
+  |> FSM.add_state(:shipped, label: "Shipped")
+  |> FSM.add_final_state(:delivered, label: "Delivered")
+  |> FSM.add_final_state(:refunded, label: "Refunded")
+  |> FSM.add_state(:cancelled, label: "Cancelled")
+  |> FSM.add_transition(:pending, :paid, label: "pay")
+  |> FSM.add_transition(:pending, :cancelled, label: "cancel")
+  |> FSM.add_transition(:paid, :shipped, label: "ship")
+  |> FSM.add_transition(:paid, :refunded, label: "refund")
+  |> FSM.add_transition(:shipped, :delivered, label: "deliver")
+  |> FSM.add_transition(:cancelled, :refunded, label: "refund")
+  |> FSM.add_transition(:delivered, :refunded, label: "return")
+
+IO.puts("States: #{length(FSM.states(order_fsm))}")
+IO.puts("Initial: #{inspect(FSM.initial_state(order_fsm))}")
+IO.puts("Finals: #{inspect(FSM.final_states(order_fsm))}")
+
+order_fsm
+```
+
+## Step 1: Implement `Choreo.Viewable` — `lib/choreo/fsm.ex`
+
+The `Choreo.Viewable` protocol has three callbacks:
+
+| Callback              | Responsibility                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rebuild/2`           | `Choreo.View` hands you a new, smaller graph. You return your module's struct with that graph, pruning any metadata that no longer applies. |
+| `zoom_predicate/2`    | Given a zoom level, return a function `fn id, data -> boolean` that decides which nodes survive at that level.                              |
+| `virtual_edge_meta/1` | Return metadata for edges that `Choreo.View` creates when it collapses intermediate nodes.                                                  |
+
+Here is the implementation for `Choreo.FSM`:
+
+```elixir
+defimpl Choreo.Viewable, for: Choreo.FSM do
+  @moduledoc """
+  Viewable protocol implementation for `Choreo.FSM`.
+
+  Zoom levels:
+
+    * `0` — show only the initial state.
+    * `1` — show the initial state and all final states.
+    * `2` and above — show every state.
+
+  Virtual edges are introduced when `Choreo.View.zoom/2` is called with
+  `transitive: true` or when intermediate states are filtered out.
+  """
+
+  alias Choreo.FSM
+
+  @doc """
+  Rebuilds an FSM after `Choreo.View` has removed nodes and/or edges.
+
+  We prune `edge_meta` to only edges that still exist, and we update
+  `meta.initial_state` and `meta.final_states` if those states were removed.
+  """
+  def rebuild(%FSM{} = fsm, new_graph) do
+    surviving_edge_ids = MapSet.new(Map.keys(new_graph.edges))
+
+    new_edge_meta =
+      fsm.edge_meta
+      |> Enum.filter(fn {edge_id, _meta} -> MapSet.member?(surviving_edge_ids, edge_id) end)
+      |> Enum.into(%{})
+
+    surviving_nodes = MapSet.new(Map.keys(new_graph.nodes))
+
+    new_initial =
+      if fsm.meta.initial_state in surviving_nodes do
+        fsm.meta.initial_state
+      else
+        nil
+      end
+
+    new_finals = MapSet.intersection(fsm.meta.final_states, surviving_nodes)
+
+    new_meta = %{
+      fsm.meta
+      | initial_state: new_initial,
+        final_states: new_finals
+    }
+
+    %FSM{fsm | graph: new_graph, edge_meta: new_edge_meta, meta: new_meta}
+  end
+
+  @doc """
+  Returns the zoom predicate for the given level.
+
+  The predicate receives `(state_id, state_data)` and returns `true` if the
+  state should be visible at that zoom level.
+  """
+  def zoom_predicate(%FSM{} = fsm, level) do
+    initial = fsm.meta.initial_state
+    finals = fsm.meta.final_states
+
+    fn state_id, _state_data ->
+      cond do
+        level >= 2 ->
+          true
+
+        state_id == initial ->
+          true
+
+        level >= 1 and MapSet.member?(finals, state_id) ->
+          true
+
+        true ->
+          false
+      end
+    end
+  end
+
+  @doc """
+  Metadata for virtual edges created by transitive filtering.
+  """
+  def virtual_edge_meta(%FSM{} = _fsm) do
+    %{label: "via hidden states", type: :virtual, style: "dashed"}
+  end
+end
+```
+
+That is the entire extension. The rest of the notebook exercises it.
+
+## Step 2: Exercises in viewing
+
+Now we can use `Choreo.View` on the FSM. Each cell below is an assertion you would write in `test/choreo/fsm_view_test.exs`.
+
+```elixir
+import ExUnit.Assertions
+alias Choreo.View
+
+# Zoom level 0 keeps only the initial state.
+zoom_0 = View.zoom(order_fsm, level: 0)
+assert FSM.states(zoom_0) == [:pending]
+assert FSM.initial_state(zoom_0) == :pending
+assert FSM.final_states(zoom_0) == []
+
+# Zoom level 1 keeps the initial state and all final states.
+zoom_1 = View.zoom(order_fsm, level: 1)
+assert :pending in FSM.states(zoom_1)
+assert :delivered in FSM.states(zoom_1)
+assert :refunded in FSM.states(zoom_1)
+assert length(FSM.states(zoom_1)) == 3
+
+# Zoom level 2 shows every state.
+zoom_2 = View.zoom(order_fsm, level: 2)
+assert length(FSM.states(zoom_2)) == length(FSM.states(order_fsm))
+assert FSM.initial_state(zoom_2) == :pending
+assert FSM.final_states(zoom_2) == FSM.final_states(order_fsm)
+
+# Focus on :paid and its immediate neighborhood.
+focused = View.focus(order_fsm, :paid, radius: 1)
+assert :paid in FSM.states(focused)
+assert :pending in FSM.states(focused)
+assert :shipped in FSM.states(focused)
+assert :refunded in FSM.states(focused)
+
+# Filter out cancelled states.
+no_cancelled =
+  View.filter(order_fsm, fn _id, data ->
+    data[:label] != "Cancelled"
+  end)
+
+refute :cancelled in FSM.states(no_cancelled)
+assert :pending in FSM.states(no_cancelled)
+assert :delivered in FSM.states(no_cancelled)
+
+"All Viewable assertions passed."
+```
+
+## Step 3: Rendering a zoomed view
+
+View transforms return new `Choreo.FSM` structs, so the existing renderers work on them without any changes. Here is the level-1 zoom rendered as Mermaid.
+
+```elixir
+zoom_at_level = fn i ->
+  zoom =
+    case i do
+      0 -> zoom_0
+      1 -> zoom_1
+      2 -> zoom_2
+    end
+  zoom
+  |> Choreo.FSM.to_mermaid(theme: :default)
+  |> Kino.Mermaid.new()
+end
+
+Kino.Layout.tabs(
+  "Zoom 0": zoom_at_level.(0),
+  "Zoom 1": zoom_at_level.(1),
+  "Zoom 2": zoom_at_level.(2)
+)
+```
+
+```elixir
+focused_render = focused |> Choreo.FSM.to_mermaid() |> Kino.Mermaid.new()
+no_cancelled_render = no_cancelled |> Choreo.FSM.to_mermaid() |> Kino.Mermaid.new()
+Kino.Layout.tabs(
+  "Focused at Paid": focused_render,
+  "No Cancellation": no_cancelled_render
+)
+```
+
+There is no new builder, renderer, or analysis module. This tutorial is purely about extending an existing module with a new protocol.
+
+### Key takeaways
+
+1. **Viewable is a separate extension point.** You can add it to a module without touching its builder or renderer.
+2. **`rebuild/2` is about consistency.** Whenever `Choreo.View` removes nodes or edges, your struct must prune metadata and update derived fields (like `initial_state` and `final_states`).
+3. **`zoom_predicate/2` is domain-specific.** For FSM we used initial/final semantics; for other modules you might use depth, importance, or node type.
+4. **Virtual edges need metadata.** Return something meaningful in `virtual_edge_meta/1` so renderers can style collapsed paths differently.
+5. **View transforms compose with existing renderers.** Because `Choreo.View.zoom/2` returns a new `Choreo.FSM`, `Choreo.FSM.to_mermaid/2` just works.
+
+### Exercises
+
+1. **Add a level-3 zoom.** At level 3, show all states *and* highlight error/cancel states differently. The predicate only controls visibility, but you can attach metadata to surviving nodes inside `rebuild/2`.
+2. **Implement `focus_trace/3`.** Use `Choreo.View.focus_trace(order_fsm, :pending, :refunded)` and verify the returned path.
+3. **Style virtual edges.** Modify `virtual_edge_meta/1` to return a `color` or `style` that the FSM renderer picks up. You may need to update the FSM renderer to honor `type: :virtual`.
+4. **Add Viewable to another module.** Pick `Choreo.Sequence` or `Choreo.ERD` and implement zoom predicates for it.
+
+### Further Reading
+
+* `Choreo.Viewable` protocol source — the contract every viewable module must satisfy.
+* `Choreo.View` source — how focus, zoom, filter, and collapse use the protocol.
+* `Choreo.Planner` — an existing module with a minimal `Choreo.Viewable` implementation.
+* `Choreo.MindMap` — a module whose Viewable implementation has richer zoom semantics.

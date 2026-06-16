@@ -5,6 +5,8 @@ This directory contains tutorials that teach you how to add new diagram vocabula
 ## Notebooks
 
 - [`git_graph.livemd`](./git_graph.livemd) — add a `Choreo.GitGraph` module that renders branch/merge history as a Mermaid `gitGraph`, including a small adapter that reads real `git log` output.
+- [`call_graph_analysis.livemd`](./call_graph_analysis.livemd) — add a `Choreo.CallGraph` module that is analysis-first: dead functions, entry points, cycles, longest chains, reachability, impact analysis, and betweenness hotspots. Includes a `mix xref` adapter.
+- [`fsm_viewable.livemd`](./fsm_viewable.livemd) — add `Choreo.Viewable` support to the existing `Choreo.FSM` module so it can be zoomed, focused, and filtered.
 
 ## Pattern
 

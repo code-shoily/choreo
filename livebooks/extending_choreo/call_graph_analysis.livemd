@@ -1,0 +1,663 @@
+# Extending Choreo: Call Graph Analysis
+
+## Section
+
+This notebook extends Choreo with a new vocabulary that is **analysis-first**: a call graph. Instead of worrying about how the diagram looks, we focus on what the graph can tell us about a codebase.
+
+As in the GitGraph tutorial, every module is defined **inline** in this Livebook. Each section tells you which file the code would live in if you were shipping it:
+
+* `lib/choreo/call_graph.ex` — the builder API
+* `lib/choreo/call_graph/analysis.ex` — the analysis functions
+* `test/choreo/call_graph_test.exs` — self-checking assertions
+* `lib/choreo/call_graph/mix_xref.ex` — a small adapter that ingests `mix xref` output
+
+## Why analysis-first?
+
+Most Choreo modules produce pretty diagrams. A call graph is different: its value is in the questions it answers.
+
+| Analysis                 | Question it answers                                     |
+| ------------------------ | ------------------------------------------------------- |
+| `dead_functions/1`       | Which private functions are never called?               |
+| `entry_points/1`         | Where does execution enter the system?                  |
+| `god_functions/1`        | Which functions call too many others?                   |
+| `leaf_functions/1`       | Which functions never call anything else?               |
+| `recursive_cycles/1`     | Where are circular/recursive call chains?               |
+| `longest_call_chain/3`   | What is the deepest acyclic path between two functions? |
+| `reachable_from/2`       | What can this function eventually call?                 |
+| `affected_by/2`          | What functions could break if this one changes?         |
+| `betweenness_hotspots/1` | Which functions sit on the most call paths?             |
+
+There is no renderer section. If you later want a diagram, you can convert a `Choreo.CallGraph` into a `Choreo.Dependency` graph in a few lines.
+
+## Why use Yog as the backing graph?
+
+Every other Choreo module stores its data in a `Yog.Multi.Graph`. Doing the same here means:
+
+1. We can reuse Yog's graph algorithms (SCC, centrality, reachability, pathfinding).
+2. We fit the same architectural pattern as `Choreo.Dataflow`, `Choreo.Dependency`, etc.
+3. The tutorial teaches how to extend Choreo, not just how to write graph algorithms from scratch.
+
+The custom code we keep is the call-graph semantics: function types (`:public`, `:private`, `:external`, `:entry`) and the interpretation of in-degree/out-degree.
+
+## Setup
+
+```elixir
+Mix.install([
+  {:choreo, "~> 0.9.0"}
+])
+```
+
+> **Note for publication:** When this notebook is published independently, swap the `path:` dependency for `{:choreo, github: "code-shoily/choreo", branch: "main"}`.
+
+## Step 1: The Builder — `lib/choreo/call_graph.ex`
+
+The builder is a thin wrapper around `Yog.Multi.Graph`. It adds nodes for functions and directed edges for calls.
+
+```elixir
+defmodule Choreo.CallGraph do
+  @moduledoc """
+  Call graph builder for Choreo.
+
+  Models functions as nodes and calls as directed edges from caller to callee.
+  The underlying graph is a `Yog.Multi.Graph`, so all of Yog's algorithms can
+  be applied to it.
+
+  ## Example
+
+      alias Choreo.CallGraph
+
+      graph =
+        CallGraph.new()
+        |> CallGraph.add_function({MyApp, :handle_request, 2}, type: :public)
+        |> CallGraph.add_function({MyApp, :validate, 1}, type: :private)
+        |> CallGraph.add_call({MyApp, :handle_request, 2}, {MyApp, :validate, 1})
+
+      CallGraph.Analysis.dead_functions(graph)
+      CallGraph.Analysis.entry_points(graph)
+
+  ## Function types
+
+    * `:public` — part of the public API; expected to have zero or more external callers.
+    * `:private` — internal helper; should have at least one caller in the system.
+    * `:external` — defined outside the system (e.g., a library or database module).
+    * `:entry` — explicitly marked as an entry point regardless of in-degree.
+  """
+
+  defstruct graph: nil, function_meta: %{}
+
+  @type node_id :: {module(), atom(), non_neg_integer()}
+
+  @type t :: %__MODULE__{
+          graph: Yog.Multi.Graph.t(),
+          function_meta: %{node_id() => map()}
+        }
+
+  @type function_type :: :public | :private | :external | :entry
+
+  @doc """
+  Creates a new, directed call graph backed by `Yog.Multi.Graph`.
+  """
+  @spec new() :: t()
+  def new do
+    %__MODULE__{graph: Yog.Multi.directed()}
+  end
+
+  @doc """
+  Adds a function to the graph.
+
+  ## Options
+
+    * `:type` — `:public`, `:private`, `:external`, or `:entry` (defaults to `:private`).
+    * Any other metadata you want to attach.
+  """
+  @spec add_function(t(), node_id(), keyword()) :: t()
+  def add_function(%__MODULE__{} = graph, node_id, opts \\ []) do
+    type = Keyword.get(opts, :type, :private)
+    meta = Map.new(opts) |> Map.put(:type, type)
+
+    %{
+      graph
+      | graph: Yog.Multi.add_node(graph.graph, node_id, meta),
+        function_meta: Map.put(graph.function_meta, node_id, meta)
+    }
+  end
+
+  @doc """
+  Records a directed call from `caller` to `callee`.
+
+  If either function has not been added yet, it is automatically recorded as
+  `:external`.
+  """
+  @spec add_call(t(), node_id(), node_id()) :: t()
+  def add_call(%__MODULE__{} = graph, caller, callee) do
+    graph = ensure_node(graph, caller)
+    graph = ensure_node(graph, callee)
+
+    {new_graph, _edge_id} = Yog.Multi.add_edge(graph.graph, caller, callee, nil)
+
+    %{graph | graph: new_graph}
+  end
+
+  @doc """
+  Returns the type of a function.
+  """
+  @spec type(t(), node_id()) :: function_type()
+  def type(%__MODULE__{} = graph, node_id) do
+    get_in(graph.function_meta, [node_id, :type]) || :private
+  end
+
+  @doc """
+  Returns the direct callees of a function.
+  """
+  @spec callees(t(), node_id()) :: MapSet.t(node_id())
+  def callees(%__MODULE__{} = graph, node_id) do
+    graph.graph
+    |> Yog.Multi.successors(node_id)
+    |> Enum.map(fn {to, _edge_id, _data} -> to end)
+    |> MapSet.new()
+  end
+
+  @doc """
+  Returns the direct callers of a function.
+  """
+  @spec callers(t(), node_id()) :: MapSet.t(node_id())
+  def callers(%__MODULE__{} = graph, node_id) do
+    graph.graph
+    |> Yog.Multi.predecessors(node_id)
+    |> Enum.map(fn {from, _edge_id, _data} -> from end)
+    |> MapSet.new()
+  end
+
+  defp ensure_node(graph, node_id) do
+    if Map.has_key?(graph.function_meta, node_id) do
+      graph
+    else
+      add_function(graph, node_id, type: :external)
+    end
+  end
+end
+```
+
+The builder is now just Choreo-specific semantics on top of Yog. The graph structure itself is handled by the library.
+
+## Step 2: The Analysis Module — `lib/choreo/call_graph/analysis.ex`
+
+This module delegates the graph mechanics to Yog and keeps only the call-graph interpretation.
+
+```elixir
+defmodule Choreo.CallGraph.Analysis do
+  @moduledoc """
+  Analysis functions for `Choreo.CallGraph`.
+
+  These functions combine Yog's graph algorithms with the function-type
+  metadata from the builder to answer code-specific questions.
+  """
+
+  alias Choreo.CallGraph
+
+  @doc """
+  Returns private functions that are never called inside the system.
+
+  A public function with no callers is usually an entry point, not dead code.
+  A private function with no callers is a deletion candidate.
+  """
+  @spec dead_functions(CallGraph.t()) :: [CallGraph.node_id()]
+  def dead_functions(%CallGraph{} = graph) do
+    graph
+    |> all_nodes()
+    |> Enum.filter(fn node_id ->
+      CallGraph.type(graph, node_id) == :private and
+        Yog.Multi.in_degree(graph.graph, node_id) == 0
+    end)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns functions where execution can enter the system.
+
+  These are public functions with no internal callers, plus any function
+  explicitly marked as `:entry`.
+  """
+  @spec entry_points(CallGraph.t()) :: [CallGraph.node_id()]
+  def entry_points(%CallGraph{} = graph) do
+    graph
+    |> all_nodes()
+    |> Enum.filter(fn node_id ->
+      type = CallGraph.type(graph, node_id)
+      type == :entry or (type == :public and Yog.Multi.in_degree(graph.graph, node_id) == 0)
+    end)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns functions that call at least `min_calls` other functions.
+
+  These are potential "god functions" that do too much and may need splitting.
+  """
+  @spec god_functions(CallGraph.t(), keyword()) :: [CallGraph.node_id()]
+  def god_functions(%CallGraph{} = graph, opts \\ []) do
+    threshold = Keyword.get(opts, :min_calls, 10)
+
+    graph
+    |> all_nodes()
+    |> Enum.filter(fn node_id ->
+      Yog.Multi.out_degree(graph.graph, node_id) >= threshold
+    end)
+    |> Enum.sort_by(fn node_id -> -Yog.Multi.out_degree(graph.graph, node_id) end)
+  end
+
+  @doc """
+  Returns functions that never call anything else.
+
+  Leaf functions are often pure utilities, database calls, or dead ends.
+  """
+  @spec leaf_functions(CallGraph.t()) :: [CallGraph.node_id()]
+  def leaf_functions(%CallGraph{} = graph) do
+    graph
+    |> all_nodes()
+    |> Enum.filter(fn node_id -> Yog.Multi.out_degree(graph.graph, node_id) == 0 end)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Finds circular call chains using strongly connected components.
+
+  Returns a list of components, where each component is a list of functions
+  that can reach each other. Self-calls are included as single-element
+  components.
+  """
+  @spec recursive_cycles(CallGraph.t()) :: [[CallGraph.node_id()]]
+  def recursive_cycles(%CallGraph{} = graph) do
+    sccs =
+      graph.graph
+      |> Yog.Multi.Model.to_simple_graph()
+      |> Yog.Connectivity.SCC.kosaraju()
+
+    Enum.filter(sccs, fn scc ->
+      case scc do
+        [single] -> Yog.Multi.edge_count(graph.graph, single, single) > 0
+        _ -> true
+      end
+    end)
+  end
+
+  @doc """
+  Returns the longest acyclic call chain from `from` to `to`.
+
+  Returns `nil` if `to` is not reachable from `from`. Cycles are avoided by
+  tracking visited nodes.
+
+  ## Options
+
+    * `:max_depth` — safety limit to avoid runaway recursion (defaults to `100`).
+  """
+  @spec longest_call_chain(CallGraph.t(), CallGraph.node_id(), CallGraph.node_id(), keyword()) ::
+          [CallGraph.node_id()] | nil
+  def longest_call_chain(%CallGraph{} = graph, from, to, opts \\ []) do
+    max_depth = Keyword.get(opts, :max_depth, 100)
+    dfs_longest(graph, from, to, MapSet.new([from]), 0, max_depth)
+  end
+
+  @doc """
+  Returns all functions reachable from `source` by following calls.
+  """
+  @spec reachable_from(CallGraph.t(), CallGraph.node_id()) :: MapSet.t(CallGraph.node_id())
+  def reachable_from(%CallGraph{} = graph, source) do
+    graph.graph
+    |> Yog.Multi.bfs(source)
+    |> MapSet.new()
+  end
+
+  @doc """
+  Returns all functions that can reach `target` by following calls in reverse.
+
+  This is the set of functions that could be affected by a change to `target`.
+  """
+  @spec affected_by(CallGraph.t(), CallGraph.node_id()) :: MapSet.t(CallGraph.node_id())
+  def affected_by(%CallGraph{} = graph, target) do
+    do_affected_by(graph, [target], MapSet.new([target]))
+  end
+
+  @doc """
+  Ranks functions by betweenness centrality.
+
+  Betweenness identifies functions that sit on the most shortest paths between
+  other functions. High scores often indicate coordination points or choke
+  points in the design.
+
+  ## Options
+
+    * `:top` — if given, return only the top N functions.
+  """
+  @spec betweenness_hotspots(CallGraph.t(), keyword()) :: [{CallGraph.node_id(), float()}]
+  def betweenness_hotspots(%CallGraph{} = graph, opts \\ []) do
+    top_n = Keyword.get(opts, :top, nil)
+
+    scores =
+      graph.graph
+      |> Yog.Multi.Model.to_simple_graph()
+      |> Yog.Centrality.betweenness()
+
+    sorted = Enum.sort_by(scores, fn {_node_id, score} -> score end, :desc)
+
+    if top_n, do: Enum.take(sorted, top_n), else: sorted
+  end
+
+  @doc """
+  Returns a map of `node_id => in-degree`.
+  """
+  @spec in_degree(CallGraph.t()) :: %{CallGraph.node_id() => non_neg_integer()}
+  def in_degree(%CallGraph{} = graph) do
+    graph
+    |> all_nodes()
+    |> Enum.map(fn node_id -> {node_id, Yog.Multi.in_degree(graph.graph, node_id)} end)
+    |> Enum.into(%{})
+  end
+
+  @doc """
+  Returns a map of `node_id => out-degree`.
+  """
+  @spec out_degree(CallGraph.t()) :: %{CallGraph.node_id() => non_neg_integer()}
+  def out_degree(%CallGraph{} = graph) do
+    graph
+    |> all_nodes()
+    |> Enum.map(fn node_id -> {node_id, Yog.Multi.out_degree(graph.graph, node_id)} end)
+    |> Enum.into(%{})
+  end
+
+  # ============================================================================
+  # Internal helpers
+  # ============================================================================
+
+  defp all_nodes(%CallGraph{} = graph) do
+    Yog.Multi.all_nodes(graph.graph)
+  end
+
+  defp dfs_longest(_graph, current, target, _visited, _depth, _max_depth)
+       when current == target,
+       do: [target]
+
+  defp dfs_longest(_graph, _current, _target, _visited, depth, max_depth)
+       when depth >= max_depth,
+       do: nil
+
+  defp dfs_longest(graph, current, target, visited, depth, max_depth) do
+    callees =
+      CallGraph.callees(graph, current)
+      |> MapSet.difference(visited)
+      |> MapSet.to_list()
+
+    if callees == [] do
+      nil
+    else
+      paths =
+        Enum.map(callees, fn callee ->
+          dfs_longest(
+            graph,
+            callee,
+            target,
+            MapSet.put(visited, callee),
+            depth + 1,
+            max_depth
+          )
+        end)
+
+      case Enum.reject(paths, &is_nil/1) do
+        [] ->
+          nil
+
+        valid_paths ->
+          longest = Enum.max_by(valid_paths, &length/1)
+          [current | longest]
+      end
+    end
+  end
+
+  defp do_affected_by(_graph, [], visited), do: visited
+
+  defp do_affected_by(graph, [current | rest], visited) do
+    callers =
+      graph.graph
+      |> Yog.Multi.predecessors(current)
+      |> Enum.map(fn {from, _edge_id, _data} -> from end)
+      |> MapSet.new()
+      |> MapSet.difference(visited)
+
+    do_affected_by(graph, rest ++ MapSet.to_list(callers), MapSet.union(visited, callers))
+  end
+end
+```
+
+The module is now much shorter. Yog handles BFS, SCC, and betweenness; we handle the code-specific interpretation.
+
+## Step 3: Tests — `test/choreo/call_graph_test.exs`
+
+These assertions mirror what you would write in a real test file. They exercise every analysis function on small, controlled graphs.
+
+```elixir
+import ExUnit.Assertions
+alias Choreo.CallGraph
+alias Choreo.CallGraph.Analysis
+
+# A small HTTP-handler-like graph.
+http_graph =
+  CallGraph.new()
+  |> CallGraph.add_function({Api, :handle, 2}, type: :public)
+  |> CallGraph.add_function({Api, :auth, 1}, type: :private)
+  |> CallGraph.add_function({Api, :validate, 1}, type: :private)
+  |> CallGraph.add_function({Api, :helper, 0}, type: :private)
+  |> CallGraph.add_function({DB, :get, 1}, type: :external)
+  |> CallGraph.add_function({Logger, :info, 1}, type: :external)
+  |> CallGraph.add_call({Api, :handle, 2}, {Api, :auth, 1})
+  |> CallGraph.add_call({Api, :handle, 2}, {Api, :validate, 1})
+  |> CallGraph.add_call({Api, :auth, 1}, {DB, :get, 1})
+  |> CallGraph.add_call({Api, :validate, 1}, {DB, :get, 1})
+  |> CallGraph.add_call({Api, :validate, 1}, {Logger, :info, 1})
+
+assert Analysis.dead_functions(http_graph) == [{Api, :helper, 0}]
+assert Analysis.entry_points(http_graph) == [{Api, :handle, 2}]
+
+assert Analysis.leaf_functions(http_graph) == [
+         {Api, :helper, 0},
+         {DB, :get, 1},
+         {Logger, :info, 1}
+       ]
+
+assert MapSet.member?(
+         Analysis.reachable_from(http_graph, {Api, :handle, 2}),
+         {DB, :get, 1}
+       )
+
+assert MapSet.member?(
+         Analysis.affected_by(http_graph, {DB, :get, 1}),
+         {Api, :handle, 2}
+       )
+
+# A circular call graph.
+cycle_graph =
+  CallGraph.new()
+  |> CallGraph.add_function({A, :a, 0})
+  |> CallGraph.add_function({A, :b, 0})
+  |> CallGraph.add_function({A, :c, 0})
+  |> CallGraph.add_call({A, :a, 0}, {A, :b, 0})
+  |> CallGraph.add_call({A, :b, 0}, {A, :c, 0})
+  |> CallGraph.add_call({A, :c, 0}, {A, :a, 0})
+
+cycles = Analysis.recursive_cycles(cycle_graph)
+assert length(cycles) == 1
+assert length(hd(cycles)) == 3
+
+# A linear chain.
+chain_graph =
+  CallGraph.new()
+  |> CallGraph.add_function({A, :a, 0})
+  |> CallGraph.add_function({A, :b, 0})
+  |> CallGraph.add_function({A, :c, 0})
+  |> CallGraph.add_function({A, :d, 0})
+  |> CallGraph.add_call({A, :a, 0}, {A, :b, 0})
+  |> CallGraph.add_call({A, :b, 0}, {A, :c, 0})
+  |> CallGraph.add_call({A, :c, 0}, {A, :d, 0})
+
+assert Analysis.longest_call_chain(chain_graph, {A, :a, 0}, {A, :d, 0}) == [
+         {A, :a, 0},
+         {A, :b, 0},
+         {A, :c, 0},
+         {A, :d, 0}
+       ]
+
+# Betweenness: the function that sits on the most paths should be one of the
+# internal helpers, not an external leaf.
+hotspots = Analysis.betweenness_hotspots(http_graph, top: 2)
+assert length(hotspots) == 2
+assert Enum.any?(hotspots, fn {node_id, _score} -> node_id in [{Api, :auth, 1}, {Api, :validate, 1}] end)
+
+"All call graph analysis assertions passed."
+```
+
+## Step 4: Reading a Real Call Graph — `lib/choreo/call_graph/mix_xref.ex`
+
+Building a production-grade call-graph extractor is a project of its own. For this tutorial, we will use a tiny adapter that parses the output of `mix xref graph --format=dot`. In practice you would probably use `mix xref trace`, the Elixir compiler's `:xref` pass, or a static-analysis library like `credo` or `boundary`.
+
+```elixir
+defmodule Choreo.CallGraph.MixXref do
+  @moduledoc """
+  Minimal adapter that turns `mix xref graph --format=dot` output into a
+  `Choreo.CallGraph`.
+
+  `mix xref graph --format=dot` writes a file named `xref_graph.dot` in the
+  project root. This adapter reads that file, converts each file path to a
+  module atom, and builds a module-level call graph.
+
+  A real adapter would extract MFA-level edges from `mix xref trace` or from
+  the Elixir AST.
+  """
+
+  alias Choreo.CallGraph
+
+  @doc """
+  Runs `mix xref graph --format=dot` in `path` and returns a `CallGraph`
+  where each node is a module and each edge is a compile or runtime dependency.
+
+  ## Options
+
+    * `:env` — the Mix environment to run in (defaults to `"dev"`).
+
+  ## Side effects
+
+  Creates `path/xref_graph.dot` if it does not already exist.
+  """
+  @spec from_project(String.t(), keyword()) :: CallGraph.t()
+  def from_project(path \\ ".", opts \\ []) do
+    env = Keyword.get(opts, :env, "dev")
+
+    {_, 0} =
+      System.cmd("mix", ["xref", "graph", "--format=dot"],
+        cd: path,
+        env: [{"MIX_ENV", env}],
+        stderr_to_stdout: true
+      )
+
+    dot_path = Path.join(path, "xref_graph.dot")
+
+    dot_path
+    |> File.read!()
+    |> parse_dot_edges()
+    |> Enum.reduce(CallGraph.new(), fn {caller, callee}, graph ->
+      graph
+      |> CallGraph.add_function({caller, :module, 0}, type: :private)
+      |> CallGraph.add_function({callee, :module, 0}, type: :private)
+      |> CallGraph.add_call({caller, :module, 0}, {callee, :module, 0})
+    end)
+  end
+
+  defp parse_dot_edges(dot) do
+    # DOT edges look like:
+    #   "lib/choreo.ex" -> "lib/choreo/dot.ex" [label="(export)"]
+    regex = ~r/"([^"]+\.ex)"\s*->\s*"([^"]+\.ex)"/
+
+    Regex.scan(regex, dot)
+    |> Enum.map(fn [_match, from, to] ->
+      {path_to_module(from), path_to_module(to)}
+    end)
+    |> Enum.uniq()
+  end
+
+  defp path_to_module(path) do
+    # "lib/choreo/c4.ex" => Choreo.C4
+    path
+    |> String.replace_prefix("lib/", "")
+    |> String.replace_suffix(".ex", "")
+    |> String.split("/")
+    |> Enum.map(&Macro.camelize/1)
+    |> Enum.join(".")
+    |> String.to_atom()
+  end
+end
+```
+
+Now let's analyze the Choreo project itself. The cell below runs `mix xref`, builds the call graph, and reports the most highly coupled modules.
+
+```elixir
+alias Choreo.CallGraph
+alias Choreo.CallGraph.Analysis
+
+this_repo = Path.expand("../..", __DIR__)
+
+xref_graph =
+  Choreo.CallGraph.MixXref.from_project(this_repo, env: "dev")
+
+IO.puts("Modules in graph: #{map_size(xref_graph.function_meta)}")
+IO.puts("Dead modules: #{length(Analysis.dead_functions(xref_graph))}")
+IO.puts("Entry points: #{length(Analysis.entry_points(xref_graph))}")
+
+IO.puts("\nTop 5 most coupled modules (out-degree):")
+
+Analysis.god_functions(xref_graph, min_calls: 5)
+|> Enum.take(5)
+|> Enum.each(fn {mod, _func, _arity} = node_id ->
+  out = Map.get(Analysis.out_degree(xref_graph), node_id, 0)
+  IO.puts("  #{inspect(mod)} -> #{out} dependencies")
+end)
+
+IO.puts("\nRecursive dependency cycles:")
+cycles = Analysis.recursive_cycles(xref_graph)
+IO.puts("  #{length(cycles)} cycle(s) found")
+```
+
+> **Note:** `mix xref graph` shows compile-time and runtime dependencies between *modules*, not individual function calls. The adapter above deliberately collapses each module to a single node so the analysis functions still work.
+
+## What We Built
+
+If you extracted every code block from this notebook into real files, your project would look like this:
+
+```text
+lib/choreo/call_graph.ex
+lib/choreo/call_graph/analysis.ex
+lib/choreo/call_graph/mix_xref.ex
+test/choreo/call_graph_test.exs
+```
+
+There is no renderer. That is the point: this extension is analysis-first.
+
+### Key takeaways
+
+1. **Use the same backing graph as the rest of Choreo.** A `Yog.Multi.Graph` gives you BFS, DFS, SCC, centrality, and pathfinding for free.
+2. **Keep domain semantics in the wrapper.** `Choreo.CallGraph` knows about function types; Yog knows about graph structure.
+3. **Delegate, don't reimplement.** We used Yog for reachability, cycles, and betweenness instead of writing those algorithms from scratch.
+4. **Separate extraction from analysis.** The `MixXref` adapter knows about `mix xref` output; `Analysis` knows about graph algorithms.
+5. **A renderer is optional.** Analysis-heavy vocabularies can stand on their own and still be valuable Choreo extensions.
+
+## Exercises
+
+1. **Add `direct_callers/2` and `direct_callees/2` convenience functions.** They already exist on the builder; wrap them in the analysis module with filtering options.
+2. **Implement `modules_between/3`.** Given a source and target, return the set of functions that appear on *any* path between them. Use `Yog.Pathfinding` or BFS.
+3. **Add a `type: :test` function type.** Mark test functions as entry points and find tests that never call the function under test.
+4. **Build a real MFA-level adapter.** Use `mix xref trace FILE` or `Code.compile_file` + `Macro.prewalk` to extract individual function calls instead of module dependencies.
+5. **Add a renderer anyway.** Convert the call graph to a `Choreo.Dependency` graph and reuse the existing Mermaid/DOT renderers.
+
+## Further Reading
+
+* `Choreo.Dependency` in the Choreo source — a module with a similar builder/analysis/renderer split.
+* `Choreo.Dependency.Analysis` — graph algorithms on another domain.
+* `Yog.Multi` and `Yog.Connectivity.SCC` documentation.
+* `mix xref` documentation in the Elixir guides.

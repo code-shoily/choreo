@@ -94,8 +94,10 @@ The `livebooks/` directory contains interactive walkthroughs and integration exa
   - [Mix Xref](livebooks/integrations/mix_xref_explorer.livemd) — visualize and analyze internal Elixir project dependencies.
   - [Ecto Schema ERD](livebooks/integrations/ecto_schema_erd.livemd) — introspect Ecto schemas and render them as an interactive ERD.
   - [Phoenix LiveView Explorer](livebooks/integrations/phoenix_liveview_explorer.livemd) — discover LiveView modules and render their callback sequence and state machine.
-- **`livebooks/extending_choreo/`** — tutorials that walk through adding new diagram types to Choreo:
+- **`livebooks/extending_choreo/`** — tutorials that walk through adding new diagram types, analysis vocabularies, and protocol implementations to Choreo:
   - [Git Graph](livebooks/extending_choreo/git_graph.livemd) — extend Choreo with a Mermaid `gitGraph` renderer, from builder to real `git log` adapter.
+  - [Call Graph Analysis](livebooks/extending_choreo/call_graph_analysis.livemd) — extend Choreo with an analysis-first call graph: dead functions, cycles, hotspots, and impact analysis.
+  - [FSM Viewable](livebooks/extending_choreo/fsm_viewable.livemd) — add `Choreo.Viewable` support to `Choreo.FSM` so it can be zoomed, focused, and filtered.
 
 ---
 
