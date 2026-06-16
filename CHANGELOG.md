@@ -11,6 +11,13 @@
   - Added `Analysis.minimize/1` to minimize a DFA using Partition Refinement (Moore's algorithm).
   - Added `Analysis.violates_invariant?/2` to validate safety/liveness state invariants.
 
+- **Choreo.DecisionTree.Analysis — Rule Extraction, Test Cases, and Completeness**:
+  - Added `Analysis.rules/1` to extract IF-THEN rules from every root-to-leaf path.
+  - Added `Analysis.generate_test_cases/1` to generate feature maps that exercise every reachable leaf path.
+  - Added `Analysis.orphan_nodes/1` to detect declared nodes that are unreachable from the root.
+  - Added `Analysis.missing_branches/2` to find decision nodes that do not cover an expected set of feature values.
+  - Extended `Analysis.validate/1` to warn about orphan nodes.
+
 ## [0.9.0] - 2026-06-09
 
 ### Fixed
@@ -25,12 +32,10 @@
 
 - **Choreo** — centralized zoom-tier type taxonomy into a single `@zoom_tiers` module attribute inside `defimpl Choreo.Viewable, for: Choreo`; adding a new node type now requires touching one place instead of three `zoom_predicate/2` clauses.
 
-### Deprecated
+### Removed
 
 - **Choreo.FSM**:
-  - Deprecated `Choreo.FSM.initial_states/1` in favor of `Choreo.FSM.initial_state/1`. It is scheduled for removal in version 0.10.
-
-### Removed
+  - Removed `Choreo.FSM.initial_states/1`. Use `Choreo.FSM.initial_state/1` instead.
 
 - **Choreo.FSM.Analysis**:
   - Removed `Analysis.deterministic?/1` and `Analysis.nondeterministic_states/1` since `Choreo.FSM` enforces DFA determinism strictly at build-time.
