@@ -182,6 +182,30 @@ IO.inspect(Analysis.reachable_outcomes(iris), label: "Reachable outcomes")
 
 Depth tells you the maximum number of decisions before classification. Breadth tells you how many distinct classes the tree can emit. Feature importance shows which attributes drive the most splits — useful for feature selection in ML pipelines.
 
+### Rule Extraction
+
+Convert every root-to-leaf path into a human-readable IF-THEN rule. This is useful for documentation, regulatory audits, or exporting business logic.
+
+```elixir
+Analysis.rules(iris)
+|> Enum.each(fn %{conditions: conditions, outcome: outcome} ->
+  conds = Enum.map(conditions, fn {f, v} -> "#{f} = #{v}" end) |> Enum.join(" AND ")
+  IO.puts("IF #{conds} THEN #{outcome.label} (#{outcome.class})")
+end)
+```
+
+### Test Case Generation
+
+Generate the smallest set of feature maps that exercises every reachable leaf. Each map can be fed directly back into `Analysis.decide/2`.
+
+```elixir
+Analysis.generate_test_cases(iris)
+|> Enum.each(fn features ->
+  {:ok, path, label} = Analysis.decide(iris, features)
+  IO.puts("#{inspect(features)} -> #{label} via #{inspect(path)}")
+end)
+```
+
 ---
 
 ## Example 3: Business Rules Engine
@@ -412,6 +436,29 @@ The validator catches:
 * Decision nodes with no branches (orphan `:wind`)
 * Outcome nodes with outgoing branches (if any)
 * Duplicate conditions from the same parent
+* Orphan nodes that are unreachable from the root
+
+### Detecting Orphan Nodes
+
+Use `Analysis.orphan_nodes/1` to find declared nodes that are not reachable from the root:
+
+```elixir
+Analysis.orphan_nodes(broken)
+|> IO.inspect(label: "Unreachable nodes")
+```
+
+### Detecting Missing Branches
+
+Use `Analysis.missing_branches/2` to compare the tree against an expected domain of feature values. This is especially useful when the expected values are defined by a schema, dataset, or business contract.
+
+```elixir
+expected_domain = %{"weather" => ["sunny", "cloudy", "rainy"]}
+
+Analysis.missing_branches(broken, expected_domain)
+|> IO.inspect(label: "Missing branches")
+```
+
+In this case, `:cloudy` is missing from the root, so a real-world input could fall through without reaching an outcome.
 
 ### Tree Invariants at Build Time
 
@@ -537,18 +584,22 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 
 ## Summary
 
-| Question                                | Function                           |
-| --------------------------------------- | ---------------------------------- |
-| "Given features, what's the outcome?"   | `Analysis.decide/2`                |
-| "What are all possible paths?"          | `Analysis.paths/1`                 |
-| "What conditions lead to each outcome?" | `Analysis.paths_with_conditions/1` |
-| "How deep is the tree?"                 | `Analysis.depth/1`                 |
-| "How many outcomes?"                    | `Analysis.breadth/1`               |
-| "Which features matter most?"           | `Analysis.feature_importance/1`    |
-| "Are there impossible paths?"           | `Analysis.inconsistent_paths/1`    |
-| "Can I simplify the tree?"              | `Analysis.prune_redundant/1`       |
-| "Is the tree structurally valid?"       | `Analysis.validate/1`              |
-| "Render to DOT"                         | `DecisionTree.to_dot/2`            |
-| "Render to Mermaid"                     | `DecisionTree.to_mermaid/2`        |
+| Question                                   | Function                           |
+| ------------------------------------------ | ---------------------------------- |
+| "Given features, what's the outcome?"      | `Analysis.decide/2`                |
+| "What are all possible paths?"             | `Analysis.paths/1`                 |
+| "What conditions lead to each outcome?"    | `Analysis.paths_with_conditions/1` |
+| "How deep is the tree?"                    | `Analysis.depth/1`                 |
+| "How many outcomes?"                       | `Analysis.breadth/1`               |
+| "Which features matter most?"              | `Analysis.feature_importance/1`    |
+| "What IF-THEN rules does the tree encode?" | `Analysis.rules/1`                 |
+| "What inputs exercise every path?"         | `Analysis.generate_test_cases/1`   |
+| "Which nodes are unreachable?"             | `Analysis.orphan_nodes/1`          |
+| "Which expected branches are missing?"     | `Analysis.missing_branches/2`      |
+| "Are there impossible paths?"              | `Analysis.inconsistent_paths/1`    |
+| "Can I simplify the tree?"                 | `Analysis.prune_redundant/1`       |
+| "Is the tree structurally valid?"          | `Analysis.validate/1`              |
+| "Render to DOT"                            | `DecisionTree.to_dot/2`            |
+| "Render to Mermaid"                        | `DecisionTree.to_mermaid/2`        |
 
 Decision trees as code mean your business rules, troubleshooting guides, and ML models are version-controlled, diffable, and automatically validated. Every branch addition is checked for cycles, duplicate conditions, and logical inconsistencies — before it ever reaches production.
