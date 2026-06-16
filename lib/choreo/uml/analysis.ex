@@ -7,6 +7,10 @@ defmodule Choreo.UML.Analysis do
     * `broken_contracts/1` — flags incomplete behavior/protocol realizations.
     * `coupling_metrics/1` — computes Afferent/Efferent coupling and Instability.
     * `law_of_demeter_violations/1` — identifies structural Law of Demeter violations.
+    * `validate/1` — returns structural and architectural issues as `{severity, message}` tuples.
+    * `affected_by/2` — returns classes that transitively depend on a target class.
+    * `depends_on/2` — returns classes that the target class transitively depends on.
+    * `transitive_reduction/1` — finds redundant relationships implied by longer paths.
   """
 
   @doc """
@@ -131,6 +135,159 @@ defmodule Choreo.UML.Analysis do
         instability: Float.round(instability, 3)
       })
     end)
+  end
+
+  @doc """
+  Returns all classes that transitively depend on the given class.
+
+  If you change `target`, these are the classes that could break.
+
+  ## Examples
+
+      iex> uml =
+      ...>   Choreo.UML.new()
+      ...>   |> Choreo.UML.add_class(:api)
+      ...>   |> Choreo.UML.add_class(:service)
+      ...>   |> Choreo.UML.add_class(:repo)
+      ...>   |> Choreo.UML.add_relationship(:api, :service, type: :depends)
+      ...>   |> Choreo.UML.add_relationship(:service, :repo, type: :depends)
+      iex> Enum.sort(Choreo.UML.Analysis.affected_by(uml, :repo))
+      [:api, :service]
+      iex> Choreo.UML.Analysis.affected_by(uml, :api)
+      []
+
+  This analysis answers the question: "What breaks if I change this class?"
+  """
+  @spec affected_by(Choreo.UML.t(), Choreo.UML.class_id()) :: [Choreo.UML.class_id()]
+  def affected_by(%Choreo.UML{} = uml, target) do
+    simple_graph = Yog.Multi.to_simple_graph(uml.graph)
+    transposed = Yog.transpose(simple_graph)
+
+    Choreo.Internal.bfs_reachable(transposed, [target])
+    |> MapSet.to_list()
+    |> List.delete(target)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns all classes that the given class transitively depends on.
+
+  These are the classes `target` cannot function without, following the
+  directed relationships in the diagram.
+
+  ## Examples
+
+      iex> uml =
+      ...>   Choreo.UML.new()
+      ...>   |> Choreo.UML.add_class(:api)
+      ...>   |> Choreo.UML.add_class(:service)
+      ...>   |> Choreo.UML.add_class(:repo)
+      ...>   |> Choreo.UML.add_relationship(:api, :service, type: :depends)
+      ...>   |> Choreo.UML.add_relationship(:service, :repo, type: :depends)
+      iex> Enum.sort(Choreo.UML.Analysis.depends_on(uml, :api))
+      [:repo, :service]
+      iex> Choreo.UML.Analysis.depends_on(uml, :repo)
+      []
+
+  This analysis answers the question: "What does this class depend on?"
+  """
+  @spec depends_on(Choreo.UML.t(), Choreo.UML.class_id()) :: [Choreo.UML.class_id()]
+  def depends_on(%Choreo.UML{} = uml, target) do
+    simple_graph = Yog.Multi.to_simple_graph(uml.graph)
+
+    Choreo.Internal.bfs_reachable(simple_graph, [target])
+    |> MapSet.to_list()
+    |> List.delete(target)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Identifies redundant relationships that are implied by a longer path.
+
+  If `api -> service`, `service -> repo`, and `api -> repo` all exist,
+  the direct `api -> repo` edge is redundant because it is implied by the
+  transitive path.
+
+  Returns a list of `{from, to}` tuples. On cyclic diagrams returns an
+  empty list because every edge in a cycle is structurally required.
+
+  ## Examples
+
+      iex> uml =
+      ...>   Choreo.UML.new()
+      ...>   |> Choreo.UML.add_class(:api)
+      ...>   |> Choreo.UML.add_class(:service)
+      ...>   |> Choreo.UML.add_class(:repo)
+      ...>   |> Choreo.UML.add_relationship(:api, :service, type: :depends)
+      ...>   |> Choreo.UML.add_relationship(:service, :repo, type: :depends)
+      ...>   |> Choreo.UML.add_relationship(:api, :repo, type: :depends)
+      iex> Choreo.UML.Analysis.transitive_reduction(uml)
+      [{:api, :repo}]
+
+  This analysis answers the question: "Which explicit relationships are redundant?"
+  """
+  @spec transitive_reduction(Choreo.UML.t()) :: [{Choreo.UML.class_id(), Choreo.UML.class_id()}]
+  def transitive_reduction(%Choreo.UML{} = uml) do
+    uml.graph
+    |> Yog.Multi.to_simple_graph()
+    |> Choreo.Internal.transitive_reduction()
+  end
+
+  @doc """
+  Validates a UML diagram and returns a list of issues.
+
+  Checks for:
+    * Circular dependencies (`:error`)
+    * Broken contracts (`:error`)
+    * Isolated classes (`:warning`)
+    * Law of Demeter violations (`:warning`)
+
+  ## Examples
+
+      iex> uml =
+      ...>   Choreo.UML.new()
+      ...>   |> Choreo.UML.add_class(:a)
+      ...>   |> Choreo.UML.add_class(:b)
+      ...>   |> Choreo.UML.add_relationship(:a, :b, type: :associates)
+      ...>   |> Choreo.UML.add_relationship(:b, :a, type: :depends)
+      iex> Enum.any?(Choreo.UML.Analysis.validate(uml), fn {sev, _} -> sev == :error end)
+      true
+  """
+  @spec validate(Choreo.UML.t()) :: [{:error | :warning, String.t()}]
+  def validate(%Choreo.UML{} = uml) do
+    cycle_issues =
+      case cycles(uml) do
+        [] ->
+          []
+
+        cycles ->
+          Enum.map(cycles, fn cycle ->
+            {:error, "Circular dependency detected: #{inspect(cycle)}."}
+          end)
+      end
+
+    contract_issues =
+      Enum.map(broken_contracts(uml), fn {from, to, missing} ->
+        {:error,
+         "Class #{inspect(from)} realizes #{inspect(to)} but is missing functions: #{inspect(missing)}."}
+      end)
+
+    isolated_issues =
+      uml.graph.nodes
+      |> Map.keys()
+      |> Enum.filter(fn node_id -> Yog.Multi.degree(uml.graph, node_id) == 0 end)
+      |> Enum.sort()
+      |> Enum.map(fn node_id ->
+        {:warning, "Class #{inspect(node_id)} is isolated (has no relationships)."}
+      end)
+
+    demeter_issues =
+      Enum.map(law_of_demeter_violations(uml), fn {a, b, c} ->
+        {:warning,
+         "Law of Demeter violation: #{inspect(a)} reaches #{inspect(c)} through #{inspect(b)}."}
+      end)
+
+    cycle_issues ++ contract_issues ++ isolated_issues ++ demeter_issues
   end
 
   @doc """

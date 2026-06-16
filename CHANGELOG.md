@@ -18,6 +18,18 @@
   - Added `Analysis.missing_branches/2` to find decision nodes that do not cover an expected set of feature values.
   - Extended `Analysis.validate/1` to warn about orphan nodes.
 
+- **Choreo.ERD.Analysis — Dependency & Cascade Analysis**:
+  - Added `Analysis.affected_by/2` to find tables that transitively depend on a target table.
+  - Added `Analysis.depends_on/2` to find tables that a target table transitively depends on.
+  - Added `Analysis.transitive_reduction/1` to identify redundant relationships implied by longer paths.
+  - Added `Analysis.longest_dependency_chain/1` to find the longest relationship cascade in an acyclic schema.
+
+- **Choreo.UML.Analysis — Validation & Dependency Analysis**:
+  - Added `Analysis.validate/1` to report cycles, broken contracts, isolated classes, and Law of Demeter violations as `{severity, message}` tuples.
+  - Added `Analysis.affected_by/2` to find classes that transitively depend on a target class.
+  - Added `Analysis.depends_on/2` to find classes that a target class transitively depends on.
+  - Added `Analysis.transitive_reduction/1` to identify redundant relationships implied by longer paths.
+
 ## [0.9.0] - 2026-06-09
 
 ### Fixed

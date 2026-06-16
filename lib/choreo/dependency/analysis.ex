@@ -321,35 +321,9 @@ defmodule Choreo.Dependency.Analysis do
   """
   @spec transitive_reduction(Dependency.t()) :: [{Yog.node_id(), Yog.node_id()}]
   def transitive_reduction(%Dependency{} = deps) do
-    simple_graph = Dependency.to_simple_graph(deps)
-
-    # Algorithm only valid on DAGs
-    if Yog.cyclic?(simple_graph) do
-      []
-    else
-      edges = Yog.all_edges(simple_graph)
-
-      Enum.reduce(edges, [], fn {u, v, _weight}, redundant ->
-        # If we remove the direct edge u -> v, can we still reach v from u?
-        # We check this by seeing if v is reachable from any OTHER successor of u.
-        other_successors =
-          simple_graph
-          |> Yog.successor_ids(u)
-          |> List.delete(v)
-
-        if other_successors == [] do
-          redundant
-        else
-          reachable = Choreo.Internal.bfs_reachable(simple_graph, other_successors)
-
-          if MapSet.member?(reachable, v) do
-            [{u, v} | redundant]
-          else
-            redundant
-          end
-        end
-      end)
-    end
+    deps
+    |> Dependency.to_simple_graph()
+    |> Choreo.Internal.transitive_reduction()
   end
 
   @doc """

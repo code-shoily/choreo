@@ -258,3 +258,7 @@ Choreo.UML.Analysis.coupling_metrics(uml)
 | Verify behavior contracts   | `Choreo.UML.Analysis.broken_contracts/1`                             |
 | Compute coupling metrics    | `Choreo.UML.Analysis.coupling_metrics/1`                             |
 | Check Law of Demeter        | `Choreo.UML.Analysis.law_of_demeter_violations/1`                    |
+| Validate diagram            | `Choreo.UML.Analysis.validate/1`                                     |
+| Find affected classes       | `Choreo.UML.Analysis.affected_by/2`                                  |
+| Find class dependencies     | `Choreo.UML.Analysis.depends_on/2`                                   |
+| Find redundant relationships| `Choreo.UML.Analysis.transitive_reduction/1`                         |

@@ -264,5 +264,9 @@ Analysis.normalization_score(schema)
 | Detect FK Circular Cycles   | `Analysis.cycles/1`                                                 |
 | Find Disconnected Tables    | `Analysis.orphans/1`                                                |
 | Compute Coupling Centrality | `Analysis.table_degrees/1`                                          |
+| Find Affected Tables        | `Analysis.affected_by/2`                                            |
+| Find Table Dependencies     | `Analysis.depends_on/2`                                             |
+| Find Redundant Relationships| `Analysis.transitive_reduction/1`                                   |
+| Find Longest Cascade        | `Analysis.longest_dependency_chain/1`                               |
 | Validate Schema             | `Analysis.validate/1`                                               |
 | Score Normalization         | `Analysis.normalization_score/2`                                    |

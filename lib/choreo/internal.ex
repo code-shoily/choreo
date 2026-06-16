@@ -150,6 +150,41 @@ defmodule Choreo.Internal do
   end
 
   @doc """
+  Computes the transitive reduction of a directed acyclic simple graph.
+
+  Returns a list of `{from, to}` edge tuples that are redundant because a
+  longer path already connects the same endpoints. Returns an empty list
+  when the graph contains a cycle.
+  """
+  @spec transitive_reduction(Yog.graph()) :: [{Yog.node_id(), Yog.node_id()}]
+  def transitive_reduction(graph) do
+    if Yog.cyclic?(graph) do
+      []
+    else
+      graph
+      |> Yog.all_edges()
+      |> Enum.reduce([], fn {u, v, _weight}, redundant ->
+        others =
+          graph
+          |> Yog.successor_ids(u)
+          |> List.delete(v)
+
+        if others == [] do
+          redundant
+        else
+          reachable = bfs_reachable(graph, others)
+
+          if MapSet.member?(reachable, v) do
+            [{u, v} | redundant]
+          else
+            redundant
+          end
+        end
+      end)
+    end
+  end
+
+  @doc """
   Computes a longest-path DP table over a topologically sorted order.
 
   `seed_set` controls which nodes are treated as path origins:

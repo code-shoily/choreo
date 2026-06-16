@@ -7,6 +7,12 @@ defmodule Choreo.ERD.Analysis do
     * `cycles/1` — identifies circular foreign key references.
     * `table_degrees/1` — measures coupling (incoming/outgoing links).
     * `shortest_join_path/3` — calculates the optimal join sequence between two tables.
+    * `normalization_score/2` — scores schema health and reports normalization smells.
+    * `validate/1` — returns structural and normalization issues as `{severity, message}` tuples.
+    * `affected_by/2` — returns tables that transitively reference a target table.
+    * `depends_on/2` — returns tables that the target table transitively relates to.
+    * `transitive_reduction/1` — finds redundant relationships implied by longer paths.
+    * `longest_dependency_chain/1` — finds the longest cascade of relationships.
   """
 
   @doc """
@@ -132,6 +138,153 @@ defmodule Choreo.ERD.Analysis do
       out_deg = Yog.Multi.out_degree(erd.graph, id)
       {id, %{in: in_deg, out: out_deg, total: in_deg + out_deg}}
     end)
+  end
+
+  @doc """
+  Returns all tables that transitively depend on the given table.
+
+  If you change `target`, these are the tables that could break.
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:comments, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+      ...>   |> Choreo.ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
+      iex> Enum.sort(Choreo.ERD.Analysis.affected_by(erd, :comments))
+      [:posts, :users]
+      iex> Choreo.ERD.Analysis.affected_by(erd, :users)
+      []
+
+  This analysis answers the question: "What breaks if I change this table?"
+  """
+  @spec affected_by(Choreo.ERD.t(), Choreo.ERD.table_id()) :: [Choreo.ERD.table_id()]
+  def affected_by(%Choreo.ERD{} = erd, target) do
+    simple_graph = Yog.Multi.to_simple_graph(erd.graph)
+    transposed = Yog.transpose(simple_graph)
+
+    Choreo.Internal.bfs_reachable(transposed, [target])
+    |> MapSet.to_list()
+    |> List.delete(target)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Returns all tables that the given table transitively depends on.
+
+  These are the tables `target` cannot function without, following the
+  directed relationships in the diagram.
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:comments, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+      ...>   |> Choreo.ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
+      iex> Enum.sort(Choreo.ERD.Analysis.depends_on(erd, :users))
+      [:comments, :posts]
+      iex> Choreo.ERD.Analysis.depends_on(erd, :comments)
+      []
+
+  This analysis answers the question: "What does this table depend on?"
+  """
+  @spec depends_on(Choreo.ERD.t(), Choreo.ERD.table_id()) :: [Choreo.ERD.table_id()]
+  def depends_on(%Choreo.ERD{} = erd, target) do
+    simple_graph = Yog.Multi.to_simple_graph(erd.graph)
+
+    Choreo.Internal.bfs_reachable(simple_graph, [target])
+    |> MapSet.to_list()
+    |> List.delete(target)
+    |> Enum.sort()
+  end
+
+  @doc """
+  Identifies redundant relationships that are implied by a longer path.
+
+  If `users -> posts`, `posts -> comments`, and `users -> comments` all
+  exist, the direct `users -> comments` edge is redundant because it is
+  implied by the transitive path.
+
+  Returns a list of `{from, to}` tuples. On cyclic schemas returns an
+  empty list because every edge in a cycle is structurally required.
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:comments, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+      ...>   |> Choreo.ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
+      ...>   |> Choreo.ERD.add_relationship(:users, :comments, cardinality: :one_to_many)
+      iex> Choreo.ERD.Analysis.transitive_reduction(erd)
+      [{:users, :comments}]
+
+  This analysis answers the question: "Which explicit relationships are redundant?"
+  """
+  @spec transitive_reduction(Choreo.ERD.t()) :: [{Choreo.ERD.table_id(), Choreo.ERD.table_id()}]
+  def transitive_reduction(%Choreo.ERD{} = erd) do
+    erd.graph
+    |> Yog.Multi.to_simple_graph()
+    |> Choreo.Internal.transitive_reduction()
+  end
+
+  @doc """
+  Finds the longest chain of relationships in the schema.
+
+  This measures the maximum depth of foreign-key cascades and is useful
+  for estimating migration, deletion, or query-plan complexity.
+
+  Returns `{:ok, [table_id], total_edges}` or `:error` if the schema
+  contains a cycle.
+
+  ## Examples
+
+      iex> erd =
+      ...>   Choreo.ERD.new()
+      ...>   |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:posts, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_table(:comments, columns: [%{name: :id, type: :integer}])
+      ...>   |> Choreo.ERD.add_relationship(:users, :posts, cardinality: :one_to_many)
+      ...>   |> Choreo.ERD.add_relationship(:posts, :comments, cardinality: :one_to_many)
+      iex> Choreo.ERD.Analysis.longest_dependency_chain(erd)
+      {:ok, [:users, :posts, :comments], 2}
+
+  This analysis answers the question: "What is the deepest relationship chain?"
+  """
+  @spec longest_dependency_chain(Choreo.ERD.t()) ::
+          {:ok, [Choreo.ERD.table_id()], number()} | :error
+  def longest_dependency_chain(%Choreo.ERD{} = erd) do
+    simple_graph = Yog.Multi.to_simple_graph(erd.graph)
+
+    if Yog.cyclic?(simple_graph) do
+      :error
+    else
+      case Yog.Traversal.Sort.topological_sort(simple_graph) do
+        {:ok, order} ->
+          dp = Choreo.Internal.compute_dp(simple_graph, order)
+
+          case Choreo.Internal.find_best_end_path(dp) do
+            nil ->
+              :error
+
+            {_dist, end_id} ->
+              path = Choreo.Internal.reconstruct_path(dp, end_id)
+              total = elem(Map.fetch!(dp, end_id), 0)
+              {:ok, path, total}
+          end
+
+        {:error, :contains_cycle} ->
+          :error
+      end
+    end
   end
 
   @doc """

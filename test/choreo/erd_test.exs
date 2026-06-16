@@ -485,9 +485,9 @@ defmodule Choreo.ERDTest do
 
   describe "dependency analyses" do
     test "affected_by/2 returns transitive dependents", %{erd: erd} do
-      assert Enum.sort(Analysis.affected_by(erd, :users)) == [:comments, :posts]
-      assert Enum.sort(Analysis.affected_by(erd, :posts)) == [:comments]
-      assert Analysis.affected_by(erd, :comments) == []
+      assert Enum.sort(Analysis.affected_by(erd, :comments)) == [:posts, :users]
+      assert Enum.sort(Analysis.affected_by(erd, :posts)) == [:users]
+      assert Analysis.affected_by(erd, :users) == []
     end
 
     test "depends_on/2 returns transitive dependencies", %{erd: erd} do

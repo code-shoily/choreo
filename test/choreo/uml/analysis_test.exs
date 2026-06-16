@@ -147,4 +147,118 @@ defmodule Choreo.UML.AnalysisTest do
 
     assert Analysis.law_of_demeter_violations(acyclic) == []
   end
+
+  describe "dependency analyses" do
+    test "affected_by/2 returns transitive dependents" do
+      uml =
+        UML.new()
+        |> UML.add_class(:api)
+        |> UML.add_class(:service)
+        |> UML.add_class(:repo)
+        |> UML.add_relationship(:api, :service, type: :depends)
+        |> UML.add_relationship(:service, :repo, type: :depends)
+
+      assert Enum.sort(Analysis.affected_by(uml, :repo)) == [:api, :service]
+      assert Enum.sort(Analysis.affected_by(uml, :service)) == [:api]
+      assert Analysis.affected_by(uml, :api) == []
+    end
+
+    test "depends_on/2 returns transitive dependencies" do
+      uml =
+        UML.new()
+        |> UML.add_class(:api)
+        |> UML.add_class(:service)
+        |> UML.add_class(:repo)
+        |> UML.add_relationship(:api, :service, type: :depends)
+        |> UML.add_relationship(:service, :repo, type: :depends)
+
+      assert Enum.sort(Analysis.depends_on(uml, :api)) == [:repo, :service]
+      assert Enum.sort(Analysis.depends_on(uml, :service)) == [:repo]
+      assert Analysis.depends_on(uml, :repo) == []
+    end
+
+    test "affected_by/2 and depends_on/2 handle missing targets" do
+      uml = UML.new() |> UML.add_class(:a)
+      assert Analysis.affected_by(uml, :missing) == []
+      assert Analysis.depends_on(uml, :missing) == []
+    end
+
+    test "transitive_reduction/1 identifies redundant edges" do
+      uml =
+        UML.new()
+        |> UML.add_class(:api)
+        |> UML.add_class(:service)
+        |> UML.add_class(:repo)
+        |> UML.add_relationship(:api, :service, type: :depends)
+        |> UML.add_relationship(:service, :repo, type: :depends)
+        |> UML.add_relationship(:api, :repo, type: :depends)
+
+      assert Analysis.transitive_reduction(uml) == [{:api, :repo}]
+    end
+
+    test "transitive_reduction/1 returns empty for cycles" do
+      uml =
+        UML.new()
+        |> UML.add_class(:a)
+        |> UML.add_class(:b)
+        |> UML.add_class(:c)
+        |> UML.add_relationship(:a, :b, type: :depends)
+        |> UML.add_relationship(:b, :c, type: :depends)
+        |> UML.add_relationship(:c, :a, type: :depends)
+
+      assert Analysis.transitive_reduction(uml) == []
+    end
+
+    test "validate/1 reports cycles, broken contracts, and isolated classes" do
+      uml =
+        UML.new()
+        |> UML.add_class(:a)
+        |> UML.add_class(:b)
+        |> UML.add_class(:lonely)
+        |> UML.add_relationship(:a, :b, type: :associates)
+        |> UML.add_relationship(:b, :a, type: :depends)
+
+      issues = Analysis.validate(uml)
+      assert Enum.any?(issues, fn {sev, msg} -> sev == :error and msg =~ "Circular" end)
+      assert Enum.any?(issues, fn {sev, msg} -> sev == :warning and msg =~ "lonely" end)
+    end
+
+    test "validate/1 reports broken contracts as errors" do
+      uml =
+        UML.new()
+        |> UML.add_class(:auth_behavior,
+          type: :behavior,
+          functions: [%{name: "verify", arity: 1}]
+        )
+        |> UML.add_class(:provider, type: :struct, functions: [])
+        |> UML.add_relationship(:provider, :auth_behavior, type: :realizes)
+
+      issues = Analysis.validate(uml)
+      assert Enum.any?(issues, fn {sev, msg} -> sev == :error and msg =~ "missing functions" end)
+    end
+
+    test "validate/1 reports Law of Demeter violations as warnings" do
+      uml =
+        UML.new()
+        |> UML.add_class(:a)
+        |> UML.add_class(:b)
+        |> UML.add_class(:c)
+        |> UML.add_relationship(:a, :b, type: :depends)
+        |> UML.add_relationship(:b, :c, type: :depends)
+        |> UML.add_relationship(:a, :c, type: :depends)
+
+      issues = Analysis.validate(uml)
+      assert Enum.any?(issues, fn {sev, msg} -> sev == :warning and msg =~ "Law of Demeter" end)
+    end
+
+    test "validate/1 returns empty for clean diagrams" do
+      uml =
+        UML.new()
+        |> UML.add_class(:a)
+        |> UML.add_class(:b)
+        |> UML.add_relationship(:a, :b, type: :depends)
+
+      assert Analysis.validate(uml) == []
+    end
+  end
 end
