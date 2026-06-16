@@ -90,6 +90,10 @@ defmodule Choreo.DecisionTree.AnalysisTest do
       stop_path = Enum.find(paths, fn {path, _branches} -> :stop in path end)
       assert {[:color, :stop], [{:color, :stop, "red"}]} = stop_path
     end
+
+    test "returns empty when no root" do
+      assert Analysis.paths_with_conditions(DecisionTree.new()) == []
+    end
   end
 
   describe "depth/1" do
@@ -170,6 +174,10 @@ defmodule Choreo.DecisionTree.AnalysisTest do
       # All outcomes have different classes, no pruning possible
       assert DecisionTree.outcomes(pruned) == DecisionTree.outcomes(tree)
     end
+
+    test "returns empty tree unchanged" do
+      assert Analysis.prune_redundant(DecisionTree.new()) == DecisionTree.new()
+    end
   end
 
   describe "reachable_outcomes/1" do
@@ -226,6 +234,133 @@ defmodule Choreo.DecisionTree.AnalysisTest do
     end
   end
 
+  describe "rules/1" do
+    test "extracts if-then rules for each leaf" do
+      rules = Analysis.rules(traffic_light_tree())
+      assert length(rules) == 3
+
+      stop_rule = Enum.find(rules, fn r -> r.outcome.class == "stop" end)
+      assert stop_rule.conditions == %{"color" => "red"}
+      assert stop_rule.outcome.label == "Stop"
+
+      go_rule = Enum.find(rules, fn r -> r.outcome.class == "go" end)
+      assert go_rule.conditions == %{"color" => "green"}
+
+      slow_rule = Enum.find(rules, fn r -> r.outcome.class == "slow" end)
+      assert slow_rule.conditions == %{"color" => "yellow"}
+    end
+
+    test "handles nested decision trees" do
+      rules = Analysis.rules(nested_tree())
+      assert length(rules) == 3
+
+      sunny_rule = Enum.find(rules, fn r -> r.conditions == %{"weather" => "sunny"} end)
+      assert sunny_rule.outcome.class == "yes"
+
+      calm_rule =
+        Enum.find(rules, fn r -> r.conditions == %{"weather" => "cloudy", "wind" => "calm"} end)
+
+      assert calm_rule.outcome.class == "yes"
+
+      stormy_rule =
+        Enum.find(rules, fn r -> r.conditions == %{"weather" => "cloudy", "wind" => "stormy"} end)
+
+      assert stormy_rule.outcome.class == "no"
+    end
+
+    test "returns empty for tree with no root" do
+      assert Analysis.rules(DecisionTree.new()) == []
+    end
+  end
+
+  describe "generate_test_cases/1" do
+    test "generates feature maps for each leaf path" do
+      cases = Analysis.generate_test_cases(traffic_light_tree())
+      assert length(cases) == 3
+      assert %{"color" => "red"} in cases
+      assert %{"color" => "green"} in cases
+      assert %{"color" => "yellow"} in cases
+    end
+
+    test "generated cases reach the expected outcomes" do
+      tree = traffic_light_tree()
+
+      for features <- Analysis.generate_test_cases(tree) do
+        assert {:ok, _path, _label} = Analysis.decide(tree, features)
+      end
+    end
+
+    test "handles nested trees" do
+      cases = Analysis.generate_test_cases(nested_tree())
+      assert length(cases) == 3
+      assert %{"weather" => "sunny"} in cases
+      assert %{"weather" => "cloudy", "wind" => "calm"} in cases
+      assert %{"weather" => "cloudy", "wind" => "stormy"} in cases
+    end
+
+    test "returns empty for tree with no root" do
+      assert Analysis.generate_test_cases(DecisionTree.new()) == []
+    end
+  end
+
+  describe "orphan_nodes/1" do
+    test "returns empty for fully connected tree" do
+      assert Analysis.orphan_nodes(traffic_light_tree()) == []
+      assert Analysis.orphan_nodes(nested_tree()) == []
+    end
+
+    test "detects unreachable nodes" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.add_outcome(:y)
+        |> DecisionTree.branch(:a, :x, "1")
+
+      assert Analysis.orphan_nodes(tree) == [:y]
+    end
+
+    test "returns empty for tree with no root" do
+      assert Analysis.orphan_nodes(DecisionTree.new()) == []
+    end
+  end
+
+  describe "missing_branches/1" do
+    test "returns empty when all expected values are covered" do
+      tree = traffic_light_tree()
+
+      assert Analysis.missing_branches(tree, %{"color" => ["red", "green", "yellow"]}) == []
+    end
+
+    test "reports missing values for a feature" do
+      tree = traffic_light_tree()
+
+      assert Analysis.missing_branches(tree, %{"color" => ["red", "green", "blue"]}) == [
+               {:color, "color", ["blue"]}
+             ]
+    end
+
+    test "ignores features not in the expected domain" do
+      tree = traffic_light_tree()
+
+      assert Analysis.missing_branches(tree, %{"size" => ["small", "large"]}) == []
+    end
+
+    test "handles nested trees" do
+      tree = nested_tree()
+
+      missing = Analysis.missing_branches(tree, %{"weather" => ["sunny", "cloudy", "rainy"]})
+      assert {:weather, "weather", ["rainy"]} in missing
+
+      missing = Analysis.missing_branches(tree, %{"wind" => ["calm", "stormy", "breezy"]})
+      assert {:wind, "wind", ["breezy"]} in missing
+    end
+
+    test "returns empty for tree with no root" do
+      assert Analysis.missing_branches(DecisionTree.new(), %{"a" => ["1"]}) == []
+    end
+  end
+
   describe "validate/1" do
     test "returns empty for valid tree" do
       assert Analysis.validate(traffic_light_tree()) == []
@@ -258,6 +393,18 @@ defmodule Choreo.DecisionTree.AnalysisTest do
 
       issues = Analysis.validate(tree)
       assert {:warning, "Duplicate condition 'same' from node :a"} in issues
+    end
+
+    test "flags orphan nodes" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.add_outcome(:y)
+        |> DecisionTree.branch(:a, :x, "1")
+
+      issues = Analysis.validate(tree)
+      assert {:warning, "Orphan nodes: [:y]"} in issues
     end
   end
 end

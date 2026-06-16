@@ -2,7 +2,8 @@ defmodule Choreo.DecisionTree.Analysis do
   @moduledoc """
   Analysis functions for `Choreo.DecisionTree`.
 
-  Provides path enumeration, evaluation, depth metrics, and pruning.
+  Provides path enumeration, evaluation, rule extraction, test-case
+  generation, completeness checks, depth metrics, and pruning.
 
   ## Further reading
 
@@ -223,6 +224,193 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
+  Returns nodes that are not reachable from the root.
+
+  In a well-formed tree every declared node should be reachable. Nodes
+  added without a connecting branch are reported as orphans.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.add_outcome(:y)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "1")
+      iex> Choreo.DecisionTree.Analysis.orphan_nodes(tree)
+      [:y]
+
+  This analysis answers the question: "Which declared nodes are unreachable?"
+  """
+  @spec orphan_nodes(DecisionTree.t()) :: [Yog.node_id()]
+  def orphan_nodes(%DecisionTree{root: nil}), do: []
+
+  def orphan_nodes(%DecisionTree{} = tree) do
+    reachable = Choreo.Internal.bfs_reachable(tree.graph, [tree.root])
+    all = MapSet.new(Map.keys(tree.graph.nodes))
+
+    MapSet.difference(all, reachable)
+    |> MapSet.to_list()
+    |> Enum.sort()
+  end
+
+  @doc """
+  Extracts IF-THEN rules from the decision tree.
+
+  Each rule maps the conditions along a root-to-leaf path to the outcome
+  reached at that leaf.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop, label: "Stop", class: "stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:go, label: "Go", class: "go")
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> rules = Choreo.DecisionTree.Analysis.rules(tree)
+      iex> length(rules)
+      2
+      iex> Enum.find(rules, fn r -> r.outcome.class == "stop" end)
+      %{conditions: %{"color" => "red"}, outcome: %{class: "stop", label: "Stop"}}
+
+  This analysis answers the question: "What IF-THEN rules does the tree encode?"
+  """
+  @spec rules(DecisionTree.t()) :: [
+          %{
+            conditions: %{String.t() => String.t()},
+            outcome: %{class: String.t() | nil, label: String.t() | nil}
+          }
+        ]
+  def rules(%DecisionTree{root: nil}), do: []
+
+  def rules(%DecisionTree{} = tree) do
+    tree
+    |> paths_with_conditions()
+    |> Enum.filter(fn {path, _branches} ->
+      leaf = List.last(path)
+      data = Yog.node(tree.graph, leaf)
+      data[:node_type] == :outcome
+    end)
+    |> Enum.map(fn {path, branches} ->
+      outcome_id = List.last(path)
+      outcome_data = Yog.node(tree.graph, outcome_id)
+
+      %{
+        conditions: branches_to_features(tree, branches),
+        outcome: %{
+          class: outcome_data[:class],
+          label: outcome_data[:label]
+        }
+      }
+    end)
+  end
+
+  @doc """
+  Generates feature maps that cover every reachable leaf path.
+
+  Each generated map can be passed to `decide/2` to reach a distinct
+  outcome. This is useful for testing or for validating that every
+  rule in the tree is exercisable.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop, label: "Stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:go, label: "Go")
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> test_cases = Choreo.DecisionTree.Analysis.generate_test_cases(tree)
+      iex> length(test_cases)
+      2
+      iex> %{"color" => "red"} in test_cases
+      true
+      iex> %{"color" => "green"} in test_cases
+      true
+
+  This analysis answers the question: "What inputs exercise every path?"
+  """
+  @spec generate_test_cases(DecisionTree.t()) :: [%{String.t() => String.t()}]
+  def generate_test_cases(%DecisionTree{root: nil}), do: []
+
+  def generate_test_cases(%DecisionTree{} = tree) do
+    tree
+    |> paths_with_conditions()
+    |> Enum.filter(fn {path, _branches} ->
+      leaf = List.last(path)
+      data = Yog.node(tree.graph, leaf)
+      data[:node_type] == :outcome
+    end)
+    |> Enum.map(fn {_path, branches} -> branches_to_features(tree, branches) end)
+  end
+
+  @doc """
+  Finds decision nodes whose outgoing branches do not cover an expected
+  set of feature values.
+
+  Accepts a map of `feature => [expected_values]`. For each decision node
+  testing that feature, returns `{node_id, feature, missing_values}` when
+  values are absent.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop)
+      ...>   |> Choreo.DecisionTree.add_outcome(:go)
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> Choreo.DecisionTree.Analysis.missing_branches(tree, %{"color" => ["red", "green", "blue"]})
+      [{:color, "color", ["blue"]}]
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "1")
+      iex> Choreo.DecisionTree.Analysis.missing_branches(tree, %{"a" => ["1"]})
+      []
+
+  This analysis answers the question: "Which expected branches are missing?"
+  """
+  @spec missing_branches(DecisionTree.t(), %{String.t() => [String.t()]}) :: [
+          {Yog.node_id(), String.t(), [String.t()]}
+        ]
+  def missing_branches(%DecisionTree{root: nil}, _domains), do: []
+
+  def missing_branches(%DecisionTree{} = tree, domains) do
+    tree.graph.nodes
+    |> Enum.filter(fn {_id, data} -> data[:node_type] in [:root, :decision] end)
+    |> Enum.flat_map(fn {id, data} ->
+      feature = data[:feature]
+      expected = Map.get(domains, feature)
+
+      if is_nil(feature) or is_nil(expected) do
+        []
+      else
+        actual =
+          tree.graph
+          |> Yog.successors(id)
+          |> Enum.map(fn {_to, condition} -> condition end)
+          |> MapSet.new()
+
+        expected_set = MapSet.new(expected)
+        missing = MapSet.difference(expected_set, actual) |> MapSet.to_list()
+
+        if missing == [] do
+          []
+        else
+          [{id, feature, missing}]
+        end
+      end
+    end)
+  end
+
+  @doc """
   Finds logically impossible paths where a feature is checked against
   mutually exclusive conditions.
 
@@ -351,6 +539,7 @@ defmodule Choreo.DecisionTree.Analysis do
     |> check_leaf_branches(tree)
     |> check_empty_decisions(tree)
     |> check_duplicate_conditions(tree)
+    |> check_orphans(tree)
   end
 
   # ============================================================================
@@ -426,6 +615,15 @@ defmodule Choreo.DecisionTree.Analysis do
         )
       end)
     end
+  end
+
+  defp branches_to_features(tree, branches) do
+    branches
+    |> Enum.map(fn {parent, _child, condition} ->
+      data = Yog.node(tree.graph, parent)
+      {to_string(data[:feature]), condition}
+    end)
+    |> Map.new()
   end
 
   # ============================================================================
@@ -586,5 +784,15 @@ defmodule Choreo.DecisionTree.Analysis do
       end)
 
     violations ++ acc
+  end
+
+  defp check_orphans(acc, tree) do
+    case orphan_nodes(tree) do
+      [] ->
+        acc
+
+      nodes ->
+        [{:warning, "Orphan nodes: #{inspect(nodes)}"} | acc]
+    end
   end
 end
