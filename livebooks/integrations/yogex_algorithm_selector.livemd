@@ -1,0 +1,168 @@
+# YogEx Algorithm Selector
+
+```elixir
+Mix.install([
+  # For Hex publication/readers:
+  {:choreo, "~> 0.9.0"},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## Section
+
+> **Interactive algorithm picker:** This notebook builds a `Choreo.DecisionTree` that guides you to the right YogEx algorithm based on the graph problem you are trying to solve.
+
+---
+
+## The Decision Tree
+
+```elixir
+alias Choreo.DecisionTree
+alias Choreo.DecisionTree.Analysis
+
+selector =
+  DecisionTree.new()
+  # Root
+  |> DecisionTree.set_root(:problem, feature: "What problem are you solving?")
+  # Pathfinding branch
+  |> DecisionTree.add_decision(:path_weights, feature: "Edge weights?")
+  |> DecisionTree.add_decision(:path_pairs, feature: "Single pair or all pairs?")
+  |> DecisionTree.add_decision(:graph_density, feature: "Graph density?")
+  |> DecisionTree.add_outcome(:bfs, label: "BFS / Bidirectional BFS", class: "pathfinding")
+  |> DecisionTree.add_outcome(:dijkstra, label: "Dijkstra", class: "pathfinding")
+  |> DecisionTree.add_outcome(:johnson, label: "Johnson's", class: "pathfinding")
+  |> DecisionTree.add_outcome(:floyd, label: "Floyd-Warshall", class: "pathfinding")
+  |> DecisionTree.add_outcome(:bellman_ford, label: "Bellman-Ford", class: "pathfinding")
+  |> DecisionTree.add_outcome(:astar, label: "A*", class: "pathfinding")
+  # Flow branch
+  |> DecisionTree.add_decision(:flow_problem, feature: "Which flow problem?")
+  |> DecisionTree.add_decision(:mincost_size, feature: "Instance size?")
+  |> DecisionTree.add_outcome(:dinic_ek, label: "Dinic's / Edmonds-Karp", class: "flow")
+  |> DecisionTree.add_outcome(:ssp, label: "Successive Shortest Path", class: "flow")
+  |> DecisionTree.add_outcome(:network_simplex, label: "Network Simplex", class: "flow")
+  |> DecisionTree.add_outcome(:stoer_wagner, label: "Stoer-Wagner", class: "flow")
+  # Spanning tree branch
+  |> DecisionTree.add_decision(:st_type, feature: "What kind of spanning tree?")
+  |> DecisionTree.add_outcome(:prims, label: "Prim's", class: "tree")
+  |> DecisionTree.add_outcome(:kruskals, label: "Kruskal's", class: "tree")
+  |> DecisionTree.add_outcome(:edmonds, label: "Edmonds' (arborescence)", class: "tree")
+  |> DecisionTree.add_outcome(:max_st, label: "Max Spanning Tree", class: "tree")
+  # Matching branch
+  |> DecisionTree.add_decision(:matching_type, feature: "What kind of matching?")
+  |> DecisionTree.add_outcome(:hopcroft_karp, label: "Hopcroft-Karp", class: "matching")
+  |> DecisionTree.add_outcome(:hungarian, label: "Hungarian", class: "matching")
+  |> DecisionTree.add_outcome(:blossom, label: "Blossom", class: "matching")
+  # Community branch
+  |> DecisionTree.add_decision(:community_goal, feature: "Priority?")
+  |> DecisionTree.add_outcome(:label_prop, label: "Label Propagation", class: "community")
+  |> DecisionTree.add_outcome(:leiden, label: "Leiden", class: "community")
+  |> DecisionTree.add_outcome(:louvain, label: "Louvain", class: "community")
+  |> DecisionTree.add_outcome(:clique_perc, label: "Clique Percolation", class: "community")
+  # Centrality branch
+  |> DecisionTree.add_decision(:centrality_goal, feature: "What to measure?")
+  |> DecisionTree.add_outcome(:degree, label: "Degree Centrality", class: "centrality")
+  |> DecisionTree.add_outcome(:closeness, label: "Closeness / Harmonic", class: "centrality")
+  |> DecisionTree.add_outcome(:betweenness, label: "Betweenness", class: "centrality")
+  |> DecisionTree.add_outcome(:pagerank, label: "PageRank", class: "centrality")
+  # Connectivity branch
+  |> DecisionTree.add_decision(:connectivity_type, feature: "What structure?")
+  |> DecisionTree.add_outcome(:scc, label: "Tarjan's / Kosaraju's SCC", class: "connectivity")
+  |> DecisionTree.add_outcome(:components, label: "Connected Components", class: "connectivity")
+  |> DecisionTree.add_outcome(:bridges, label: "Tarjan's Bridges", class: "connectivity")
+  |> DecisionTree.add_outcome(:articulation, label: "Tarjan's Articulation", class: "connectivity")
+  # Traversal branch
+  |> DecisionTree.add_decision(:traversal_type, feature: "Traversal order?")
+  |> DecisionTree.add_outcome(:bfs_trav, label: "BFS", class: "traversal")
+  |> DecisionTree.add_outcome(:dfs_trav, label: "DFS", class: "traversal")
+  |> DecisionTree.add_outcome(:topsort, label: "Topological Sort", class: "traversal")
+  # Branches: problem type
+  |> DecisionTree.branch(:problem, :path_weights, "Shortest path")
+  |> DecisionTree.branch(:problem, :flow_problem, "Flow / cuts")
+  |> DecisionTree.branch(:problem, :st_type, "Spanning tree")
+  |> DecisionTree.branch(:problem, :matching_type, "Matching")
+  |> DecisionTree.branch(:problem, :community_goal, "Community detection")
+  |> DecisionTree.branch(:problem, :centrality_goal, "Centrality")
+  |> DecisionTree.branch(:problem, :connectivity_type, "Connectivity")
+  |> DecisionTree.branch(:problem, :traversal_type, "Traversal")
+  # Branches: pathfinding
+  |> DecisionTree.branch(:path_weights, :bfs, "Unweighted")
+  |> DecisionTree.branch(:path_weights, :astar, "Heuristic available")
+  |> DecisionTree.branch(:path_weights, :path_pairs, "Non-negative weights")
+  |> DecisionTree.branch(:path_weights, :bellman_ford, "Negative weights")
+  |> DecisionTree.branch(:path_pairs, :dijkstra, "Single pair")
+  |> DecisionTree.branch(:path_pairs, :graph_density, "All pairs")
+  |> DecisionTree.branch(:graph_density, :johnson, "Sparse")
+  |> DecisionTree.branch(:graph_density, :floyd, "Dense")
+  # Branches: flow
+  |> DecisionTree.branch(:flow_problem, :dinic_ek, "Max flow")
+  |> DecisionTree.branch(:flow_problem, :mincost_size, "Min-cost flow")
+  |> DecisionTree.branch(:flow_problem, :stoer_wagner, "Global min cut")
+  |> DecisionTree.branch(:mincost_size, :ssp, "Small / medium")
+  |> DecisionTree.branch(:mincost_size, :network_simplex, "Large")
+  # Branches: spanning tree
+  |> DecisionTree.branch(:st_type, :prims, "Dense graph")
+  |> DecisionTree.branch(:st_type, :kruskals, "Sparse graph")
+  |> DecisionTree.branch(:st_type, :edmonds, "Directed")
+  |> DecisionTree.branch(:st_type, :max_st, "Maximum weight")
+  # Branches: matching
+  |> DecisionTree.branch(:matching_type, :hopcroft_karp, "Bipartite unweighted")
+  |> DecisionTree.branch(:matching_type, :hungarian, "Bipartite weighted")
+  |> DecisionTree.branch(:matching_type, :blossom, "General graph")
+  # Branches: community
+  |> DecisionTree.branch(:community_goal, :label_prop, "Speed")
+  |> DecisionTree.branch(:community_goal, :leiden, "Quality guarantee")
+  |> DecisionTree.branch(:community_goal, :louvain, "Modularity")
+  |> DecisionTree.branch(:community_goal, :clique_perc, "Overlapping")
+  # Branches: centrality
+  |> DecisionTree.branch(:centrality_goal, :degree, "Simple importance")
+  |> DecisionTree.branch(:centrality_goal, :closeness, "Distance-based")
+  |> DecisionTree.branch(:centrality_goal, :betweenness, "Bridge detection")
+  |> DecisionTree.branch(:centrality_goal, :pagerank, "Link quality")
+  # Branches: connectivity
+  |> DecisionTree.branch(:connectivity_type, :scc, "Strongly connected components")
+  |> DecisionTree.branch(:connectivity_type, :components, "Connected components")
+  |> DecisionTree.branch(:connectivity_type, :bridges, "Bridge edges")
+  |> DecisionTree.branch(:connectivity_type, :articulation, "Articulation points")
+  # Branches: traversal
+  |> DecisionTree.branch(:traversal_type, :bfs_trav, "Level-order")
+  |> DecisionTree.branch(:traversal_type, :dfs_trav, "Depth-first")
+  |> DecisionTree.branch(:traversal_type, :topsort, "DAG ordering")
+
+Kino.Layout.tabs([
+  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(selector)),
+  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(selector), height: "600px")
+])
+```
+
+## Extracted Rules
+
+Convert every root-to-leaf path into a readable IF-THEN rule:
+
+```elixir
+Analysis.rules(selector)
+|> Enum.each(fn %{conditions: conditions, outcome: outcome} ->
+  conds = Enum.map(conditions, fn {f, v} -> "#{f} = #{v}" end) |> Enum.join(" AND ")
+  IO.puts("IF #{conds} THEN #{outcome.label}")
+end)
+```
+
+## Interactive Evaluation
+
+```elixir
+# Example: I need a min-cost flow algorithm for a large network.
+Analysis.decide(selector, %{
+  "What problem are you solving?" => "Flow / cuts",
+  "Which flow problem?" => "Min-cost flow",
+  "Instance size?" => "Large"
+})
+```
+
+## Validation
+
+```elixir
+Analysis.validate(selector)
+|> Enum.each(fn {sev, msg} ->
+  icon = if sev == :error, do: "❌", else: "⚠️"
+  IO.puts("#{icon} #{msg}")
+end)
+```
