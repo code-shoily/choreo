@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Choreo.Lab.Siren & Choreo.Lab.Sketch (Experimental)**:
+  - Added `Choreo.Lab.Siren` module — an enhanced Mermaid.js renderer for Livebook with hardware-accelerated zoom/pan controls, dynamic fit-to-screen scaling, and automatic dark/light theme detection.
+  - Added `Choreo.Lab.Sketch` module — an interactive Excalidraw whiteboard renderer that parses Mermaid syntax in the browser and displays it as a fully editable hand-drawn sketch.
+
 - **Choreo.FSM.Analysis — Advanced Analysis Suite**:
   - Added `Analysis.deterministic?/1` to check if an FSM is deterministic (verifies no epsilon transitions or duplicate transition labels exist).
   - Added `Analysis.generate_test_cases/2` to generate transition sequences for `:state` and `:transition` test coverage.

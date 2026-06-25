@@ -144,6 +144,23 @@ Choreo.to_mermaid(system, theme: theme)
 
 ---
 
+## Interactive Livebook Widgets (Experimental)
+
+Choreo provides two custom [Livebook](https://livebook.dev/) widgets for rich, interactive diagram visualizations. They are compile-time optional and load automatically when `kino` is present:
+
+1. **`Choreo.Lab.Siren`**: An enhanced Mermaid.js renderer (Mermaid v11.x) with hardware-accelerated pan/zoom controls, floating zoom toolbar, dynamic fit-to-screen scaling, and automatic dark/light theme detection.
+   ```elixir
+   mermaid_code = Choreo.to_mermaid(system)
+   Choreo.Lab.Siren.new(mermaid_code, height: "600px")
+   ```
+
+2. **`Choreo.Lab.Sketch`**: Renders any Mermaid flowchart inside an interactive **Excalidraw** whiteboard. The diagram is converted to sketch elements on the fly, allowing you to double-click, draw notes, and scribble ideas directly on top of your Choreo models.
+   ```elixir
+   Choreo.Lab.Sketch.new(mermaid_code, height: "600px")
+   ```
+
+---
+
 ## Testing
 
 ```bash

@@ -1,0 +1,101 @@
+# Choreo.Lab: Interactive Livebook Visualizations
+
+```elixir
+Mix.install([
+  {:choreo, path: Path.expand("../..")},
+  {:kino, "~> 0.14"}
+])
+```
+
+## Introduction
+
+The `Choreo.Lab` namespace acts as an experimental sandbox for draft features, lab ideas, and prototype integrations inside the `choreo` codebase.
+
+Currently, `Choreo.Lab` provides two rich, interactive visualizers for Livebook that extend standard diagram rendering beyond static outputs:
+
+1. **`Choreo.Lab.Siren`**: An enhanced Mermaid.js renderer with panning, cursor-relative zooming, auto-theming, and fitting controls.
+2. **`Choreo.Lab.Sketch`**: An interactive Excalidraw canvas that converts your Mermaid code into sketch elements on the fly, allowing you to edit and scribble notes directly on top of your diagrams.
+
+---
+
+## Setting up our Mock Diagram
+
+Let's build a sample Finite State Machine (FSM) using Choreo to use as our visualization model:
+
+```elixir
+alias Choreo.FSM
+
+# Define a standard login authentication flow
+flow =
+  FSM.new()
+  |> FSM.add_initial_state(:logged_out)
+  |> FSM.add_state(:prompting_credentials)
+  |> FSM.add_state(:verifying)
+  |> FSM.add_final_state(:logged_in)
+  |> FSM.add_state(:account_locked)
+  |> FSM.add_transition(:logged_out, :prompting_credentials, label: "click_login")
+  |> FSM.add_transition(:prompting_credentials, :verifying, label: "submit_credentials")
+  |> FSM.add_transition(:verifying, :logged_in, label: "credentials_match")
+  |> FSM.add_transition(:verifying, :prompting_credentials, label: "credentials_invalid")
+  |> FSM.add_transition(:verifying, :account_locked, label: "consecutive_failures")
+
+# Generate the raw Mermaid representation
+mermaid_code = FSM.to_mermaid(flow)
+IO.puts("Generated Mermaid Code:")
+IO.puts(mermaid_code)
+```
+
+---
+
+## 🔍 Choreo.Lab.Siren (Enhanced Zoom/Pan Viewer)
+
+The `Choreo.Lab.Siren` module serves as a drop-in replacement for the default `Kino.Mermaid`. It upgrades the internal rendering engine to Mermaid v11.x and wraps the SVG inside a hardware-accelerated viewport.
+
+### Features to Try:
+
+* **Click and Drag:** Grab the diagram canvas with your mouse and pan around.
+* **Scroll to Zoom:** Scroll your mouse wheel to zoom in and out. The zoom scales precisely centered around your mouse pointer.
+* **Toolbar Buttons:**
+  * `＋` & `－`: Zoom in and out.
+  * `⛶` (Fullscreen): Request standard browser fullscreen mode to examine the diagram in full detail.
+  * `↺` (Reset): Reverts translation coordinates and scale back to 100% centered.
+* **Auto-Theme Detection:** Auto-detects whether Livebook is in dark or light mode, initializing Mermaid with a matching layout theme.
+
+### Render Example:
+
+```elixir
+# Render with default height ("400px")
+Choreo.Lab.Siren.new(mermaid_code)
+```
+
+```elixir
+# Render with a custom larger height
+Choreo.Lab.Siren.new(mermaid_code, height: "600px")
+```
+
+---
+
+## 🎨 Choreo.Lab.Sketch (Interactive Excalidraw Editor)
+
+The `Choreo.Lab.Sketch` module integrates Excalidraw directly into your Livebook. It imports React, Excalidraw, and the Mermaid-to-Excalidraw layout parser dynamically.
+
+### Features to Try:
+
+* **Hand-drawn Vibe:** Renders the systems, nodes, and arrows in Excalidraw’s signature sketch style.
+* **Fully Interactive Whiteboard:** Double-click on the board to draw shapes, scribble comments, circle specific systems, or write notes right on top of the auto-generated layout.
+* **Toolbar Fullscreen:** Toggles fullscreen mode dynamically. Excalidraw will automatically resize to fill your monitor, giving you a full-size drawing canvas.
+
+### Render Example:
+
+```elixir
+# Render inside the Excalidraw canvas (supports custom heights)
+Choreo.Lab.Sketch.new(mermaid_code, height: "700px")
+```
+
+---
+
+## Summary
+
+`Choreo.Lab` allows you to explore structural models visually and brainstorm design changes on top of them inside your workspace.
+
+To use these in your own notebooks, simply include `:kino` as a dependency in your header setup and call the `Choreo.Lab.*` constructors on any Mermaid diagram outputs.
