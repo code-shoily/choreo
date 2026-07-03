@@ -3,9 +3,9 @@
 ```elixir
 Mix.install([
   # For Hex publication/readers:
-  {:choreo, "~> 0.9.0"},
+  # {:choreo, "~> 0.9.0"},
   # For local development:
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -90,9 +90,9 @@ order_flow =
   |> FSM.add_transition(:payment_pending, :cancelled, label: "declined")
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(FSM.to_mermaid(order_flow)),
-  "Mermaid (State Diagram)": Kino.Mermaid.new(FSM.to_mermaid(order_flow, syntax: :state_diagram)),
-  Graphviz: Kino.VizJS.render(FSM.to_dot(order_flow))
+  Siren: Choreo.Lab.Siren.new(FSM.to_mermaid(order_flow)),
+  Graphviz: Kino.VizJS.render(FSM.to_dot(order_flow)),
+  Sketch: Choreo.Lab.Sketch.new(FSM.to_mermaid(order_flow))
 )
 ```
 
@@ -205,10 +205,9 @@ Analysis.validate(incomplete_fsm)
 end)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(FSM.to_mermaid(incomplete_fsm)),
-  "Mermaid (State Diagram)":
-    Kino.Mermaid.new(FSM.to_mermaid(incomplete_fsm, syntax: :state_diagram)),
-  Graphviz: Kino.VizJS.render(FSM.to_dot(incomplete_fsm))
+  Siren: Choreo.Lab.Siren.new(FSM.to_mermaid(incomplete_fsm)),
+  Graphviz: Kino.VizJS.render(FSM.to_dot(incomplete_fsm)),
+  Sketch: Choreo.Lab.Sketch.new(FSM.to_mermaid(incomplete_fsm))
 )
 ```
 

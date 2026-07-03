@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -66,8 +66,9 @@ legend =
   |> Workflow.add_event(:event)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(legend)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(legend))
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(legend)),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(legend))
 )
 ```
 
@@ -124,8 +125,9 @@ order_saga =
   |> Workflow.connect(:refund_payment, :done, edge_type: :compensation)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(order_saga)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(order_saga), height: "800px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(order_saga)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(order_saga), height: "800px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(order_saga))
 )
 
 ```
@@ -224,8 +226,9 @@ parallel_order =
   |> Workflow.connect(:ship_order, :done)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(parallel_order)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(parallel_order), height: "900px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(parallel_order)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(parallel_order), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(parallel_order))
 )
 ```
 
@@ -318,8 +321,9 @@ cicd =
   |> Workflow.connect(:run_smoke_tests, :live)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(cicd)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(cicd), height: "900px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(cicd)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(cicd), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(cicd))
 )
 ```
 
@@ -395,8 +399,9 @@ approval =
   |> Workflow.connect(:auto_escalate, :escalated)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(approval)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(approval), height: "900px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(approval)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(approval), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(approval))
 )
 ```
 
@@ -439,8 +444,9 @@ broken =
   # rollback has no incoming edge
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(broken)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(broken), height: "900px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(broken)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(broken), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(broken))
 )
 ```
 
@@ -481,8 +487,9 @@ IO.puts("After fix:")
 Analysis.validate(fixed) |> IO.inspect()
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(fixed)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(fixed), height: "600px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(fixed)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(fixed), height: "600px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(fixed))
 )
 ```
 
@@ -507,8 +514,9 @@ brand_theme =
 
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(parallel_order, theme: brand_theme)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme), height: "900px")
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(parallel_order, theme: brand_theme)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(parallel_order, theme: brand_theme), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(parallel_order, theme: brand_theme))
 )
 ```
 
@@ -531,8 +539,9 @@ multi_flow =
 IO.puts("Number of edges: #{length(Workflow.edges(multi_flow))}")
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Workflow.to_mermaid(multi_flow)),
-  Graphviz: Kino.VizJS.render(Workflow.to_dot(multi_flow))
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(multi_flow)),
+  Graphviz: Kino.VizJS.render(Workflow.to_dot(multi_flow)),
+  Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(multi_flow))
 )
 ```
 

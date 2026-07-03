@@ -3,8 +3,10 @@
 ```elixir
 Mix.install(
   [
-    {:choreo, "~> 0.9.0"},
-    {:kino, "~> 0.14"}
+    # {:choreo, "~> 0.9.0"},
+    {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+    {:kino, "~> 0.14"},
+    {:kino_vizjs, "~> 0.9.0"}
   ],
   consolidate_protocols: false
 )
@@ -226,24 +228,43 @@ zoom_at_level = fn i ->
       1 -> zoom_1
       2 -> zoom_2
     end
-  zoom
-  |> Choreo.FSM.to_mermaid(theme: :default)
-  |> Kino.Mermaid.new()
+
+  mermaid_fsm = 
+    zoom
+    |> Choreo.FSM.to_mermaid(theme: :default)
+  
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(mermaid_fsm),
+    Graphviz: Kino.VizJS.render(Choreo.to_dot(zoom)),
+    Sketch: Choreo.Lab.Sketch.new(mermaid_fsm)
+  )
 end
 
-Kino.Layout.tabs(
+Kino.Layout.tabs([
   "Zoom 0": zoom_at_level.(0),
   "Zoom 1": zoom_at_level.(1),
-  "Zoom 2": zoom_at_level.(2)
-)
+  "Zoom 2": zoom_at_level.(2),
+])
 ```
 
 ```elixir
-focused_render = focused |> Choreo.FSM.to_mermaid() |> Kino.Mermaid.new()
-no_cancelled_render = no_cancelled |> Choreo.FSM.to_mermaid() |> Kino.Mermaid.new()
+focused_render =
+  mermaid_fsm = focused |> Choreo.FSM.to_mermaid()
+
 Kino.Layout.tabs(
-  "Focused at Paid": focused_render,
-  "No Cancellation": no_cancelled_render
+  Siren: Choreo.Lab.Siren.new(mermaid_fsm),
+  Graphviz: Kino.VizJS.render(focused |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new(mermaid_fsm)
+)
+
+no_cancelled_render =
+  no_cancelled
+  |> Choreo.FSM.to_mermaid()
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(no_cancelled_render),
+  Graphviz: Kino.VizJS.render(no_cancelled |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new(no_cancelled_render)
 )
 ```
 

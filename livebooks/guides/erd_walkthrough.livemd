@@ -2,7 +2,10 @@
 
 ```elixir
 # For Hex publication/readers:
-Mix.install([{:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"}])
+Mix.install([
+  # {:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+])
 
 # For local development:
 # Mix.install([
@@ -49,12 +52,11 @@ schema =
   |> ERD.add_relationship(:orders, :order_items, cardinality: :exactly_one_to_many, label: "contains")
   |> ERD.add_relationship(:products, :order_items, cardinality: :zero_or_one_to_many, label: "ordered_in")
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(schema))},
-  {"Graphviz", Kino.VizJS.render(ERD.to_dot(schema))}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(ERD.to_mermaid(schema)),
+  Graphviz: Kino.VizJS.render(ERD.to_dot(schema)),
+  Sketch: Choreo.Lab.Sketch.new(ERD.to_mermaid(schema))
+)
 ```
 
 ---
@@ -107,12 +109,11 @@ profile_schema =
   ])
   |> ERD.add_relationship(:users, :profiles, cardinality: :one_to_one, label: "has_one")
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(ERD.to_mermaid(profile_schema))},
-  {"Graphviz", Kino.VizJS.render(ERD.to_dot(profile_schema))}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(ERD.to_mermaid(profile_schema)),
+  Graphviz: Kino.VizJS.render(ERD.to_dot(profile_schema)),
+  Sketch: Choreo.Lab.Sketch.new(ERD.to_mermaid(profile_schema))
+)
 ```
 
 ### Strict Column & Datatype Verification

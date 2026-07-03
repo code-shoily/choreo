@@ -2,7 +2,10 @@
 
 ```elixir
 # For Hex publication/readers:
-Mix.install([{:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"}])
+Mix.install([
+  # {:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+])
 
 # For local development:
 # Mix.install([
@@ -74,12 +77,11 @@ web_app =
     label: "SQL query"
   )
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(web_app))},
-  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(web_app))}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(ThreatModel.to_mermaid(web_app)),
+  Graphviz: Kino.VizJS.render(ThreatModel.to_dot(web_app)),
+  Sketch: Choreo.Lab.Sketch.new(ThreatModel.to_mermaid(web_app))
+)
 ```
 
 Notice the color coding:
@@ -170,12 +172,11 @@ microservices =
   |> ThreatModel.data_flow(:order_service, :redis_cache, label: "Redis protocol")
   |> ThreatModel.data_flow(:payment_webhook, :order_service, label: "Event bus")
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(ThreatModel.to_mermaid(microservices))},
-  {"Graphviz", Kino.VizJS.render(ThreatModel.to_dot(microservices))}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(ThreatModel.to_mermaid(microservices)),
+  Graphviz: Kino.VizJS.render(ThreatModel.to_dot(microservices)),
+  Sketch: Choreo.Lab.Sketch.new(ThreatModel.to_mermaid(microservices))
+)
 ```
 
 ### Cross-Boundary Analysis

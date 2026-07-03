@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -62,8 +62,9 @@ legend =
   |> C4.add_component(:component, label: "Component", technology: "GenServer", parent: :container)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(C4.to_mermaid(legend)),
-  Graphviz: Kino.VizJS.render(C4.to_dot(legend))
+  Siren: Choreo.Lab.Siren.new(C4.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(C4.to_dot(legend)),
+  Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(legend))
 )
 ```
 
@@ -210,8 +211,9 @@ By zooming to `level: 0`, Choreo hides all containers and components, collapsing
 context_view = Choreo.View.zoom(model, level: 0)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Choreo.C4.to_mermaid(context_view, direction: :td)),
-  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(context_view, rankdir: :bt), height: "400px")
+  Siren: Choreo.Lab.Siren.new(Choreo.C4.to_mermaid(context_view, direction: :td)),
+  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(context_view, rankdir: :bt), height: "400px"),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.C4.to_mermaid(context_view, direction: :td))
 )
 ```
 
@@ -228,8 +230,9 @@ All component-level relationships inside the API application roll up to target t
 container_view = Choreo.View.zoom(model, level: 1)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Choreo.C4.to_mermaid(container_view)),
-  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(container_view, rankdir: :bt), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Choreo.C4.to_mermaid(container_view)),
+  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(container_view, rankdir: :bt), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.C4.to_mermaid(container_view))
 )
 ```
 
@@ -251,11 +254,10 @@ component_view =
   |> Choreo.View.zoom(level: 2)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Choreo.C4.to_mermaid(component_view)),
-  Graphviz:
-    Kino.VizJS.render(Choreo.C4.to_dot(component_view, rankdir: :bt),
-      height: "800px"
-    )
+  Siren: Choreo.Lab.Siren.new(Choreo.C4.to_mermaid(component_view)),
+  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(component_view, rankdir: :bt),
+      height: "800px"),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.C4.to_mermaid(component_view))
 )
 ```
 
@@ -271,9 +273,21 @@ Sometimes you only want to show a specific node and its immediate neighborhood r
 hops = fn i -> Choreo.View.focus(model, :db, radius: i) end
 
 Kino.Layout.tabs(
-  "1-Hop": hops.(1) |> C4.to_mermaid() |> Kino.Mermaid.new(),
-  "2-Hop": hops.(2) |> C4.to_mermaid() |> Kino.Mermaid.new(),
-  "3-Hop": hops.(3) |> C4.to_mermaid() |> Kino.Mermaid.new()
+  "1-Hop": hops.(1) |> C4.to_mermaid() |> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+),
+  "2-Hop": hops.(2) |> C4.to_mermaid() |> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+),
+  "3-Hop": hops.(3) |> C4.to_mermaid() |> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+)
 )
 
 ```
@@ -282,7 +296,11 @@ Kino.Layout.tabs(
 
 ```elixir
 path_view = Choreo.View.focus_between(model, :customer, :db)
-Kino.Mermaid.new(C4.to_mermaid(path_view))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(C4.to_mermaid(path_view)),
+  Graphviz: Kino.VizJS.render(C4.to_dot(path_view)),
+  Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(path_view))
+)
 ```
 
 ---
@@ -383,8 +401,9 @@ In Graphviz (DOT), trace edges are automatically rendered with `constraint=false
 
 ```elixir
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(system, show_traces: true)),
-  Graphviz: Kino.VizJS.render(Choreo.to_dot(system, show_traces: true), height: "800px")
+  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(system, show_traces: true)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(system, show_traces: true), height: "800px"),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.to_mermaid(system, show_traces: true))
 )
 ```
 
@@ -415,8 +434,9 @@ If the composed system is very large, you can use the `Choreo.View.focus_trace/4
 trace_view = Choreo.View.focus_trace(system, :wf_verify_credentials, :erd_users)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Choreo.to_mermaid(trace_view, show_traces: true)),
-  Graphviz: Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
+  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(trace_view, show_traces: true)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true)),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.to_mermaid(trace_view, show_traces: true))
 )
 ```
 

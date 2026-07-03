@@ -4,8 +4,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -52,24 +52,23 @@ legend =
   |> Dataflow.add_conditional(:conditional, label: "Conditional")
   |> Dataflow.add_merge(:merge, label: "Merge")
   |> Dataflow.add_sink(:sink, label: "Sink")
-
-graphviz =
+siren = Choreo.Lab.Siren.new(Dataflow.to_mermaid(legend,
+      theme: Choreo.Dataflow.theme(:default)
+    ))
+graphviz = 
   Kino.VizJS.render(
     Dataflow.to_dot(legend,
       theme: Choreo.Dataflow.theme(:default, graph_rankdir: :tb)
     )
   )
-
-mermaid =
-  Kino.Mermaid.new(
-    Dataflow.to_mermaid(legend,
+sketch = Choreo.Lab.Sketch.new(Dataflow.to_mermaid(legend,
       theme: Choreo.Dataflow.theme(:default)
-    )
-  )
+    ))
 
 Kino.Layout.tabs(
-  Mermaid: mermaid,
-  Graphviz: graphviz
+  Siren: siren,
+  Graphviz: graphviz,
+  Sketch: sketch
 )
 ```
 
@@ -93,8 +92,9 @@ etl =
   |> Dataflow.connect(:enricher, :timescaledb, data_type: "enriched row")
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(etl)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(etl, rankdir: :tb), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(etl)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(etl, rankdir: :tb), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(etl))
 )
 ```
 
@@ -134,8 +134,9 @@ iot =
   |> Dataflow.connect(:aggregator, :influxdb)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(iot)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(iot), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(iot)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(iot), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(iot))
 )
 ```
 
@@ -202,8 +203,9 @@ resilient =
   |> Dataflow.connect(:dlq, :alerting, data_type: "alert", path_type: :error)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(resilient)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(resilient, rankdir: :tb), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(resilient)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(resilient, rankdir: :tb), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(resilient))
 )
 ```
 
@@ -296,21 +298,18 @@ microservices =
   |> Dataflow.connect(:notification_router, :sendgrid)
   |> Dataflow.connect(:notification_router, :firebase)
 
-Kino.VizJS.render(
-  Dataflow.to_dot(microservices, theme: Dataflow.theme(:default)),
-  height: "800px",
-  engine: "twopi"
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default))),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(microservices, theme: Dataflow.theme(:default))),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)))
 )
 
-Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)))
-
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(microservices)),
-  Graphviz:
-    Kino.VizJS.render(Dataflow.to_dot(microservices, rankdir: :bt),
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(microservices, rankdir: :bt),
       engine: "twopi",
-      height: "1000px"
-    )
+      height: "1000px"),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices))
 )
 ```
 
@@ -361,8 +360,9 @@ broken =
 
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(broken)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(broken, rankdir: :tb), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(broken)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(broken, rankdir: :tb), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(broken))
 )
 ```
 
@@ -391,8 +391,9 @@ IO.inspect(Analysis.orphan_nodes(fixed), label: "Orphans after fix")
 IO.inspect(Analysis.dead_ends(fixed), label: "Dead ends after fix")
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(fixed)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(fixed))
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(fixed)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(fixed)),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(fixed))
 )
 ```
 
@@ -418,12 +419,11 @@ brand_theme =
   )
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dataflow.to_mermaid(microservices, theme: brand_theme)),
-  Graphviz:
-    Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme),
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: brand_theme)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme),
       height: "800px",
-      engine: "twopi"
-    )
+      engine: "twopi"),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices, theme: brand_theme))
 )
 ```
 
@@ -462,8 +462,11 @@ zoom_flow =
 high_level_view = View.zoom(zoom_flow, level: 0)
 
 IO.puts("Zoom Level 0 (Sources and Sinks Only)")
-Kino.VizJS.render(Dataflow.to_dot(high_level_view), height: "200px")
-Kino.Mermaid.new(Dataflow.to_mermaid(high_level_view))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(high_level_view)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(high_level_view)),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(high_level_view))
+)
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
@@ -473,8 +476,11 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 mid_level_view = View.zoom(zoom_flow, level: 1)
 
 IO.puts("Zoom Level 1 (Sources, Sinks, and Transforms)")
-Kino.VizJS.render(Dataflow.to_dot(mid_level_view), height: "300px")
-Kino.Mermaid.new(Dataflow.to_mermaid(mid_level_view))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(mid_level_view)),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(mid_level_view)),
+  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(mid_level_view))
+)
 ```
 
 ---

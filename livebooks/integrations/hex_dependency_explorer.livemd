@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  # {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"},
   {:req, "~> 0.5"}
 ])
@@ -272,14 +273,11 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(graph))},
-  {"Mermaid (class)", Kino.Mermaid.new(Dependency.to_mermaid(graph, syntax: :class_diagram))},
-  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")},
-  {"Graphviz (dark)", Kino.VizJS.render(Dependency.to_dot(graph, theme: brand_theme), height: "700px")},
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(graph)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(graph), height: "700px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(graph))
+)
 ```
 
 ## Zoomed Views

@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  # {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"},
   {:req, "~> 0.5"}
 ])
@@ -293,10 +294,11 @@ IO.puts("📊 Planner built with #{length(Planner.tasks(plan))} tasks")
 
 Issues grouped by status (backlog / done):
 
-<!-- livebook:{"output_size":"full"} -->
-
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :kanban_compat))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(plan, syntax: :kanban)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :kanban))
+)
 ```
 
 ### Dependency Flowchart
@@ -307,8 +309,9 @@ The full task graph showing milestones, assignments, and labels:
 
 ```elixir
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, layout: :circo), height: "1200px")
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(plan, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, layout: :circo), height: "1200px"),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :flowchart))
 )
 ```
 
@@ -326,7 +329,11 @@ case milestones_with_tasks do
   [ms | _] ->
     ms_id = :"milestone_#{ms.number}"
     IO.puts("📌 Showing Kanban for milestone: #{ms.title}")
-    Kino.Mermaid.new(Planner.to_mermaid(plan, syntax: :kanban_compat, milestone: ms_id))
+    Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(plan, syntax: :kanban_compat, milestone: ms_id)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, syntax: :kanban_compat, milestone: ms_id)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :kanban_compat, milestone: ms_id))
+)
 
   [] ->
     IO.puts("ℹ️  No milestones with issues found")
@@ -467,16 +474,29 @@ Zoom out to just the label landscape (no individual issues):
 ```elixir
 alias Choreo.View
 
+zoomed = View.zoom(mindmap, level: 1)
+zoomed_mermaid = zoomed |> MindMap.to_mermaid(syntax: :mindmap)
+zoomed_dot = zoomed |> MindMap.to_dot()
+
+zoomed_2 = View.zoom(mindmap, level: 2)
+zoomed_mermaid_2 = zoomed_2 |> MindMap.to_mermaid(syntax: :mindmap)
+zoomed_dot_2 = zoomed_2 |> MindMap.to_dot()
+
 Kino.Layout.tabs(
   "Level 1 (Labels only)":
-    View.zoom(mindmap, level: 1)
-    |> MindMap.to_mermaid(syntax: :mindmap)
-    |> Kino.Mermaid.new(),
-  "Level 2 (Labels + Issues)":
-    View.zoom(mindmap, level: 2)
-    |> MindMap.to_mermaid(syntax: :mindmap)
-    |> Kino.Mermaid.new()
+    Kino.Layout.tabs(
+      Siren: Choreo.Lab.Siren.new(zoomed_mermaid),
+      Graphviz: Kino.VizJS.render(zoomed_dot),
+      Sketch: Choreo.Lab.Sketch.new(zoomed_mermaid)
+    ),
+  "Level 2 (Labels only)":
+    Kino.Layout.tabs(
+      Siren: Choreo.Lab.Siren.new(zoomed_mermaid_2),
+      Graphviz: Kino.VizJS.render(zoomed_dot_2),
+      Sketch: Choreo.Lab.Sketch.new(zoomed_mermaid_2)
+    )
 )
+
 ```
 
 ### Focus on a Label

@@ -2,7 +2,10 @@
 
 ```elixir
 # For Hex publication/readers:
-Mix.install([{:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"}])
+Mix.install([
+  # {:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+])
 
 # For local development:
 # Mix.install([
@@ -56,12 +59,11 @@ uml =
   |> UML.add_relationship(:user, :auth_provider, type: :realizes, label: "implements")
   |> UML.add_relationship(:auth_provider, :cache, type: :depends, label: "uses")
 
-tabs = [
-  {"Mermaid (Class Diagram)", Kino.Mermaid.new(UML.to_mermaid(uml, syntax: :class_diagram))},
-  {"Graphviz", Kino.VizJS.render(UML.to_dot(uml), height: "500px")}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(UML.to_mermaid(uml, syntax: :class_diagram)),
+  Graphviz: Kino.VizJS.render(UML.to_dot(uml), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(UML.to_mermaid(uml, syntax: :class_diagram))
+)
 ```
 
 ---
@@ -108,12 +110,11 @@ inheritance_uml =
   |> UML.add_class(:http_handler, type: :class)
   |> UML.add_relationship(:http_handler, :base_handler, type: :inherits, label: "inherits_from")
 
-tabs = [
-  {"Mermaid (Class Diagram)", Kino.Mermaid.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram))},
-  {"Graphviz", Kino.VizJS.render(UML.to_dot(inheritance_uml))}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram)),
+  Graphviz: Kino.VizJS.render(UML.to_dot(inheritance_uml)),
+  Sketch: Choreo.Lab.Sketch.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram))
+)
 ```
 
 ### Strict Contract Validation

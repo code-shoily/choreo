@@ -453,6 +453,20 @@ defmodule Choreo.Planner do
     Choreo.Planner.Render.DOT.to_dot(planner, opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.Planner`.
+
+  ## Examples
+
+      iex> theme = Choreo.Planner.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Planner.Render.DOT.theme(name, overrides)
+  end
+
   # ============================================================================
   # Private helpers
   # ============================================================================

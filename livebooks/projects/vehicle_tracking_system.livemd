@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  # {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino, "~> 0.19"}
 ])
 ```

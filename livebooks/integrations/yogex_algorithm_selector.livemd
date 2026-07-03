@@ -3,7 +3,8 @@
 ```elixir
 Mix.install([
   # For Hex publication/readers:
-  {:choreo, "~> 0.9.0"},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -15,6 +16,8 @@ Mix.install([
 ---
 
 ## The Decision Tree
+
+<!-- livebook:{"output_size":"full"} -->
 
 ```elixir
 alias Choreo.DecisionTree
@@ -129,7 +132,7 @@ selector =
   |> DecisionTree.branch(:traversal_type, :topsort, "DAG ordering")
 
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(selector)),
+  "Mermaid": Choreo.Lab.Siren.new(DecisionTree.to_mermaid(selector)),
   "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(selector), height: "600px")
 ])
 ```

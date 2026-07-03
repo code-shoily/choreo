@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -69,8 +69,9 @@ context_map =
 
 # Render Strategic Map (Mermaid tab is primary)
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(context_map)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(context_map))
+  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(context_map)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(context_map)),
+  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(context_map))
 )
 ```
 
@@ -215,12 +216,10 @@ storming =
 
 # Render Event Storming Flow
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(storming)),
-  Graphviz:
-    Kino.VizJS.render(
-      Domain.to_dot(storming),
-      height: "1800px"
-    )
+  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(storming)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(storming),
+      height: "1800px"),
+  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(storming))
 )
 ```
 
@@ -295,8 +294,9 @@ algebraic_pipeline =
 
 # Render UML-like Pipeline Flow
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1200px")
+  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1200px"),
+  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd))
 )
 ```
 
@@ -348,8 +348,9 @@ aggregate_detail =
 
 # Render detailed Aggregate structures
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(aggregate_detail), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(aggregate_detail), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram))
 )
 ```
 
@@ -380,7 +381,11 @@ seq =
   |> Sequence.deactivate(:order_service)
 
 # Render Sequence Diagram (Mermaid is native)
-Kino.Mermaid.new(Sequence.to_mermaid(seq))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(seq)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(seq)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(seq))
+)
 ```
 
 ---
@@ -425,8 +430,9 @@ highlighted_storm = Domain.focus_path(storming, payment_scenario)
 
 # Render highlighted scenario
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Domain.to_mermaid(highlighted_storm)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(highlighted_storm), height: "1600px")
+  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(highlighted_storm)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(highlighted_storm), height: "1600px"),
+  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(highlighted_storm))
 )
 ```
 

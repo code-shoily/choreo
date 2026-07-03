@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  # {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -549,8 +550,9 @@ mermaid = Choreo.ERD.to_mermaid(erd)
 dot = Choreo.ERD.to_dot(erd)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(mermaid),
-  Graphviz: Kino.VizJS.render(dot, height: "900px")
+  Siren: Choreo.Lab.Siren.new(mermaid),
+  Graphviz: Kino.VizJS.render(dot, height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(mermaid)
 )
 
 ```
@@ -679,8 +681,9 @@ IO.puts("🔎 Focused on #{focus_table} (radius: #{focus_radius})")
 IO.puts("Showing #{map_size(focused_erd.graph.nodes)} of #{map_size(erd.graph.nodes)} tables")
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Choreo.ERD.to_mermaid(focused_erd)),
-  Graphviz: Kino.VizJS.render(Choreo.ERD.to_dot(focused_erd), height: "700px")
+  Siren: Choreo.Lab.Siren.new(Choreo.ERD.to_mermaid(focused_erd)),
+  Graphviz: Kino.VizJS.render(Choreo.ERD.to_dot(focused_erd), height: "700px"),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.ERD.to_mermaid(focused_erd))
 )
 ```
 

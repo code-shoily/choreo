@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -60,8 +60,9 @@ legend =
   |> Planner.tag(:t1, :l1)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(legend, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(legend))
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(legend, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(legend)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(legend, syntax: :flowchart))
 )
 ```
 
@@ -108,7 +109,11 @@ Render the sprint as a Kanban diagram. Tasks are grouped by status into columns.
 > **Note:** Livebook's bundled Mermaid renderer may not support the native `kanban` syntax (requires Mermaid ≥11.4). Use `:kanban_compat` for a flowchart-based Kanban that works everywhere, or `:kanban` for native syntax in newer environments like GitHub.
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :kanban_compat))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :kanban_compat)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint, syntax: :kanban_compat)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :kanban_compat))
+)
 ```
 
 ### Gantt Chart
@@ -116,7 +121,11 @@ Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :kanban_compat))
 Render the same sprint as a Gantt chart. Tasks are auto-scheduled based on dependencies and estimate hours (8 hours = 1 day). Done tasks show green, in-progress tasks show blue.
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-06-02]))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-06-02])),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint, syntax: :gantt, start_date: ~D[2026-06-02])),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-06-02]))
+)
 ```
 
 ### Dependency Flowchart
@@ -125,8 +134,9 @@ See the task network as a flowchart with color-coded status.
 
 ```elixir
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(sprint, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint), height: "600px")
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint), height: "600px"),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :flowchart))
 )
 ```
 
@@ -189,8 +199,9 @@ release =
 
 ```elixir
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(release), height: "600px")
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release), height: "600px"),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :flowchart))
 )
 ```
 
@@ -199,7 +210,11 @@ Kino.Layout.tabs(
 View only the launch milestone tasks:
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: :launch))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: :launch)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :kanban_compat, milestone: :launch)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: :launch))
+)
 ```
 
 ### Per-Assignee Kanban
@@ -207,7 +222,11 @@ Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: 
 See what Carol is working on:
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :carol))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :carol)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :kanban_compat, assignee: :carol)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :carol))
+)
 ```
 
 ### Gantt by Assignee
@@ -215,7 +234,11 @@ Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :
 Group the Gantt chart sections by team member instead of milestone:
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02]))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02])),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02])),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02]))
+)
 ```
 
 ---
@@ -335,13 +358,21 @@ incident =
 ### Incident Kanban
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(incident, syntax: :kanban_compat))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(incident, syntax: :kanban_compat)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(incident, syntax: :kanban_compat)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(incident, syntax: :kanban_compat))
+)
 ```
 
 ### Incident Gantt
 
 ```elixir
-Kino.Mermaid.new(Planner.to_mermaid(incident, syntax: :gantt, start_date: Date.utc_today()))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(incident, syntax: :gantt, start_date: Date.utc_today())),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(incident, syntax: :gantt, start_date: Date.utc_today())),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(incident, syntax: :gantt, start_date: Date.utc_today()))
+)
 ```
 
 ### What's Blocking the Fix?

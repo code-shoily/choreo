@@ -336,6 +336,20 @@ defmodule Choreo.Infrastructure do
     Choreo.to_mermaid(to_choreo(infra), opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.Infrastructure`.
+
+  ## Examples
+
+      iex> theme = Choreo.Infrastructure.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.theme(name, overrides)
+  end
+
   def to_choreo(%__MODULE__{} = infra) do
     %Choreo{
       graph: infra.graph,

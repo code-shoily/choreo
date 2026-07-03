@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino, "~> 0.19.0"}
 ])
 ```
@@ -49,7 +49,11 @@ login =
   |> Sequence.deactivate(:api)
   |> Sequence.message(:web, :user, label: "Redirect to dashboard")
 
-Kino.Mermaid.new(Sequence.to_mermaid(login))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(login)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(login)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(login))
+)
 ```
 
 ---
@@ -76,7 +80,11 @@ messages =
   |> Sequence.return(:api, :user, label: "Order accepted")
   |> Sequence.self_message(:queue, label: "Retry on failure")
 
-Kino.Mermaid.new(Sequence.to_mermaid(messages))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(messages)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(messages)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(messages))
+)
 ```
 
 ---
@@ -98,7 +106,11 @@ activation =
   |> Sequence.return(:server, :client, label: "200 OK")
   |> Sequence.deactivate(:server)
 
-Kino.Mermaid.new(Sequence.to_mermaid(activation))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(activation)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(activation)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(activation))
+)
 ```
 
 ---
@@ -117,7 +129,11 @@ notes =
   |> Sequence.return(:api, :user, label: "201 Created")
   |> Sequence.note({:right, :user}, "User receives welcome email")
 
-Kino.Mermaid.new(Sequence.to_mermaid(notes))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(notes)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(notes)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(notes))
+)
 ```
 
 Note positions:
@@ -145,7 +161,11 @@ loop_example =
   |> Sequence.end_fragment()
   |> Sequence.return(:api, :user, label: "All pages")
 
-Kino.Mermaid.new(Sequence.to_mermaid(loop_example))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(loop_example)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(loop_example)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(loop_example))
+)
 ```
 
 ### Alt / Else
@@ -162,7 +182,11 @@ alt_example =
   |> Sequence.return(:api, :user, label: "404 Not Found")
   |> Sequence.end_fragment()
 
-Kino.Mermaid.new(Sequence.to_mermaid(alt_example))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(alt_example)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(alt_example)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(alt_example))
+)
 ```
 
 ### Optional
@@ -178,7 +202,11 @@ opt_example =
   |> Sequence.end_fragment()
   |> Sequence.return(:api, :user, label: "Order confirmed")
 
-Kino.Mermaid.new(Sequence.to_mermaid(opt_example))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(opt_example)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(opt_example)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(opt_example))
+)
 ```
 
 ---
@@ -224,7 +252,11 @@ oauth =
   |> Sequence.return(:client, :browser, label: "Render dashboard")
   |> Sequence.message(:browser, :user, label: "Show dashboard")
 
-Kino.Mermaid.new(Sequence.to_mermaid(oauth))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(oauth)),
+  Graphviz: Kino.VizJS.render(Sequence.to_dot(oauth)),
+  Sketch: Choreo.Lab.Sketch.new(Sequence.to_mermaid(oauth))
+)
 ```
 
 ---
@@ -273,7 +305,11 @@ Sequence.to_dot(login) |> IO.puts()
 | Goal                              | Use                        |
 | --------------------------------- | -------------------------- |
 | Native Markdown / GitHub / Notion | `Sequence.to_mermaid/2`    |
-| LiveBook inline rendering         | `Kino.Mermaid.new(...)`    |
+| LiveBook inline rendering         | `Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(...),
+  Graphviz: Kino.VizJS.render(... |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new(...)
+)`    |
 | Static PDF / image pipeline       | `Sequence.to_dot/2`        |
 | Validate diagram quality          | `Choreo.Sequence.Analysis` |
 

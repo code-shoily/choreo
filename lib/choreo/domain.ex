@@ -512,6 +512,20 @@ defmodule Choreo.Domain do
     end
   end
 
+  @doc """
+  Returns a theme for `Choreo.Domain`.
+
+  ## Examples
+
+      iex> theme = Choreo.Domain.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.theme(name, overrides)
+  end
+
   defp to_native_class_diagram(domain, opts) do
     direction = Keyword.get(opts, :direction, :td)
     direction_part = "  direction #{String.upcase(to_string(direction))}\n"

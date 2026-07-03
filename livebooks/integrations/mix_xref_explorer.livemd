@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  # {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -236,12 +237,13 @@ brand_theme =
   )
 
 tabs = [
-  {"Mermaid Flowchart", Kino.Mermaid.new(Dependency.to_mermaid(graph))},
   {"Mermaid Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(graph, syntax: :class_diagram))},
   {"Graphviz", Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")},
   {"Graphviz (dark)", Kino.VizJS.render(Dependency.to_dot(graph, theme: brand_theme), height: "700px")}
 ]
 |> Kino.Layout.tabs()
+
+
 ```
 
 ## Structural Analysis

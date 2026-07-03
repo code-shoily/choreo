@@ -2,7 +2,10 @@
 
 ```elixir
 # For Hex publication/readers:
-Mix.install([{:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"}])
+Mix.install([
+  # {:choreo, "~> 0.9.0"}, {:kino_vizjs, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+])
 
 # For local development:
 # Mix.install([
@@ -59,13 +62,12 @@ legend =
   |> Dependency.depends_on(:mod, :iface, type: :inherits)
   |> Dependency.depends_on(:test, :app, type: :dev)
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(legend))},
-  {"Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(legend, syntax: :class_diagram))},
-  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px")},
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(legend)),
+  Class_Diagram: Choreo.Lab.Siren.new(Dependency.to_mermaid(legend, syntax: :class_diagram)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(legend))
+)
 ```
 
 ---
@@ -101,12 +103,11 @@ microservices =
   |> Dependency.depends_on(:api_tests, :api_gateway, type: :dev)
   |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
 
-tabs = [
-  {"Mermaid", Kino.Mermaid.new(Dependency.to_mermaid(microservices))},
-  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px")}
-]
-
-Kino.Layout.tabs(tabs)
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(microservices))
+)
 ```
 
 ### Impact Analysis
@@ -159,8 +160,9 @@ layers =
   |> Dependency.depends_on(:web_socket, :api_controller, type: :calls)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(layers)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(layers), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(layers)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(layers), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(layers))
 )
 ```
 
@@ -225,8 +227,9 @@ messy =
   |> Dependency.depends_on(:order, :notification, type: :calls)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(messy)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(messy), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(messy)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(messy), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(messy))
 )
 ```
 
@@ -299,8 +302,9 @@ metrics =
   |> Dependency.depends_on(:orders, :config, type: :uses)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(metrics)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(metrics), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(metrics)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(metrics), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(metrics))
 )
 ```
 
@@ -358,8 +362,9 @@ deep =
   |> Dependency.depends_on(:connection_pool, :tcp_stack, type: :uses)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(deep)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(deep), height: "800px")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(deep)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(deep), height: "800px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(deep))
 )
 ```
 
@@ -395,8 +400,9 @@ broken =
   |> Dependency.depends_on(:pdf_exporter, :report_generator, type: :calls)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(broken)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(broken)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(broken))
 )
 
 ```
@@ -432,8 +438,9 @@ IO.puts("After applying DIP:")
 Analysis.validate(fixed) |> IO.inspect()
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(fixed)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(fixed)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(fixed), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(fixed))
 )
 ```
 
@@ -459,8 +466,9 @@ brand_theme =
   )
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(microservices, theme: brand_theme)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices, theme: brand_theme)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(microservices, theme: brand_theme))
 )
 
 ```
@@ -482,8 +490,9 @@ parallel_deps =
 IO.puts("Number of dependencies: #{length(Dependency.edges(parallel_deps))}")
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Dependency.to_mermaid(parallel_deps)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(parallel_deps))
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(parallel_deps)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(parallel_deps)),
+  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(parallel_deps))
 )
 ```
 

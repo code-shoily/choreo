@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, "~> 0.9.0"},
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
+  # {:choreo, "~> 0.9.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -71,8 +71,9 @@ legend =
   |> Infrastructure.connect(:app, :store)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Infrastructure.to_mermaid(legend)),
-  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(legend), height: "500px")
+  Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(legend), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(Infrastructure.to_mermaid(legend))
 )
 ```
 
@@ -125,8 +126,9 @@ prod =
   |> Infrastructure.connect(:worker, :s3, protocol: :https)
 
 Kino.Layout.tabs(
-  Mermaid: Kino.Mermaid.new(Infrastructure.to_mermaid(prod)),
-  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(prod), height: "800px")
+  Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(prod)),
+  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(prod), height: "800px"),
+  Sketch: Choreo.Lab.Sketch.new(Infrastructure.to_mermaid(prod))
 )
 
 ```
@@ -293,7 +295,11 @@ multi_region =
   |> Infrastructure.connect(:api1, :s3, protocol: :https)
   |> Infrastructure.connect(:api2, :s3, protocol: :https)
 
-Kino.Mermaid.new(Infrastructure.to_mermaid(multi_region))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(multi_region)),
+  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(multi_region)),
+  Sketch: Choreo.Lab.Sketch.new(Infrastructure.to_mermaid(multi_region))
+)
 ```
 
 ```elixir
@@ -326,7 +332,11 @@ proto_demo =
   |> Infrastructure.connect(:api, :db, protocol: :tcp, label: "TCP/5432")
   |> Infrastructure.connect(:api, :store, protocol: :https, label: "TLS")
 
-Kino.Mermaid.new(Infrastructure.to_mermaid(proto_demo))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(proto_demo)),
+  Graphviz: Kino.VizJS.render(Infrastructure.to_dot(proto_demo)),
+  Sketch: Choreo.Lab.Sketch.new(Infrastructure.to_mermaid(proto_demo))
+)
 ```
 
 ---
@@ -362,7 +372,11 @@ Focus: show API and its immediate 1-hop neighbourhood
 full
 |> View.focus(:api, radius: 1)
 |> Infrastructure.to_mermaid()
-|> Kino.Mermaid.new()
+|> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+)
 ```
 
 Filter: show only compute nodes (and edges between them)
@@ -371,7 +385,11 @@ Filter: show only compute nodes (and edges between them)
 full
 |> View.filter(fn _id, data -> data[:node_type] == :compute end)
 |> Infrastructure.to_mermaid()
-|> Kino.Mermaid.new()
+|> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+)
 ```
 
 ---

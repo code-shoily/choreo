@@ -224,6 +224,17 @@ defmodule Choreo.SequenceTest do
       assert out =~ "loop for each"
       assert out =~ "end"
     end
+
+    test "renders themes when requested" do
+      out =
+        Sequence.new()
+        |> Sequence.add_actor(:user)
+        |> Sequence.to_mermaid(theme: :dark)
+
+      assert String.starts_with?(out, "%%{init:")
+      assert out =~ "sequenceDiagram"
+      assert out =~ "actorBkg"
+    end
   end
 
   describe "DOT rendering" do
@@ -238,6 +249,21 @@ defmodule Choreo.SequenceTest do
       assert String.starts_with?(out, "digraph SequenceDiagram")
       assert out =~ "\"user\""
       assert out =~ "\"api\""
+    end
+
+    test "renders a themed DOT graph" do
+      out =
+        Sequence.new()
+        |> Sequence.add_actor(:user)
+        |> Sequence.to_dot(theme: :dark)
+
+      assert out =~ "bgcolor=\"#0f172a\""
+    end
+
+    test "supports theme/2 helper" do
+      t = Sequence.theme(:dark, graph_rankdir: :lr)
+      assert t.name == :sequence_dark
+      assert t.graph_rankdir == :lr
     end
   end
 

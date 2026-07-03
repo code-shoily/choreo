@@ -327,6 +327,20 @@ defmodule Choreo.Sequence do
     Choreo.Sequence.Render.DOT.to_dot(seq, opts)
   end
 
+  @doc """
+  Returns a theme for `Choreo.Sequence`.
+
+  ## Examples
+
+      iex> theme = Choreo.Sequence.theme(:default, graph_rankdir: :lr)
+      iex> theme.graph_rankdir
+      :lr
+  """
+  @spec theme(atom(), keyword()) :: Choreo.Theme.t()
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Sequence.Render.DOT.theme(name, overrides)
+  end
+
   # ---------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------

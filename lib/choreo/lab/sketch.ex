@@ -27,7 +27,7 @@ if Code.ensure_loaded?(Kino) do
     asset "main.js" do
       """
       function loadScript(src) {
-        return new Promise((resolve, reject) => {
+        return new Promise(function(resolve, reject) {
           const exists = document.querySelector(`script[src="${src}"]`);
           if (exists) {
             resolve();
@@ -36,8 +36,8 @@ if Code.ensure_loaded?(Kino) do
           const script = document.createElement("script");
           script.src = src;
           script.crossOrigin = "anonymous";
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+          script.onload = function() { resolve(); };
+          script.onerror = function() { reject(new Error(`Failed to load script: ${src}`)); };
           document.head.appendChild(script);
         });
       }
@@ -61,8 +61,8 @@ if Code.ensure_loaded?(Kino) do
         container.style.overflow = "hidden";
         
         const defaultHeightNum = typeof data.height === 'number' ? data.height : parseInt(data.height) || 400;
-        const updateHeight = () => {
-          if (window.innerHeight > defaultHeightNum + 10) {
+        const updateHeight = function() {
+          if (Math.max(window.innerHeight, defaultHeightNum + 11) === window.innerHeight) {
             container.style.height = "100%";
           } else {
             container.style.height = `${defaultHeightNum}px`;
@@ -72,15 +72,45 @@ if Code.ensure_loaded?(Kino) do
         window.addEventListener("resize", updateHeight);
         ctx.root.appendChild(container);
 
-        // Render Loading message
-        container.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; font-family: system-ui; color: #64748b; background: #f8fafc;">
-            <div style="text-align: center;">
-              <div style="margin-bottom: 8px; font-weight: 500;">Loading Excalidraw editor...</div>
-              <div style="font-size: 13px; color: #94a3b8;">Importing React & Excalidraw assets</div>
-            </div>
-          </div>
-        `;
+        // Prevent default spacebar scrolling when interacting with Excalidraw unless typing
+        container.addEventListener("keydown", function(e) {
+          if (e.key === " " || e.code === "Space") {
+            const active = document.activeElement;
+            const isInput = active && (
+              active.tagName === "INPUT" ||
+              active.tagName === "TEXTAREA" ||
+              active.contentEditable === "true" ||
+              active.closest("[contenteditable='true']")
+            );
+            if (!isInput) {
+              e.preventDefault();
+            }
+          }
+        }, { capture: true });
+
+        // Render Loading message using tag-free DOM creation
+        const loadingEl = document.createElement("div");
+        loadingEl.style.display = "flex";
+        loadingEl.style.alignItems = "center";
+        loadingEl.style.justifyContent = "center";
+        loadingEl.style.height = "100%";
+        loadingEl.style.fontFamily = "system-ui";
+        loadingEl.style.color = "#64748b";
+        loadingEl.style.background = "#f8fafc";
+        const loadingInner = document.createElement("div");
+        loadingInner.style.textAlign = "center";
+        const loadingTitle = document.createElement("div");
+        loadingTitle.style.marginBottom = "8px";
+        loadingTitle.style.fontWeight = "500";
+        loadingTitle.textContent = "Loading Excalidraw editor...";
+        const loadingSubtitle = document.createElement("div");
+        loadingSubtitle.style.fontSize = "13px";
+        loadingSubtitle.style.color = "#94a3b8";
+        loadingSubtitle.textContent = "Importing React & Excalidraw assets";
+        loadingInner.appendChild(loadingTitle);
+        loadingInner.appendChild(loadingSubtitle);
+        loadingEl.appendChild(loadingInner);
+        container.appendChild(loadingEl);
 
         try {
           // Load React and ReactDOM first (required by Excalidraw UMD)
@@ -95,31 +125,49 @@ if Code.ensure_loaded?(Kino) do
 
           // Preprocess Mermaid code to make it Excalidraw friendly
           // Specifically handles C4 model diagrams and custom styles which crash or clutter the parser
-          const preprocessMermaid = (code) => {
+          const preprocessMermaid = function(code) {
             const lines = code.split("\\n");
             const cleanLines = [];
             for (let line of lines) {
               const trimmed = line.trim();
               
-              // Skip style definitions, class definitions, and link styles to keep the diagram clean & hand-drawn
+              // Skip style definitions, class definitions, subgraphs, and link styles to keep the diagram clean & hand-drawn
               if (
                 trimmed.startsWith("style ") ||
                 trimmed.startsWith("classDef ") ||
                 trimmed.startsWith("class ") ||
-                trimmed.startsWith("linkStyle ")
+                trimmed.startsWith("linkStyle ") ||
+                trimmed.toLowerCase().startsWith("subgraph") ||
+                trimmed.toLowerCase() === "end"
               ) {
                 continue;
               }
               
               // Normalize custom shapes that are not well supported by Excalidraw:
-              // Stadium ([label]) -> Rounded Rect (label)
+              // Stadium ([label]) to Rounded Rect (label)
               line = line.replace(/(\\w+)\\(\\[([^\\]]+)\\]\\)/g, '$1($2)');
               
-              // Subroutine [[label]] -> Rect [label]
+              // Subroutine [[label]] to Rect [label]
               line = line.replace(/(\\w+)\\[\\[([^\\]]+)\\]\\]/g, '$1[$2]');
               
-              // Person/Double circle (((label))) -> Circle ((label))
+              // Person/Double circle (((label))) to Circle ((label))
               line = line.replace(/(\\w+)\\(\\(\\(([^)]+)\\)\\)\\)/g, '$1(($2))');
+
+              // Cylinder/Database shape with double quotes [("label")] to Rect ["label"]
+              line = line.replace(/(\\w+)\\[\\(\\"(.*?)\\"\\)\\]/g, '$1["$2"]');
+              // Cylinder/Database shape without double quotes [(label)] to Rect [label]
+              line = line.replace(/(\\w+)\\[\\((.*?)\\)\\]/g, '$1[$2]');
+
+              // Parallelograms [/"label"\] and [/label\] to Rect
+              line = line.replace(/(\\w+)\\[\\/\\"(.*?)\\"\\\\\\]/g, '$1["$2"]');
+              line = line.replace(/(\\w+)\\[\\/([^\]]+)\\\\\\]/g, '$1[$2]');
+
+              // Parallelograms [\"label"/] and [\label/] to Rect
+              line = line.replace(/(\\w+)\\[\\\\\\"(.*?)\\"\\/\\]/g, '$1["$2"]');
+              line = line.replace(/(\\w+)\\[\\\\([^\]]+)\\/\\]/g, '$1[$2]');
+
+              // Replace HTML line breaks <br> / <br/> with newlines so Excalidraw parses them as multi-line labels
+              line = line.replace(new RegExp("\\\\x3cbr\\\\\\\\s*\\\\\\\\/?\\\\x3e", "gi"), "\\\\n");
               
               cleanLines.push(line);
             }
@@ -139,29 +187,41 @@ if Code.ensure_loaded?(Kino) do
           const excalidrawElements = window.ExcalidrawLib.convertToExcalidrawElements(elements);
           const ExcalidrawComponent = window.ExcalidrawLib.Excalidraw;
 
-          const App = () => {
+          const App = function() {
+            const [excalidrawAPI, setExcalidrawAPI] = React.useState(null);
+
+            React.useEffect(function() {
+              if (excalidrawAPI) {
+                setTimeout(function() {
+                  excalidrawAPI.scrollToContent();
+                }, 100);
+              }
+            }, [excalidrawAPI]);
+
             return React.createElement(
               "div",
               { style: { width: "100%", height: "100%", position: "relative" } },
               React.createElement(ExcalidrawComponent, {
+                excalidrawAPI: function(api) { setExcalidrawAPI(api); },
                 initialData: {
                   elements: excalidrawElements,
+                  scrollToContent: true,
                   appState: { 
                     viewBackgroundColor: "#FAF9F6",
                     gridSize: 20
                   },
                   files: files
                 },
-                renderTopRightUI: () => {
+                renderTopRightUI: function() {
                   return React.createElement("button", {
-                    onClick: () => {
+                    onClick: function() {
                       if (document.fullscreenElement || document.webkitFullscreenElement) {
                         const exit = document.exitFullscreen || document.webkitExitFullscreen;
-                        if (exit) exit.call(document).catch(() => {});
+                        if (exit) exit.call(document).catch(function() {});
                       } else {
                         const req = container.requestFullscreen || container.webkitRequestFullscreen;
                         if (req) {
-                          req.call(container).catch(() => {});
+                          req.call(container).catch(function() {});
                         }
                       }
                     },
@@ -192,12 +252,25 @@ if Code.ensure_loaded?(Kino) do
           root.render(React.createElement(App));
         } catch (error) {
           console.error("Failed to initialize Excalidraw Sketch component:", error);
-          container.innerHTML = `
-            <div style="padding: 16px; background: #fef2f2; color: #991b1b; font-family: monospace; height: 100%; overflow: auto; box-sizing: border-box;">
-              <h3 style="margin-top: 0;">Excalidraw Import/Parse Error</h3>
-              <pre style="margin: 0; white-space: pre-wrap;">${error.message || error}</pre>
-            </div>
-          `;
+          container.innerHTML = "";
+          const errorEl = document.createElement("div");
+          errorEl.style.padding = "16px";
+          errorEl.style.background = "#fef2f2";
+          errorEl.style.color = "#991b1b";
+          errorEl.style.fontFamily = "monospace";
+          errorEl.style.height = "100%";
+          errorEl.style.overflow = "auto";
+          errorEl.style.boxSizing = "border-box";
+          const errorTitle = document.createElement("h3");
+          errorTitle.style.marginTop = "0";
+          errorTitle.textContent = "Excalidraw Import/Parse Error";
+          const errorPre = document.createElement("pre");
+          errorPre.style.margin = "0";
+          errorPre.style.whiteSpace = "pre-wrap";
+          errorPre.textContent = error.message || error;
+          errorEl.appendChild(errorTitle);
+          errorEl.appendChild(errorPre);
+          container.appendChild(errorEl);
         }
       }
       """

@@ -2,7 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:choreo, github: "code-shoily/choreo", branch: "main"},
+  # {:choreo, github: "code-shoily/choreo", branch: "main"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:finitomata, "~> 0.41"},
   {:kino_vizjs, "~> 0.9.0"}
 ])
@@ -219,28 +220,30 @@ order_fsm =
 
 ### 1.2 — Visualize with Mermaid
 
-<!-- livebook:{"output_size":"wide"} -->
+<!-- livebook:{"break_markdown":true} -->
 
-```elixir
-mermaid =
-  order_fsm
-  |> FSM.to_mermaid()
-  |> Kino.Mermaid.new()
-
-mermaid_state_diagram =
-  order_fsm
-  |> FSM.to_mermaid(syntax: :state_diagram)
-  |> Kino.Mermaid.new()
-
-dot =
-  order_fsm
+```elixirsiren = Choreo.Lab.Siren.new(order_fsm
+  |> FSM.to_mermaid())
+graphviz = order_fsm
   |> FSM.to_dot()
   |> Kino.VizJS.render(height: "600px")
+sketch = Choreo.Lab.Sketch.new(order_fsm
+  |> FSM.to_mermaid())
+
+siren_state = Choreo.Lab.Siren.new(order_fsm
+  |> FSM.to_mermaid(syntax: :state_diagram))
+graphviz_state = Kino.VizJS.render(order_fsm
+  |> FSM.to_dot(syntax: :state_diagram), height: "600px")
+sketch_state = Choreo.Lab.Sketch.new(order_fsm
+  |> FSM.to_mermaid(syntax: :state_diagram))
 
 Kino.Layout.tabs(
-  Graphviz: dot,
-  Mermaid: mermaid,
-  "Mermaid (State Diagram)": mermaid_state_diagram
+  Siren: siren,
+  Graphviz: graphviz,
+  Sketch: sketch,
+  "Siren (State Diagram)": siren_state,
+  "Graphviz (State Diagram)": graphviz_state,
+  "Sketch (State Diagram)": sketch_state
 )
 ```
 
@@ -348,7 +351,7 @@ IO.puts(state_diagram_dsl)
 
 > **Note:** Finitomata can also represent non-deterministic transitions (one event → multiple target states). Choreo.FSM is DFA-only, so the adapter splits those into synthetic labels like `event→target`. The language is preserved topologically, but event replay requires remapping.
 
-## Part 2: Run in Finitomata
+### Part 2: Run in Finitomata
 
 Let's take the generated DSL and use it to define a real Finitomata process.
 
@@ -443,7 +446,7 @@ Process.sleep(100)
 IO.puts("✅ Order 99 completed the retry→cancel path.")
 ```
 
-## Part 3: Import Finitomata Back into Choreo
+### Part 3: Import Finitomata Back into Choreo
 
 Now let's demonstrate the reverse — taking a compiled Finitomata module and importing it into Choreo for analysis.
 
@@ -463,26 +466,28 @@ IO.puts("Transitions: #{length(FSM.transitions(imported_fsm))}")
 
 <!-- livebook:{"output_size":"wide"} -->
 
-```elixir
-mermaid =
-  imported_fsm
-  |> FSM.to_mermaid()
-  |> Kino.Mermaid.new()
-
-mermaid_state_diagram =
-  imported_fsm
-  |> FSM.to_mermaid(syntax: :state_diagram)
-  |> Kino.Mermaid.new()
-
-dot = 
-  imported_fsm
+```elixirsiren = Choreo.Lab.Siren.new(imported_fsm
+  |> FSM.to_mermaid())
+graphviz = imported_fsm
   |> FSM.to_dot()
   |> Kino.VizJS.render(height: "600px")
+sketch = Choreo.Lab.Sketch.new(imported_fsm
+  |> FSM.to_mermaid())
+
+siren_state = Choreo.Lab.Siren.new(imported_fsm
+  |> FSM.to_mermaid(syntax: :state_diagram))
+graphviz_state = Kino.VizJS.render(imported_fsm
+  |> FSM.to_dot(syntax: :state_diagram), height: "600px")
+sketch_state = Choreo.Lab.Sketch.new(imported_fsm
+  |> FSM.to_mermaid(syntax: :state_diagram))
 
 Kino.Layout.tabs(
-  Graphviz: dot,
-  Mermaid: mermaid,
-  "Mermaid (State Diagram)": mermaid_state_diagram
+  Siren: siren,
+  Graphviz: graphviz,
+  Sketch: sketch,
+  "Siren (State Diagram)": siren_state,
+  "Graphviz (State Diagram)": graphviz_state,
+  "Sketch (State Diagram)": sketch_state
 )
 ```
 
@@ -591,26 +596,28 @@ end
 
 ### 4.3 — Visualize the Buggy FSM
 
-```elixir
-mermaid =
-  buggy
-  |> FSM.to_mermaid()
-  |> Kino.Mermaid.new()
-
-mermaid_state_diagram =
-  buggy
-  |> FSM.to_mermaid(syntax: :state_diagram)
-  |> Kino.Mermaid.new()
-
-dot = 
-  buggy
+```elixirsiren = Choreo.Lab.Siren.new(buggy
+  |> FSM.to_mermaid())
+graphviz = buggy
   |> FSM.to_dot()
   |> Kino.VizJS.render(height: "600px")
+sketch = Choreo.Lab.Sketch.new(buggy
+  |> FSM.to_mermaid())
+
+siren_state = Choreo.Lab.Siren.new(buggy
+  |> FSM.to_mermaid(syntax: :state_diagram))
+graphviz_state = Kino.VizJS.render(buggy
+  |> FSM.to_dot(syntax: :state_diagram), height: "600px")
+sketch_state = Choreo.Lab.Sketch.new(buggy
+  |> FSM.to_mermaid(syntax: :state_diagram))
 
 Kino.Layout.tabs(
-  Graphviz: dot,
-  Mermaid: mermaid,
-  "Mermaid (State Diagram)": mermaid_state_diagram
+  Siren: siren,
+  Graphviz: graphviz,
+  Sketch: sketch,
+  "Siren (State Diagram)": siren_state,
+  "Graphviz (State Diagram)": graphviz_state,
+  "Sketch (State Diagram)": sketch_state
 )
 ```
 
@@ -635,7 +642,7 @@ forbidden_present = Analysis.violates_invariant?(buggy, forbid_path: [:stuck, :l
 IO.puts("Forbidden loop present? #{forbidden_present}")
 ```
 
-## Part 5: FSM Minimization
+### Part 5: FSM Minimization
 
 Choreo can minimize an FSM by merging equivalent states, producing a smaller machine that accepts the same language.
 
@@ -693,7 +700,7 @@ IO.puts("Order FSM: #{length(FSM.states(order_fsm))} states → #{length(FSM.sta
 IO.puts("Equivalent? #{Analysis.equivalent?(order_fsm, minimized_order)}")
 ```
 
-## Part 6: Side-by-Side Comparison Table
+
 
 ```elixir
 fsms = %{
@@ -729,7 +736,7 @@ rows =
 |> Kino.Markdown.new()
 ```
 
-## Part 7: Dynamic Runtime Monitoring with Choreo Heatmaps
+### Part 7: Dynamic Runtime Monitoring with Choreo Heatmaps
 
 Choreo can not only validate and design FSMs, but it can also serve as a **live monitoring and visualization tool** for running Finitomata instances.
 
@@ -854,7 +861,7 @@ order_fsm
 |> Kino.VizJS.render(height: "600px")
 ```
 
-## Summary
+### Summary
 
 This notebook demonstrated the full lifecycle:
 

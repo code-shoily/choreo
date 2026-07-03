@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Uniform Theming API across all diagrams**:
+  - Implemented `theme/2` helper function for `Choreo.Domain`, `Choreo.Infrastructure`, `Choreo.Planner`, and `Choreo.Sequence` diagrams to provide a uniform theming interface.
+  - Implemented complete theme support for sequence diagrams (`Choreo.Sequence`) in both DOT timeline rendering and native Mermaid `sequenceDiagram` rendering, using theme variables profiles (default, dark, warm, forest, ocean).
+
 - **Choreo.Lab.Siren & Choreo.Lab.Sketch (Experimental)**:
   - Added `Choreo.Lab.Siren` module — an enhanced Mermaid.js renderer for Livebook with hardware-accelerated zoom/pan controls, dynamic fit-to-screen scaling, and automatic dark/light theme detection.
   - Added `Choreo.Lab.Sketch` module — an interactive Excalidraw whiteboard renderer that parses Mermaid syntax in the browser and displays it as a fully editable hand-drawn sketch.

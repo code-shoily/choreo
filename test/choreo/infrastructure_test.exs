@@ -1,6 +1,8 @@
 defmodule Choreo.InfrastructureTest do
   use ExUnit.Case, async: true
 
+  doctest Choreo.Infrastructure
+
   alias Choreo.Infrastructure
 
   test "building an infrastructure topology" do

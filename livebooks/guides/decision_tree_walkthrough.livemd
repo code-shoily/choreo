@@ -3,9 +3,9 @@
 ```elixir
 Mix.install([
   # For Hex publication/readers:
-  {:choreo, "~> 0.9.0"},
+  # {:choreo, "~> 0.9.0"},
   # For local development:
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -383,17 +383,19 @@ redundant =
 
 before_pruning =
   Kino.Layout.tabs(
-    Mermaid: Kino.Mermaid.new(DecisionTree.to_mermaid(redundant)),
-    Graphviz: Kino.VizJS.render(DecisionTree.to_dot(redundant))
-  )
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(redundant)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(redundant)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(redundant))
+)
 
 pruned = Analysis.prune_redundant(redundant)
 
 after_pruning =
   Kino.Layout.tabs(
-    Mermaid: Kino.Mermaid.new(DecisionTree.to_mermaid(pruned)),
-    Graphviz: Kino.VizJS.render(DecisionTree.to_dot(pruned))
-  )
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(pruned)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(pruned)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(pruned))
+)
 
 Kino.Layout.grid(
   [
@@ -561,13 +563,25 @@ zoom_tree =
 
 # Zoom out to Level 0 (Root only)
 root_only = View.zoom(zoom_tree, level: 0)
-level_0 = Kino.Mermaid.new(DecisionTree.to_mermaid(root_only))
+level_0 = Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(root_only)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(root_only)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(root_only))
+)
 
 decision_view = View.zoom(zoom_tree, level: 1)
-level_1 = Kino.Mermaid.new(DecisionTree.to_mermaid(decision_view))
+level_1 = Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(decision_view)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(decision_view)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(decision_view))
+)
 
 full_view = View.zoom(zoom_tree, level: 2)
-level_2 = Kino.Mermaid.new(DecisionTree.to_mermaid(full_view))
+level_2 = Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(full_view)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(full_view)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(full_view))
+)
 
 Kino.Layout.tabs(
   "Zoom Level 0": level_0,

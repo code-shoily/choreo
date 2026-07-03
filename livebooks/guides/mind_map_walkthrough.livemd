@@ -3,9 +3,9 @@
 ```elixir
 Mix.install([
   # For Hex publication/readers:
-  {:choreo, "~> 0.9.0"},
+  # {:choreo, "~> 0.9.0"},
   # For local development:
-  # {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -231,7 +231,11 @@ Kino.Layout.tabs(
 ### Detect Orphans
 
 ```elixir
-Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :mindmap))
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(roadmap, syntax: :mindmap)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(roadmap, syntax: :mindmap)),
+  Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(roadmap, syntax: :mindmap))
+)
 ```
 
 ```elixir
@@ -355,9 +359,21 @@ alias Choreo.View
 zoom_by = fn i -> View.zoom(talk, level: i) end
 
 Kino.Layout.tabs(
-  "Mermaid (Level 1)": zoom_by.(1) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Mermaid.new(),
-  "Mermaid (Level 2)": zoom_by.(2) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Mermaid.new(),
-  "Mermaid (Level 3)": zoom_by.(3) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Mermaid.new()
+  "Mermaid (Level 1)": zoom_by.(1) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+),
+  "Mermaid (Level 2)": zoom_by.(2) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+),
+  "Mermaid (Level 3)": zoom_by.(3) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(),
+  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new()
+)
 )
 ```
 
