@@ -44,9 +44,10 @@ defmodule Choreo.Planner.Render.Mermaid do
 
   ## Options
 
-    * `:syntax` — `:kanban` (default), `:kanban_compat`, `:gantt`, or `:flowchart`
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean` (flowchart only)
-    * `:direction` — `:td` (default) or `:lr` (flowchart only)
+    * `:syntax` — `:kanban` (default), `:kanban_compat`, `:gantt`, `:flowchart`, or `:swimlane`
+    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean` (flowchart/swimlane only)
+    * `:direction` — `:td` (default) or `:lr` (flowchart/swimlane only)
+    * `:swimlane_by` — `:assignee` (default), `:milestone`, or `:status` (swimlane only)
     * `:milestone` — Only include tasks under this milestone
     * `:assignee` — Only include tasks assigned to this user (kanban only)
     * `:ticket_base_url` — Base URL for ticket links (kanban only)
@@ -61,6 +62,7 @@ defmodule Choreo.Planner.Render.Mermaid do
       :kanban_compat -> to_kanban_compat(planner, opts)
       :gantt -> to_gantt(planner, opts)
       :flowchart -> to_flowchart(planner, opts)
+      :swimlane -> to_swimlane(planner, opts)
     end
   end
 
@@ -712,4 +714,230 @@ defmodule Choreo.Planner.Render.Mermaid do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  # ============================================================================
+  # Swimlane (swimlane-beta) rendering
+  # ============================================================================
+
+  defp to_swimlane(planner, opts) do
+    theme = resolve_theme(Keyword.get(opts, :theme, :default))
+    direction = Keyword.get(opts, :direction, :lr)
+    group_by = Keyword.get(opts, :swimlane_by, :assignee)
+
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
+    tasks = Planner.tasks(planner)
+    task_ids = Enum.map(tasks, fn {id, _} -> id end) |> MapSet.new()
+
+    id_map =
+      task_ids
+      |> MapSet.to_list()
+      |> Map.new(fn id -> {id, sanitize_id(id)} end)
+
+    lanes = build_planner_lanes(planner, tasks, group_by, id_map)
+    node_attr_fn = node_attributes_fn(theme, hl_nodes)
+
+    lane_lines =
+      Enum.flat_map(lanes, fn lane ->
+        nodes_rendered =
+          Enum.flat_map(lane.node_ids, fn safe_id ->
+            original_id =
+              Enum.find_value(id_map, fn {orig, safe} ->
+                if safe == safe_id, do: orig
+              end)
+
+            data = Map.fetch!(planner.graph.nodes, original_id)
+            shape = :rounded_rect
+            label = data[:title] || to_string(original_id)
+            brackets = Yog.Render.Mermaid.node_shape_brackets(shape, label)
+
+            attrs = node_attr_fn.(original_id, Map.put(data, :node_type, :task))
+            style = style_from_attrs(attrs)
+
+            node_line = "  #{safe_id}#{brackets}"
+
+            if style == "" do
+              [node_line]
+            else
+              [node_line, "  style #{safe_id} #{style}"]
+            end
+          end)
+
+        [
+          "subgraph #{lane.id}[\"#{escape(lane.label)}\"]"
+          | List.insert_at(nodes_rendered, -1, "end")
+        ]
+      end)
+
+    edges =
+      planner.graph.edges
+      |> Enum.filter(fn {eid, {from, to, _weight}} ->
+        meta = Map.get(planner.edge_meta, eid, %{})
+
+        meta[:type] in [:depends_on, :blocks] and
+          MapSet.member?(task_ids, from) and
+          MapSet.member?(task_ids, to)
+      end)
+      |> Enum.sort_by(fn {edge_id, _} -> edge_id end)
+
+    edge_lines =
+      Enum.map(edges, fn {edge_id, {from, to, _weight}} ->
+        from_safe = Map.fetch!(id_map, from)
+        to_safe = Map.fetch!(id_map, to)
+        meta = Map.get(planner.edge_meta, edge_id, %{})
+        arrow = if meta[:type] == :blocks, do: "-.->", else: "-->"
+        label = meta[:label] || ""
+
+        if label == "" do
+          "  #{from_safe} #{arrow} #{to_safe}"
+        else
+          "  #{from_safe} #{arrow}|\"#{escape(label)}\"| #{to_safe}"
+        end
+      end)
+
+    edge_attr_fn = edge_attributes_fn(planner, theme, hl_edges)
+
+    link_styles =
+      edges
+      |> Enum.with_index()
+      |> Enum.map(fn {{edge_id, {from, to, weight}}, index} ->
+        attrs = edge_attr_fn.(from, to, edge_id, weight)
+        css = css_from_attrs(attrs)
+        if css == "", do: nil, else: "  linkStyle #{index} #{css}"
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    (["swimlane-beta #{direction_to_string(direction)}"] ++
+       lane_lines ++ edge_lines ++ link_styles)
+    |> Enum.join("\n")
+    |> Kernel.<>("\n")
+  end
+
+  defp direction_to_string(:td), do: "TD"
+  defp direction_to_string(:tb), do: "TB"
+  defp direction_to_string(:lr), do: "LR"
+  defp direction_to_string(:rl), do: "RL"
+  defp direction_to_string(:bt), do: "BT"
+  defp direction_to_string(_), do: "LR"
+
+  defp style_from_attrs(attrs) do
+    attrs
+    |> Enum.map(fn
+      {:fill, color} -> "fill:#{color}"
+      {:stroke, color} -> "stroke:#{color}"
+      {:stroke_width, width} -> "stroke-width:#{width}"
+      {:stroke_dasharray, dash} -> "stroke-dasharray:#{dash}"
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(",")
+  end
+
+  defp css_from_attrs(attrs) do
+    attrs
+    |> Enum.map(fn
+      {:stroke, color} -> "stroke:#{color}"
+      {:stroke_width, width} -> "stroke-width:#{width}"
+      {:stroke_dasharray, dash} -> "stroke-dasharray:#{dash}"
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(",")
+  end
+
+  defp build_planner_lanes(planner, tasks, :assignee, id_map) do
+    users =
+      planner.graph.nodes
+      |> Enum.filter(fn {_id, data} -> data[:node_type] == :user end)
+      |> Map.new(fn {id, data} -> {id, data[:name] || to_string(id)} end)
+
+    grouped =
+      Enum.group_by(tasks, fn {id, _data} ->
+        Planner.assignee(planner, id)
+      end)
+
+    user_lanes =
+      users
+      |> Enum.filter(fn {uid, _name} -> Map.has_key?(grouped, uid) end)
+      |> Enum.map(fn {uid, name} ->
+        %{
+          id: sanitize_id(uid),
+          label: name,
+          node_ids: Enum.map(grouped[uid], fn {tid, _} -> Map.fetch!(id_map, tid) end)
+        }
+      end)
+
+    unassigned_tasks = grouped[nil] || []
+
+    if unassigned_tasks == [] do
+      user_lanes
+    else
+      unassigned_lane = %{
+        id: "unassigned",
+        label: "Unassigned",
+        node_ids: Enum.map(unassigned_tasks, fn {tid, _} -> Map.fetch!(id_map, tid) end)
+      }
+
+      List.insert_at(user_lanes, -1, unassigned_lane)
+    end
+  end
+
+  defp build_planner_lanes(planner, tasks, :milestone, id_map) do
+    milestones =
+      planner.graph.nodes
+      |> Enum.filter(fn {_id, data} -> data[:node_type] == :milestone end)
+      |> Map.new(fn {id, data} -> {id, data[:title] || data[:label] || to_string(id)} end)
+
+    milestone_lanes =
+      milestones
+      |> Enum.map(fn {mid, title} ->
+        m_children = Planner.children(planner, mid) |> MapSet.new()
+        m_tasks = Enum.filter(tasks, fn {tid, _} -> MapSet.member?(m_children, tid) end)
+
+        %{
+          id: sanitize_id(mid),
+          label: title,
+          node_ids: Enum.map(m_tasks, fn {tid, _} -> Map.fetch!(id_map, tid) end)
+        }
+      end)
+      |> Enum.reject(fn lane -> lane.node_ids == [] end)
+
+    all_milestone_children =
+      milestones
+      |> Map.keys()
+      |> Enum.flat_map(fn mid -> Planner.children(planner, mid) end)
+      |> MapSet.new()
+
+    unassigned_tasks =
+      Enum.reject(tasks, fn {tid, _} -> MapSet.member?(all_milestone_children, tid) end)
+
+    if unassigned_tasks == [] do
+      milestone_lanes
+    else
+      unassigned_lane = %{
+        id: "unassigned",
+        label: "Unassigned",
+        node_ids: Enum.map(unassigned_tasks, fn {tid, _} -> Map.fetch!(id_map, tid) end)
+      }
+
+      List.insert_at(milestone_lanes, -1, unassigned_lane)
+    end
+  end
+
+  defp build_planner_lanes(_planner, tasks, :status, id_map) do
+    grouped = Enum.group_by(tasks, fn {_id, data} -> data[:status] || :backlog end)
+
+    @status_columns
+    |> Enum.map(fn {status, col_name} ->
+      col_tasks = grouped[status] || []
+
+      %{
+        id: sanitize_id(status),
+        label: col_name,
+        node_ids: Enum.map(col_tasks, fn {tid, _} -> Map.fetch!(id_map, tid) end)
+      }
+    end)
+    |> Enum.reject(fn lane -> lane.node_ids == [] end)
+  end
 end

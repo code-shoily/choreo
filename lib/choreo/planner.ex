@@ -435,7 +435,7 @@ defmodule Choreo.Planner do
 
   ## Options
 
-    * `:syntax` — `:kanban` (default), `:kanban_compat`, `:gantt`, or `:flowchart`
+    * `:syntax` — `:kanban` (default), `:kanban_compat`, `:gantt`, `:flowchart`, or `:swimlane`
     * Other options passed to the specific renderer
   """
   @spec to_mermaid(t(), keyword()) :: String.t()

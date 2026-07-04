@@ -355,6 +355,64 @@ defmodule Choreo.PlannerTest do
     end
   end
 
+  describe "to_mermaid/2 swimlane syntax" do
+    test "renders swimlane-beta header" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.depends_on(:b, :a)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :swimlane)
+      assert String.starts_with?(mermaid, "swimlane-beta LR")
+    end
+
+    test "respects swimlane direction option" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.depends_on(:b, :a)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :swimlane, direction: :tb)
+      assert String.starts_with?(mermaid, "swimlane-beta TB")
+    end
+
+    test "renders swimlanes grouped by assignee (default)" do
+      planner =
+        Planner.new()
+        |> Planner.add_user(:alice, name: "Alice")
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.assign(:a, :alice)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :swimlane)
+      assert String.contains?(mermaid, "subgraph alice[\"Alice\"]")
+      assert String.contains?(mermaid, "a")
+    end
+
+    test "renders swimlanes grouped by milestone" do
+      planner =
+        Planner.new()
+        |> Planner.add_milestone(:m1, title: "Release 1")
+        |> Planner.add_task(:a, title: "Task A")
+        |> Planner.contains(:m1, :a)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :swimlane, swimlane_by: :milestone)
+      assert String.contains?(mermaid, "subgraph m1[\"Release 1\"]")
+      assert String.contains?(mermaid, "a")
+    end
+
+    test "renders swimlanes grouped by status" do
+      planner =
+        Planner.new()
+        |> Planner.add_task(:a, title: "Task A", status: :in_progress)
+
+      mermaid = Planner.to_mermaid(planner, syntax: :swimlane, swimlane_by: :status)
+      assert String.contains?(mermaid, "subgraph in_progress[\"In Progress\"]")
+      assert String.contains?(mermaid, "a")
+    end
+  end
+
   describe "protocols" do
     test "Choreo.Mermaid protocol" do
       planner = Planner.new() |> Planner.add_task(:a, title: "A")

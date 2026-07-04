@@ -106,13 +106,13 @@ IO.puts("Impl depends on: #{Enum.join(Planner.dependencies(sprint, :impl), ", ")
 
 Render the sprint as a Kanban diagram. Tasks are grouped by status into columns.
 
-> **Note:** Livebook's bundled Mermaid renderer may not support the native `kanban` syntax (requires Mermaid ≥11.4). Use `:kanban_compat` for a flowchart-based Kanban that works everywhere, or `:kanban` for native syntax in newer environments like GitHub.
+With `Choreo.Lab.Siren`, we can render modern native `kanban` syntax directly inline!
 
 ```elixir
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :kanban_compat)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint, syntax: :kanban_compat)),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :kanban_compat))
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :kanban)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint, syntax: :flowchart)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :flowchart))
 )
 ```
 
@@ -211,9 +211,9 @@ View only the launch milestone tasks:
 
 ```elixir
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: :launch)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :kanban_compat, milestone: :launch)),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :kanban_compat, milestone: :launch))
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban, milestone: :launch)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :flowchart, milestone: :launch)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :flowchart, milestone: :launch))
 )
 ```
 
@@ -223,9 +223,23 @@ See what Carol is working on:
 
 ```elixir
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :carol)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :kanban_compat, assignee: :carol)),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :kanban_compat, assignee: :carol))
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban, assignee: :carol)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :flowchart, assignee: :carol)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :flowchart, assignee: :carol))
+)
+```
+
+### Swimlane Diagrams (Grouping by Assignee, Milestone, or Status)
+
+Swimlanes allow you to visualize task dependencies laid out across logical boundaries. 
+
+You can group swimlanes by assignee (`swimlane_by: :assignee`), milestone (`swimlane_by: :milestone`), or task status (`swimlane_by: :status`).
+
+```elixir
+Kino.Layout.tabs(
+  "By Assignee": Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :swimlane, swimlane_by: :assignee)),
+  "By Milestone": Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :swimlane, swimlane_by: :milestone)),
+  "By Status": Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :swimlane, swimlane_by: :status))
 )
 ```
 
@@ -359,9 +373,9 @@ incident =
 
 ```elixir
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(incident, syntax: :kanban_compat)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(incident, syntax: :kanban_compat)),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(incident, syntax: :kanban_compat))
+  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(incident, syntax: :kanban)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(incident, syntax: :flowchart)),
+  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(incident, syntax: :flowchart))
 )
 ```
 
