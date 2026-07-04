@@ -117,6 +117,7 @@ defmodule Choreo.DecisionTree.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_tree_theme()
   defp resolve_theme(:dark), do: dark_tree_theme()
+  defp resolve_theme(:minimal), do: minimal_tree_theme()
   defp resolve_theme(:warm), do: warm_tree_theme()
   defp resolve_theme(:forest), do: forest_tree_theme()
   defp resolve_theme(:ocean), do: ocean_tree_theme()
@@ -177,6 +178,10 @@ defmodule Choreo.DecisionTree.Render.DOT do
       edge_penwidth: 1.0,
       graph_bgcolor: "#f0f9ff"
     }
+  end
+
+  defp minimal_tree_theme do
+    %Theme{default_tree_theme() | name: :tree_minimal}
   end
 
   defp default_tree_theme do

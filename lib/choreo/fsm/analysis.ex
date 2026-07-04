@@ -406,41 +406,6 @@ defmodule Choreo.FSM.Analysis do
   end
 
   @doc """
-    Checks if the state machine is deterministic.
-
-    An FSM is deterministic if it has at most one initial state (always true by construction),
-    no duplicate transition labels from any single state (always true by construction),
-    and no epsilon transitions (empty/nil labels).
-
-    ## Examples
-
-        iex> fsm =
-        ...>   Choreo.FSM.new()
-        ...>   |> Choreo.FSM.add_initial_state(:a)
-        ...>   |> Choreo.FSM.add_transition(:a, :b, label: "go")
-        iex> Choreo.FSM.Analysis.deterministic?(fsm)
-        true
-  """
-  @spec deterministic?(FSM.t()) :: boolean()
-  def deterministic?(%FSM{} = fsm) do
-    # Verify no epsilon/empty transitions exist
-    has_epsilon? =
-      fsm.graph.edges
-      |> Enum.any?(fn {_eid, {_from, _to, label}} -> is_nil(label) or label == "" end)
-
-    # Verify no state has duplicate outgoing labels
-    has_duplicates? =
-      FSM.states(fsm)
-      |> Enum.any?(fn state ->
-        successors = Yog.Multi.successors(fsm.graph, state)
-        labels = Enum.map(successors, fn {_to, _eid, label} -> label end)
-        length(labels) != length(Enum.uniq(labels))
-      end)
-
-    not has_epsilon? and not has_duplicates?
-  end
-
-  @doc """
     Generates a set of transition label sequences (test cases) to achieve
     the specified coverage metric.
 

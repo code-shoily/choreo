@@ -406,6 +406,7 @@ defmodule Choreo.Planner.Render.Mermaid do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_planner_theme()
   defp resolve_theme(:dark), do: dark_planner_theme()
+  defp resolve_theme(:minimal), do: minimal_planner_theme()
   defp resolve_theme(:warm), do: warm_planner_theme()
   defp resolve_theme(:forest), do: forest_planner_theme()
   defp resolve_theme(:ocean), do: ocean_planner_theme()
@@ -469,6 +470,10 @@ defmodule Choreo.Planner.Render.Mermaid do
       edge_penwidth: 1.0,
       graph_bgcolor: "#f0f9ff"
     }
+  end
+
+  defp minimal_planner_theme do
+    %Theme{default_planner_theme() | name: :planner_minimal}
   end
 
   defp default_planner_theme do

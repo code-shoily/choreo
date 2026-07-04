@@ -50,8 +50,8 @@ defmodule Choreo.Sequence do
   @doc """
   Creates a new empty sequence diagram.
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(_opts \\ []) do
     %Sequence{graph: Yog.Multi.new(:directed)}
   end
 

@@ -81,6 +81,7 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_threat_theme()
   defp resolve_theme(:dark), do: dark_threat_theme()
+  defp resolve_theme(:minimal), do: minimal_threat_theme()
   defp resolve_theme(:warm), do: warm_threat_theme()
   defp resolve_theme(:forest), do: forest_threat_theme()
   defp resolve_theme(:ocean), do: ocean_threat_theme()
@@ -150,6 +151,10 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
       cluster_style: :dashed,
       cluster_color: "#ef4444"
     }
+  end
+
+  defp minimal_threat_theme do
+    %Theme{default_threat_theme() | name: :threat_minimal}
   end
 
   defp default_threat_theme do

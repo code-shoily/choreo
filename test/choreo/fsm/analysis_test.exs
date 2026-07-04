@@ -403,16 +403,6 @@ defmodule Choreo.FSM.AnalysisTest do
   end
 
   describe "new advanced analysis functions" do
-    test "deterministic?/1" do
-      fsm =
-        FSM.new()
-        |> FSM.add_initial_state(:a)
-        |> FSM.add_state(:b)
-        |> FSM.add_transition(:a, :b, label: "x")
-
-      assert Analysis.deterministic?(fsm)
-    end
-
     test "generate_test_cases/2" do
       fsm =
         FSM.new()

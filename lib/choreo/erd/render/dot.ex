@@ -78,10 +78,15 @@ defmodule Choreo.ERD.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_erd_theme()
   defp resolve_theme(:dark), do: dark_erd_theme()
+  defp resolve_theme(:minimal), do: minimal_erd_theme()
   defp resolve_theme(:warm), do: warm_erd_theme()
   defp resolve_theme(:forest), do: forest_erd_theme()
   defp resolve_theme(:ocean), do: ocean_erd_theme()
   defp resolve_theme(_), do: default_erd_theme()
+
+  defp minimal_erd_theme do
+    %Theme{default_erd_theme() | name: :erd_minimal}
+  end
 
   defp default_erd_theme do
     %Theme{

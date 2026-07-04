@@ -173,8 +173,8 @@ defmodule Choreo.Infrastructure do
   @doc """
   Creates a new empty cloud infrastructure diagram.
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(_opts \\ []) do
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},

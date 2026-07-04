@@ -148,6 +148,7 @@ defmodule Choreo.Dataflow.Render.Mermaid do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_dataflow_theme()
   defp resolve_theme(:dark), do: dark_dataflow_theme()
+  defp resolve_theme(:minimal), do: minimal_dataflow_theme()
   defp resolve_theme(:warm), do: warm_dataflow_theme()
   defp resolve_theme(:forest), do: forest_dataflow_theme()
   defp resolve_theme(:ocean), do: ocean_dataflow_theme()
@@ -226,6 +227,10 @@ defmodule Choreo.Dataflow.Render.Mermaid do
       cluster_style: :rounded,
       cluster_color: "#7dd3fc"
     }
+  end
+
+  defp minimal_dataflow_theme do
+    %Theme{default_dataflow_theme() | name: :dataflow_minimal}
   end
 
   defp default_dataflow_theme do

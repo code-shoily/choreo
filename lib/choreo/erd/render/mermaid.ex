@@ -3,6 +3,11 @@ defmodule Choreo.ERD.Render.Mermaid do
   Mermaid.js native `erDiagram` renderer for `Choreo.ERD`.
   """
 
+  @doc false
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.ERD.Render.DOT.theme(name, overrides)
+  end
+
   @doc """
   Renders an ERD to Mermaid native erDiagram syntax.
   """

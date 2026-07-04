@@ -184,8 +184,8 @@ defmodule Choreo.Domain do
   @doc """
   Initializes a new empty domain model.
   """
-  @spec new() :: t()
-  def new do
+  @spec new(keyword()) :: t()
+  def new(_opts \\ []) do
     %__MODULE__{
       graph: Yog.Multi.new(:directed),
       edge_meta: %{},

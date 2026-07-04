@@ -107,9 +107,7 @@ defmodule Choreo.MixProject do
           Choreo.Render.Mermaid
         ],
         "Cloud Infrastructure": [
-          Choreo.Infrastructure,
-          Choreo.Infrastructure.Render.DOT,
-          Choreo.Infrastructure.Render.Mermaid
+          Choreo.Infrastructure
         ],
         "State Machines": [
           Choreo.FSM,

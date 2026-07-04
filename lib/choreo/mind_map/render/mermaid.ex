@@ -156,6 +156,7 @@ defmodule Choreo.MindMap.Render.Mermaid do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_mind_map_theme()
   defp resolve_theme(:dark), do: dark_mind_map_theme()
+  defp resolve_theme(:minimal), do: minimal_mind_map_theme()
   defp resolve_theme(:warm), do: warm_mind_map_theme()
   defp resolve_theme(:forest), do: forest_mind_map_theme()
   defp resolve_theme(:ocean), do: ocean_mind_map_theme()
@@ -204,6 +205,10 @@ defmodule Choreo.MindMap.Render.Mermaid do
       edge_penwidth: 1.0,
       graph_bgcolor: "#f0f9ff"
     }
+  end
+
+  defp minimal_mind_map_theme do
+    %Theme{default_mind_map_theme() | name: :mind_map_minimal}
   end
 
   defp default_mind_map_theme do

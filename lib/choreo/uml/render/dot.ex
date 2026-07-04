@@ -82,10 +82,15 @@ defmodule Choreo.UML.Render.DOT do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_uml_theme()
   defp resolve_theme(:dark), do: dark_uml_theme()
+  defp resolve_theme(:minimal), do: minimal_uml_theme()
   defp resolve_theme(:warm), do: warm_uml_theme()
   defp resolve_theme(:forest), do: forest_uml_theme()
   defp resolve_theme(:ocean), do: ocean_uml_theme()
   defp resolve_theme(_), do: default_uml_theme()
+
+  defp minimal_uml_theme do
+    %Theme{default_uml_theme() | name: :uml_minimal}
+  end
 
   defp default_uml_theme do
     %Theme{

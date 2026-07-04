@@ -289,12 +289,7 @@ case livelocks do
 end
 
 IO.puts("\n═══ Determinism ═══\n")
-
-if Analysis.deterministic?(order_fsm) do
-  IO.puts("  ✅ FSM is deterministic.")
-else
-  IO.puts("  ⚠️  FSM is non-deterministic (same label from same state to different targets).")
-end
+IO.puts("  ✅ Choreo.FSM enforces DFA determinism at build time.")
 
 IO.puts("\n═══ Shortest Accepting Path ═══\n")
 
@@ -582,7 +577,7 @@ case livelocks do
 end
 
 IO.puts("\n── Determinism ──")
-IO.puts("  #{if Analysis.deterministic?(buggy), do: "✅ Deterministic", else: "⚠️  Non-deterministic"}")
+IO.puts("  ✅ Enforced by Choreo.FSM at build time")
 
 IO.puts("\n── Completeness ──")
 IO.puts("  #{if Analysis.complete?(buggy), do: "✅ Complete", else: "⚠️  Incomplete — some states don't handle all events"}")
@@ -711,14 +706,13 @@ fsms = %{
   "Redundant (after minimize)" => minimized
 }
 
-header = "| FSM | States | Transitions | Deterministic? | Dead States | Livelocks | Shortest Path |"
-separator = "|-----|--------|-------------|----------------|-------------|-----------|---------------|"
+header = "| FSM | States | Transitions | Dead States | Livelocks | Shortest Path |"
+separator = "|-----|--------|-------------|-------------|-----------|---------------|"
 
 rows =
   Enum.map(fsms, fn {name, fsm} ->
     states = length(FSM.states(fsm))
     transitions = length(FSM.transitions(fsm))
-    det = if Analysis.deterministic?(fsm), do: "✅", else: "❌"
     dead = length(Analysis.dead_states(fsm))
     livelocks = length(Analysis.livelock_states(fsm))
 
@@ -728,7 +722,7 @@ rows =
         :error -> "none"
       end
 
-    "| #{name} | #{states} | #{transitions} | #{det} | #{dead} | #{livelocks} | #{shortest} |"
+    "| #{name} | #{states} | #{transitions} | #{dead} | #{livelocks} | #{shortest} |"
   end)
 
 [header, separator | rows]
@@ -807,7 +801,7 @@ Enum.each(order_ids, fn id ->
       Finitomata.transition(id, {:submit_payment, nil})
       Process.sleep(10)
       Finitomata.transition(id, {:payment_confirmed, nil})
-      
+
       if die == 6 do
         Process.sleep(10)
         Finitomata.transition(id, {:ship, nil})

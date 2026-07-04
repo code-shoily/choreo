@@ -174,6 +174,7 @@ defmodule Choreo.Dependency.Render.Mermaid do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_dependency_theme()
   defp resolve_theme(:dark), do: dark_dependency_theme()
+  defp resolve_theme(:minimal), do: minimal_dependency_theme()
   defp resolve_theme(:warm), do: warm_dependency_theme()
   defp resolve_theme(:forest), do: forest_dependency_theme()
   defp resolve_theme(:ocean), do: ocean_dependency_theme()
@@ -249,6 +250,10 @@ defmodule Choreo.Dependency.Render.Mermaid do
       cluster_style: :rounded,
       cluster_color: "#7dd3fc"
     }
+  end
+
+  defp minimal_dependency_theme do
+    %Theme{default_dependency_theme() | name: :dependency_minimal}
   end
 
   defp default_dependency_theme do

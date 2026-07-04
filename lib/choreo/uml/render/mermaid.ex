@@ -5,6 +5,11 @@ defmodule Choreo.UML.Render.Mermaid do
 
   alias Choreo.Theme
 
+  @doc false
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.UML.Render.DOT.theme(name, overrides)
+  end
+
   @doc """
   Renders a UML diagram to a Mermaid string.
   """

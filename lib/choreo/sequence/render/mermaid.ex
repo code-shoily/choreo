@@ -158,10 +158,15 @@ defmodule Choreo.Sequence.Render.Mermaid do
   defp resolve_theme(%Theme{} = theme), do: theme
   defp resolve_theme(:default), do: default_sequence_theme()
   defp resolve_theme(:dark), do: dark_sequence_theme()
+  defp resolve_theme(:minimal), do: minimal_sequence_theme()
   defp resolve_theme(:warm), do: warm_sequence_theme()
   defp resolve_theme(:forest), do: forest_sequence_theme()
   defp resolve_theme(:ocean), do: ocean_sequence_theme()
   defp resolve_theme(_), do: default_sequence_theme()
+
+  defp minimal_sequence_theme do
+    %Theme{default_sequence_theme() | name: :sequence_minimal}
+  end
 
   defp default_sequence_theme do
     %Theme{

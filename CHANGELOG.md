@@ -6,14 +6,13 @@
 
 - **Uniform Theming API across all diagrams**:
   - Implemented `theme/2` helper function for `Choreo.Domain`, `Choreo.Infrastructure`, `Choreo.Planner`, and `Choreo.Sequence` diagrams to provide a uniform theming interface.
-  - Implemented complete theme support for sequence diagrams (`Choreo.Sequence`) in both DOT timeline rendering and native Mermaid `sequenceDiagram` rendering, using theme variables profiles (default, dark, warm, forest, ocean).
+  - Implemented complete theme support for sequence diagrams (`Choreo.Sequence`) in both DOT timeline rendering and native Mermaid `sequenceDiagram` rendering, using theme variables profiles (default, dark, minimal, warm, forest, ocean).
 
 - **Choreo.Lab.Siren & Choreo.Lab.Sketch (Experimental)**:
   - Added `Choreo.Lab.Siren` module — an enhanced Mermaid.js renderer for Livebook with hardware-accelerated zoom/pan controls, dynamic fit-to-screen scaling, and automatic dark/light theme detection.
   - Added `Choreo.Lab.Sketch` module — an interactive Excalidraw whiteboard renderer that parses Mermaid syntax in the browser and displays it as a fully editable hand-drawn sketch.
 
 - **Choreo.FSM.Analysis — Advanced Analysis Suite**:
-  - Added `Analysis.deterministic?/1` to check if an FSM is deterministic (verifies no epsilon transitions or duplicate transition labels exist).
   - Added `Analysis.generate_test_cases/2` to generate transition sequences for `:state` and `:transition` test coverage.
   - Added `Analysis.equivalent?/2` to check equivalence of two FSMs using product automaton BFS traversal.
   - Added `Analysis.minimize/1` to minimize a DFA using Partition Refinement (Moore's algorithm).
@@ -95,8 +94,8 @@
   - Added typed network boundary builders: `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3` — clusters with security semantics (`:vpc`, `:subnet_public`, `:subnet_private` types).
   - Added infrastructure node builders: `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3`.
   - Added `connect/3` with `:protocol` metadata (`:https`, `:ssl`, `:tcp`, etc.) for styled edge rendering.
-  - Implemented `Choreo.Infrastructure.Render.DOT` with VPC/subnet cluster boundary coloring (theme-aware: light and dark variants), and node shapes/colors resolved via `Choreo.Theme`.
-  - Implemented `Choreo.Infrastructure.Render.Mermaid` with Mermaid-compatible node shapes (`:circle`, `:hexagon`, `:subroutine`, `:cylinder`) and styled edges.
+  - Extended the shared `Choreo.Render.DOT` pipeline with infrastructure-specific VPC/subnet cluster boundary coloring (theme-aware: light and dark variants), and node shapes/colors resolved via `Choreo.Theme`.
+  - Extended the shared `Choreo.Render.Mermaid` pipeline with Mermaid-compatible infrastructure node shapes (`:circle`, `:hexagon`, `:subroutine`, `:cylinder`) and styled edges.
   - Implemented `Choreo.Infrastructure.Analysis` with structural audit rules:
     - `:direct_internet_to_private_subnet` — flags connections that bypass the DMZ.
     - `:db_not_in_private_subnet` — flags managed databases placed in public subnets or outside any subnet.

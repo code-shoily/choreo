@@ -12,12 +12,22 @@ defmodule Choreo.Domain.Analysis do
   alias Choreo.Domain
 
   @doc """
-  Runs semantic audit rules against a domain model and returns a list of
-  `{severity, message}` tuples for cross-module composability.
+  Runs semantic validation rules against a domain model.
+
+  Returns a list of `{severity, message}` tuples for cross-module composability.
 
   Severity levels:
     * `:error` — structural issues (missing targets, missing causes)
     * `:warning` — soft semantic checks (dead-ends, passive actors)
+
+  This is the cross-module validation entry point. It is equivalent to
+  `warnings/1`, which is kept as a domain-specific alias.
+  """
+  @spec validate(Domain.t()) :: [{:error | :warning, String.t()}]
+  def validate(%Domain{} = domain), do: warnings(domain)
+
+  @doc """
+  Runs semantic audit rules against a domain model.
   """
   @spec warnings(Domain.t()) :: [{:error | :warning, String.t()}]
   def warnings(%Domain{} = domain) do

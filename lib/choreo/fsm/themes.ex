@@ -11,6 +11,7 @@ defmodule Choreo.FSM.Themes do
   def resolve(%Theme{} = theme, overrides), do: Theme.override(theme, overrides)
   def resolve(:default, overrides), do: Theme.override(default(), overrides)
   def resolve(:dark, overrides), do: Theme.override(dark(), overrides)
+  def resolve(:minimal, overrides), do: Theme.override(minimal(), overrides)
   def resolve(:warm, overrides), do: Theme.override(warm(), overrides)
   def resolve(:forest, overrides), do: Theme.override(forest(), overrides)
   def resolve(:ocean, overrides), do: Theme.override(ocean(), overrides)
@@ -54,6 +55,11 @@ defmodule Choreo.FSM.Themes do
       edge_penwidth: 1.0,
       graph_bgcolor: "#0f172a"
     }
+  end
+
+  @doc false
+  def minimal do
+    %Theme{default() | name: :fsm_minimal}
   end
 
   @doc false
