@@ -82,6 +82,7 @@ defmodule Choreo.MixProject do
         "guides/behavior_and_flows.md",
         "guides/data_and_structure.md",
         "guides/livebooks.md",
+        "guides/ALGORITHMS.md",
         "CHANGELOG.md"
       ],
       source_ref: "v#{@version}",
@@ -183,7 +184,8 @@ defmodule Choreo.MixProject do
           "guides/architecture_and_design.md",
           "guides/behavior_and_flows.md",
           "guides/data_and_structure.md",
-          "guides/livebooks.md"
+          "guides/livebooks.md",
+          "guides/ALGORITHMS.md"
         ],
         Resources: [
           "CHANGELOG.md"

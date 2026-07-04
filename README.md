@@ -57,7 +57,7 @@ end
 
 ## Detailed Guides
 
-Choreo supports 13 different artifact modeling vocabularies. They are categorized and detailed in the following guides:
+Choreo supports 13 different artifact modeling vocabularies. They are categorized and detailed in the following guides and references:
 
 1. **[Architecture & Design Modeling](guides/architecture_and_design.md)**
    * System Architecture (`Choreo`)
@@ -79,6 +79,10 @@ Choreo supports 13 different artifact modeling vocabularies. They are categorize
    * Decision Trees (`Choreo.DecisionTree`)
    * Concept Mapping / Mind Maps (`Choreo.MindMap`)
    * Project Task Planning (`Choreo.Planner`)
+
+4. **[Analysis Algorithms Reference](guides/ALGORITHMS.md)**
+   * Catalog of graph algorithms used by each analysis module
+   * Function-to-algorithm mapping for every diagram type
 
 ---
 
