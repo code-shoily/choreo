@@ -1,0 +1,580 @@
+# Choreo Requirement: Comprehensive Walkthrough
+
+```elixir
+Mix.install([
+  # {:choreo, "~> 0.10.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## Section
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally. Since version 0.8.0, Choreo also supports **Mermaid.js** output — paste it into GitHub, GitLab, Notion, or the [Mermaid Live Editor](https://mermaid.live/).
+
+---
+
+## What is Choreo.Requirement?
+
+`Choreo.Requirement` models **requirements traceability** as a directed graph. Instead of a spreadsheet or a wiki page nobody reads, your requirements and their links to code, tests, and stakeholders live as **version-controlled, analysable data**.
+
+Common use cases:
+
+* Track which features are implemented and which are still open
+* Find test coverage gaps before a release
+* Propagate risk from business-level requirements down to individual components
+* Perform impact analysis before refactoring a service
+
+### Node Types
+
+| Type           | Shape              | Purpose                                |
+| -------------- | ------------------ | -------------------------------------- |
+| `:requirement` | box (amber)        | A need, feature, or constraint         |
+| `:component`   | rounded box (blue) | A service, module, or library          |
+| `:test`        | stadium (green)    | A test suite or verification activity  |
+| `:stakeholder` | circle (purple)    | A person, team, or requirements source |
+
+### Edge (Relationship) Types
+
+| Type         | Meaning                                                   |
+| ------------ | --------------------------------------------------------- |
+| `:satisfies` | Component fulfills a requirement                          |
+| `:verifies`  | Test proves a requirement                                 |
+| `:refines`   | Child requirement elaborates a parent                     |
+| `:depends`   | Requirement needs another requirement first               |
+| `:contains`  | Parent requirement contains a child (structural grouping) |
+| `:derives`   | Requirement is derived from another                       |
+| `:traces`    | Generic traceability link                                 |
+
+```elixir
+alias Choreo.Requirement
+alias Choreo.Requirement.Analysis
+```
+
+```elixir
+legend =
+  Requirement.new("Node Type Legend")
+  |> Requirement.add_requirement(:req, id: "R0", text: "Example requirement", risk: :high)
+  |> Requirement.add_component(:svc, label: "Example Service")
+  |> Requirement.add_test(:suite, label: "Example Test Suite")
+  |> Requirement.add_stakeholder(:team, label: "Example Team")
+  |> Requirement.satisfies(:svc, :req)
+  |> Requirement.verifies(:suite, :req)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(Requirement.to_dot(legend)),
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(legend))
+)
+```
+
+---
+
+## Example 1: Authentication Feature — The Minimum Useful Model
+
+A product manager says "users must log in with MFA". Let's capture that requirement, the service that implements it, and the test that verifies it.
+
+```elixir
+auth_model =
+  Requirement.new("Auth v2")
+  |> Requirement.add_requirement(:mfa,
+    id: "REQ-001",
+    text: "Users must authenticate with MFA",
+    risk: :high,
+    verification: :test,
+    kind: :functional
+  )
+  |> Requirement.add_requirement(:session_timeout,
+    id: "REQ-002",
+    text: "Sessions expire after 30 minutes of inactivity",
+    risk: :medium,
+    verification: :test
+  )
+  |> Requirement.add_component(:auth_service, label: "Auth Service")
+  |> Requirement.add_component(:session_manager, label: "Session Manager")
+  |> Requirement.add_test(:mfa_integration_test, label: "MFA Integration Test")
+  |> Requirement.add_test(:session_expiry_test, label: "Session Expiry Test")
+  |> Requirement.add_stakeholder(:security_team, label: "Security Team")
+  # Who owns these requirements?
+  |> Requirement.traces(:security_team, :mfa)
+  |> Requirement.traces(:security_team, :session_timeout)
+  # What implements them?
+  |> Requirement.satisfies(:auth_service, :mfa)
+  |> Requirement.satisfies(:session_manager, :session_timeout)
+  # What verifies them?
+  |> Requirement.verifies(:mfa_integration_test, :mfa)
+  |> Requirement.verifies(:session_expiry_test, :session_timeout)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(auth_model)),
+  Graphviz: Kino.VizJS.render(Requirement.to_dot(auth_model)),
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(auth_model))
+)
+```
+
+Color coding in the DOT diagram:
+
+* **Amber boxes** — requirements, colored by risk level (green → yellow → orange → red)
+* **Blue rounded boxes** — components / services
+* **Green stadiums** — tests
+* **Purple circles** — stakeholders
+
+### Coverage Check
+
+Which requirements are fully covered (satisfied AND verified)?
+
+```elixir
+cov = Analysis.coverage(auth_model)
+
+IO.puts("Total requirements: #{cov.total}")
+IO.puts("Satisfied: #{inspect(cov.satisfied)}")
+IO.puts("Verified:  #{inspect(cov.verified)}")
+IO.puts("Orphaned:  #{inspect(cov.orphan)}")
+IO.puts("Satisfy ratio: #{Float.round(cov.ratios.satisfied * 100, 1)}%")
+IO.puts("Verify ratio:  #{Float.round(cov.ratios.verified * 100, 1)}%")
+```
+
+### Traceability Matrix
+
+Who implements what, and what tests cover which requirements?
+
+```elixir
+matrix = Analysis.traceability_matrix(auth_model)
+
+Enum.each(matrix, fn {req_id, links} ->
+  IO.puts("\n#{req_id}:")
+  IO.puts("  Components: #{inspect(Map.get(links, :components, []))}")
+  IO.puts("  Tests:      #{inspect(Map.get(links, :tests, []))}")
+end)
+```
+
+---
+
+## Example 2: Requirement Hierarchy — Breaking Down a Feature
+
+Large requirements need decomposition. Use `:refines` or `:contains` to build a hierarchy. Risk propagates automatically from parent to child.
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+checkout_model =
+  Requirement.new("Checkout v3")
+  # High-level business requirement
+  |> Requirement.add_requirement(:checkout,
+    id: "BIZ-001",
+    text: "Users can purchase items in a single checkout flow",
+    risk: :high,
+    kind: :functional
+  )
+  # Functional sub-requirements
+  |> Requirement.add_requirement(:cart_validation,
+    id: "REQ-010",
+    text: "Cart contents are validated before payment",
+    risk: :medium,
+    kind: :functional
+  )
+  |> Requirement.add_requirement(:payment_processing,
+    id: "REQ-011",
+    text: "Payment is processed via PCI-compliant gateway",
+    risk: :critical,
+    kind: :interface
+  )
+  |> Requirement.add_requirement(:order_confirmation,
+    id: "REQ-012",
+    text: "Customer receives a confirmation email within 60 seconds",
+    risk: :low,
+    kind: :performance
+  )
+  # Dependency: payment can only happen after validation
+  |> Requirement.add_requirement(:stock_reservation,
+    id: "REQ-013",
+    text: "Inventory is reserved for 15 minutes after add-to-cart",
+    risk: :high,
+    kind: :functional
+  )
+  # Structural relationships
+  |> Requirement.refines(:cart_validation, :checkout)
+  |> Requirement.refines(:payment_processing, :checkout)
+  |> Requirement.refines(:order_confirmation, :checkout)
+  |> Requirement.depends(:payment_processing, :cart_validation)
+  |> Requirement.depends(:payment_processing, :stock_reservation)
+  # Components
+  |> Requirement.add_component(:cart_service, label: "Cart Service")
+  |> Requirement.add_component(:payment_gateway, label: "Payment Gateway")
+  |> Requirement.add_component(:email_service, label: "Email Service")
+  |> Requirement.add_component(:inventory_service, label: "Inventory Service")
+  |> Requirement.satisfies(:cart_service, :cart_validation)
+  |> Requirement.satisfies(:payment_gateway, :payment_processing)
+  |> Requirement.satisfies(:email_service, :order_confirmation)
+  |> Requirement.satisfies(:inventory_service, :stock_reservation)
+  # Tests
+  |> Requirement.add_test(:cart_test, label: "Cart Validation Test")
+  |> Requirement.add_test(:payment_test, label: "Payment Integration Test")
+  |> Requirement.add_test(:email_test, label: "Email Delivery Test")
+  |> Requirement.verifies(:cart_test, :cart_validation)
+  |> Requirement.verifies(:payment_test, :payment_processing)
+  |> Requirement.verifies(:email_test, :order_confirmation)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(checkout_model), height: "900px"),
+  Graphviz: Kino.VizJS.render(Requirement.to_dot(checkout_model), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(checkout_model))
+)
+```
+
+### Risk Propagation
+
+When a parent requirement is high-risk, its children inherit that risk level. The propagation rules:
+
+* `:refines` — child inherits parent risk if parent risk is higher
+* `:contains` — contained child inherits container risk
+* `:derives` — derived requirement inherits source risk
+
+```elixir
+propagated = Analysis.risk_propagation(checkout_model)
+
+propagated
+|> Enum.sort_by(fn {_id, risk} -> risk end)
+|> Enum.each(fn {id, risk} ->
+  data = Requirement.node(checkout_model, id)
+  original = data[:risk]
+  flag = if original != risk, do: " ← propagated from parent", else: ""
+  IO.puts("#{id}: #{original} → #{risk}#{flag}")
+end)
+```
+
+### Unmitigated Risks
+
+High or critical risk requirements with no child refinements haven't been decomposed into manageable pieces. These are your architectural focus areas.
+
+```elixir
+Analysis.unmitigated_risks(checkout_model)
+|> IO.inspect(label: "Unmitigated high/critical risks")
+```
+
+### High-Risk Gaps
+
+Which high-risk requirements are neither satisfied by a component nor verified by a test?
+
+```elixir
+Analysis.high_risk_gaps(checkout_model)
+|> IO.inspect(label: "High-risk requirements with no implementation or test")
+```
+
+---
+
+## Example 3: Impact Analysis — What If We Change a Service?
+
+Before refactoring the payment gateway, you want to know everything it touches.
+
+```elixir
+Analysis.impact_of(checkout_model, :payment_gateway)
+|> IO.inspect(label: "Nodes affected by changing :payment_gateway")
+```
+
+And from the requirement side — which components and tests are linked to the payment requirement?
+
+```elixir
+Analysis.components_for(checkout_model, :payment_processing)
+|> IO.inspect(label: "Components satisfying REQ-011")
+
+Analysis.requirements_for(checkout_model, :payment_gateway)
+|> IO.inspect(label: "Requirements that :payment_gateway touches")
+```
+
+---
+
+## Example 4: Finding Coverage Gaps
+
+Let's model a system deliberately missing some test coverage and implementation to see the gap analysis tools in action.
+
+```elixir
+gappy_model =
+  Requirement.new("Gappy System")
+  |> Requirement.add_requirement(:r_auth,
+    id: "SEC-001",
+    text: "All API endpoints require authentication",
+    risk: :critical,
+    verification: :test
+  )
+  |> Requirement.add_requirement(:r_rate_limit,
+    id: "SEC-002",
+    text: "Rate limiting is enforced at the gateway",
+    risk: :high,
+    verification: :analysis
+  )
+  |> Requirement.add_requirement(:r_audit_log,
+    id: "SEC-003",
+    text: "All write operations are audit-logged",
+    risk: :high,
+    verification: :inspection
+  )
+  |> Requirement.add_requirement(:r_docs,
+    id: "SEC-004",
+    text: "API documentation is auto-generated from source",
+    risk: :low
+  )
+  # Only auth is implemented and tested
+  |> Requirement.add_component(:api_gateway, label: "API Gateway")
+  |> Requirement.add_component(:auth_middleware, label: "Auth Middleware")
+  |> Requirement.add_test(:auth_test, label: "Auth Middleware Test")
+  |> Requirement.satisfies(:auth_middleware, :r_auth)
+  |> Requirement.satisfies(:api_gateway, :r_rate_limit)
+  |> Requirement.verifies(:auth_test, :r_auth)
+  # r_audit_log and r_docs have no satisfies/verifies edges
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(gappy_model)),
+  Graphviz: Kino.VizJS.render(Requirement.to_dot(gappy_model)),
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(gappy_model))
+)
+```
+
+```elixir
+IO.puts("=== Unsatisfied (no component) ===")
+Analysis.unsatisfied(gappy_model)
+|> Enum.each(fn id ->
+  data = Requirement.node(gappy_model, id)
+  IO.puts("  #{data[:id]} — #{data[:text]}")
+end)
+
+IO.puts("\n=== Unverified (no test) ===")
+Analysis.unverified(gappy_model)
+|> Enum.each(fn id ->
+  data = Requirement.node(gappy_model, id)
+  IO.puts("  #{data[:id]} — #{data[:text]}")
+end)
+
+IO.puts("\n=== Orphan (no edges at all) ===")
+Analysis.orphan_requirements(gappy_model)
+|> Enum.each(fn id ->
+  data = Requirement.node(gappy_model, id)
+  IO.puts("  #{data[:id]} — #{data[:text]}")
+end)
+
+IO.puts("\n=== High-risk gaps ===")
+Analysis.high_risk_gaps(gappy_model)
+|> Enum.each(fn id ->
+  data = Requirement.node(gappy_model, id)
+  IO.puts("  ⚠️  #{data[:id]} [#{data[:risk]}] — #{data[:text]}")
+end)
+```
+
+---
+
+## Example 5: Detecting Circular Dependencies
+
+Circular requirement dependencies (`A depends on B depends on A`) are a design smell. Choreo detects them using a Tarjan SCC pass over the requirement-only subgraph.
+
+```elixir
+circular_model =
+  Requirement.new("Circular Example")
+  |> Requirement.add_requirement(:a, id: "A", text: "Requirement A", risk: :medium)
+  |> Requirement.add_requirement(:b, id: "B", text: "Requirement B", risk: :medium)
+  |> Requirement.add_requirement(:c, id: "C", text: "Requirement C", risk: :low)
+  # A depends on B, B depends on C, C depends back on A — a cycle
+  |> Requirement.depends(:a, :b)
+  |> Requirement.depends(:b, :c)
+  |> Requirement.depends(:c, :a)
+
+Analysis.circular_dependencies(circular_model)
+|> Enum.each(fn cycle ->
+  IO.puts("Cycle: #{Enum.join(cycle, " → ")}")
+end)
+```
+
+Now with a clean model — no cycles expected:
+
+```elixir
+Analysis.circular_dependencies(checkout_model)
+|> IO.inspect(label: "Cycles in checkout_model (expect [])")
+```
+
+---
+
+## Example 6: Validation as a Checklist
+
+`Analysis.validate/1` runs all structural checks in one call and returns structured diagnostics.
+
+```elixir
+incomplete =
+  Requirement.new("Incomplete Model")
+  # Missing :id and :text — these should error
+  |> Requirement.add_requirement(:bad_req,
+    id: "",
+    text: "",
+    risk: :high
+  )
+  # Component with no label
+  |> Requirement.add_component(:unlabelled)
+  # High-risk, unimplemented
+  |> Requirement.add_requirement(:critical_gap,
+    id: "GAP-001",
+    text: "This requirement has no component or test",
+    risk: :critical
+  )
+
+Analysis.validate_messages(incomplete)
+|> Enum.each(fn msg -> IO.puts("  #{msg}") end)
+```
+
+Fix the model and validate again:
+
+```elixir
+fixed =
+  Requirement.new("Fixed Model")
+  |> Requirement.add_requirement(:auth,
+    id: "REQ-001",
+    text: "Users must authenticate",
+    risk: :high,
+    verification: :test
+  )
+  |> Requirement.add_component(:auth_service, label: "Auth Service")
+  |> Requirement.add_test(:auth_test, label: "Auth Test")
+  |> Requirement.satisfies(:auth_service, :auth)
+  |> Requirement.verifies(:auth_test, :auth)
+
+IO.puts("Validation issues (expect none):")
+Analysis.validate(fixed) |> IO.inspect()
+```
+
+---
+
+## Example 7: Requirements Across Multiple Kinds
+
+Mermaid's `requirementDiagram` supports six requirement kinds. Here's all of them in one model.
+
+```elixir
+all_kinds =
+  Requirement.new("All Requirement Kinds")
+  |> Requirement.add_requirement(:func,
+    id: "F-001",
+    text: "System processes orders",
+    kind: :functional,
+    risk: :medium
+  )
+  |> Requirement.add_requirement(:iface,
+    id: "I-001",
+    text: "REST API follows OpenAPI 3.1 spec",
+    kind: :interface,
+    risk: :low
+  )
+  |> Requirement.add_requirement(:perf,
+    id: "P-001",
+    text: "p99 response time under 200ms",
+    kind: :performance,
+    risk: :high
+  )
+  |> Requirement.add_requirement(:phys,
+    id: "PH-001",
+    text: "Service runs on a single t3.small instance",
+    kind: :physical,
+    risk: :low
+  )
+  |> Requirement.add_requirement(:design,
+    id: "DC-001",
+    text: "All state is stored in Postgres; no in-memory state",
+    kind: :design_constraint,
+    risk: :medium
+  )
+  |> Requirement.add_requirement(:generic,
+    id: "G-001",
+    text: "System complies with GDPR",
+    kind: :requirement,
+    risk: :critical
+  )
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(all_kinds)),
+  Graphviz: Kino.VizJS.render(Requirement.to_dot(all_kinds)),
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(all_kinds))
+)
+```
+
+---
+
+## Advanced: Custom Theming
+
+The DOT renderer supports built-in themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`.
+
+```elixir
+Kino.Layout.tabs(
+  Default: Kino.VizJS.render(Requirement.to_dot(checkout_model, theme: :default)),
+  Dark: Kino.VizJS.render(Requirement.to_dot(checkout_model, theme: :dark)),
+  Warm: Kino.VizJS.render(Requirement.to_dot(checkout_model, theme: :warm)),
+  Forest: Kino.VizJS.render(Requirement.to_dot(checkout_model, theme: :forest)),
+  Ocean: Kino.VizJS.render(Requirement.to_dot(checkout_model, theme: :ocean))
+)
+```
+
+---
+
+## Advanced: Zoom Levels via Choreo.View
+
+`Choreo.Viewable` lets you filter down to subsets of the diagram at different zoom levels.
+
+| Level | Nodes shown                                        |
+| ----- | -------------------------------------------------- |
+| 0     | Top-level requirements only (no `:refines` parent) |
+| 1     | All requirements                                   |
+| 2     | Requirements + components + tests + stakeholders   |
+| 3+    | Everything                                         |
+
+```elixir
+# Build a rich model with hierarchy
+zoomy =
+  Requirement.new("Zoom Demo")
+  |> Requirement.add_requirement(:epic,
+    id: "E-001",
+    text: "User account management",
+    risk: :high
+  )
+  |> Requirement.add_requirement(:login,
+    id: "R-001",
+    text: "Users can log in",
+    risk: :medium
+  )
+  |> Requirement.add_requirement(:logout,
+    id: "R-002",
+    text: "Users can log out",
+    risk: :low
+  )
+  |> Requirement.add_component(:auth_svc, label: "Auth Service")
+  |> Requirement.add_test(:login_test, label: "Login Test")
+  |> Requirement.refines(:login, :epic)
+  |> Requirement.refines(:logout, :epic)
+  |> Requirement.satisfies(:auth_svc, :login)
+  |> Requirement.verifies(:login_test, :login)
+
+Kino.Layout.tabs(
+  "Zoom 0 (top-level reqs)":
+    Kino.VizJS.render(Choreo.View.zoom(zoomy, level: 0) |> Requirement.to_dot()),
+  "Zoom 1 (all reqs)":
+    Kino.VizJS.render(Choreo.View.zoom(zoomy, level: 1) |> Requirement.to_dot()),
+  "Zoom 2 (full)":
+    Kino.VizJS.render(Choreo.View.zoom(zoomy, level: 2) |> Requirement.to_dot())
+)
+```
+
+---
+
+## Summary
+
+| Question                                      | Function                                          |
+| --------------------------------------------- | ------------------------------------------------- |
+| "Which requirements have no implementation?"  | `Analysis.unsatisfied/1`                          |
+| "Which requirements have no test?"            | `Analysis.unverified/1`                           |
+| "Which requirements are completely isolated?" | `Analysis.orphan_requirements/1`                  |
+| "Show me the full coverage picture"           | `Analysis.coverage/1`                             |
+| "What does requirement X link to?"            | `Analysis.traceability_matrix/1`                  |
+| "Which components/tests relate to X?"         | `Analysis.components_for/1`, `requirements_for/1` |
+| "If I change component Y, what breaks?"       | `Analysis.impact_of/2`                            |
+| "Which high-risk reqs are unaddressed?"       | `Analysis.high_risk_gaps/1`                       |
+| "What risk do child requirements inherit?"    | `Analysis.risk_propagation/1`                     |
+| "Which high-risk reqs are undecomposed?"      | `Analysis.unmitigated_risks/1`                    |
+| "Are there circular dependencies?"            | `Analysis.circular_dependencies/1`                |
+| "Is the model structurally sound?"            | `Analysis.validate/1`, `validate_messages/1`      |
+| "Render to DOT (Graphviz)"                    | `Requirement.to_dot/2`                            |
+| "Render to Mermaid"                           | `Requirement.to_mermaid/2`                        |
+
+Requirements as code means your traceability matrix is always in sync with your codebase, reviewed in pull requests, and queryable at runtime. When a requirement changes, you can immediately see which components and tests are affected — before anyone ships to production.

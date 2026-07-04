@@ -1,0 +1,576 @@
+# CSV / JIRA / DOORS → Choreo.Requirement
+
+```elixir
+Mix.install([
+  {:choreo, path: Path.expand("../../", __DIR__)},
+  {:kino, "~> 0.14"},
+  {:kino_vizjs, "~> 0.9.0"},
+  {:nimble_csv, "~> 1.2"},
+  {:req, "~> 0.5"}
+])
+```
+
+## Introduction
+
+Most projects already have requirements living somewhere else — a spreadsheet, a JIRA backlog, or a DOORS module. This notebook shows how to **import** that data into `Choreo.Requirement`, enrich it with traceability edges, render it, and **export** it back out.
+
+Three adapters are included:
+
+1. **CSV** — a simple, opinionated CSV format that round-trips with `Choreo.Requirement`.
+2. **JIRA** — fetch issues via the JIRA REST API (or use the offline sample) and map them to requirements, components, and traces.
+3. **DOORS** — import a Rational DOORS-style module export CSV.
+
+## Setup
+
+```elixir
+alias Choreo.Requirement
+alias Choreo.Requirement.Analysis
+
+require Integer
+```
+
+## Adapter 1: CSV round-trip
+
+The CSV format uses one row per requirement. Column names are case-insensitive and most are optional.
+
+| Column         | Purpose                                                   |
+| -------------- | --------------------------------------------------------- |
+| `id`           | Human-readable requirement ID (required).                 |
+| `text`         | Requirement description (required).                       |
+| `risk`         | `low`, `medium`, `high`, or `critical` (default: medium). |
+| `verification` | `analysis`, `inspection`, `test`, or `demonstration`.     |
+| `kind`         | `requirement`, `functional`, `interface`, etc.            |
+| `component`    | A component that satisfies this requirement.              |
+| `test`         | A test that verifies this requirement.                    |
+| `stakeholder`  | A stakeholder traced to this requirement.                 |
+| `parent`       | Parent requirement ID; creates a `refines` edge.          |
+
+Paste your own CSV, or use the sample below.
+
+```elixir
+csv_input = Kino.Input.textarea("Requirements CSV",
+  default: """
+  id,text,risk,verification,kind,component,test,stakeholder,parent
+  REQ-001,Users must authenticate with MFA,high,test,requirement,auth_service,mfa_test,security,
+  REQ-002,Passwords must be hashed with a slow KDF,critical,analysis,requirement,auth_service,password_policy_test,security,REQ-001
+  REQ-003,Session tokens expire after 15 minutes,medium,inspection,requirement,session_manager,,operations,
+  REQ-004,Administrators can force a password reset,medium,test,requirement,admin_api,,security,
+  """
+)
+
+Kino.render(csv_input)
+```
+
+```elixir
+defmodule Requirements.CSV do
+  @moduledoc """
+  Adapter for a simple, opinionated requirements CSV format.
+  """
+
+  NimbleCSV.define(Requirements.CSV.Parser,
+    parser: NimbleCSV.RFC4180,
+    separator: ",",
+    escape: "\""
+  )
+
+  @doc """
+  Parses a CSV string into a `Choreo.Requirement` diagram.
+  """
+  @spec from_csv(String.t(), keyword()) :: Requirement.t()
+  def from_csv(csv_string, opts \\ []) do
+    separator = Keyword.get(opts, :separator, ",")
+    parser = parser_for_separator(separator)
+
+    [header | rows] = parser.parse_string(csv_string, skip_headers: false)
+    headers = Enum.map(header, &String.trim/1)
+
+    rows =
+      Enum.map(rows, fn row ->
+        Enum.zip(headers, Enum.map(row, &String.trim/1))
+      end)
+
+    {req, rows} = Enum.reduce(rows, {Requirement.new(name: opts[:name]), []}, &build_nodes/2)
+    Enum.reduce(rows, req, &build_edges/2)
+  end
+
+  @doc """
+  Exports a `Choreo.Requirement` diagram back to CSV.
+  """
+  @spec to_csv(Requirement.t()) :: String.t()
+  def to_csv(%Requirement{} = req) do
+    header = ["id", "text", "risk", "verification", "kind", "components", "tests", "stakeholders"]
+    matrix = Analysis.traceability_matrix(req)
+
+    rows =
+      Enum.map(Requirement.requirements(req), fn node_id ->
+        data = Requirement.node(req, node_id)
+        related = Map.get(matrix, node_id, %{})
+
+        [
+          data[:id],
+          data[:text],
+          to_string(data[:risk]),
+          to_string(data[:verification]),
+          to_string(data[:kind]),
+          Enum.map_join(related[:components] || [], ";", &to_string/1),
+          Enum.map_join(related[:tests] || [], ";", &to_string/1),
+          Enum.map_join(related[:stakeholders] || [], ";", &to_string/1)
+        ]
+      end)
+
+    Requirements.CSV.Parser.dump_to_iodata([header | rows])
+    |> IO.iodata_to_binary()
+  end
+
+  defp parser_for_separator(","), do: Requirements.CSV.Parser
+
+  defp parser_for_separator(sep) do
+    module = Module.concat(Requirements.CSV, "Parser_#{String.codepoints(sep) |> Enum.join("_")}")
+    NimbleCSV.define(module, parser: NimbleCSV.RFC4180, separator: sep, escape: "\"")
+    module
+  end
+
+  defp build_nodes(row, {req, acc}) do
+    req_id = column(row, "id") |> to_atom()
+
+    req =
+      Requirement.add_requirement(req, req_id,
+        id: column(row, "id"),
+        text: column(row, "text"),
+        risk: parse_risk(column(row, "risk")),
+        verification: parse_verification(column(row, "verification")),
+        kind: parse_kind(column(row, "kind"))
+      )
+
+    req = add_node_if_present(req, :add_component, row, "component")
+    req = add_node_if_present(req, :add_test, row, "test")
+    req = add_node_if_present(req, :add_stakeholder, row, "stakeholder")
+
+    {req, [row | acc]}
+  end
+
+  defp add_node_if_present(req, fun, row, col) do
+    case column(row, col) do
+      "" -> req
+      value -> apply(Requirement, fun, [req, to_atom(value), [label: value]])
+    end
+  end
+
+  defp build_edges(row, req) do
+    req_id = column(row, "id") |> to_atom()
+
+    req =
+      case column(row, "parent") do
+        "" -> req
+        parent -> Requirement.refines(req, req_id, to_atom(parent))
+      end
+
+    req =
+      case column(row, "component") do
+        "" -> req
+        component -> Requirement.satisfies(req, to_atom(component), req_id)
+      end
+
+    req =
+      case column(row, "test") do
+        "" -> req
+        test -> Requirement.verifies(req, to_atom(test), req_id)
+      end
+
+    req =
+      case column(row, "stakeholder") do
+        "" -> req
+        stakeholder -> Requirement.traces(req, to_atom(stakeholder), req_id)
+      end
+
+    req
+  end
+
+  defp column(row, name) do
+    case List.keyfind(row, name, 0) do
+      {_, value} -> value
+      nil -> ""
+    end
+  end
+
+  defp to_atom(""), do: :_
+  defp to_atom(string), do: String.to_atom(string)
+
+  defp parse_risk("low"), do: :low
+  defp parse_risk("medium"), do: :medium
+  defp parse_risk("high"), do: :high
+  defp parse_risk("critical"), do: :critical
+  defp parse_risk(_), do: :medium
+
+  defp parse_verification("analysis"), do: :analysis
+  defp parse_verification("inspection"), do: :inspection
+  defp parse_verification("test"), do: :test
+  defp parse_verification("demonstration"), do: :demonstration
+  defp parse_verification(_), do: :test
+
+  defp parse_kind("functional"), do: :functional
+  defp parse_kind("interface"), do: :interface
+  defp parse_kind("performance"), do: :performance
+  defp parse_kind("physical"), do: :physical
+  defp parse_kind("design_constraint"), do: :design_constraint
+  defp parse_kind(_), do: :requirement
+end
+```
+
+```elixir
+csv_req =
+  csv_input
+  |> Kino.Input.read()
+  |> Requirements.CSV.from_csv(name: "CSV Import")
+```
+
+```elixir
+Choreo.Lab.Siren.new(Choreo.to_mermaid(csv_req))
+```
+
+```elixir
+Kino.VizJS.render(Choreo.to_dot(csv_req))
+```
+
+````elixir
+text = Requirements.CSV.to_csv(csv_req)
+
+Kino.Markdown.new(~s"""
+  ```csv
+  #{text}
+  ```
+  """)
+````
+
+## Adapter 2: JIRA import
+
+JIRA issues map naturally to requirements. This adapter converts each issue into a requirement, maps JIRA priorities to Choreo risks, turns JIRA components into `Choreo.Requirement` components, and turns issue links into traceability edges.
+
+For a real import, fill in your JIRA base URL, token, and JQL query. For an offline demo, leave them blank and the sample JSON will be used.
+
+```elixir
+jira_base_input = Kino.Input.text("JIRA base URL", default: "")
+jira_token_input = Kino.Input.password("JIRA API token")
+jira_jql_input = Kino.Input.text("JQL query", default: "project = AUTH AND issuetype = Story")
+
+Kino.Layout.grid([jira_base_input, jira_token_input, jira_jql_input], columns: 2)
+```
+
+```elixir
+defmodule Requirements.JIRA do
+  @moduledoc """
+  Adapter for importing JIRA issues as `Choreo.Requirement` diagrams.
+  """
+
+  @priority_to_risk %{
+    "Highest" => :critical,
+    "High" => :high,
+    "Medium" => :medium,
+    "Low" => :low,
+    "Lowest" => :low
+  }
+
+  @doc """
+  Builds a `Choreo.Requirement` from a list of JIRA issue maps.
+  """
+  @spec from_issues(list(map()), keyword()) :: Requirement.t()
+  def from_issues(issues, opts \\ []) do
+    req = Requirement.new(name: opts[:name] || "JIRA Import")
+
+    req = Enum.reduce(issues, req, &add_issue_node/2)
+    Enum.reduce(issues, req, &add_issue_edges/2)
+  end
+
+  @doc """
+  Fetches issues from the JIRA REST API.
+  """
+  @spec fetch(String.t(), String.t(), String.t()) :: {:ok, list(map())} | {:error, any()}
+  def fetch(base_url, token, jql) do
+    url = "#{base_url}/rest/api/2/search"
+
+    headers = [
+      {"accept", "application/json"},
+      {"authorization", "Basic #{Base.encode64("#{token}")}"}
+    ]
+
+    case Req.get(url,
+           headers: headers,
+           params: [jql: jql, maxResults: 100, fields: "summary,priority,components,issuelinks"]
+         ) do
+      {:ok, %{status: 200, body: %{"issues" => issues}}} ->
+        {:ok, issues}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {status, body}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Offline sample data so the notebook works without a live JIRA instance.
+  """
+  @spec sample_issues() :: list(map())
+  def sample_issues do
+    [
+      %{
+        "key" => "AUTH-1",
+        "fields" => %{
+          "summary" => "Users must authenticate with MFA",
+          "priority" => %{"name" => "High"},
+          "components" => [%{"name" => "Auth Service"}],
+          "issuelinks" => []
+        }
+      },
+      %{
+        "key" => "AUTH-2",
+        "fields" => %{
+          "summary" => "Passwords must be hashed with a slow KDF",
+          "priority" => %{"name" => "Highest"},
+          "components" => [%{"name" => "Auth Service"}],
+          "issuelinks" => [
+            %{"outwardIssue" => %{"key" => "AUTH-1"}}
+          ]
+        }
+      },
+      %{
+        "key" => "AUTH-3",
+        "fields" => %{
+          "summary" => "Session tokens expire after 15 minutes",
+          "priority" => %{"name" => "Medium"},
+          "components" => [%{"name" => "Session Manager"}],
+          "issuelinks" => [
+            %{"outwardIssue" => %{"key" => "AUTH-1"}}
+          ]
+        }
+      }
+    ]
+  end
+
+  defp add_issue_node(issue, req) do
+    id = issue_id(issue)
+
+    Requirement.add_requirement(req, id,
+      id: issue["key"],
+      text: get_in(issue, ["fields", "summary"]) || "",
+      risk: Map.get(@priority_to_risk, get_in(issue, ["fields", "priority", "name"]), :medium),
+      verification: :test,
+      kind: :requirement
+    )
+  end
+
+  defp add_issue_edges(issue, req) do
+    id = issue_id(issue)
+
+    req =
+      issue
+      |> get_in(["fields", "components"])
+      |> Kernel.||([])
+      |> Enum.reduce(req, fn component, acc ->
+        component_id = to_atom(component["name"])
+        acc = Requirement.add_component(acc, component_id, label: component["name"])
+        Requirement.satisfies(acc, component_id, id)
+      end)
+
+    issue
+    |> get_in(["fields", "issuelinks"])
+    |> Kernel.||([])
+    |> Enum.reduce(req, fn link, acc ->
+      case link do
+        %{"outwardIssue" => %{"key" => key}} -> Requirement.traces(acc, id, to_atom(key))
+        %{"inwardIssue" => %{"key" => key}} -> Requirement.traces(acc, to_atom(key), id)
+        _ -> acc
+      end
+    end)
+  end
+
+  defp issue_id(issue), do: to_atom(issue["key"])
+  defp to_atom(string), do: String.to_atom(string)
+end
+```
+
+```elixir
+base_url = Kino.Input.read(jira_base_input) |> String.trim()
+token = Kino.Input.read(jira_token_input) |> String.trim()
+jql = Kino.Input.read(jira_jql_input) |> String.trim()
+
+jira_issues =
+  if base_url != "" and token != "" do
+    case Requirements.JIRA.fetch(base_url, token, jql) do
+      {:ok, issues} -> issues
+      {:error, reason} ->
+        IO.inspect(reason, label: "JIRA fetch failed, using sample data")
+        Requirements.JIRA.sample_issues()
+    end
+  else
+    Requirements.JIRA.sample_issues()
+  end
+
+jira_req = Requirements.JIRA.from_issues(jira_issues, name: "JIRA Import")
+```
+
+```elixir
+Choreo.Lab.Siren.new(Choreo.to_mermaid(jira_req))
+```
+
+```elixir
+Kino.VizJS.render(Choreo.to_dot(jira_req), height: "500px")
+```
+
+## Adapter 3: DOORS import
+
+DOORS modules are often exported as CSV. This adapter expects a minimal export with columns like `Absolute Number`, `Object Heading`, `Object Text`, `Object Short Name`, `Priority`, `Verification Method`, and `Link`.
+
+`Link` should contain the short name of the parent/source object. The adapter creates a `derives` edge from the child to the parent.
+
+```elixir
+doors_input = Kino.Input.textarea("DOORS module CSV",
+  default: """
+  Absolute Number,Object Heading,Object Text,Object Short Name,Priority,Verification Method,Link
+  1,Authentication,Users must authenticate with MFA,DOORS-AUTH-001,High,Test,
+  2,Multi-Factor,Multi-factor authentication is required,DOORS-AUTH-002,Critical,Analysis,DOORS-AUTH-001
+  3,Password Policy,Passwords must be hashed with a slow KDF,DOORS-AUTH-003,High,Inspection,
+  4,Session Timeout,Session tokens expire after 15 minutes,DOORS-AUTH-004,Medium,Test,DOORS-AUTH-001
+  """
+)
+
+Kino.render(doors_input)
+```
+
+```elixir
+defmodule Requirements.DOORS do
+  @moduledoc """
+  Adapter for importing Rational DOORS module CSV exports.
+  """
+
+  NimbleCSV.define(Requirements.DOORS.Parser,
+    parser: NimbleCSV.RFC4180,
+    separator: ",",
+    escape: "\""
+  )
+
+  @doc """
+  Parses a DOORS CSV string into a `Choreo.Requirement` diagram.
+  """
+  @spec from_csv(String.t(), keyword()) :: Requirement.t()
+  def from_csv(csv_string, opts \\ []) do
+    [header | rows] = Requirements.DOORS.Parser.parse_string(csv_string, skip_headers: false)
+    headers = Enum.map(header, &String.trim/1)
+
+    rows =
+      Enum.map(rows, fn row ->
+        Enum.zip(headers, Enum.map(row, &String.trim/1))
+      end)
+
+    {req, rows} = Enum.reduce(rows, {Requirement.new(name: opts[:name]), []}, &build_nodes/2)
+    Enum.reduce(rows, req, &build_edges/2)
+  end
+
+  defp build_nodes(row, {req, acc}) do
+    id = column(row, "Object Short Name") |> to_atom()
+
+    text =
+      [column(row, "Object Heading"), column(row, "Object Text")]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join(" — ")
+
+    req =
+      Requirement.add_requirement(req, id,
+        id: column(row, "Object Short Name"),
+        text: text,
+        risk: parse_risk(column(row, "Priority")),
+        verification: parse_verification(column(row, "Verification Method")),
+        kind: :requirement
+      )
+
+    {req, [row | acc]}
+  end
+
+  defp build_edges(row, req) do
+    id = column(row, "Object Short Name") |> to_atom()
+
+    case column(row, "Link") do
+      "" -> req
+      parent -> Requirement.derives(req, id, to_atom(parent))
+    end
+  end
+
+  defp column(row, name) do
+    case List.keyfind(row, name, 0) do
+      {_, value} -> value
+      nil -> ""
+    end
+  end
+
+  defp to_atom(""), do: :_
+  defp to_atom(string), do: String.to_atom(string)
+
+  defp parse_risk("low"), do: :low
+  defp parse_risk("medium"), do: :medium
+  defp parse_risk("high"), do: :high
+  defp parse_risk("critical"), do: :critical
+  defp parse_risk(_), do: :medium
+
+  defp parse_verification("analysis"), do: :analysis
+  defp parse_verification("inspection"), do: :inspection
+  defp parse_verification("test"), do: :test
+  defp parse_verification("demonstration"), do: :demonstration
+  defp parse_verification(_), do: :test
+end
+```
+
+```elixir
+doors_req =
+  doors_input
+  |> Kino.Input.read()
+  |> Requirements.DOORS.from_csv(name: "DOORS Import")
+```
+
+```elixir
+Choreo.Lab.Siren.new(Choreo.to_mermaid(doors_req))
+```
+
+```elixir
+Kino.VizJS.render(Choreo.to_dot(doors_req))
+```
+
+## Analysis
+
+Once you have a diagram, the analysis module can find coverage gaps, propagated risks, and orphans.
+
+```elixir
+req = csv_req
+```
+
+```elixir
+Analysis.coverage(req)
+```
+
+```elixir
+Analysis.high_risk_gaps(req)
+```
+
+```elixir
+Analysis.risk_propagation(req)
+```
+
+```elixir
+Analysis.orphan_requirements(req)
+```
+
+```elixir
+Analysis.validate_messages(req)
+```
+
+## Writing your own adapter
+
+A Choreo.Requirement adapter is just a function that turns external data into nodes and edges:
+
+1. Create a `Requirement` with `Requirement.new/1`.
+2. Add requirements with `Requirement.add_requirement/3`.
+3. Add components, tests, and stakeholders with `Requirement.add_component/3`, `Requirement.add_test/3`, and `Requirement.add_stakeholder/3`.
+4. Link them with `satisfies/3`, `verifies/3`, `refines/3`, `depends/3`, `traces/3`, `contains/3`, `derives/3`, or the generic `relate/4`.
+5. Return the `%Requirement{}` struct.
+
+You can then render it with `Choreo.to_mermaid/1` or `Choreo.to_dot/1`, run `Choreo.Requirement.Analysis` functions on it, and export it back to any format you like.
