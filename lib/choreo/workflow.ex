@@ -664,12 +664,13 @@ defmodule Choreo.Workflow do
   end
 
   @doc """
-  Renders the workflow to Mermaid.js flowchart syntax.
+  Renders the workflow to Mermaid.js syntax.
 
   ## Options
 
+    * `:syntax` — `:flowchart` (default) or `:swimlane` (Mermaid 11.16+ `swimlane-beta`)
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
-    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+    * `:direction` — `:td` (default for flowchart), `:lr` (default for swimlane), `:bt`, `:rl`
 
   ## Examples
 

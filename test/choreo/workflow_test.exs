@@ -285,6 +285,94 @@ defmodule Choreo.WorkflowTest do
     end
   end
 
+  describe "to_mermaid/2 swimlane syntax" do
+    test "renders swimlane-beta header" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:start)
+        |> Workflow.add_task(:process)
+        |> Workflow.connect(:start, :process)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert String.starts_with?(mermaid, "swimlane-beta LR")
+    end
+
+    test "respects swimlane direction option" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_start(:start)
+        |> Workflow.add_task(:process)
+        |> Workflow.connect(:start, :process)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane, direction: :tb)
+      assert String.starts_with?(mermaid, "swimlane-beta TB")
+    end
+
+    test "renders swimlanes as subgraphs" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_swimlane("backend", label: "Backend")
+        |> Workflow.add_task(:api, swimlane: "backend")
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert String.contains?(mermaid, "subgraph backend[\"Backend\"]")
+      assert String.contains?(mermaid, "api")
+    end
+
+    test "renders unclustered nodes in a default lane" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_task(:orphan)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert String.contains?(mermaid, "subgraph unassigned[\"Unassigned\"]")
+      assert String.contains?(mermaid, "orphan")
+    end
+
+    test "renders edges across lanes" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_swimlane("backend", label: "Backend")
+        |> Workflow.add_swimlane("frontend", label: "Frontend")
+        |> Workflow.add_task(:api, swimlane: "backend")
+        |> Workflow.add_task(:ui, swimlane: "frontend")
+        |> Workflow.connect(:api, :ui)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert String.contains?(mermaid, "api --> ui")
+    end
+
+    test "renders task as subroutine in swimlane" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_task(:process)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert String.contains?(mermaid, "[[\"process\"]]")
+    end
+
+    test "renders decision as rhombus in swimlane" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_decision(:check)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert String.contains?(mermaid, "{\"check\"}")
+    end
+
+    test "renders compensation edge as dashed in swimlane" do
+      workflow =
+        Workflow.new()
+        |> Workflow.add_task(:a)
+        |> Workflow.add_compensation(:c)
+        |> Workflow.connect(:a, :c, edge_type: :compensation)
+
+      mermaid = Workflow.to_mermaid(workflow, syntax: :swimlane)
+      assert mermaid =~ ~r/a -\.->.+compensate.+c/
+      assert String.contains?(mermaid, "linkStyle")
+    end
+  end
+
   describe "strict options validation" do
     test "add_task/3 raises on unknown options" do
       assert_raise NimbleOptions.ValidationError, fn ->

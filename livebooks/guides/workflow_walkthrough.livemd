@@ -260,6 +260,8 @@ Now we see `charge_card` and `fraud_check` at the same level — they can run si
 
 Swimlanes group nodes by team or service. Here we model a deployment pipeline with Dev, QA, and Platform teams.
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 cicd =
   Workflow.new()
@@ -321,7 +323,7 @@ cicd =
   |> Workflow.connect(:run_smoke_tests, :live)
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(cicd)),
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(cicd, syntax: :swimlane), height: "900px"),
   Graphviz: Kino.VizJS.render(Workflow.to_dot(cicd), height: "900px"),
   Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(cicd))
 )
@@ -444,7 +446,7 @@ broken =
   # rollback has no incoming edge
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(broken)),
+  Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(broken, syntax: :swimlane)),
   Graphviz: Kino.VizJS.render(Workflow.to_dot(broken), height: "900px"),
   Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(broken))
 )

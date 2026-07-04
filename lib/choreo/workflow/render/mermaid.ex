@@ -31,15 +31,21 @@ defmodule Choreo.Workflow.Render.Mermaid do
   alias Choreo.Theme
 
   @doc """
-  Renders a workflow to a Mermaid flowchart string.
+  Renders a workflow to a Mermaid.js string.
+
+  ## Syntax
+
+    * `:flowchart` (default) — classic `graph TD` flowchart, including swimlanes as subgraphs.
+    * `:swimlane` — native Mermaid 11.16+ `swimlane-beta` output.
 
   ## Options
 
+    * `:syntax` — `:flowchart` (default) or `:swimlane`
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
-    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+    * `:direction` — `:td` (default for flowchart), `:lr` (default for swimlane), `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
-    * Any other option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
+    * Any other option accepted by `Yog.Multi.Mermaid.to_mermaid/2` (flowchart syntax only)
 
   ## Examples
 
@@ -58,6 +64,13 @@ defmodule Choreo.Workflow.Render.Mermaid do
   """
   @spec to_mermaid(Choreo.Workflow.t(), keyword()) :: String.t()
   def to_mermaid(%Choreo.Workflow{} = workflow, opts \\ []) do
+    case Keyword.get(opts, :syntax, :flowchart) do
+      :swimlane -> to_swimlane(workflow, opts)
+      _ -> to_flowchart(workflow, opts)
+    end
+  end
+
+  defp to_flowchart(%Choreo.Workflow{} = workflow, opts) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
     direction = Keyword.get(opts, :direction, :td)
 
@@ -433,5 +446,187 @@ defmodule Choreo.Workflow.Render.Mermaid do
     meta = Map.get(workflow.edge_meta, edge_id, %{})
 
     if label = meta[:label], do: to_string(label), else: ""
+  end
+
+  # ============================================================================
+  # Swimlane (swimlane-beta) rendering
+  # ============================================================================
+
+  defp to_swimlane(%Choreo.Workflow{} = workflow, opts) do
+    theme = resolve_theme(Keyword.get(opts, :theme, :default))
+    direction = Keyword.get(opts, :direction, :lr)
+
+    hl_nodes = MapSet.new(Keyword.get(opts, :highlighted_nodes, []) || [])
+    hl_edges = MapSet.new(Keyword.get(opts, :highlighted_edges, []) || [])
+
+    id_map = build_id_map(workflow)
+    lanes = build_lanes(workflow, id_map)
+    node_attr_fn = node_attributes_fn(theme, hl_nodes)
+    edge_attr_fn = edge_attributes_fn(workflow, hl_edges)
+
+    lane_lines = Enum.flat_map(lanes, &render_lane(&1, workflow, id_map, node_attr_fn))
+    {edge_lines, link_styles} = render_edges(workflow, id_map, edge_attr_fn)
+
+    (["swimlane-beta #{direction_to_string(direction)}"] ++
+       lane_lines ++ edge_lines ++ link_styles)
+    |> Enum.join("\n")
+    |> Kernel.<>("\n")
+  end
+
+  defp direction_to_string(:td), do: "TD"
+  defp direction_to_string(:tb), do: "TB"
+  defp direction_to_string(:lr), do: "LR"
+  defp direction_to_string(:rl), do: "RL"
+  defp direction_to_string(:bt), do: "BT"
+  defp direction_to_string(_), do: "LR"
+
+  defp build_id_map(workflow) do
+    workflow.graph.nodes
+    |> Map.keys()
+    |> Map.new(fn id -> {id, sanitize_mermaid_id(id)} end)
+  end
+
+  defp sanitize_mermaid_id(id) do
+    id
+    |> to_string()
+    |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
+    |> then(fn s ->
+      if s =~ ~r/^[0-9]/, do: "_" <> s, else: s
+    end)
+  end
+
+  defp build_lanes(workflow, id_map) do
+    subgraphs = Choreo.Internal.build_mermaid_subgraphs(workflow)
+    clustered_ids = Enum.flat_map(subgraphs, & &1.node_ids) |> MapSet.new()
+
+    all_node_ids = Map.keys(workflow.graph.nodes)
+    unclustered = Enum.reject(all_node_ids, &MapSet.member?(clustered_ids, &1))
+
+    subgraphs =
+      Enum.map(subgraphs, fn lane ->
+        %{
+          id: sanitize_mermaid_id(lane.name),
+          label: lane.label,
+          node_ids: Enum.map(lane.node_ids, &Map.fetch!(id_map, &1))
+        }
+      end)
+
+    if unclustered == [] do
+      subgraphs
+    else
+      unassigned_lane = %{
+        id: "unassigned",
+        label: "Unassigned",
+        node_ids: Enum.map(unclustered, &Map.fetch!(id_map, &1))
+      }
+
+      List.insert_at(subgraphs, -1, unassigned_lane)
+    end
+  end
+
+  defp render_lane(lane, workflow, id_map, node_attr_fn) do
+    nodes_rendered =
+      Enum.flat_map(lane.node_ids, fn safe_id ->
+        original_id =
+          Enum.find_value(id_map, fn {orig, safe} ->
+            if safe == safe_id, do: orig
+          end)
+
+        render_node(safe_id, original_id, workflow, node_attr_fn)
+      end)
+
+    [
+      "subgraph #{lane.id}[\"#{escape_swimlane_label(lane.label)}\"]"
+      | List.insert_at(nodes_rendered, -1, "end")
+    ]
+  end
+
+  defp render_node(safe_id, original_id, workflow, node_attr_fn) do
+    data = Map.fetch!(workflow.graph.nodes, original_id)
+    shape = node_shape_fn(original_id, data)
+    label = node_label(original_id, data)
+    brackets = Yog.Render.Mermaid.node_shape_brackets(shape, label)
+
+    attrs = node_attr_fn.(original_id, data)
+    style = style_from_attrs(attrs)
+
+    node_line = "  #{safe_id}#{brackets}"
+
+    if style == "" do
+      [node_line]
+    else
+      [node_line, "  style #{safe_id} #{style}"]
+    end
+  end
+
+  defp style_from_attrs(attrs) do
+    attrs
+    |> Enum.map(fn
+      {:fill, color} -> "fill:#{color}"
+      {:stroke, color} -> "stroke:#{color}"
+      {:stroke_width, width} -> "stroke-width:#{width}"
+      {:stroke_dasharray, dash} -> "stroke-dasharray:#{dash}"
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(",")
+  end
+
+  defp escape_swimlane_label(label) do
+    label
+    |> to_string()
+    |> String.replace("\"", "\\\"")
+  end
+
+  defp render_edges(workflow, id_map, edge_attr_fn) do
+    edges =
+      workflow.graph.edges
+      |> Enum.sort_by(fn {edge_id, _} -> edge_id end)
+
+    edge_lines =
+      Enum.map(edges, fn {edge_id, {from, to, _weight}} ->
+        from_safe = Map.fetch!(id_map, from)
+        to_safe = Map.fetch!(id_map, to)
+        meta = Map.get(workflow.edge_meta, edge_id, %{})
+        arrow = arrow_for(meta[:edge_type])
+        label = edge_label(workflow, edge_id)
+
+        if label == "" do
+          "  #{from_safe} #{arrow} #{to_safe}"
+        else
+          "  #{from_safe} #{arrow}|\"#{escape_swimlane_label(label)}\"| #{to_safe}"
+        end
+      end)
+
+    link_styles =
+      edges
+      |> Enum.with_index()
+      |> Enum.map(fn {{edge_id, {from, to, weight}}, index} ->
+        attrs = edge_attr_fn.(from, to, edge_id, weight)
+        css = css_from_attrs(attrs)
+        if css == "", do: nil, else: "  linkStyle #{index} #{css}"
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    {edge_lines, link_styles}
+  end
+
+  defp arrow_for(:sequence), do: "-->"
+  defp arrow_for(:retry), do: "-.->"
+  defp arrow_for(:compensation), do: "-.->"
+  defp arrow_for(:failure), do: "-.->"
+  defp arrow_for(:timeout), do: "-.->"
+  defp arrow_for(_), do: "-->"
+
+  defp css_from_attrs(attrs) do
+    attrs
+    |> Enum.map(fn
+      {:stroke, color} -> "stroke:#{color}"
+      {:stroke_width, width} -> "stroke-width:#{width}"
+      {:stroke_dasharray, dash} -> "stroke-dasharray:#{dash}"
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(",")
   end
 end

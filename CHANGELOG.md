@@ -4,7 +4,24 @@
 
 ### Added
 
+- **Requirements traceability diagrams with `Choreo.Requirement`**:
+  - Added `Choreo.Requirement` builder for requirements, components, tests, and stakeholders with `satisfies`, `verifies`, `refines`, `depends`, `traces`, `contains`, `derives`, and custom `relate` relationships.
+  - Added Graphviz DOT and Mermaid `requirementDiagram` renderers with risk-based coloring and relationship styling.
+  - Added `Choreo.Requirement.Analysis` for coverage, orphan detection, risk propagation, high-risk gaps, impact analysis, circular dependency detection, and validation.
+  - Added `livebooks/integrations/requirements_exchange.livemd` — import requirements from CSV, JIRA, and DOORS-style exports, render them, and export back to CSV.
+
+- **Native Mermaid `swimlane-beta` syntax support for `Choreo.Workflow`**:
+  - Added `:syntax` option to `Choreo.Workflow.to_mermaid/2`; accepts `:flowchart` (default) or `:swimlane` (Mermaid 11.16+ `swimlane-beta`).
+  - Maps defined swimlanes to subgraphs and renders tasks, decisions, starts/ends, and styled sequence or compensation edges.
+
+### Fixed
+
+- Fixed Mermaid `requirementDiagram` renderer so multi-line requirement and element blocks are joined with newlines instead of being collapsed onto a single line.
+
+- Fixed Mermaid `requirementDiagram` rendering syntax error by mapping the `:depends` relationship type (not natively supported by Mermaid's parser) to `traces`.
+
 - **Mermaid `architecture-beta` syntax support for `Choreo` and `Choreo.Infrastructure`**:
+
   - Added `Choreo.Render.Architecture` to render system and infrastructure diagrams using Mermaid's native `architecture-beta` diagram type.
   - Added `:syntax` option to `Choreo.to_mermaid/2` and `Choreo.Infrastructure.to_mermaid/2`; accepts `:flowchart` (default) or `:architecture`.
   - Maps Choreo node types to architecture icons (`:internet` → `internet`, `:database`/`:managed_db`/`:cache` → `database`, `:storage` → `disk`, `:network` → `cloud`, others → `server`).

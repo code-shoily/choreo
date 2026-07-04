@@ -8,4 +8,5 @@ This directory contains notebooks that bridge Choreo with other Elixir libraries
 - [`mix_xref_explorer.livemd`](./mix_xref_explorer.livemd) — analyze internal Elixir project dependencies using `mix xref` and generate visual Choreo.Dependency graphs, compile-time cycle detection, instability metrics, and change impact tracking.
 - [`ecto_schema_erd.livemd`](./ecto_schema_erd.livemd) — introspect the Ecto schemas of any Phoenix/Elixir project and render them as an interactive Choreo.ERD diagram with orphan detection, circular FK detection, and join-path analysis.
 - [`phoenix_liveview_explorer.livemd`](./phoenix_liveview_explorer.livemd) — discover Phoenix LiveView modules in a project and render their callback sequence and state machine.
+- [`requirements_exchange.livemd`](./requirements_exchange.livemd) — import requirements from CSV, JIRA, and Rational DOORS-style exports into `Choreo.Requirement`, render them, and export back to CSV.
 - [`yogex_algorithm_selector.livemd`](./yogex_algorithm_selector.livemd) — build an interactive decision tree for picking the right YogEx algorithm for pathfinding, flow, matching, centrality, community detection, and more.
