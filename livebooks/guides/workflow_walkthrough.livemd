@@ -260,6 +260,13 @@ Now we see `charge_card` and `fraud_check` at the same level — they can run si
 
 Swimlanes group nodes by team or service. Here we model a deployment pipeline with Dev, QA, and Platform teams.
 
+### Rendering Options: Flowchart vs. Swimlane
+
+Choreo supports two distinct ways to render swimlanes to Mermaid:
+
+1. **Flowchart Syntax (`syntax: :flowchart`, default):** Renders swimlanes as nested subgraphs (`subgraph Name ... end`) within a standard Mermaid flowchart. Useful for maximum compatibility with older Mermaid versions.
+2. **Swimlane Syntax (`syntax: :swimlane`):** Renders using the native Mermaid 11.16+ `swimlane-beta` layout. This produces a dedicated swimlane chart structure where processes are organized cleanly in parallel lanes, highlighting handoffs and responsibility boundaries.
+
 <!-- livebook:{"output_size":"full"} -->
 
 ```elixir
