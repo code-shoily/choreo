@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Mermaid `architecture-beta` syntax support for `Choreo` and `Choreo.Infrastructure`**:
+  - Added `Choreo.Render.Architecture` to render system and infrastructure diagrams using Mermaid's native `architecture-beta` diagram type.
+  - Added `:syntax` option to `Choreo.to_mermaid/2` and `Choreo.Infrastructure.to_mermaid/2`; accepts `:flowchart` (default) or `:architecture`.
+  - Maps Choreo node types to architecture icons (`:internet` → `internet`, `:database`/`:managed_db`/`:cache` → `database`, `:storage` → `disk`, `:network` → `cloud`, others → `server`).
+  - Renders Choreo clusters as nested `group` declarations and edges as port-aware connections.
+  - Sanitizes node IDs and labels to the character set supported by Mermaid's `architecture-beta` parser.
+
 ## [0.10.0] - 2026-07-04
 
 ### Added
