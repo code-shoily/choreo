@@ -326,6 +326,8 @@ defmodule Choreo.Infrastructure do
 
   ## Options
 
+    * `:syntax` — `:flowchart` (default) or `:architecture` (native
+      `architecture-beta` diagram type)
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:rl`, `:bt`
     * `:highlighted_nodes` — list of node IDs to highlight

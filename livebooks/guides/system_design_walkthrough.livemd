@@ -184,6 +184,7 @@ multi_region =
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(multi_region, direction: :lr)),
+  Architecture: Choreo.Lab.Siren.new(Choreo.to_mermaid(multi_region, direction: :lr, syntax: :architecture)),
   Graphviz: Kino.VizJS.render(Choreo.to_dot(multi_region,
         theme: Choreo.theme(:default, graph_rankdir: :lr)
       ),
@@ -293,16 +294,12 @@ resilience =
   |> Choreo.connect(:orders, :redis)
   |> Choreo.connect(:orders, :kafka)
 
+resilience_mermaid = Choreo.to_mermaid(resilience, direction: :lr)
+
 Kino.Layout.tabs(
-  Mermaid:
-    resilience
-    |> Choreo.to_mermaid(direction: :lr)
-    |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-),
-  Graphviz: Kino.VizJS.render(Choreo.to_dot(resilience), height: "500px", engine: "circo")
+  Siren: Choreo.Lab.Siren.new(resilience_mermaid),
+  Graphviz: Kino.VizJS.render(resilience |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new(resilience_mermaid)
 )
 ```
 
@@ -354,17 +351,12 @@ pipeline =
   |> Choreo.add_dataflow(:index, :warehouse)
   |> Choreo.add_dataflow(:warehouse, :serve)
 
+
+
 Kino.Layout.tabs(
-  Mermaid:
-    pipeline
-    |> Choreo.to_mermaid(direction: :lr)
-    |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-),
-  Graphviz:
-    Kino.VizJS.render(Choreo.to_dot(pipeline, theme: Choreo.theme(:default, graph_rankdir: :lr)))
+  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(pipeline, direction: :lr)),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(pipeline)),
+  Sketch: Choreo.Lab.Sketch.new(Choreo.to_mermaid(pipeline, direction: :lr))
 )
 ```
 
@@ -460,7 +452,7 @@ IO.puts("After fixing:")
 Analysis.validate(fixed) |> IO.inspect()
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(fixed)),
+  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(fixed, syntax: :architecture)),
   Graphviz: Kino.VizJS.render(Choreo.to_dot(fixed)),
   Sketch: Choreo.Lab.Sketch.new(Choreo.to_mermaid(fixed))
 )
@@ -618,26 +610,24 @@ zoom_system =
 
 # Zoom out to Level 0 (Services only)
 service_view = View.zoom(zoom_system, level: 0)
+service_view_mermaid = Choreo.to_mermaid(service_view)
 
 level_0 =
-  service_view
-  |> Choreo.to_mermaid(theme: :ocean)
-  |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-)
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(service_view_mermaid),
+    Graphviz: Kino.VizJS.render(Choreo.to_dot(service_view)),
+    Sketch: Choreo.Lab.Sketch.new(service_view_mermaid)
+  )
 
 data_view = View.zoom(zoom_system, level: 1)
+data_view_mermaid = Choreo.to_mermaid(data_view)
 
 level_1 =
-  data_view
-  |> Choreo.to_mermaid(theme: :ocean, direction: :lr)
-  |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-)
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(data_view_mermaid),
+    Graphviz: Kino.VizJS.render(Choreo.to_dot(data_view)),
+    Sketch: Choreo.Lab.Sketch.new(data_view_mermaid)
+  )
 
 Kino.Layout.tabs(
   "Level 0 - Service": level_0,

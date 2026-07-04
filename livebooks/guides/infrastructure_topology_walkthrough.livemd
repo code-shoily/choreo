@@ -215,6 +215,7 @@ demo =
 
 Kino.Layout.tabs(
   Default: Kino.Mermaid.new(Infrastructure.to_mermaid(demo)),
+  Architecture: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, syntax: :architecture)),
   Warm: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, theme: :warm)),
   Ocean: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, theme: :ocean)),
   Forest: Kino.Mermaid.new(Infrastructure.to_mermaid(demo, theme: :forest))
@@ -297,6 +298,7 @@ multi_region =
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(multi_region)),
+  Architecture: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(multi_region, syntax: :architecture)),
   Graphviz: Kino.VizJS.render(Infrastructure.to_dot(multi_region)),
   Sketch: Choreo.Lab.Sketch.new(Infrastructure.to_mermaid(multi_region))
 )
@@ -369,26 +371,26 @@ full =
 Focus: show API and its immediate 1-hop neighbourhood
 
 ```elixir
-full
-|> View.focus(:api, radius: 1)
-|> Infrastructure.to_mermaid()
-|> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
+focused = full |> View.focus(:api, radius: 1)
+focused_mermaid = focused |> Infrastructure.to_mermaid()
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(focused_mermaid),
+  Graphviz: Kino.VizJS.render( focused |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new(focused_mermaid)
 )
 ```
 
 Filter: show only compute nodes (and edges between them)
 
 ```elixir
-full
-|> View.filter(fn _id, data -> data[:node_type] == :compute end)
-|> Infrastructure.to_mermaid()
-|> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
+compute = View.filter(full, fn _, data -> data[:node_type] == :compute end)
+compute_mermaid = Infrastructure.to_mermaid(compute)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(compute_mermaid),
+  Graphviz: Kino.VizJS.render( compute |> Choreo.to_dot()),
+  Sketch: Choreo.Lab.Sketch.new(compute_mermaid)
 )
 ```
 

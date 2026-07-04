@@ -2,9 +2,9 @@ defmodule Choreo.Render.Mermaid do
   @moduledoc """
   Mermaid.js rendering for `Choreo` architecture diagrams.
 
-  This module translates a `Choreo` struct into Mermaid flowchart syntax,
-  suitable for embedding in Markdown, GitHub, GitLab, Notion, and other
-  platforms that support Mermaid natively.
+  This module translates a `Choreo` struct into Mermaid syntax. The default
+  output is a flowchart, but the native `architecture-beta` diagram type is
+  also supported via the `:syntax` option.
 
   ## Node shapes
 
@@ -52,15 +52,20 @@ defmodule Choreo.Render.Mermaid do
   alias Choreo.Theme
 
   @doc """
-  Renders a `Choreo` struct to a Mermaid flowchart string.
+  Renders a `Choreo` struct to a Mermaid string.
 
   ## Options
 
+    * `:syntax` - `:flowchart` (default) or `:architecture` (native
+      `architecture-beta` diagram type)
     * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`
-      or a `Choreo.Theme` struct
-    * `:direction` - `:td` (default), `:lr`, `:bt`, `:rl`
-    * `:highlighted_nodes` - list of node IDs to highlight
-    * `:highlighted_edges` - list of edge IDs or `{from, to}` tuples to highlight
+      or a `Choreo.Theme` struct (only applies to `:flowchart`)
+    * `:direction` - `:td` (default), `:lr`, `:bt`, `:rl` (only applies to
+      `:flowchart`)
+    * `:highlighted_nodes` - list of node IDs to highlight (only applies to
+      `:flowchart`)
+    * `:highlighted_edges` - list of edge IDs or `{from, to}` tuples to
+      highlight (only applies to `:flowchart`)
     * Any other option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
 
   ## Examples
@@ -74,6 +79,16 @@ defmodule Choreo.Render.Mermaid do
   """
   @spec to_mermaid(Choreo.t(), keyword()) :: String.t()
   def to_mermaid(system, opts \\ []) do
+    case Keyword.get(opts, :syntax, :flowchart) do
+      :architecture ->
+        Choreo.Render.Architecture.to_mermaid(system, opts)
+
+      :flowchart ->
+        to_flowchart(system, opts)
+    end
+  end
+
+  defp to_flowchart(system, opts) do
     theme = resolve_theme(Keyword.get(opts, :theme, :default))
     direction = Keyword.get(opts, :direction, theme_direction(theme))
     show_traces = Keyword.get(opts, :show_traces, false)

@@ -1042,10 +1042,12 @@ defmodule Choreo do
   end
 
   @doc """
-  Renders the system diagram to Mermaid.js flowchart syntax.
+  Renders the system diagram to Mermaid.js syntax.
 
   ## Options
 
+    * `:syntax` - `:flowchart` (default) or `:architecture` (native
+      `architecture-beta` diagram type)
     * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, or `:ocean`
     * `:direction` - `:td`, `:lr`, `:bt`, or `:rl`
     * Any option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
@@ -1055,6 +1057,13 @@ defmodule Choreo do
       iex> system = Choreo.new() |> Choreo.add_service(:api)
       iex> mermaid = Choreo.to_mermaid(system)
       iex> String.contains?(mermaid, "graph TD")
+      true
+      iex> String.contains?(mermaid, "api")
+      true
+
+      iex> system = Choreo.new() |> Choreo.add_service(:api)
+      iex> mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+      iex> String.contains?(mermaid, "architecture-beta")
       true
       iex> String.contains?(mermaid, "api")
       true

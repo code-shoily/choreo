@@ -132,6 +132,25 @@ defmodule Choreo.InfrastructureTest do
     assert dot =~ "color=\"#333333\""
   end
 
+  test "Mermaid rendering with syntax: :architecture" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_vpc("vpc_a")
+      |> Infrastructure.add_subnet_public("pub", parent: "vpc_a")
+      |> Infrastructure.add_load_balancer(:alb, cluster: "pub")
+      |> Infrastructure.add_compute(:web, cluster: "pub")
+      |> Infrastructure.connect(:alb, :web)
+
+    mermaid = Infrastructure.to_mermaid(infra, syntax: :architecture)
+
+    assert mermaid =~ "architecture-beta"
+    assert mermaid =~ "group vpc_a(cloud)[vpc_a]"
+    assert mermaid =~ "group pub(cloud)[pub] in vpc_a"
+    assert mermaid =~ "service alb(server)[alb] in pub"
+    assert mermaid =~ "service web(server)[web] in pub"
+    assert mermaid =~ "alb:R --> L:web"
+  end
+
   test "Mermaid rendering with public and private subnets" do
     infra =
       Infrastructure.new()

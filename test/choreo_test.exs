@@ -395,6 +395,108 @@ defmodule ChoreoTest do
   end
 
   describe "mermaid rendering" do
+    test "to_mermaid/2 with syntax: :architecture produces architecture-beta output" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:api, label: "API")
+        |> Choreo.add_database(:db, label: "Postgres")
+        |> Choreo.connect(:api, :db)
+
+      mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+
+      assert mermaid =~ "architecture-beta"
+      assert mermaid =~ "service api(server)[API]"
+      assert mermaid =~ "service db(database)[Postgres]"
+      assert mermaid =~ "api:R --> L:db"
+    end
+
+    test "to_mermaid/2 with syntax: :architecture maps node types to icons" do
+      system =
+        Choreo.new()
+        |> Choreo.add_internet(:gw)
+        |> Choreo.add_database(:db)
+        |> Choreo.add_cache(:cache)
+        |> Choreo.add_storage(:s3)
+        |> Choreo.add_network(:net)
+        |> Choreo.add_service(:api)
+        |> Choreo.add_compute(:app)
+        |> Choreo.add_load_balancer(:lb)
+        |> Choreo.add_queue(:q)
+        |> Choreo.add_user(:user)
+        |> Choreo.add_node(:misc)
+
+      mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+
+      assert mermaid =~ "service gw(internet)[gw]"
+      assert mermaid =~ "service db(database)[db]"
+      assert mermaid =~ "service cache(database)[cache]"
+      assert mermaid =~ "service s3(disk)[s3]"
+      assert mermaid =~ "service net(cloud)[net]"
+      assert mermaid =~ "service api(server)[api]"
+      assert mermaid =~ "service app(server)[app]"
+      assert mermaid =~ "service lb(server)[lb]"
+      assert mermaid =~ "service q(server)[q]"
+      assert mermaid =~ "service user(server)[user]"
+      assert mermaid =~ "service misc(server)[misc]"
+    end
+
+    test "to_mermaid/2 with syntax: :architecture renders clusters as groups" do
+      system =
+        Choreo.new()
+        |> Choreo.add_cluster("vpc", label: "VPC")
+        |> Choreo.add_service(:api, cluster: "vpc")
+
+      mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+
+      assert mermaid =~ "group vpc(cloud)[VPC]"
+      assert mermaid =~ "service api(server)[api] in vpc"
+    end
+
+    test "to_mermaid/2 with syntax: :architecture renders nested clusters" do
+      system =
+        Choreo.new()
+        |> Choreo.add_cluster("vpc", label: "VPC")
+        |> Choreo.add_cluster("subnet", label: "Subnet", parent: "vpc")
+        |> Choreo.add_service(:api, cluster: "subnet")
+
+      mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+
+      assert mermaid =~ "group vpc(cloud)[VPC]"
+      assert mermaid =~ "group subnet(cloud)[Subnet] in vpc"
+      assert mermaid =~ "service api(server)[api] in subnet"
+    end
+
+    test "to_mermaid/2 with syntax: :architecture uses plain lines for undirected graphs" do
+      system =
+        Choreo.new(directed: false)
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.connect(:a, :b)
+
+      mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+
+      assert mermaid =~ "a:R -- L:b"
+      refute mermaid =~ "a:R --> L:b"
+    end
+
+    test "to_mermaid/2 with syntax: :architecture sanitizes node ids and labels" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service("my service")
+        |> Choreo.add_database("my.db")
+        |> Choreo.add_cache(:cache, label: "cache / queue")
+        |> Choreo.connect("my service", "my.db")
+
+      mermaid = Choreo.to_mermaid(system, syntax: :architecture)
+
+      # IDs are sanitized to valid Mermaid identifiers.
+      assert mermaid =~ "service my_service(server)[my service]"
+      assert mermaid =~ "service my_db(database)[mydb]"
+      # Labels keep spaces but drop/replace unsafe punctuation.
+      assert mermaid =~ "service cache(database)[cache queue]"
+      assert mermaid =~ "my_service:R --> L:my_db"
+    end
+
     test "to_mermaid/1 produces a Mermaid string" do
       system =
         Choreo.new()
