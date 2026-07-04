@@ -1,7 +1,7 @@
 defmodule Choreo.MixProject do
   use Mix.Project
 
-  @version "0.9.0"
+  @version "0.10.0"
   @source_url "https://github.com/code-shoily/choreo"
 
   def project do
@@ -65,7 +65,7 @@ defmodule Choreo.MixProject do
   defp package do
     [
       name: "choreo",
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE guides livebooks),
+      files: ~w(lib .formatter.exs mix.exs README.md CHANGELOG.md LICENSE guides livebooks),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url

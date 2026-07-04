@@ -48,7 +48,7 @@ Add `choreo` to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:choreo, "~> 0.9"}
+    {:choreo, "~> 0.10"}
   ]
 end
 ```
