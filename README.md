@@ -86,18 +86,17 @@ Choreo supports 13 different artifact modeling vocabularies. They are categorize
 
 The `livebooks/` directory contains interactive walkthroughs and integration examples that you can run directly in [Livebook](https://livebook.dev/):
 
-- **`livebooks/guides/`** — step-by-step introductions to each Choreo module and diagram type.
-- **`livebooks/integrations/`** — notebooks that bridge Choreo with third-party tools and data sources:
-  - [Finitomata](livebooks/integrations/choreo_finitomata.livemd) — design FSMs in Choreo, run them with Finitomata, and analyze them back in Choreo.
-  - [GitHub Issues](livebooks/integrations/github_issues_explorer.livemd) — turn a public repo's issues into a Planner and Mind Map.
-  - [Hex Dependencies](livebooks/integrations/hex_dependency_explorer.livemd) — crawl any Hex package's dependency tree.
-  - [Mix Xref](livebooks/integrations/mix_xref_explorer.livemd) — visualize and analyze internal Elixir project dependencies.
-  - [Ecto Schema ERD](livebooks/integrations/ecto_schema_erd.livemd) — introspect Ecto schemas and render them as an interactive ERD.
-  - [Phoenix LiveView Explorer](livebooks/integrations/phoenix_liveview_explorer.livemd) — discover LiveView modules and render their callback sequence and state machine.
-- **`livebooks/extending_choreo/`** — tutorials that walk through adding new diagram types, analysis vocabularies, and protocol implementations to Choreo:
-  - [Git Graph](livebooks/extending_choreo/git_graph.livemd) — extend Choreo with a Mermaid `gitGraph` renderer, from builder to real `git log` adapter.
-  - [Call Graph Analysis](livebooks/extending_choreo/call_graph_analysis.livemd) — extend Choreo with an analysis-first call graph: dead functions, cycles, hotspots, and impact analysis.
-  - [FSM Viewable](livebooks/extending_choreo/fsm_viewable.livemd) — add `Choreo.Viewable` support to `Choreo.FSM` so it can be zoomed, focused, and filtered.
+- **[`livebooks/guides/`](https://github.com/code-shoily/choreo/tree/main/livebooks/guides)** — step-by-step introductions to each Choreo module and diagram type.
+- **[`livebooks/integrations/`](https://github.com/code-shoily/choreo/tree/main/livebooks/integrations)** — notebooks that bridge Choreo with third-party tools and data sources:
+  - [Finitomata](https://github.com/code-shoily/choreo/blob/main/livebooks/integrations/choreo_finitomata.livemd) — design FSMs in Choreo, run them with Finitomata, and analyze them back in Choreo.
+  - [GitHub Issues](https://github.com/code-shoily/choreo/blob/main/livebooks/integrations/github_issues_explorer.livemd) — turn a public repo's issues into a Planner and Mind Map.
+  - [Hex Dependencies](https://github.com/code-shoily/choreo/blob/main/livebooks/integrations/hex_dependency_explorer.livemd) — crawl any Hex package's dependency tree.
+  - [Mix Xref](https://github.com/code-shoily/choreo/blob/main/livebooks/integrations/mix_xref_explorer.livemd) — visualize and analyze internal Elixir project dependencies.
+  - [Ecto Schema ERD](https://github.com/code-shoily/choreo/blob/main/livebooks/integrations/ecto_schema_erd.livemd) — introspect Ecto schemas and render them as an interactive ERD.
+- **[`livebooks/extending_choreo/`](https://github.com/code-shoily/choreo/tree/main/livebooks/extending_choreo)** — tutorials that walk through adding new diagram types, analysis vocabularies, and protocol implementations to Choreo:
+  - [Git Graph](https://github.com/code-shoily/choreo/blob/main/livebooks/extending_choreo/git_graph.livemd) — extend Choreo with a Mermaid `gitGraph` renderer, from builder to real `git log` adapter.
+  - [Call Graph Analysis](https://github.com/code-shoily/choreo/blob/main/livebooks/extending_choreo/call_graph_analysis.livemd) — extend Choreo with an analysis-first call graph: dead functions, cycles, hotspots, and impact analysis.
+  - [FSM Viewable](https://github.com/code-shoily/choreo/blob/main/livebooks/extending_choreo/fsm_viewable.livemd) — add `Choreo.Viewable` support to `Choreo.FSM` so it can be zoomed, focused, and filtered.
 
 ---
 

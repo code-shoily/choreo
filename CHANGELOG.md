@@ -54,7 +54,7 @@
 ### Removed
 
 - **Choreo.FSM**:
-  - Removed `Choreo.FSM.initial_states/1`. Use `Choreo.FSM.initial_state/1` instead.
+  - Removed the former `initial_states/1` helper. Use `Choreo.FSM.initial_state/1` instead.
 
 - **Choreo.FSM.Analysis**:
   - Removed `Analysis.deterministic?/1` and `Analysis.nondeterministic_states/1` since `Choreo.FSM` enforces DFA determinism strictly at build-time.
@@ -85,7 +85,7 @@
   - Added interactive walkthrough notebook (`livebooks/guides/domain_modeling_walkthrough.livemd`).
 
 - **Cross-Diagram Semantic Tracing & Impact Analysis**:
-  - Implemented `Choreo.trace/5` for declaring semantic connections (traces) between nodes across different diagram schemas (e.g. Workflow task -> C4 component -> ERD table).
+  - Implemented trace helpers for declaring semantic connections between nodes across different diagram schemas (e.g. Workflow task -> C4 component -> ERD table).
   - Implemented `Choreo.Analysis.Tracing` with `impact_analysis/2` (transitively walks dependency graphs backwards to find all impacted components) and `trace_path/3` (computes cross-diagram execution paths).
   - Added `:show_traces` option to `Choreo.to_dot/2` and `Choreo.to_mermaid/2` to render trace links as styled red dashed arrows with layout constraint bypass (`constraint=false` in Graphviz).
 
@@ -267,7 +267,7 @@
 
 - **Breaking:** `Choreo.FSM` state typing moved from node `state_type` field to `meta` MapSets (`initial_states` and `final_states`). `add_state/3` with `type: :initial` or `type: :final` now populates these sets directly.
 - `Choreo.FSM.add_state/3` with `type: :normal` now explicitly clears a state from both `initial_states` and `final_states` in meta. Omitting the `:type` option (e.g. updating a label) preserves existing status.
-- `Choreo.FSM.Analysis.deterministic?/1` now enforces a **single initial state** in addition to unique outgoing transition labels, aligning with classical DFA definition.
+- The FSM determinism analysis now enforces a **single initial state** in addition to unique outgoing transition labels, aligning with classical DFA definition.
 
 ### Fixed
 

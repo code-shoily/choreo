@@ -74,18 +74,16 @@ defmodule Choreo.MixProject do
   end
 
   defp docs do
-    livebooks = Path.wildcard("livebooks/**/*.livemd") |> Enum.sort()
-
     [
       main: "readme",
-      extras:
-        [
-          "README.md",
-          "guides/architecture_and_design.md",
-          "guides/behavior_and_flows.md",
-          "guides/data_and_structure.md",
-          "CHANGELOG.md"
-        ] ++ livebooks,
+      extras: [
+        "README.md",
+        "guides/architecture_and_design.md",
+        "guides/behavior_and_flows.md",
+        "guides/data_and_structure.md",
+        "guides/livebooks.md",
+        "CHANGELOG.md"
+      ],
       source_ref: "v#{@version}",
       source_url: @source_url,
       before_closing_body_tag: &before_closing_body_tag/1,
@@ -184,11 +182,9 @@ defmodule Choreo.MixProject do
           "README.md",
           "guides/architecture_and_design.md",
           "guides/behavior_and_flows.md",
-          "guides/data_and_structure.md"
+          "guides/data_and_structure.md",
+          "guides/livebooks.md"
         ],
-        "Walkthrough Guides": ["livebooks/guides/*"],
-        Integrations: ["livebooks/integrations/*"],
-        Projects: ["livebooks/projects/*"],
         Resources: [
           "CHANGELOG.md"
         ]

@@ -5,8 +5,8 @@ defmodule Choreo.Infrastructure do
   `Choreo.Infrastructure` is a **domain-specific vocabulary layer** that adds cloud-network
   concepts — VPCs, subnets, compute, load balancers, managed databases, storage — on top of
   the same graph, cluster, and rendering stack used by `Choreo`. It is *not* a parallel
-  implementation: it shares `Choreo.Theme`, `Choreo.Internal`, and the `Yog` rendering pipeline
-  directly.
+  implementation: it shares `Choreo.Theme` and the internal rendering helpers behind the `Yog`
+  rendering pipeline directly.
 
   The key additions over plain `Choreo` are:
 
