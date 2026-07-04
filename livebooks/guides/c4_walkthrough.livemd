@@ -273,21 +273,21 @@ Sometimes you only want to show a specific node and its immediate neighborhood r
 hops = fn i -> Choreo.View.focus(model, :db, radius: i) end
 
 Kino.Layout.tabs(
-  "1-Hop": hops.(1) |> C4.to_mermaid() |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-),
-  "2-Hop": hops.(2) |> C4.to_mermaid() |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-),
-  "3-Hop": hops.(3) |> C4.to_mermaid() |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-)
+  "1-Hop": Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(1))),
+    Graphviz: Kino.VizJS.render(C4.to_dot(hops.(1))),
+    Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(hops.(1)))
+  ),
+  "2-Hop": Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(2))),
+    Graphviz: Kino.VizJS.render(C4.to_dot(hops.(2))),
+    Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(hops.(2)))
+  ),
+  "3-Hop": Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(3))),
+    Graphviz: Kino.VizJS.render(C4.to_dot(hops.(3))),
+    Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(hops.(3)))
+  )
 )
 
 ```

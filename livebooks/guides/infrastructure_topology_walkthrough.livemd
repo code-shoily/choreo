@@ -376,7 +376,7 @@ focused_mermaid = focused |> Infrastructure.to_mermaid()
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(focused_mermaid),
-  Graphviz: Kino.VizJS.render( focused |> Choreo.to_dot()),
+  Graphviz: Kino.VizJS.render(focused |> Choreo.to_dot()),
   Sketch: Choreo.Lab.Sketch.new(focused_mermaid)
 )
 ```
@@ -389,7 +389,7 @@ compute_mermaid = Infrastructure.to_mermaid(compute)
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(compute_mermaid),
-  Graphviz: Kino.VizJS.render( compute |> Choreo.to_dot()),
+  Graphviz: Kino.VizJS.render(compute |> Choreo.to_dot()),
   Sketch: Choreo.Lab.Sketch.new(compute_mermaid)
 )
 ```

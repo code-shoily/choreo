@@ -359,21 +359,21 @@ alias Choreo.View
 zoom_by = fn i -> View.zoom(talk, level: i) end
 
 Kino.Layout.tabs(
-  "Mermaid (Level 1)": zoom_by.(1) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-),
-  "Mermaid (Level 2)": zoom_by.(2) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-),
-  "Mermaid (Level 3)": zoom_by.(3) |> MindMap.to_mermaid(syntax: :mindmap) |> Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(),
-  Graphviz: Kino.VizJS.render( |> Choreo.to_dot()),
-  Sketch: Choreo.Lab.Sketch.new()
-)
+  "Level 1": Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(1), syntax: :mindmap)),
+    Graphviz: Kino.VizJS.render(MindMap.to_dot(zoom_by.(1))),
+    Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(zoom_by.(1), syntax: :mindmap))
+  ),
+  "Level 2": Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(2), syntax: :mindmap)),
+    Graphviz: Kino.VizJS.render(MindMap.to_dot(zoom_by.(2))),
+    Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(zoom_by.(2), syntax: :mindmap))
+  ),
+  "Level 3": Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(3), syntax: :mindmap)),
+    Graphviz: Kino.VizJS.render(MindMap.to_dot(zoom_by.(3))),
+    Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(zoom_by.(3), syntax: :mindmap))
+  )
 )
 ```
 
