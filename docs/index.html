@@ -1,837 +1,1060 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Choreo — Domain-Specific Diagrams and Code-Driven Graph Analysis in Elixir</title>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            Choreo — Domain-Specific Diagrams and Code-Driven Graph Analysis in
+            Elixir
+        </title>
 
-  <!-- SEO Meta Tags -->
-  <meta name="description" content="Choreo is an Elixir library for building domain-specific diagrams (C4, FSM, ERD, Sequence, Workflow, Threat Model) and performing semantic graph analysis on top of Yog.">
-  <meta name="keywords" content="Elixir, Mermaid, Graphviz, C4 model, Event Storming, DDD, threat modeling, state machines, sequence diagrams, visual modeling">
-  <meta name="author" content="Choreo team">
+        <!-- SEO Meta Tags -->
+        <meta
+            name="description"
+            content="Choreo is an Elixir library for building domain-specific diagrams (C4, FSM, ERD, Sequence, Workflow, Threat Model) and performing semantic graph analysis on top of Yog."
+        />
+        <meta
+            name="keywords"
+            content="Elixir, Mermaid, Graphviz, C4 model, Event Storming, DDD, threat modeling, state machines, sequence diagrams, visual modeling"
+        />
+        <meta name="author" content="Choreo team" />
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
 
-  <!-- Prism.js Syntax Highlighting -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+        <!-- Prism.js Syntax Highlighting -->
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+            rel="stylesheet"
+        />
 
-  <!-- Mermaid JS CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+        <!-- Mermaid JS CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 
-  <style>
-    /* ─────────────────────────────────────────────────────────
+        <style>
+            /* ─────────────────────────────────────────────────────────
        BLUEPRINT THEME — Technical Drawing / Architect's Draft
        ───────────────────────────────────────────────────────── */
-    :root {
-      --bg:            #0c1a2e;
-      --surface:       #0f2035;
-      --surface-2:     #162840;
-      --surface-paper: #ffffff;
-      --border:        rgba(56, 189, 248, 0.18);
-      --border-bright: rgba(56, 189, 248, 0.5);
-      --text:          #cce4f7;
-      --text-2:        #7eadc9;
-      --text-3:        #3d6b8e;
-      --primary:       #38bdf8;
-      --primary-dk:    #0ea5e9;
-      --primary-lt:    rgba(56, 189, 248, 0.08);
-      --accent-amber:  #fbbf24;
-      --code-bg:       #060e1c;
-      --grid-line:     rgba(56, 189, 248, 0.045);
-      --font-sans:     'Inter', sans-serif;
-      --font-display:  'Outfit', sans-serif;
-      --font-mono:     'JetBrains Mono', monospace;
-      --radius:        0.25rem;
-      --radius-lg:     0.375rem;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-sans);
-      line-height: 1.6;
-      overflow-x: hidden;
-      scroll-behavior: smooth;
-    }
-
-    /* Blueprint grid overlay */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    /* Major grid lines every 5 cells */
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(56, 189, 248, 0.08) 1px, transparent 1px);
-      background-size: 240px 240px;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    /* ── Layout ───────────────────────────────── */
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 1.5rem;
-      position: relative;
-      z-index: 1;
-    }
-
-    /* ── Header ───────────────────────────────── */
-    header {
-      background: rgba(12, 26, 46, 0.92);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 0;
-      position: sticky;
-      top: 0;
-      z-index: 50;
-    }
-
-    header .container { padding-top: 0; padding-bottom: 0; }
-
-    .nav-container { display: flex; justify-content: space-between; align-items: center; }
-
-    .logo-group { display: flex; align-items: center; gap: 0.65rem; }
-
-    .logo-icon {
-      background: var(--primary);
-      width: 2rem;
-      height: 2rem;
-      border-radius: var(--radius);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--font-display);
-      font-weight: 800;
-      color: #0c1a2e;
-      font-size: 1.1rem;
-    }
-
-    .logo-text {
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: 1.35rem;
-      color: var(--text);
-      letter-spacing: -0.02em;
-    }
-
-    .nav-links { display: flex; gap: 1.25rem; align-items: center; }
-
-    .nav-toggle {
-      display: none;
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--primary);
-      padding: 0.35rem 0.6rem;
-      border-radius: var(--radius);
-      cursor: pointer;
-      font-size: 1.1rem;
-    }
-
-    .nav-link {
-      color: var(--text-2);
-      text-decoration: none;
-      font-size: 0.875rem;
-      font-weight: 500;
-      transition: color 0.15s;
-    }
-    .nav-link:hover { color: var(--primary); }
-
-    .btn-github {
-      background: var(--primary-lt);
-      border: 1px solid var(--border);
-      color: var(--primary);
-      padding: 0.4rem 0.85rem;
-      border-radius: var(--radius);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.825rem;
-      font-weight: 500;
-      text-decoration: none;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .btn-github:hover { background: rgba(56,189,248,0.15); border-color: var(--border-bright); }
-
-    /* ── Hero ─────────────────────────────────── */
-    .hero {
-      padding: 5rem 0 3.5rem;
-      text-align: center;
-      border-bottom: 1px solid var(--border);
-      position: relative;
-    }
-
-    /* Blueprint title block — top-right corner annotation */
-    .hero::after {
-      content: 'CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.9.0  ·  ELIXIR / BEAM';
-      white-space: pre;
-      position: absolute;
-      top: 1.5rem;
-      right: 1.5rem;
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: var(--text-3);
-      text-align: right;
-      line-height: 1.8;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      background: rgba(56, 189, 248, 0.08);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      color: var(--primary);
-      padding: 0.3rem 0.75rem;
-      border-radius: 0;
-      font-size: 0.72rem;
-      font-weight: 600;
-      font-family: var(--font-mono);
-      margin-bottom: 1.75rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .hero-title {
-      font-family: var(--font-display);
-      font-size: 3.25rem;
-      font-weight: 800;
-      line-height: 1.15;
-      letter-spacing: -0.03em;
-      margin-bottom: 1.25rem;
-      color: var(--text);
-    }
-
-    .hero-title span { color: var(--primary); }
-
-    .hero-subtitle {
-      max-width: 680px;
-      margin: 0 auto 2.25rem;
-      font-size: 1.05rem;
-      color: var(--text-2);
-    }
-
-    .hero-actions {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      margin-bottom: 3.5rem;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: #0c1a2e;
-      padding: 0.65rem 1.5rem;
-      border-radius: var(--radius);
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 0.875rem;
-      font-family: var(--font-mono);
-      letter-spacing: 0.03em;
-      border: 1px solid var(--primary);
-      transition: background 0.15s, box-shadow 0.15s;
-    }
-    .btn-primary:hover {
-      background: var(--primary-dk);
-      box-shadow: 0 0 20px rgba(56,189,248,0.25);
-    }
-
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid var(--border-bright);
-      color: var(--primary);
-      padding: 0.65rem 1.5rem;
-      border-radius: var(--radius);
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 0.875rem;
-      font-family: var(--font-mono);
-      letter-spacing: 0.03em;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .btn-secondary:hover {
-      background: var(--primary-lt);
-      border-color: var(--primary);
-    }
-
-    /* ── Teaser ───────────────────────────────── */
-    .teaser-wrapper {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      position: relative;
-    }
-
-    /* Blueprint corner marks */
-    .teaser-wrapper::before,
-    .teaser-wrapper::after {
-      content: '';
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border-color: var(--border-bright);
-      border-style: solid;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .teaser-wrapper::before {
-      top: -1px; left: -1px;
-      border-width: 2px 0 0 2px;
-    }
-    .teaser-wrapper::after {
-      bottom: -1px; right: -1px;
-      border-width: 0 2px 2px 0;
-    }
-
-    .teaser-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.75rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface-2);
-    }
-
-    .teaser-tag {
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--primary);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-    .teaser-tag::before {
-      content: '';
-      width: 5px; height: 5px;
-      border-radius: 50%;
-      background: var(--primary);
-      box-shadow: 0 0 6px var(--primary);
-    }
-
-    .teaser-title {
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: var(--text-3);
-      letter-spacing: 0.06em;
-    }
-
-    .teaser-content {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-    }
-
-    .teaser-code { border-right: 1px solid var(--border); }
-
-    pre[class*="language-"] {
-      background: var(--code-bg) !important;
-      border: none !important;
-      border-radius: 0 !important;
-      margin: 0 !important;
-      padding: 1.5rem !important;
-      font-size: 0.82rem !important;
-      height: 100%;
-    }
-    code[class*="language-"] { font-family: var(--font-mono) !important; }
-
-    /* Diagram panels: white "paper" on the dark blueprint */
-    .teaser-diagram {
-      background: var(--surface-paper);
-      padding: 1.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 280px;
-    }
-
-    /* ── Section Layout ───────────────────────── */
-    .section {
-      padding: 5rem 0;
-      border-bottom: 1px solid var(--border);
-      position: relative;
-    }
-    .section:last-of-type { border-bottom: none; }
-
-    .section-header { text-align: center; margin-bottom: 3rem; }
-
-    .section-label {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      margin-bottom: 0.75rem;
-    }
-
-    .section-title {
-      font-family: var(--font-display);
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.75rem;
-      color: var(--text);
-    }
-
-    .section-subtitle {
-      color: var(--text-2);
-      max-width: 560px;
-      margin: 0 auto;
-      font-size: 0.95rem;
-    }
-
-    /* ── Showcase Tabs ────────────────────────── */
-    .showcase-tabs {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.25rem;
-      margin-bottom: 2rem;
-      padding: 0.35rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      max-width: 900px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-2);
-      padding: 0.4rem 0.85rem;
-      border-radius: var(--radius);
-      font-family: var(--font-mono);
-      font-size: 0.78rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-      white-space: nowrap;
-      letter-spacing: 0.02em;
-    }
-    .tab-btn:hover { color: var(--primary); background: var(--primary-lt); }
-    .tab-btn.active { color: #0c1a2e; background: var(--primary); }
-
-    .showcase-content { display: none; }
-    .showcase-content.active {
-      display: block;
-      animation: fadeIn 0.25s ease forwards;
-    }
-
-    /* Showcase panel */
-    .showcase-panel {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      position: relative;
-    }
-
-    /* Corner marks on panels */
-    .showcase-panel::before,
-    .showcase-panel::after {
-      content: '';
-      position: absolute;
-      width: 10px; height: 10px;
-      border-color: rgba(56, 189, 248, 0.4);
-      border-style: solid;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .showcase-panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-    .showcase-panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-
-    .showcase-panel-header {
-      background: var(--surface-2);
-      border-bottom: 1px solid var(--border);
-      padding: 0.55rem 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .dot { width: 9px; height: 9px; border-radius: 50%; }
-    .dot-red   { background: #ef4444; }
-    .dot-amber { background: #f59e0b; }
-    .dot-green { background: #22c55e; }
-
-    .panel-filename {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      color: var(--text-3);
-      margin-left: 0.35rem;
-      letter-spacing: 0.04em;
-    }
-
-    .showcase-code-block {
-      height: 340px;
-      overflow-y: auto;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .showcase-code-block pre[class*="language-"] {
-      height: 100%;
-      margin: 0 !important;
-      padding: 1.25rem !important;
-    }
-
-    /* White "paper" panel for rendered diagrams */
-    .showcase-diagram-block {
-      height: 460px;
-      background: var(--surface-paper);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: auto;
-      position: relative;
-    }
-
-    /* Blueprint label on diagram panels */
-    .showcase-diagram-block::after {
-      content: 'RENDERED OUTPUT';
-      position: absolute;
-      bottom: 0.6rem;
-      right: 0.75rem;
-      font-family: var(--font-mono);
-      font-size: 0.58rem;
-      letter-spacing: 0.1em;
-      color: #cbd5e1;
-      text-transform: uppercase;
-      pointer-events: none;
-    }
-
-    .showcase-diagram-block svg {
-      max-width: 100%;
-      max-height: 440px;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── Analysis Table ───────────────────────── */
-    .analysis-wrapper {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      overflow-x: auto;
-    }
-
-    .analysis-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.875rem;
-    }
-
-    .analysis-table th,
-    .analysis-table td {
-      padding: 0.9rem 1.1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .analysis-table thead th {
-      background: var(--surface-2);
-      font-family: var(--font-mono);
-      font-weight: 600;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--primary);
-      border-bottom: 1px solid var(--border-bright);
-    }
-
-    .analysis-table tbody tr:last-child td { border-bottom: none; }
-    .analysis-table tbody tr:hover { background: var(--primary-lt); }
-    .analysis-table tbody td { color: var(--text-2); }
-    .analysis-table tbody td:first-child { color: var(--text); }
-    .analysis-table tbody td:nth-child(2) {
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      color: var(--text-3);
-    }
-
-    .artifact-chip {
-      display: inline-block;
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      background: rgba(56, 189, 248, 0.08);
-      color: var(--primary);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      padding: 0.15rem 0.5rem;
-      border-radius: 0;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-    }
-
-    /* ── 13-type Grid ─────────────────────────── */
-    .grid-types {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-    }
-
-    .card-type {
-      background: var(--surface);
-      padding: 1.5rem;
-      text-decoration: none;
-      color: inherit;
-      display: block;
-      transition: background 0.15s;
-      position: relative;
-    }
-    .card-type:hover { background: var(--surface-2); }
-    .card-type:hover .card-title { color: var(--primary); }
-
-    .card-category {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-3);
-      margin-bottom: 0.4rem;
-    }
-
-    .card-title {
-      font-family: var(--font-display);
-      font-size: 1.05rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-      color: var(--text);
-      transition: color 0.15s;
-    }
-
-    .card-description {
-      font-size: 0.82rem;
-      color: var(--text-2);
-      margin-bottom: 1rem;
-      line-height: 1.55;
-    }
-
-    .card-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-
-    .card-tag {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      color: var(--text-3);
-      padding: 0.1rem 0.4rem;
-      border: 1px solid var(--border);
-      background: transparent;
-    }
-
-    /* ── Install Section ──────────────────────── */
-    .install-box {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      padding: 1.5rem 1.75rem;
-      margin-top: 1.5rem;
-      gap: 1rem;
-      position: relative;
-    }
-
-    .install-code {
-      overflow-x: auto;
-      max-width: 100%;
-    }
-
-    /* Blueprint corner marks on install box */
-    .install-box::before,
-    .install-box::after {
-      content: '';
-      position: absolute;
-      width: 10px; height: 10px;
-      border-color: rgba(56, 189, 248, 0.4);
-      border-style: solid;
-    }
-    .install-box::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-    .install-box::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-
-    .install-code {
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
-      color: var(--text);
-      white-space: pre;
-    }
-
-    .btn-copy {
-      background: var(--primary-lt);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      color: var(--primary);
-      padding: 0.45rem 0.9rem;
-      border-radius: var(--radius);
-      font-size: 0.75rem;
-      cursor: pointer;
-      font-family: var(--font-mono);
-      font-weight: 500;
-      white-space: nowrap;
-      letter-spacing: 0.04em;
-      transition: background 0.15s, border-color 0.15s;
-    }
-    .btn-copy:hover {
-      background: rgba(56,189,248,0.15);
-      border-color: var(--border-bright);
-    }
-
-    /* ── Footer ───────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 2rem 0;
-      text-align: center;
-      color: var(--text-3);
-      font-size: 0.8rem;
-      font-family: var(--font-mono);
-      letter-spacing: 0.04em;
-    }
-
-    /* Feature grids (embed, filter, zoom, tracing) */
-    .feature-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-      align-items: start;
-    }
-    .feature-grid--asymmetric {
-      grid-template-columns: 1.15fr 0.85fr;
-    }
-
-    /* ── Responsive ───────────────────────────── */
-    @media (max-width: 860px) {
-      .teaser-content { grid-template-columns: 1fr; }
-      .teaser-code { border-right: none; border-bottom: 1px solid var(--border); }
-      .hero-title { font-size: 2.25rem; }
-      .hero::after { display: none; }
-
-      .nav-container { position: relative; }
-      .nav-toggle { display: block; }
-      .nav-links {
-        display: none;
-        position: absolute;
-        top: calc(100% + 0.75rem);
-        right: 0;
-        flex-direction: column;
-        align-items: flex-start;
-        background: rgba(12, 26, 46, 0.98);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        padding: 0.75rem 1rem;
-        min-width: 180px;
-        gap: 0.5rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-      }
-      .nav-links.open { display: flex; }
-      .nav-link { padding: 0.4rem 0; width: 100%; }
-      .btn-github { width: 100%; justify-content: center; margin-top: 0.25rem; }
-
-      .feature-grid,
-      .feature-grid--asymmetric { grid-template-columns: 1fr; }
-
-      .install-box { flex-direction: column; align-items: stretch; }
-      .install-code { white-space: pre-wrap; word-break: break-word; }
-
-      .showcase-code-block { height: 260px !important; }
-      .showcase-diagram-block { height: 320px !important; }
-
-      .section { padding: 3rem 0; }
-      .section-title { font-size: 1.6rem; }
-    }
-
-    @media (max-width: 480px) {
-      .hero-title { font-size: 1.75rem; }
-      .hero-subtitle { font-size: 0.95rem; }
-      .container { padding: 0 1rem; }
-      .showcase-tabs { gap: 0.35rem; padding: 0.25rem; }
-      .tab-btn { padding: 0.35rem 0.6rem; font-size: 0.7rem; }
-      .showcase-code-block { height: 220px !important; }
-      .showcase-diagram-block { height: 260px !important; }
-    }
-</style>
-</head>
-<body>
-
-  <!-- Header Nav -->
-  <header>
-    <div class="container nav-container">
-      <div class="logo-group">
-        <div class="logo-icon">C</div>
-        <span class="logo-text">Choreo</span>
-      </div>
-      <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle menu">☰</button>
-      <div class="nav-links" id="nav-links">
-        <a href="#showcase" class="nav-link">Showcase</a>
-        <a href="#embed" class="nav-link">Embed</a>
-        <a href="#tracing" class="nav-link">Tracing</a>
-        <a href="#filter" class="nav-link">Filter</a>
-        <a href="#zoom" class="nav-link">Zoom</a>
-        <a href="#analysis" class="nav-link">Analysis</a>
-        <a href="#types" class="nav-link">13 Types</a>
-        <a href="https://hexdocs.pm/choreo" class="nav-link">HexDocs</a>
-        <a href="https://github.com/code-shoily/choreo" class="btn-github" target="_blank">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-          </svg>
-          GitHub
-        </a>
-      </div>
-    </div>
-  </header>
-
-  <!-- Hero Section -->
-  <section class="hero">
-    <div class="container">
-      <div class="hero-badge">Now v0.9 — Domain Modeling &amp; Tracing</div>
-      <h1 class="hero-title">Model Complex Systems<br>With <span>Elixir Code</span></h1>
-      <p class="hero-subtitle">
-        Choreo is an Elixir visual modeling library. Write declarative, domain-specific graph definitions and render diagrams using Mermaid or Graphviz, backed by semantic static analysis.
-      </p>
-      <div class="hero-actions">
-        <a href="#showcase" class="btn-primary">See It in Action</a>
-        <a href="#types" class="btn-secondary">Explore Diagrams</a>
-      </div>
-
-      <!-- Teaser Preview -->
-      <div class="teaser-wrapper">
-        <div class="teaser-header">
-          <div class="teaser-tag">Dataflow &amp; Processing Pipelines</div>
-          <div class="teaser-title">Choreo.Dataflow</div>
-        </div>
-        <div class="teaser-content">
-          <div class="teaser-code">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Dataflow
+            :root {
+                --bg: #0c1a2e;
+                --surface: #0f2035;
+                --surface-2: #162840;
+                --surface-paper: #ffffff;
+                --border: rgba(56, 189, 248, 0.18);
+                --border-bright: rgba(56, 189, 248, 0.5);
+                --text: #cce4f7;
+                --text-2: #7eadc9;
+                --text-3: #3d6b8e;
+                --primary: #38bdf8;
+                --primary-dk: #0ea5e9;
+                --primary-lt: rgba(56, 189, 248, 0.08);
+                --accent-amber: #fbbf24;
+                --code-bg: #060e1c;
+                --grid-line: rgba(56, 189, 248, 0.045);
+                --font-sans: "Inter", sans-serif;
+                --font-display: "Outfit", sans-serif;
+                --font-mono: "JetBrains Mono", monospace;
+                --radius: 0.25rem;
+                --radius-lg: 0.375rem;
+            }
+
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            html,
+            body {
+                background: var(--bg);
+                color: var(--text);
+                font-family: var(--font-sans);
+                line-height: 1.6;
+                overflow-x: hidden;
+                scroll-behavior: smooth;
+            }
+
+            /* Blueprint grid overlay */
+            body::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                background-image:
+                    linear-gradient(var(--grid-line) 1px, transparent 1px),
+                    linear-gradient(
+                        90deg,
+                        var(--grid-line) 1px,
+                        transparent 1px
+                    );
+                background-size: 48px 48px;
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            /* Major grid lines every 5 cells */
+            body::after {
+                content: "";
+                position: fixed;
+                inset: 0;
+                background-image:
+                    linear-gradient(
+                        rgba(56, 189, 248, 0.08) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        90deg,
+                        rgba(56, 189, 248, 0.08) 1px,
+                        transparent 1px
+                    );
+                background-size: 240px 240px;
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            /* ── Layout ───────────────────────────────── */
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 1.5rem;
+                position: relative;
+                z-index: 1;
+            }
+
+            /* ── Header ───────────────────────────────── */
+            header {
+                background: rgba(12, 26, 46, 0.92);
+                border-bottom: 1px solid var(--border);
+                padding: 1rem 0;
+                position: sticky;
+                top: 0;
+                z-index: 50;
+            }
+
+            header .container {
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+
+            .nav-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .logo-group {
+                display: flex;
+                align-items: center;
+                gap: 0.65rem;
+            }
+
+            .logo-icon {
+                background: var(--primary);
+                width: 2rem;
+                height: 2rem;
+                border-radius: var(--radius);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: var(--font-display);
+                font-weight: 800;
+                color: #0c1a2e;
+                font-size: 1.1rem;
+            }
+
+            .logo-text {
+                font-family: var(--font-display);
+                font-weight: 700;
+                font-size: 1.35rem;
+                color: var(--text);
+                letter-spacing: -0.02em;
+            }
+
+            .nav-links {
+                display: flex;
+                gap: 1.25rem;
+                align-items: center;
+            }
+
+            .nav-toggle {
+                display: none;
+                background: none;
+                border: 1px solid var(--border);
+                color: var(--primary);
+                padding: 0.35rem 0.6rem;
+                border-radius: var(--radius);
+                cursor: pointer;
+                font-size: 1.1rem;
+            }
+
+            .nav-link {
+                color: var(--text-2);
+                text-decoration: none;
+                font-size: 0.875rem;
+                font-weight: 500;
+                transition: color 0.15s;
+            }
+            .nav-link:hover {
+                color: var(--primary);
+            }
+
+            .btn-github {
+                background: var(--primary-lt);
+                border: 1px solid var(--border);
+                color: var(--primary);
+                padding: 0.4rem 0.85rem;
+                border-radius: var(--radius);
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                font-size: 0.825rem;
+                font-weight: 500;
+                text-decoration: none;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .btn-github:hover {
+                background: rgba(56, 189, 248, 0.15);
+                border-color: var(--border-bright);
+            }
+
+            /* ── Hero ─────────────────────────────────── */
+            .hero {
+                padding: 5rem 0 3.5rem;
+                text-align: center;
+                border-bottom: 1px solid var(--border);
+                position: relative;
+            }
+
+            /* Blueprint title block — top-right corner annotation */
+            .hero::after {
+                content: "CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.10.0  ·  ELIXIR / BEAM";
+                white-space: pre;
+                position: absolute;
+                top: 1.5rem;
+                right: 1.5rem;
+                font-family: var(--font-mono);
+                font-size: 0.6rem;
+                color: var(--text-3);
+                text-align: right;
+                line-height: 1.8;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+            }
+
+            .hero-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                background: rgba(56, 189, 248, 0.08);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                color: var(--primary);
+                padding: 0.3rem 0.75rem;
+                border-radius: 0;
+                font-size: 0.72rem;
+                font-weight: 600;
+                font-family: var(--font-mono);
+                margin-bottom: 1.75rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+            }
+
+            .hero-title {
+                font-family: var(--font-display);
+                font-size: 3.25rem;
+                font-weight: 800;
+                line-height: 1.15;
+                letter-spacing: -0.03em;
+                margin-bottom: 1.25rem;
+                color: var(--text);
+            }
+
+            .hero-title span {
+                color: var(--primary);
+            }
+
+            .hero-subtitle {
+                max-width: 680px;
+                margin: 0 auto 2.25rem;
+                font-size: 1.05rem;
+                color: var(--text-2);
+            }
+
+            .hero-actions {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 0.75rem;
+                margin-bottom: 3.5rem;
+            }
+
+            .btn-primary {
+                background: var(--primary);
+                color: #0c1a2e;
+                padding: 0.65rem 1.5rem;
+                border-radius: var(--radius);
+                text-decoration: none;
+                font-weight: 700;
+                font-size: 0.875rem;
+                font-family: var(--font-mono);
+                letter-spacing: 0.03em;
+                border: 1px solid var(--primary);
+                transition:
+                    background 0.15s,
+                    box-shadow 0.15s;
+            }
+            .btn-primary:hover {
+                background: var(--primary-dk);
+                box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+            }
+
+            .btn-secondary {
+                background: transparent;
+                border: 1px solid var(--border-bright);
+                color: var(--primary);
+                padding: 0.65rem 1.5rem;
+                border-radius: var(--radius);
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 0.875rem;
+                font-family: var(--font-mono);
+                letter-spacing: 0.03em;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .btn-secondary:hover {
+                background: var(--primary-lt);
+                border-color: var(--primary);
+            }
+
+            /* ── Teaser ───────────────────────────────── */
+            .teaser-wrapper {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                overflow: hidden;
+                position: relative;
+            }
+
+            /* Blueprint corner marks */
+            .teaser-wrapper::before,
+            .teaser-wrapper::after {
+                content: "";
+                position: absolute;
+                width: 12px;
+                height: 12px;
+                border-color: var(--border-bright);
+                border-style: solid;
+                z-index: 2;
+                pointer-events: none;
+            }
+            .teaser-wrapper::before {
+                top: -1px;
+                left: -1px;
+                border-width: 2px 0 0 2px;
+            }
+            .teaser-wrapper::after {
+                bottom: -1px;
+                right: -1px;
+                border-width: 0 2px 2px 0;
+            }
+
+            .teaser-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.75rem 1.5rem;
+                border-bottom: 1px solid var(--border);
+                background: var(--surface-2);
+            }
+
+            .teaser-tag {
+                font-family: var(--font-mono);
+                font-size: 0.72rem;
+                font-weight: 600;
+                color: var(--primary);
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+            }
+            .teaser-tag::before {
+                content: "";
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                background: var(--primary);
+                box-shadow: 0 0 6px var(--primary);
+            }
+
+            .teaser-title {
+                font-family: var(--font-mono);
+                font-size: 0.8rem;
+                font-weight: 500;
+                color: var(--text-3);
+                letter-spacing: 0.06em;
+            }
+
+            .teaser-content {
+                display: grid;
+                grid-template-columns: 1.1fr 0.9fr;
+            }
+
+            .teaser-code {
+                border-right: 1px solid var(--border);
+            }
+
+            pre[class*="language-"] {
+                background: var(--code-bg) !important;
+                border: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                padding: 1.5rem !important;
+                font-size: 0.82rem !important;
+                height: 100%;
+            }
+            code[class*="language-"] {
+                font-family: var(--font-mono) !important;
+            }
+
+            /* Diagram panels: white "paper" on the dark blueprint */
+            .teaser-diagram {
+                background: var(--surface-paper);
+                padding: 1.5rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 280px;
+            }
+
+            /* ── Section Layout ───────────────────────── */
+            .section {
+                padding: 5rem 0;
+                border-bottom: 1px solid var(--border);
+                position: relative;
+            }
+            .section:last-of-type {
+                border-bottom: none;
+            }
+
+            .section-header {
+                text-align: center;
+                margin-bottom: 3rem;
+            }
+
+            .section-label {
+                display: inline-block;
+                font-family: var(--font-mono);
+                font-size: 0.65rem;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: var(--text-3);
+                margin-bottom: 0.75rem;
+            }
+
+            .section-title {
+                font-family: var(--font-display);
+                font-size: 2rem;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                margin-bottom: 0.75rem;
+                color: var(--text);
+            }
+
+            .section-subtitle {
+                color: var(--text-2);
+                max-width: 560px;
+                margin: 0 auto;
+                font-size: 0.95rem;
+            }
+
+            /* ── Showcase Tabs ────────────────────────── */
+            .showcase-tabs {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 0.25rem;
+                margin-bottom: 2rem;
+                padding: 0.35rem;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                max-width: 900px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .tab-btn {
+                background: transparent;
+                border: none;
+                color: var(--text-2);
+                padding: 0.4rem 0.85rem;
+                border-radius: var(--radius);
+                font-family: var(--font-mono);
+                font-size: 0.78rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+                white-space: nowrap;
+                letter-spacing: 0.02em;
+            }
+            .tab-btn:hover {
+                color: var(--primary);
+                background: var(--primary-lt);
+            }
+            .tab-btn.active {
+                color: #0c1a2e;
+                background: var(--primary);
+            }
+
+            .showcase-content {
+                display: none;
+            }
+            .showcase-content.active {
+                display: block;
+                animation: fadeIn 0.25s ease forwards;
+            }
+
+            /* Showcase panel */
+            .showcase-panel {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                overflow: hidden;
+                position: relative;
+            }
+
+            /* Corner marks on panels */
+            .showcase-panel::before,
+            .showcase-panel::after {
+                content: "";
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                border-color: rgba(56, 189, 248, 0.4);
+                border-style: solid;
+                z-index: 2;
+                pointer-events: none;
+            }
+            .showcase-panel::before {
+                top: -1px;
+                left: -1px;
+                border-width: 2px 0 0 2px;
+            }
+            .showcase-panel::after {
+                bottom: -1px;
+                right: -1px;
+                border-width: 0 2px 2px 0;
+            }
+
+            .showcase-panel-header {
+                background: var(--surface-2);
+                border-bottom: 1px solid var(--border);
+                padding: 0.55rem 1rem;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .dot {
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+            }
+            .dot-red {
+                background: #ef4444;
+            }
+            .dot-amber {
+                background: #f59e0b;
+            }
+            .dot-green {
+                background: #22c55e;
+            }
+
+            .panel-filename {
+                font-family: var(--font-mono);
+                font-size: 0.7rem;
+                color: var(--text-3);
+                margin-left: 0.35rem;
+                letter-spacing: 0.04em;
+            }
+
+            .showcase-code-block {
+                height: 340px;
+                overflow-y: auto;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .showcase-code-block pre[class*="language-"] {
+                height: 100%;
+                margin: 0 !important;
+                padding: 1.25rem !important;
+            }
+
+            /* White "paper" panel for rendered diagrams */
+            .showcase-diagram-block {
+                height: 460px;
+                background: var(--surface-paper);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: auto;
+                position: relative;
+            }
+
+            /* Blueprint label on diagram panels */
+            .showcase-diagram-block::after {
+                content: "RENDERED OUTPUT";
+                position: absolute;
+                bottom: 0.6rem;
+                right: 0.75rem;
+                font-family: var(--font-mono);
+                font-size: 0.58rem;
+                letter-spacing: 0.1em;
+                color: #cbd5e1;
+                text-transform: uppercase;
+                pointer-events: none;
+            }
+
+            .showcase-diagram-block svg {
+                max-width: 100%;
+                max-height: 440px;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(6px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            /* ── Analysis Table ───────────────────────── */
+            .analysis-wrapper {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                overflow-x: auto;
+            }
+
+            .analysis-table {
+                width: 100%;
+                border-collapse: collapse;
+                text-align: left;
+                font-size: 0.875rem;
+            }
+
+            .analysis-table th,
+            .analysis-table td {
+                padding: 0.9rem 1.1rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .analysis-table thead th {
+                background: var(--surface-2);
+                font-family: var(--font-mono);
+                font-weight: 600;
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--primary);
+                border-bottom: 1px solid var(--border-bright);
+            }
+
+            .analysis-table tbody tr:last-child td {
+                border-bottom: none;
+            }
+            .analysis-table tbody tr:hover {
+                background: var(--primary-lt);
+            }
+            .analysis-table tbody td {
+                color: var(--text-2);
+            }
+            .analysis-table tbody td:first-child {
+                color: var(--text);
+            }
+            .analysis-table tbody td:nth-child(2) {
+                font-family: var(--font-mono);
+                font-size: 0.8rem;
+                color: var(--text-3);
+            }
+
+            .artifact-chip {
+                display: inline-block;
+                font-family: var(--font-mono);
+                font-size: 0.7rem;
+                background: rgba(56, 189, 248, 0.08);
+                color: var(--primary);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                padding: 0.15rem 0.5rem;
+                border-radius: 0;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+            }
+
+            /* ── 13-type Grid ─────────────────────────── */
+            .grid-types {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+                gap: 1px;
+                background: var(--border);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                overflow: hidden;
+            }
+
+            .card-type {
+                background: var(--surface);
+                padding: 1.5rem;
+                text-decoration: none;
+                color: inherit;
+                display: block;
+                transition: background 0.15s;
+                position: relative;
+            }
+            .card-type:hover {
+                background: var(--surface-2);
+            }
+            .card-type:hover .card-title {
+                color: var(--primary);
+            }
+
+            .card-category {
+                font-family: var(--font-mono);
+                font-size: 0.65rem;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--text-3);
+                margin-bottom: 0.4rem;
+            }
+
+            .card-title {
+                font-family: var(--font-display);
+                font-size: 1.05rem;
+                font-weight: 700;
+                margin-bottom: 0.5rem;
+                color: var(--text);
+                transition: color 0.15s;
+            }
+
+            .card-description {
+                font-size: 0.82rem;
+                color: var(--text-2);
+                margin-bottom: 1rem;
+                line-height: 1.55;
+            }
+
+            .card-tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.3rem;
+            }
+
+            .card-tag {
+                font-family: var(--font-mono);
+                font-size: 0.65rem;
+                color: var(--text-3);
+                padding: 0.1rem 0.4rem;
+                border: 1px solid var(--border);
+                background: transparent;
+            }
+
+            /* ── Install Section ──────────────────────── */
+            .install-box {
+                background: var(--code-bg);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                padding: 1.5rem 1.75rem;
+                margin-top: 1.5rem;
+                gap: 1rem;
+                position: relative;
+            }
+
+            .install-code {
+                overflow-x: auto;
+                max-width: 100%;
+            }
+
+            /* Blueprint corner marks on install box */
+            .install-box::before,
+            .install-box::after {
+                content: "";
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                border-color: rgba(56, 189, 248, 0.4);
+                border-style: solid;
+            }
+            .install-box::before {
+                top: -1px;
+                left: -1px;
+                border-width: 2px 0 0 2px;
+            }
+            .install-box::after {
+                bottom: -1px;
+                right: -1px;
+                border-width: 0 2px 2px 0;
+            }
+
+            .install-code {
+                font-family: var(--font-mono);
+                font-size: 0.9rem;
+                color: var(--text);
+                white-space: pre;
+            }
+
+            .btn-copy {
+                background: var(--primary-lt);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                color: var(--primary);
+                padding: 0.45rem 0.9rem;
+                border-radius: var(--radius);
+                font-size: 0.75rem;
+                cursor: pointer;
+                font-family: var(--font-mono);
+                font-weight: 500;
+                white-space: nowrap;
+                letter-spacing: 0.04em;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .btn-copy:hover {
+                background: rgba(56, 189, 248, 0.15);
+                border-color: var(--border-bright);
+            }
+
+            /* ── Footer ───────────────────────────────── */
+            footer {
+                border-top: 1px solid var(--border);
+                padding: 2rem 0;
+                text-align: center;
+                color: var(--text-3);
+                font-size: 0.8rem;
+                font-family: var(--font-mono);
+                letter-spacing: 0.04em;
+            }
+
+            /* Feature grids (embed, filter, zoom, tracing) */
+            .feature-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.5rem;
+                align-items: start;
+            }
+            .feature-grid--asymmetric {
+                grid-template-columns: 1.15fr 0.85fr;
+            }
+
+            /* ── Responsive ───────────────────────────── */
+            @media (max-width: 860px) {
+                .teaser-content {
+                    grid-template-columns: 1fr;
+                }
+                .teaser-code {
+                    border-right: none;
+                    border-bottom: 1px solid var(--border);
+                }
+                .hero-title {
+                    font-size: 2.25rem;
+                }
+                .hero::after {
+                    display: none;
+                }
+
+                .nav-container {
+                    position: relative;
+                }
+                .nav-toggle {
+                    display: block;
+                }
+                .nav-links {
+                    display: none;
+                    position: absolute;
+                    top: calc(100% + 0.75rem);
+                    right: 0;
+                    flex-direction: column;
+                    align-items: flex-start;
+                    background: rgba(12, 26, 46, 0.98);
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius-lg);
+                    padding: 0.75rem 1rem;
+                    min-width: 180px;
+                    gap: 0.5rem;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+                }
+                .nav-links.open {
+                    display: flex;
+                }
+                .nav-link {
+                    padding: 0.4rem 0;
+                    width: 100%;
+                }
+                .btn-github {
+                    width: 100%;
+                    justify-content: center;
+                    margin-top: 0.25rem;
+                }
+
+                .feature-grid,
+                .feature-grid--asymmetric {
+                    grid-template-columns: 1fr;
+                }
+
+                .install-box {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .install-code {
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+
+                .showcase-code-block {
+                    height: 260px !important;
+                }
+                .showcase-diagram-block {
+                    height: 320px !important;
+                }
+
+                .section {
+                    padding: 3rem 0;
+                }
+                .section-title {
+                    font-size: 1.6rem;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .hero-title {
+                    font-size: 1.75rem;
+                }
+                .hero-subtitle {
+                    font-size: 0.95rem;
+                }
+                .container {
+                    padding: 0 1rem;
+                }
+                .showcase-tabs {
+                    gap: 0.35rem;
+                    padding: 0.25rem;
+                }
+                .tab-btn {
+                    padding: 0.35rem 0.6rem;
+                    font-size: 0.7rem;
+                }
+                .showcase-code-block {
+                    height: 220px !important;
+                }
+                .showcase-diagram-block {
+                    height: 260px !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Header Nav -->
+        <header>
+            <div class="container nav-container">
+                <div class="logo-group">
+                    <div class="logo-icon">C</div>
+                    <span class="logo-text">Choreo</span>
+                </div>
+                <button
+                    class="nav-toggle"
+                    onclick="toggleNav()"
+                    aria-label="Toggle menu"
+                >
+                    ☰
+                </button>
+                <div class="nav-links" id="nav-links">
+                    <a href="#showcase" class="nav-link">Showcase</a>
+                    <a href="#labs" class="nav-link">Labs</a>
+                    <a href="#livebooks" class="nav-link">Livebooks</a>
+                    <a href="#embed" class="nav-link">Embed</a>
+                    <a href="#tracing" class="nav-link">Tracing</a>
+                    <a href="#filter" class="nav-link">Filter</a>
+                    <a href="#zoom" class="nav-link">Zoom</a>
+                    <a href="#analysis" class="nav-link">Analysis</a>
+                    <a href="#types" class="nav-link">DSLs</a>
+                    <a href="https://hexdocs.pm/choreo" class="nav-link"
+                        >HexDocs</a
+                    >
+                    <a
+                        href="https://github.com/code-shoily/choreo"
+                        class="btn-github"
+                        target="_blank"
+                    >
+                        <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                        >
+                            <path
+                                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+                            ></path>
+                        </svg>
+                        GitHub
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-badge">
+                    Now v0.10 — Livebook Labs &amp; Stable Renderers
+                </div>
+                <h1 class="hero-title">
+                    Model Complex Systems<br />With <span>Elixir Code</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Choreo is an Elixir visual modeling library. Write
+                    declarative, domain-specific graph definitions, render
+                    diagrams with Mermaid or Graphviz, explore them in Livebook,
+                    and back every model with semantic static analysis.
+                </p>
+                <div class="hero-actions">
+                    <a href="#showcase" class="btn-primary">See It in Action</a>
+                    <a href="#livebooks" class="btn-secondary"
+                        >Open Livebooks</a
+                    >
+                    <a href="#types" class="btn-secondary">Explore Diagrams</a>
+                </div>
+
+                <!-- Teaser Preview -->
+                <div class="teaser-wrapper">
+                    <div class="teaser-header">
+                        <div class="teaser-tag">
+                            Dataflow &amp; Processing Pipelines
+                        </div>
+                        <div class="teaser-title">Choreo.Dataflow</div>
+                    </div>
+                    <div class="teaser-content">
+                        <div class="teaser-code">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Dataflow
 
 pipeline =
   Dataflow.new()
@@ -844,65 +1067,120 @@ pipeline =
   |> Dataflow.connect(:parser, :enricher)
   |> Dataflow.connect(:enricher, :postgres)
   |> Dataflow.connect(:enricher, :s3)</code></pre>
-          </div>
-          <div class="teaser-diagram">
-            <div class="mermaid">
-graph TD
-  kafka[("Kafka Ingest")]
-  parser["JSON Parser"]
-  enricher["Enricher"]
-  postgres[("Postgres Sink")]
-  s3[("S3 Archive")]
-
-  style kafka fill:#3b82f6,stroke:#1d64d8,color:#fff
-  style parser fill:#10b981,stroke:#059669,color:#fff
-  style enricher fill:#10b981,stroke:#059669,color:#fff
-  style postgres fill:#8b5cf6,stroke:#6d28d9,color:#fff
-  style s3 fill:#8b5cf6,stroke:#6d28d9,color:#fff
-
-  kafka --> parser
-  parser --> enricher
-  enricher --> postgres
-  enricher --> s3
+                        </div>
+                        <div class="teaser-diagram">
+                            <div class="mermaid">
+graph TD;
+kafka[("Kafka Ingest")];
+parser["JSON Parser"];
+enricher["Enricher"];
+postgres[("Postgres Sink")];
+s3[("S3 Archive")];
+style kafka fill:#3b82f6,stroke:#1d64d8,color:#fff;
+style parser fill:#10b981,stroke:#059669,color:#fff;
+style enricher fill:#10b981,stroke:#059669,color:#fff;
+style postgres fill:#8b5cf6,stroke:#6d28d9,color:#fff;
+style s3 fill:#8b5cf6,stroke:#6d28d9,color:#fff;
+kafka --> parser;
+parser --> enricher;
+enricher --> postgres;
+enricher --> s3;
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+        </section>
 
-  <!-- Showcase Tabs -->
-  <section id="showcase" class="section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">Visual Architectures of Any Type</h2>
-        <p class="section-subtitle">Each tab shows the Elixir declaration above its rendered diagram output.</p>
-      </div>
+        <!-- Showcase Tabs -->
+        <section id="showcase" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        Visual Architectures of Any Type
+                    </h2>
+                    <p class="section-subtitle">
+                        Each tab shows current Choreo API usage above its
+                        rendered diagram output.
+                    </p>
+                </div>
 
-      <div class="showcase-tabs" style="margin-bottom: 2rem;">
-        <button class="tab-btn active"    onclick="switchTab('c4', this)">C4 Model</button>
-        <button class="tab-btn"           onclick="switchTab('dataflow', this)">Dataflow</button>
-        <button class="tab-btn"           onclick="switchTab('decision', this)">Decision Tree</button>
-        <button class="tab-btn"           onclick="switchTab('dependency', this)">Dependencies</button>
-        <button class="tab-btn"           onclick="switchTab('erd', this)">ERD</button>
-        <button class="tab-btn"           onclick="switchTab('fsm', this)">FSM</button>
-        <button class="tab-btn"           onclick="switchTab('mind_map', this)">Mind Map</button>
-        <button class="tab-btn"           onclick="switchTab('planner', this)">Planner</button>
-        <button class="tab-btn"           onclick="switchTab('seq', this)">Sequence</button>
-        <button class="tab-btn"           onclick="switchTab('threat', this)">Threat Model</button>
-        <button class="tab-btn"           onclick="switchTab('uml', this)">UML Class</button>
-        <button class="tab-btn"           onclick="switchTab('workflow', this)">Workflow</button>
-      </div>
+                <div class="showcase-tabs" style="margin-bottom: 2rem">
+                    <button
+                        class="tab-btn active"
+                        onclick="switchTab('c4', this)"
+                    >
+                        C4 Model
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('dataflow', this)"
+                    >
+                        Dataflow
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('decision', this)"
+                    >
+                        Decision Tree
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('dependency', this)"
+                    >
+                        Dependencies
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('erd', this)">
+                        ERD
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('infra', this)">
+                        Infrastructure
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('fsm', this)">
+                        FSM
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('mind_map', this)"
+                    >
+                        Mind Map
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('planner', this)"
+                    >
+                        Planner
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('seq', this)">
+                        Sequence
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('threat', this)">
+                        Threat Model
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('uml', this)">
+                        UML Class
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('workflow', this)"
+                    >
+                        Workflow
+                    </button>
+                </div>
 
-      <!-- FSM -->
-      <div id="showcase-fsm" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">fsm_example.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.FSM
+                <!-- FSM -->
+                <div id="showcase-fsm" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">fsm_example.exs</span>
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.FSM
 
 fsm =
   FSM.new()
@@ -918,23 +1196,29 @@ fsm =
   |> FSM.add_transition(:processing, :cancelled, label: "cancel")
 
 # Static analysis
-FSM.unreachable_states(fsm)     # => []
-FSM.dead_end_states(fsm)        # => [:cancelled]
-FSM.shortest_path(fsm, :idle, :completed)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-fsm"></div>
-        </div>
-      </div>
+FSM.Analysis.unreachable_states(fsm)     # => []
+FSM.Analysis.dead_states(fsm)            # => [:cancelled]
+FSM.Analysis.shortest_accepting_path(fsm)</code></pre>
+                        </div>
+                        <div class="showcase-diagram-block" id="diag-fsm"></div>
+                    </div>
+                </div>
 
-      <!-- Sequence -->
-      <div id="showcase-seq" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">checkout_sequence.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Sequence
+                <!-- Sequence -->
+                <div id="showcase-seq" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >checkout_sequence.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Sequence
 
 seq =
   Sequence.new()
@@ -955,20 +1239,26 @@ seq =
   |> Sequence.deactivate(:api)
   |> Sequence.return(:api, :frontend, label: "201 Created")
   |> Sequence.return(:frontend, :user, label: "Order confirmed ✓")</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-seq"></div>
-        </div>
-      </div>
+                        </div>
+                        <div class="showcase-diagram-block" id="diag-seq"></div>
+                    </div>
+                </div>
 
-      <!-- Workflow -->
-      <div id="showcase-workflow" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">saga_workflow.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Workflow
+                <!-- Workflow -->
+                <div id="showcase-workflow" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >saga_workflow.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Workflow
 
 workflow =
   Workflow.new()
@@ -987,121 +1277,152 @@ workflow =
   |> Workflow.connect(:ship, :fulfilled)
 
 # Analysis
-Workflow.critical_path(workflow)   # latency bottlenecks
-Workflow.missing_compensations(workflow)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-workflow"></div>
-        </div>
-      </div>
+Workflow.Analysis.critical_path(workflow)   # latency bottlenecks
+Workflow.Analysis.validate(workflow)</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-workflow"
+                        ></div>
+                    </div>
+                </div>
 
-      <!-- ERD -->
-      <div id="showcase-erd" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">shop_schema.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.ERD
+                <!-- ERD -->
+                <div id="showcase-erd" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">shop_schema.exs</span>
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.ERD
 
 erd =
   ERD.new()
-  |> ERD.add_table(:users)
-  |> ERD.add_column(:users, :id,         :uuid,    primary_key: true)
-  |> ERD.add_column(:users, :email,      :string,  nullable: false)
-  |> ERD.add_column(:users, :name,       :string)
-  |> ERD.add_table(:orders)
-  |> ERD.add_column(:orders, :id,        :uuid,    primary_key: true)
-  |> ERD.add_column(:orders, :user_id,   :uuid,    foreign_key: {:users, :id})
-  |> ERD.add_column(:orders, :total,     :decimal, nullable: false)
-  |> ERD.add_table(:line_items)
-  |> ERD.add_column(:line_items, :id,       :uuid, primary_key: true)
-  |> ERD.add_column(:line_items, :order_id, :uuid, foreign_key: {:orders, :id})
-  |> ERD.add_column(:line_items, :product,  :string)
-  |> ERD.add_column(:line_items, :qty,      :integer)
-  |> ERD.connect(:users, :orders,      label: "places",   relationship: :one_to_many)
-  |> ERD.connect(:orders, :line_items, label: "contains", relationship: :one_to_many)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-erd"></div>
-        </div>
-      </div>
+  |> ERD.add_table(:users,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :email, type: :string},
+      %{name: :name, type: :string}
+    ]
+  )
+  |> ERD.add_table(:orders,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :user_id, type: :uuid, key: :fk},
+      %{name: :total, type: :decimal}
+    ]
+  )
+  |> ERD.add_table(:line_items,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :order_id, type: :uuid, key: :fk},
+      %{name: :product, type: :string},
+      %{name: :qty, type: :integer}
+    ]
+  )
+  |> ERD.add_relationship(:users, :orders, cardinality: :one_to_many, label: "places")
+  |> ERD.add_relationship(:orders, :line_items, cardinality: :one_to_many, label: "contains")</code></pre>
+                        </div>
+                        <div class="showcase-diagram-block" id="diag-erd"></div>
+                    </div>
+                </div>
 
-      <!-- UML Class -->
-      <div id="showcase-uml" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">domain_classes.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.UML
+                <!-- UML Class -->
+                <div id="showcase-uml" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >domain_classes.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.UML
 
 uml =
   UML.new()
-  |> UML.add_class(:account, label: "Account",
-      fields: ["id: UUID", "email: String", "role: atom"],
-      methods: ["authenticate/2", "deactivate/1"])
-  |> UML.add_class(:profile, label: "Profile",
-      fields: ["avatar_url: String", "bio: String"])
-  |> UML.add_class(:session, label: "Session",
-      fields: ["token: String", "expires_at: DateTime"])
-  |> UML.add_class(:audit_log, label: "AuditLog",
-      fields: ["action: String", "timestamp: DateTime"])
-  |> UML.connect(:account, :profile,    label: "has_one",   type: :composition)
-  |> UML.connect(:account, :session,    label: "has_many",  type: :aggregation)
-  |> UML.connect(:account, :audit_log,  label: "generates", type: :dependency)
+  |> UML.add_class(:account,
+    label: "Account",
+    fields: [%{name: :id, type: :uuid}, %{name: :email, type: :string}],
+    functions: [%{name: :authenticate, arity: 2}, %{name: :deactivate, arity: 1}]
+  )
+  |> UML.add_class(:profile, label: "Profile", fields: [%{name: :avatar_url, type: :string}])
+  |> UML.add_class(:session, label: "Session", fields: [%{name: :token, type: :string}])
+  |> UML.add_class(:audit_log, label: "AuditLog", fields: [%{name: :action, type: :string}])
+  |> UML.add_relationship(:account, :profile, type: :associates, label: "has_one")
+  |> UML.add_relationship(:account, :session, type: :associates, label: "has_many")
+  |> UML.add_relationship(:account, :audit_log, type: :depends, label: "generates")
 
 # Analysis
-UML.circular_associations(uml)   # => []</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-uml"></div>
-        </div>
-      </div>
+UML.Analysis.validate(uml)   # => []</code></pre>
+                        </div>
+                        <div class="showcase-diagram-block" id="diag-uml"></div>
+                    </div>
+                </div>
 
-      <!-- C4 Model -->
-      <div id="showcase-c4" class="showcase-content active">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">payment_c4.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.C4
+                <!-- C4 Model -->
+                <div id="showcase-c4" class="showcase-content active">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">payment_c4.exs</span>
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.C4
 
 system =
-  C4.new("E-Commerce Platform")
+  C4.new()
   |> C4.add_person(:customer, label: "Customer")
   |> C4.add_person(:admin, label: "Admin")
-  |> C4.add_system(:shop_app, label: "Shop Application", boundary: :internal)
-  |> C4.add_system(:payment_gw, label: "Payment Gateway", boundary: :external)
-  |> C4.add_system(:email_svc, label: "Email Service", boundary: :external)
-  |> C4.add_container(:api, label: "REST API", tech: "Phoenix/Elixir")
-  |> C4.add_container(:web, label: "Web UI", tech: "LiveView")
-  |> C4.add_container(:db, label: "Database", tech: "PostgreSQL")
-  |> C4.connect(:customer, :web,        label: "Browses")
-  |> C4.connect(:web, :api,             label: "HTTP/JSON")
-  |> C4.connect(:api, :db,              label: "Ecto queries")
-  |> C4.connect(:api, :payment_gw,      label: "Charge card")
-  |> C4.connect(:api, :email_svc,       label: "Send receipt")
-  |> C4.connect(:admin, :api,           label: "Manages")
+  |> C4.add_software_system(:shop_app, label: "Shop Application", scope: :in)
+  |> C4.add_software_system(:payment_gw, label: "Payment Gateway", scope: :out)
+  |> C4.add_software_system(:email_svc, label: "Email Service", scope: :out)
+  |> C4.add_container(:api, label: "REST API", technology: "Phoenix/Elixir", parent: :shop_app)
+  |> C4.add_container(:web, label: "Web UI", technology: "LiveView", parent: :shop_app)
+  |> C4.add_container(:db, label: "Database", technology: "PostgreSQL", parent: :shop_app)
+  |> C4.add_relationship(:customer, :web, label: "Browses")
+  |> C4.add_relationship(:web, :api, label: "HTTP/JSON")
+  |> C4.add_relationship(:api, :db, label: "Ecto queries")
+  |> C4.add_relationship(:api, :payment_gw, label: "Charge card")
+  |> C4.add_relationship(:api, :email_svc, label: "Send receipt")
+  |> C4.add_relationship(:admin, :api, label: "Manages")
 
 # Analysis
-C4.shared_databases(system)    # detect coupling
-C4.external_interfaces(system)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-c4"></div>
-        </div>
-      </div>
+C4.Analysis.validate(system)    # structural checks
+C4.Analysis.missing_technology(system)</code></pre>
+                        </div>
+                        <div class="showcase-diagram-block" id="diag-c4"></div>
+                    </div>
+                </div>
 
-      <!-- Mind Map -->
-      <div id="showcase-mind_map" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">elixir_mindmap.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.MindMap
+                <!-- Mind Map -->
+                <div id="showcase-mind_map" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >elixir_mindmap.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.MindMap
 
 map =
   MindMap.new()
@@ -1109,32 +1430,47 @@ map =
   |> MindMap.add_topic(:concurrency, label: "Concurrency")
   |> MindMap.add_topic(:ecosystem, label: "Ecosystem")
   |> MindMap.add_topic(:tooling, label: "Tooling")
-  |> MindMap.add_subtopic(:processes, label: "Processes", under: :concurrency)
-  |> MindMap.add_subtopic(:genservers, label: "GenServers", under: :concurrency)
-  |> MindMap.add_subtopic(:beam, label: "BEAM VM", under: :ecosystem)
-  |> MindMap.add_subtopic(:hex, label: "Hex.pm", under: :ecosystem)
-  |> MindMap.add_subtopic(:mix, label: "Mix", under: :tooling)
-  |> MindMap.add_subtopic(:livebook, label: "Livebook", under: :tooling)
+  |> MindMap.add_subtopic(:processes, label: "Processes")
+  |> MindMap.add_subtopic(:genservers, label: "GenServers")
+  |> MindMap.add_subtopic(:beam, label: "BEAM VM")
+  |> MindMap.add_subtopic(:hex, label: "Hex.pm")
+  |> MindMap.add_subtopic(:mix, label: "Mix")
+  |> MindMap.add_subtopic(:livebook, label: "Livebook")
   |> MindMap.branch(:elixir, :concurrency)
   |> MindMap.branch(:elixir, :ecosystem)
-  |> MindMap.branch(:elixir, :tooling)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-mind_map"></div>
-        </div>
-      </div>
+  |> MindMap.branch(:elixir, :tooling)
+  |> MindMap.branch(:concurrency, :processes)
+  |> MindMap.branch(:concurrency, :genservers)
+  |> MindMap.branch(:ecosystem, :beam)
+  |> MindMap.branch(:ecosystem, :hex)
+  |> MindMap.branch(:tooling, :mix)
+  |> MindMap.branch(:tooling, :livebook)</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-mind_map"
+                        ></div>
+                    </div>
+                </div>
 
-      <!-- Planner -->
-      <div id="showcase-planner" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">v1_launch_plan.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Planner
+                <!-- Planner -->
+                <div id="showcase-planner" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >v1_launch_plan.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Planner
 
 project =
-  Planner.new("Launch v1.0")
+  Planner.new("Launch v0.10")
   |> Planner.add_milestone(:design_complete, title: "Design Complete")
   |> Planner.add_milestone(:beta_release, title: "Beta Release")
   |> Planner.add_task(:wireframes, title: "Wireframes",   status: :done,        estimate_hours: 12)
@@ -1150,54 +1486,70 @@ project =
   |> Planner.depends_on(:deploy, :testing)
 
 # Analysis
-Planner.critical_path(project)     # longest dependency chain
-Planner.ready_to_start(project)    # tasks with all deps met</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-planner"></div>
-        </div>
-      </div>
+Planner.Analysis.critical_path(project)     # longest dependency chain
+Planner.Analysis.ready(project)             # tasks with all deps met</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-planner"
+                        ></div>
+                    </div>
+                </div>
 
-      <!-- Threat Modeling -->
-      <div id="showcase-threat" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">api_threat_model.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.ThreatModel
+                <!-- Threat Modeling -->
+                <div id="showcase-threat" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >api_threat_model.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.ThreatModel
 
 tm =
   ThreatModel.new()
-  |> ThreatModel.add_actor(:user, label: "End User")
-  |> ThreatModel.add_actor(:attacker, label: "Attacker", external: true)
-  |> ThreatModel.add_process(:web_server, label: "Web Server")
-  |> ThreatModel.add_process(:auth_service, label: "Auth Service")
-  |> ThreatModel.add_datastore(:user_db, label: "User DB",    sensitive: true)
-  |> ThreatModel.add_datastore(:session_cache, label: "Redis Cache")
-  |> ThreatModel.add_trust_boundary(:internet, label: "Internet Boundary")
-  |> ThreatModel.add_trust_boundary(:dmz, label: "DMZ")
-  |> ThreatModel.connect(:user, :web_server,          label: "HTTPS/443")
-  |> ThreatModel.connect(:web_server, :auth_service,  label: "gRPC")
-  |> ThreatModel.connect(:auth_service, :user_db,     label: "SQL")
-  |> ThreatModel.connect(:auth_service, :session_cache, label: "SET/GET")
+  |> ThreatModel.add_external_entity(:user, label: "End User", boundary: "internet")
+  |> ThreatModel.add_external_entity(:attacker, label: "Attacker", boundary: "internet")
+  |> ThreatModel.add_process(:web_server, label: "Web Server", boundary: "dmz")
+  |> ThreatModel.add_process(:auth_service, label: "Auth Service", boundary: "dmz")
+  |> ThreatModel.add_data_store(:user_db, label: "User DB", sensitivity: :restricted)
+  |> ThreatModel.add_data_store(:session_cache, label: "Redis Cache", sensitivity: :internal)
+  |> ThreatModel.add_trust_boundary("internet", label: "Internet Boundary")
+  |> ThreatModel.add_trust_boundary("dmz", label: "DMZ")
+  |> ThreatModel.data_flow(:user, :web_server, label: "HTTPS/443", encrypted: true)
+  |> ThreatModel.data_flow(:web_server, :auth_service, label: "gRPC", encrypted: true)
+  |> ThreatModel.data_flow(:auth_service, :user_db, label: "SQL")
+  |> ThreatModel.data_flow(:auth_service, :session_cache, label: "SET/GET")
 
-ThreatModel.cross_boundary_flows(tm)   # flows crossing trust zones
-ThreatModel.sensitive_assets(tm)       # datastores marked sensitive</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-threat"></div>
-        </div>
-      </div>
+ThreatModel.Analysis.validate(tm)        # trust-boundary and data-flow checks
+ThreatModel.Analysis.stride_threats(tm)  # generated STRIDE findings</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-threat"
+                        ></div>
+                    </div>
+                </div>
 
-      <!-- Dependency Graph -->
-      <div id="showcase-dependency" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">module_deps.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Dependency
+                <!-- Dependency Graph -->
+                <div id="showcase-dependency" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">module_deps.exs</span>
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Dependency
 
 deps =
   Dependency.new()
@@ -1215,22 +1567,31 @@ deps =
   |> Dependency.depends_on(:mailer, :orders)
 
 # Analysis
-Dependency.cyclic_imports(deps)       # => []
-Dependency.impact_of_change(deps, :core) # all dependents</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-dependency"></div>
-        </div>
-      </div>
+Dependency.Analysis.cyclic_dependencies(deps) # => []
+Dependency.Analysis.affected_by(deps, :core)  # all dependents</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-dependency"
+                        ></div>
+                    </div>
+                </div>
 
-      <!-- Dataflow -->
-      <div id="showcase-dataflow" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">event_pipeline.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Dataflow
+                <!-- Dataflow -->
+                <div id="showcase-dataflow" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >event_pipeline.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Dataflow
 
 pipeline =
   Dataflow.new()
@@ -1252,68 +1613,281 @@ pipeline =
   |> Dataflow.connect(:validator, :s3)
   |> Dataflow.connect(:validator, :dlq, label: "on_error")
 
-Dataflow.bottlenecks(pipeline)     # single-input sinks
-Dataflow.strictly_acyclic?(pipeline)</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-dataflow"></div>
-        </div>
-      </div>
+Dataflow.Analysis.bottlenecks(pipeline)     # high fan-in stages
+Dataflow.Analysis.cyclic?(pipeline)          # false for DAGs</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-dataflow"
+                        ></div>
+                    </div>
+                </div>
 
-      <!-- Decision Tree -->
-      <div id="showcase-decision" class="showcase-content">
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">pricing_decision.exs</span>
-          </div>
-          <div class="showcase-code-block">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.DecisionTree
+                <!-- Infrastructure -->
+                <div id="showcase-infra" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >cloud_topology.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Infrastructure
+
+infra =
+  Infrastructure.new()
+  |> Infrastructure.add_vpc("prod", label: "Production VPC")
+  |> Infrastructure.add_subnet_public("public", parent: "prod", label: "Public Subnet")
+  |> Infrastructure.add_subnet_private("private", parent: "prod", label: "Private Subnet")
+  |> Infrastructure.add_internet(:internet, label: "Internet")
+  |> Infrastructure.add_load_balancer(:alb, label: "ALB", cluster: "public")
+  |> Infrastructure.add_compute(:api, label: "API Service", cluster: "private")
+  |> Infrastructure.add_managed_db(:db, label: "Postgres", cluster: "private")
+  |> Infrastructure.connect(:internet, :alb, protocol: :https)
+  |> Infrastructure.connect(:alb, :api, protocol: :http)
+  |> Infrastructure.connect(:api, :db, protocol: :tcp)
+
+Infrastructure.Analysis.validate(infra)  # topology checks
+Infrastructure.to_mermaid(infra, theme: :minimal)</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-infra"
+                        ></div>
+                    </div>
+                </div>
+
+                <!-- Decision Tree -->
+                <div id="showcase-decision" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >pricing_decision.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.DecisionTree
 
 tree =
   DecisionTree.new()
-  |> DecisionTree.add_root(:is_premium, question: "Is user premium?")
-  |> DecisionTree.add_node(:high_usage, question: "Monthly usage > 10k req?")
-  |> DecisionTree.add_node(:has_discount, question: "Active discount code?")
-  |> DecisionTree.add_leaf(:enterprise_price, label: "Enterprise Tier", value: 499)
-  |> DecisionTree.add_leaf(:pro_price,        label: "Pro Tier",        value: 99)
-  |> DecisionTree.add_leaf(:discounted,       label: "Discounted",      value: 29)
-  |> DecisionTree.add_leaf(:free_tier,        label: "Free Tier",       value: 0)
-  |> DecisionTree.branch(:is_premium,   true,  :high_usage)
-  |> DecisionTree.branch(:is_premium,   false, :has_discount)
-  |> DecisionTree.branch(:high_usage,   true,  :enterprise_price)
-  |> DecisionTree.branch(:high_usage,   false, :pro_price)
-  |> DecisionTree.branch(:has_discount, true,  :discounted)
-  |> DecisionTree.branch(:has_discount, false, :free_tier)
+  |> DecisionTree.set_root(:is_premium, feature: "premium?")
+  |> DecisionTree.add_decision(:high_usage, feature: "monthly_usage")
+  |> DecisionTree.add_decision(:has_discount, feature: "discount_code")
+  |> DecisionTree.add_outcome(:enterprise_price, label: "Enterprise Tier", class: "$499/mo")
+  |> DecisionTree.add_outcome(:pro_price, label: "Pro Tier", class: "$99/mo")
+  |> DecisionTree.add_outcome(:discounted, label: "Discounted", class: "$29/mo")
+  |> DecisionTree.add_outcome(:free_tier, label: "Free Tier", class: "$0/mo")
+  |> DecisionTree.branch(:is_premium, :high_usage, "yes")
+  |> DecisionTree.branch(:is_premium, :has_discount, "no")
+  |> DecisionTree.branch(:high_usage, :enterprise_price, "> 10k")
+  |> DecisionTree.branch(:high_usage, :pro_price, "<= 10k")
+  |> DecisionTree.branch(:has_discount, :discounted, "yes")
+  |> DecisionTree.branch(:has_discount, :free_tier, "no")
 
 # Analysis
-DecisionTree.incomplete_branches(tree)  # => []
-DecisionTree.reachable_leaves(tree)     # all terminal outcomes</code></pre>
-          </div>
-          <div class="showcase-diagram-block" id="diag-decision"></div>
-        </div>
-      </div>
+DecisionTree.Analysis.validate(tree)  # => []
+DecisionTree.Analysis.rules(tree)     # IF/THEN paths</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-decision"
+                        ></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    </div>
-  </section>
+        <!-- Labs Section -->
+        <section id="labs" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Livebook Labs</span>
+                    <h2 class="section-title">
+                        Interactive Renderers for Exploration
+                    </h2>
+                    <p class="section-subtitle">
+                        Choreo.Lab turns generated Mermaid into interactive
+                        Livebook views: zoomable diagrams for inspection and
+                        editable sketches for collaborative modeling.
+                    </p>
+                </div>
 
-  <!-- Embed Feature Section -->
-  <section id="embed" class="section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-label">Composition</span>
-        <h2 class="section-title">Compose Diagrams with <code style="font-size:1.5rem;color:var(--primary)">embed/4</code></h2>
-        <p class="section-subtitle">Nest any Choreo diagram — Dataflow, Workflow, C4, ERD — as a labelled cluster inside a parent system. Nodes are prefixed to avoid ID collisions; edges carry their original metadata.</p>
-      </div>
+                <div class="grid-types">
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Lab.Siren.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Choreo.Lab</div>
+                        <h3 class="card-title">Siren</h3>
+                        <p class="card-description">
+                            A Mermaid renderer for Livebook with pan, zoom,
+                            fit-to-screen controls, and automatic dark/light
+                            theme detection.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Lab.Siren</span>
+                            <span class="card-tag">Mermaid</span>
+                            <span class="card-tag">Pan/Zoom</span>
+                        </div>
+                    </a>
 
-      <div class="feature-grid">
-        <!-- Step 1 -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">step 1 — build child diagrams independently</span>
-          </div>
-          <div class="showcase-code-block" style="height:220px">
-            <pre class="language-elixir"><code class="language-elixir"># Each child diagram is a stand-alone Choreo model
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Lab.Sketch.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Choreo.Lab</div>
+                        <h3 class="card-title">Sketch</h3>
+                        <p class="card-description">
+                            Converts Mermaid diagrams into editable Excalidraw
+                            whiteboards so teams can annotate, rearrange, and
+                            iterate visually.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Lab.Sketch</span>
+                            <span class="card-tag">Excalidraw</span>
+                            <span class="card-tag">Whiteboard</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Livebook Tutorial Grid -->
+        <section id="livebooks" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Tutorials</span>
+                    <h2 class="section-title">Run the Interactive Livebooks</h2>
+                    <p class="section-subtitle">
+                        The website gives you a quick tour; the Livebooks are
+                        the hands-on path. Open them in GitHub or run them
+                        locally in Livebook.
+                    </p>
+                </div>
+
+                <div class="grid-types">
+                    <a
+                        href="https://github.com/code-shoily/choreo/tree/main/livebooks/guides"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Walkthroughs</div>
+                        <h3 class="card-title">Diagram Guides</h3>
+                        <p class="card-description">
+                            Step-by-step notebooks for C4, dataflow, ERD, FSM,
+                            sequence diagrams, workflows, threat models, and
+                            more.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Guides</span
+                            ><span class="card-tag">Getting Started</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://github.com/code-shoily/choreo/tree/main/livebooks/integrations"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Integrations</div>
+                        <h3 class="card-title">Real Project Inputs</h3>
+                        <p class="card-description">
+                            Explore Hex dependencies, GitHub issues, Mix xref
+                            graphs, Ecto schemas, and Finitomata state machines.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Hex</span
+                            ><span class="card-tag">GitHub</span
+                            ><span class="card-tag">Ecto</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://github.com/code-shoily/choreo/tree/main/livebooks/extending_choreo"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Extending</div>
+                        <h3 class="card-title">Build New Vocabularies</h3>
+                        <p class="card-description">
+                            Learn how to add custom diagram DSLs, renderers,
+                            protocol implementations, and analysis modules.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Protocols</span
+                            ><span class="card-tag">Renderers</span
+                            ><span class="card-tag">Analysis</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://github.com/code-shoily/choreo/tree/main/livebooks/projects"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Projects</div>
+                        <h3 class="card-title">End-to-End Models</h3>
+                        <p class="card-description">
+                            Larger examples that combine architecture, behavior,
+                            data, infrastructure, and analysis views in one
+                            system model.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Case Studies</span
+                            ><span class="card-tag">Systems</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Embed Feature Section -->
+        <section id="embed" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Composition</span>
+                    <h2 class="section-title">
+                        Compose Diagrams with
+                        <code style="font-size: 1.5rem; color: var(--primary)"
+                            >embed/4</code
+                        >
+                    </h2>
+                    <p class="section-subtitle">
+                        Nest any Choreo diagram — Dataflow, Workflow, C4, ERD —
+                        as a labelled cluster inside a parent system. Nodes are
+                        prefixed to avoid ID collisions; edges carry their
+                        original metadata.
+                    </p>
+                </div>
+
+                <div class="feature-grid">
+                    <!-- Step 1 -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >step 1 — build child diagrams
+                                independently</span
+                            >
+                        </div>
+                        <div class="showcase-code-block" style="height: 220px">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir"># Each child diagram is a stand-alone Choreo model
 ingestion =
   Choreo.Dataflow.new()
   |> Dataflow.add_source(:kafka,    label: "Kafka")
@@ -1329,17 +1903,23 @@ orchestration =
   |> Workflow.add_end(:done)
   |> Workflow.connect(:trigger, :process)
   |> Workflow.connect(:process, :done)</code></pre>
-          </div>
-        </div>
+                        </div>
+                    </div>
 
-        <!-- Step 2 -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">step 2 — embed into a parent system</span>
-          </div>
-          <div class="showcase-code-block" style="height:220px">
-            <pre class="language-elixir"><code class="language-elixir">platform =
+                    <!-- Step 2 -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >step 2 — embed into a parent system</span
+                            >
+                        </div>
+                        <div class="showcase-code-block" style="height: 220px">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">platform =
   Choreo.new()
   # Create named cluster boundaries
   |> Choreo.add_cluster("ingestion",     label: "Data Ingestion")
@@ -1352,40 +1932,74 @@ orchestration =
 
 # Render the unified diagram
 Choreo.to_mermaid(platform)</code></pre>
-          </div>
-        </div>
-      </div>
+                        </div>
+                    </div>
+                </div>
 
-      <!-- Rendered output -->
-      <div class="showcase-panel" style="margin-top:1.5rem">
-        <div class="showcase-panel-header">
-          <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-          <span class="panel-filename">rendered output — unified cross-schema diagram</span>
-        </div>
-        <div class="showcase-diagram-block" id="diag-embed-feature" style="height:380px">
-        </div>
-      </div>
-    </div>
-  </section>
+                <!-- Rendered output -->
+                <div class="showcase-panel" style="margin-top: 1.5rem">
+                    <div class="showcase-panel-header">
+                        <div class="dot dot-red"></div>
+                        <div class="dot dot-amber"></div>
+                        <div class="dot dot-green"></div>
+                        <span class="panel-filename"
+                            >rendered output — unified cross-schema
+                            diagram</span
+                        >
+                    </div>
+                    <div
+                        class="showcase-diagram-block"
+                        id="diag-embed-feature"
+                        style="height: 380px"
+                    ></div>
+                </div>
+            </div>
+        </section>
 
-  <!-- Cross-Diagram Tracing Section -->
-  <section id="tracing" class="section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-label">Semantic Tracing</span>
-        <h2 class="section-title">Cross-Diagram Impact Analysis</h2>
-        <p class="section-subtitle">Declare semantic links between nodes in different diagram schemas. <code style="color:var(--primary)">Choreo.trace/4</code> records a typed relationship (<code style="color:var(--primary)">:reads</code>, <code style="color:var(--primary)">:writes</code>, <code style="color:var(--primary)">:triggers</code>, …) that <code style="color:var(--primary)">Choreo.Analysis.Tracing</code> can walk transitively to answer &ldquo;if this table changes, what workflows break?&rdquo;</p>
-      </div>
+        <!-- Cross-Diagram Tracing Section -->
+        <section id="tracing" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Semantic Tracing</span>
+                    <h2 class="section-title">Cross-Diagram Impact Analysis</h2>
+                    <p class="section-subtitle">
+                        Declare semantic links between nodes in different
+                        diagram schemas.
+                        <code style="color: var(--primary)"
+                            >Choreo.trace/4</code
+                        >
+                        records a typed relationship (<code
+                            style="color: var(--primary)"
+                            >:reads</code
+                        >, <code style="color: var(--primary)">:writes</code>,
+                        <code style="color: var(--primary)">:triggers</code>, …)
+                        that
+                        <code style="color: var(--primary)"
+                            >Choreo.Analysis.Tracing</code
+                        >
+                        can walk transitively to answer &ldquo;if this table
+                        changes, what workflows break?&rdquo;
+                    </p>
+                </div>
 
-      <div class="feature-grid feature-grid--asymmetric">
-        <!-- Code example -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">cross_schema_trace.exs</span>
-          </div>
-          <div class="showcase-code-block" style="height:520px;overflow-y:auto">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo
+                <div class="feature-grid feature-grid--asymmetric">
+                    <!-- Code example -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >cross_schema_trace.exs</span
+                            >
+                        </div>
+                        <div
+                            class="showcase-code-block"
+                            style="height: 520px; overflow-y: auto"
+                        >
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo
 alias Choreo.Analysis.Tracing
 
 # Embed ERD schema + Workflow into one parent system
@@ -1412,81 +2026,250 @@ Tracing.trace_path(platform, :wf_auth, :db_orders)
 
 # Render with trace arrows visible
 Choreo.to_dot(platform, show_traces: true)</code></pre>
-          </div>
-        </div>
+                        </div>
+                    </div>
 
-        <!-- How it works explanation -->
-        <div style="display:flex;flex-direction:column;gap:1rem">
-          <div class="showcase-panel">
-            <div class="showcase-panel-header">
-              <span class="panel-filename">what Choreo.trace/4 does</span>
-            </div>
-            <div style="padding:1.25rem;font-size:0.85rem;color:var(--text-2);line-height:1.65">
-              <p style="margin-bottom:0.75rem">Traces are stored as a separate edge layer — they are <strong style="color:var(--text)">invisible by default</strong> so they don&rsquo;t clutter normal diagrams. Pass <code style="color:var(--primary)">show_traces: true</code> to any renderer to make them appear as dashed red arrows.</p>
-              <p>Each trace carries a <code style="color:var(--primary)">:type</code> tag (<code style="color:var(--primary)">:reads</code>, <code style="color:var(--primary)">:writes</code>, <code style="color:var(--primary)">:triggers</code>, <code style="color:var(--primary)">:depends_on</code>) that the analysis engine uses to build the dependency graph.</p>
-            </div>
-          </div>
+                    <!-- How it works explanation -->
+                    <div
+                        style="display: flex; flex-direction: column; gap: 1rem"
+                    >
+                        <div class="showcase-panel">
+                            <div class="showcase-panel-header">
+                                <span class="panel-filename"
+                                    >what Choreo.trace/4 does</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    padding: 1.25rem;
+                                    font-size: 0.85rem;
+                                    color: var(--text-2);
+                                    line-height: 1.65;
+                                "
+                            >
+                                <p style="margin-bottom: 0.75rem">
+                                    Traces are stored as a separate edge layer —
+                                    they are
+                                    <strong style="color: var(--text)"
+                                        >invisible by default</strong
+                                    >
+                                    so they don&rsquo;t clutter normal diagrams.
+                                    Pass
+                                    <code style="color: var(--primary)"
+                                        >show_traces: true</code
+                                    >
+                                    to any renderer to make them appear as
+                                    dashed red arrows.
+                                </p>
+                                <p>
+                                    Each trace carries a
+                                    <code style="color: var(--primary)"
+                                        >:type</code
+                                    >
+                                    tag (<code style="color: var(--primary)"
+                                        >:reads</code
+                                    >,
+                                    <code style="color: var(--primary)"
+                                        >:writes</code
+                                    >,
+                                    <code style="color: var(--primary)"
+                                        >:triggers</code
+                                    >,
+                                    <code style="color: var(--primary)"
+                                        >:depends_on</code
+                                    >) that the analysis engine uses to build
+                                    the dependency graph.
+                                </p>
+                            </div>
+                        </div>
 
-          <div class="showcase-panel">
-            <div class="showcase-panel-header">
-              <span class="panel-filename">analysis functions</span>
-            </div>
-            <div style="padding:1.25rem">
-              <table style="width:100%;font-size:0.8rem;border-collapse:collapse">
-                <thead>
-                  <tr style="border-bottom:1px solid var(--border)">
-                    <th style="text-align:left;padding:0.4rem 0.6rem;font-family:var(--font-mono);color:var(--primary);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em">Function</th>
-                    <th style="text-align:left;padding:0.4rem 0.6rem;font-family:var(--font-mono);color:var(--primary);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em">Returns</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style="border-bottom:1px solid var(--border)">
-                    <td style="padding:0.5rem 0.6rem;font-family:var(--font-mono);color:var(--text);font-size:0.75rem">impact_analysis/2</td>
-                    <td style="padding:0.5rem 0.6rem;color:var(--text-2)">All nodes downstream of a change</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid var(--border)">
-                    <td style="padding:0.5rem 0.6rem;font-family:var(--font-mono);color:var(--text);font-size:0.75rem">trace_path/3</td>
-                    <td style="padding:0.5rem 0.6rem;color:var(--text-2)">Cross-diagram execution path</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:0.5rem 0.6rem;font-family:var(--font-mono);color:var(--text);font-size:0.75rem">to_dot/2 show_traces:</td>
-                    <td style="padding:0.5rem 0.6rem;color:var(--text-2)">Renders trace arrows in DOT / Mermaid</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+                        <div class="showcase-panel">
+                            <div class="showcase-panel-header">
+                                <span class="panel-filename"
+                                    >analysis functions</span
+                                >
+                            </div>
+                            <div style="padding: 1.25rem">
+                                <table
+                                    style="
+                                        width: 100%;
+                                        font-size: 0.8rem;
+                                        border-collapse: collapse;
+                                    "
+                                >
+                                    <thead>
+                                        <tr
+                                            style="
+                                                border-bottom: 1px solid
+                                                    var(--border);
+                                            "
+                                        >
+                                            <th
+                                                style="
+                                                    text-align: left;
+                                                    padding: 0.4rem 0.6rem;
+                                                    font-family: var(
+                                                        --font-mono
+                                                    );
+                                                    color: var(--primary);
+                                                    font-size: 0.7rem;
+                                                    text-transform: uppercase;
+                                                    letter-spacing: 0.08em;
+                                                "
+                                            >
+                                                Function
+                                            </th>
+                                            <th
+                                                style="
+                                                    text-align: left;
+                                                    padding: 0.4rem 0.6rem;
+                                                    font-family: var(
+                                                        --font-mono
+                                                    );
+                                                    color: var(--primary);
+                                                    font-size: 0.7rem;
+                                                    text-transform: uppercase;
+                                                    letter-spacing: 0.08em;
+                                                "
+                                            >
+                                                Returns
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr
+                                            style="
+                                                border-bottom: 1px solid
+                                                    var(--border);
+                                            "
+                                        >
+                                            <td
+                                                style="
+                                                    padding: 0.5rem 0.6rem;
+                                                    font-family: var(
+                                                        --font-mono
+                                                    );
+                                                    color: var(--text);
+                                                    font-size: 0.75rem;
+                                                "
+                                            >
+                                                impact_analysis/2
+                                            </td>
+                                            <td
+                                                style="
+                                                    padding: 0.5rem 0.6rem;
+                                                    color: var(--text-2);
+                                                "
+                                            >
+                                                All nodes downstream of a change
+                                            </td>
+                                        </tr>
+                                        <tr
+                                            style="
+                                                border-bottom: 1px solid
+                                                    var(--border);
+                                            "
+                                        >
+                                            <td
+                                                style="
+                                                    padding: 0.5rem 0.6rem;
+                                                    font-family: var(
+                                                        --font-mono
+                                                    );
+                                                    color: var(--text);
+                                                    font-size: 0.75rem;
+                                                "
+                                            >
+                                                trace_path/3
+                                            </td>
+                                            <td
+                                                style="
+                                                    padding: 0.5rem 0.6rem;
+                                                    color: var(--text-2);
+                                                "
+                                            >
+                                                Cross-diagram execution path
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td
+                                                style="
+                                                    padding: 0.5rem 0.6rem;
+                                                    font-family: var(
+                                                        --font-mono
+                                                    );
+                                                    color: var(--text);
+                                                    font-size: 0.75rem;
+                                                "
+                                            >
+                                                to_dot/2 show_traces:
+                                            </td>
+                                            <td
+                                                style="
+                                                    padding: 0.5rem 0.6rem;
+                                                    color: var(--text-2);
+                                                "
+                                            >
+                                                Renders trace arrows in DOT /
+                                                Mermaid
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-          <div class="showcase-panel">
-            <div class="showcase-panel-header">
-              <span class="panel-filename">rendered trace diagram</span>
+                        <div class="showcase-panel">
+                            <div class="showcase-panel-header">
+                                <span class="panel-filename"
+                                    >rendered trace diagram</span
+                                >
+                            </div>
+                            <div
+                                class="showcase-diagram-block"
+                                id="diag-tracing-feature"
+                                style="
+                                    height: 320px;
+                                    background: var(--surface-paper);
+                                "
+                            ></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="showcase-diagram-block" id="diag-tracing-feature" style="height:320px;background:var(--surface-paper)">
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+        </section>
 
-  <!-- Filter Feature Section -->
-  <section id="filter" class="section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-label">Predicate Filtering</span>
-        <h2 class="section-title">Filter Any Diagram by Node Type</h2>
-        <p class="section-subtitle"><code style="color:var(--primary)">Choreo.View.filter/2</code> keeps only nodes that match a predicate. Use it to remove internals for stakeholder decks, or isolate specific node types across any diagram module.</p>
-      </div>
+        <!-- Filter Feature Section -->
+        <section id="filter" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Predicate Filtering</span>
+                    <h2 class="section-title">
+                        Filter Any Diagram by Node Type
+                    </h2>
+                    <p class="section-subtitle">
+                        <code style="color: var(--primary)"
+                            >Choreo.View.filter/2</code
+                        >
+                        keeps only nodes that match a predicate. Use it to
+                        remove internals for stakeholder decks, or isolate
+                        specific node types across any diagram module.
+                    </p>
+                </div>
 
-      <div class="feature-grid">
-        <!-- Code -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">filter_notes.exs</span>
-          </div>
-          <div class="showcase-code-block" style="height:280px">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.MindMap
+                <div class="feature-grid">
+                    <!-- Code -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">filter_notes.exs</span>
+                        </div>
+                        <div class="showcase-code-block" style="height: 280px">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.MindMap
 alias Choreo.View
 
 map =
@@ -1509,40 +2292,62 @@ clean =
   end)
 
 MindMap.to_dot(clean)</code></pre>
-          </div>
-        </div>
+                        </div>
+                    </div>
 
-        <!-- Rendered -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">rendered output — notes hidden</span>
-          </div>
-          <div class="showcase-diagram-block" id="diag-filter" style="height:280px">
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+                    <!-- Rendered -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >rendered output — notes hidden</span
+                            >
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-filter"
+                            style="height: 280px"
+                        ></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-  <!-- Zoom Feature Section -->
-  <section id="zoom" class="section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-label">Semantic Zoom</span>
-        <h2 class="section-title">Zoom In and Out of Detail Levels</h2>
-        <p class="section-subtitle"><code style="color:var(--primary)">Choreo.View.zoom/2</code> filters diagrams by module-defined zoom levels. Each type defines what level 0, 1, 2 … means — so zooming is semantic, not just geometric.</p>
-      </div>
+        <!-- Zoom Feature Section -->
+        <section id="zoom" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Semantic Zoom</span>
+                    <h2 class="section-title">
+                        Zoom In and Out of Detail Levels
+                    </h2>
+                    <p class="section-subtitle">
+                        <code style="color: var(--primary)"
+                            >Choreo.View.zoom/2</code
+                        >
+                        filters diagrams by module-defined zoom levels. Each
+                        type defines what level 0, 1, 2 … means — so zooming is
+                        semantic, not just geometric.
+                    </p>
+                </div>
 
-      <div class="feature-grid">
-        <!-- Code -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">zoom_overview.exs</span>
-          </div>
-          <div class="showcase-code-block" style="height:280px">
-            <pre class="language-elixir"><code class="language-elixir">alias Choreo.MindMap
+                <div class="feature-grid">
+                    <!-- Code -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >zoom_overview.exs</span
+                            >
+                        </div>
+                        <div class="showcase-code-block" style="height: 280px">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.MindMap
 alias Choreo.View
 
 map =
@@ -1562,287 +2367,537 @@ map =
 overview = View.zoom(map, level: 1)
 
 MindMap.to_dot(overview)</code></pre>
-          </div>
-        </div>
+                        </div>
+                    </div>
 
-        <!-- Rendered -->
-        <div class="showcase-panel">
-          <div class="showcase-panel-header">
-            <div class="dot dot-red"></div><div class="dot dot-amber"></div><div class="dot dot-green"></div>
-            <span class="panel-filename">rendered output — zoom level 1</span>
-          </div>
-          <div class="showcase-diagram-block" id="diag-zoom" style="height:280px">
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Static Analysis Engine Table -->
-  <section id="analysis" class="section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">Static Analysis Engine</h2>
-        <p class="section-subtitle">Choreo acts as a query engine over domain models — detecting architectural issues without running code.</p>
-      </div>
-
-      <div class="analysis-wrapper">
-        <table class="analysis-table">
-          <thead>
-            <tr>
-              <th>Artifact</th>
-              <th>Modeling Purpose</th>
-              <th>Questions Answered</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><span class="artifact-chip">C4 Model</span></td>
-              <td>System Architecture</td>
-              <td>Are system boundaries clean? Which systems share databases? What external interfaces exist?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Dataflow</span></td>
-              <td>Processing Pipelines</td>
-              <td>Where are data bottlenecks? Is backpressure possible? Are processing paths strictly acyclic?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Decision Tree</span></td>
-              <td>Branching Heuristics</td>
-              <td>Are there duplicate logic paths? Is the decision tree complete? Which branches have missing leaves?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Dependency</span></td>
-              <td>Package &amp; Module DAGs</td>
-              <td>Are there circular package imports? Which modules are impacted if a low-level module changes?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Domain DDD</span></td>
-              <td>Strategic &amp; Tactical Design</td>
-              <td>What are aggregate boundaries? Which events trigger policies? Are there unmapped commands?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">ERD</span></td>
-              <td>Database Schema</td>
-              <td>Are column keys consistent? Are there circular entity relationships? Do we have orphaned tables?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">FSM</span></td>
-              <td>State Transitions</td>
-              <td>Is the state machine deterministic? Are there unreachable or dead-end states? Shortest path to done?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Mind Map</span></td>
-              <td>Concept Hierarchies</td>
-              <td>Are there disconnected subtopics? Is the structure strictly parent-child? What is the depth distribution?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Planner</span></td>
-              <td>Task Scheduling</td>
-              <td>What is the project critical path? Which tasks are ready to start? Who has overloaded assignments?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Sequence</span></td>
-              <td>Timeline Interactions</td>
-              <td>Are activation boxes balanced? Do async returns match? Is any actor blocked indefinitely?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Threat Model</span></td>
-              <td>STRIDE Security</td>
-              <td>Which flows cross trust boundaries? Where are sensitive assets stored? What is the static risk level?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">UML Class</span></td>
-              <td>Software Types</td>
-              <td>Which structs reference each other? Are there circular associations or inheritance loops?</td>
-            </tr>
-            <tr>
-              <td><span class="artifact-chip">Workflow</span></td>
-              <td>Task Orchestration</td>
-              <td>What is the latency critical path? Which tasks can run in parallel? Are Saga compensations missing?</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- Grid of 13 Types -->
-  <section id="types" class="section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">13 Specialized Modeling DSLs</h2>
-        <p class="section-subtitle">Each model targets a specific domain design need with its own semantic graph, analysis functions, and layout generator.</p>
-      </div>
-
-      <div class="grid-types">
-        <!-- Alphabetical order -->
-        <a href="https://hexdocs.pm/choreo/Choreo.C4.html" target="_blank" class="card-type">
-          <div class="card-category">Architecture &amp; Design</div>
-          <h3 class="card-title">C4 Model</h3>
-          <p class="card-description">Hierarchical modeling of software systems, containers, and components following the C4 layout specification.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.C4</span>
-            <span class="card-tag">Systems</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Dataflow.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Dataflow</h3>
-          <p class="card-description">Model dataflow processing graphs, transformation nodes, message routers, and parallel sources/sinks.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Dataflow</span>
-            <span class="card-tag">Pipelines</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.DecisionTree.html" target="_blank" class="card-type">
-          <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Decision Tree</h3>
-          <p class="card-description">Evaluate complex branching heuristics and run entropy validation checks for logical soundness.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.DecisionTree</span>
-            <span class="card-tag">Logic</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Dependency.html" target="_blank" class="card-type">
-          <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Dependency</h3>
-          <p class="card-description">Analyze acyclic package dependencies, detect cyclic loops, and optimize layering schedules.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Dependency</span>
-            <span class="card-tag">DAGs</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Domain.html" target="_blank" class="card-type">
-          <div class="card-category">Architecture &amp; Design</div>
-          <h3 class="card-title">Domain DDD</h3>
-          <p class="card-description">Map strategic bounded contexts, aggregates, entities, and event storming command-policy flows.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Domain</span>
-            <span class="card-tag">DDD</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.ERD.html" target="_blank" class="card-type">
-          <div class="card-category">Architecture &amp; Design</div>
-          <h3 class="card-title">ERD</h3>
-          <p class="card-description">Database entity-relationship modeling supporting primary/foreign keys, types, and schema links.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.ERD</span>
-            <span class="card-tag">Databases</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.FSM.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">FSM</h3>
-          <p class="card-description">Model finite state machines with deterministic transitions, dead-state reachability, and path analysis.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.FSM</span>
-            <span class="card-tag">State</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.MindMap.html" target="_blank" class="card-type">
-          <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Mind Map</h3>
-          <p class="card-description">Organize concepts hierarchically into parent-child visual layouts representing domain trees.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.MindMap</span>
-            <span class="card-tag">Trees</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Planner.html" target="_blank" class="card-type">
-          <div class="card-category">Data &amp; Structure</div>
-          <h3 class="card-title">Planner</h3>
-          <p class="card-description">Schedule tasks, resolve priority constraints, and isolate critical path dependencies.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Planner</span>
-            <span class="card-tag">PERT</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Sequence.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Sequence</h3>
-          <p class="card-description">Map sequence interactions and timelines with sync/async activations and loop/alt conditions.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Sequence</span>
-            <span class="card-tag">Messages</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.ThreatModel.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Threat Model</h3>
-          <p class="card-description">Map secure boundaries, trust barriers, assets, dataflows, and calculate threat levels statically.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.ThreatModel</span>
-            <span class="card-tag">STRIDE</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.UML.html" target="_blank" class="card-type">
-          <div class="card-category">Architecture &amp; Design</div>
-          <h3 class="card-title">UML Class</h3>
-          <p class="card-description">Generate object-oriented class structure layouts mapping structs, schemas, and associations.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.UML</span>
-            <span class="card-tag">UML</span>
-          </div>
-        </a>
-
-        <a href="https://hexdocs.pm/choreo/Choreo.Workflow.html" target="_blank" class="card-type">
-          <div class="card-category">Behavior &amp; Flows</div>
-          <h3 class="card-title">Workflow</h3>
-          <p class="card-description">Orchestrate tasks, parallel branches, latency weights, Saga compensation hooks, and bottlenecks.</p>
-          <div class="card-tags">
-            <span class="card-tag">Choreo.Workflow</span>
-            <span class="card-tag">Sagas</span>
-          </div>
-        </a>
+                    <!-- Rendered -->
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename"
+                                >rendered output — zoom level 1</span
+                            >
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-zoom"
+                            style="height: 280px"
+                        ></div>
+                    </div>
+                </div>
             </div>
-    </div>
-  </section>
+        </section>
 
-  <!-- Installation -->
-  <section class="section">
-    <div class="container" style="max-width: 760px;">
-      <div class="section-header">
-        <h2 class="section-title">Install Choreo</h2>
-        <p class="section-subtitle">Add Choreo to your <code>mix.exs</code> and start building visual models of your domain.</p>
-      </div>
-      <div class="install-box">
-        <pre id="install-code" style="margin:0;background:none;border:none;padding:0;font-family:var(--font-mono);font-size:0.9rem;color:var(--text);">def deps do
+        <!-- Static Analysis Engine Table -->
+        <section id="analysis" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Static Analysis Engine</h2>
+                    <p class="section-subtitle">
+                        Choreo acts as a query engine over domain models —
+                        detecting architectural issues without running code.
+                    </p>
+                </div>
+
+                <div class="analysis-wrapper">
+                    <table class="analysis-table">
+                        <thead>
+                            <tr>
+                                <th>Artifact</th>
+                                <th>Modeling Purpose</th>
+                                <th>Questions Answered</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">C4 Model</span>
+                                </td>
+                                <td>System Architecture</td>
+                                <td>
+                                    Are system boundaries clean? Which systems
+                                    share databases? What external interfaces
+                                    exist?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">Dataflow</span>
+                                </td>
+                                <td>Processing Pipelines</td>
+                                <td>
+                                    Where are data bottlenecks? Is backpressure
+                                    possible? Are processing paths strictly
+                                    acyclic?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip"
+                                        >Decision Tree</span
+                                    >
+                                </td>
+                                <td>Branching Heuristics</td>
+                                <td>
+                                    Are there duplicate logic paths? Is the
+                                    decision tree complete? Which branches have
+                                    missing leaves?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip"
+                                        >Dependency</span
+                                    >
+                                </td>
+                                <td>Package &amp; Module DAGs</td>
+                                <td>
+                                    Are there circular package imports? Which
+                                    modules are impacted if a low-level module
+                                    changes?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip"
+                                        >Domain DDD</span
+                                    >
+                                </td>
+                                <td>Strategic &amp; Tactical Design</td>
+                                <td>
+                                    What are aggregate boundaries? Which events
+                                    trigger policies? Are there unmapped
+                                    commands?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="artifact-chip">ERD</span></td>
+                                <td>Database Schema</td>
+                                <td>
+                                    Are column keys consistent? Are there
+                                    circular entity relationships? Do we have
+                                    orphaned tables?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip"
+                                        >Infrastructure</span
+                                    >
+                                </td>
+                                <td>Cloud Topology</td>
+                                <td>
+                                    Are databases private? Do internet paths
+                                    bypass public entrypoints? Are load
+                                    balancers in the right subnet?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><span class="artifact-chip">FSM</span></td>
+                                <td>State Transitions</td>
+                                <td>
+                                    Is the state machine deterministic? Are
+                                    there unreachable or dead-end states?
+                                    Shortest path to done?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">Mind Map</span>
+                                </td>
+                                <td>Concept Hierarchies</td>
+                                <td>
+                                    Are there disconnected subtopics? Is the
+                                    structure strictly parent-child? What is the
+                                    depth distribution?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">Planner</span>
+                                </td>
+                                <td>Task Scheduling</td>
+                                <td>
+                                    What is the project critical path? Which
+                                    tasks are ready to start? Who has overloaded
+                                    assignments?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">Sequence</span>
+                                </td>
+                                <td>Timeline Interactions</td>
+                                <td>
+                                    Are activation boxes balanced? Do async
+                                    returns match? Is any actor blocked
+                                    indefinitely?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip"
+                                        >Threat Model</span
+                                    >
+                                </td>
+                                <td>STRIDE Security</td>
+                                <td>
+                                    Which flows cross trust boundaries? Where
+                                    are sensitive assets stored? What is the
+                                    static risk level?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">UML Class</span>
+                                </td>
+                                <td>Software Types</td>
+                                <td>
+                                    Which structs reference each other? Are
+                                    there circular associations or inheritance
+                                    loops?
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="artifact-chip">Workflow</span>
+                                </td>
+                                <td>Task Orchestration</td>
+                                <td>
+                                    What is the latency critical path? Which
+                                    tasks can run in parallel? Are Saga
+                                    compensations missing?
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Grid of Modeling DSLs -->
+        <section id="types" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Specialized Modeling DSLs</h2>
+                    <p class="section-subtitle">
+                        Each model targets a specific domain design need with
+                        its own semantic graph, analysis functions, and
+                        rendering path.
+                    </p>
+                </div>
+
+                <div class="grid-types">
+                    <!-- Alphabetical order -->
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.C4.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">
+                            Architecture &amp; Design
+                        </div>
+                        <h3 class="card-title">C4 Model</h3>
+                        <p class="card-description">
+                            Hierarchical modeling of software systems,
+                            containers, and components following the C4 layout
+                            specification.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.C4</span>
+                            <span class="card-tag">Systems</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Dataflow.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Behavior &amp; Flows</div>
+                        <h3 class="card-title">Dataflow</h3>
+                        <p class="card-description">
+                            Model dataflow processing graphs, transformation
+                            nodes, message routers, and parallel sources/sinks.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Dataflow</span>
+                            <span class="card-tag">Pipelines</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.DecisionTree.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Data &amp; Structure</div>
+                        <h3 class="card-title">Decision Tree</h3>
+                        <p class="card-description">
+                            Evaluate complex branching heuristics and run
+                            entropy validation checks for logical soundness.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.DecisionTree</span>
+                            <span class="card-tag">Logic</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Dependency.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Data &amp; Structure</div>
+                        <h3 class="card-title">Dependency</h3>
+                        <p class="card-description">
+                            Analyze acyclic package dependencies, detect cyclic
+                            loops, and optimize layering schedules.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Dependency</span>
+                            <span class="card-tag">DAGs</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Domain.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">
+                            Architecture &amp; Design
+                        </div>
+                        <h3 class="card-title">Domain DDD</h3>
+                        <p class="card-description">
+                            Map strategic bounded contexts, aggregates,
+                            entities, and event storming command-policy flows.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Domain</span>
+                            <span class="card-tag">DDD</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.ERD.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">
+                            Architecture &amp; Design
+                        </div>
+                        <h3 class="card-title">ERD</h3>
+                        <p class="card-description">
+                            Database entity-relationship modeling supporting
+                            primary/foreign keys, types, and schema links.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.ERD</span>
+                            <span class="card-tag">Databases</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Infrastructure.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">
+                            Architecture &amp; Design
+                        </div>
+                        <h3 class="card-title">Infrastructure</h3>
+                        <p class="card-description">
+                            Model VPCs, subnets, load balancers, compute nodes,
+                            managed databases, and public/private topology
+                            rules.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Infrastructure</span>
+                            <span class="card-tag">Cloud</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.FSM.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Behavior &amp; Flows</div>
+                        <h3 class="card-title">FSM</h3>
+                        <p class="card-description">
+                            Model finite state machines with deterministic
+                            transitions, dead-state reachability, and path
+                            analysis.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.FSM</span>
+                            <span class="card-tag">State</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.MindMap.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Data &amp; Structure</div>
+                        <h3 class="card-title">Mind Map</h3>
+                        <p class="card-description">
+                            Organize concepts hierarchically into parent-child
+                            visual layouts representing domain trees.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.MindMap</span>
+                            <span class="card-tag">Trees</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Planner.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Data &amp; Structure</div>
+                        <h3 class="card-title">Planner</h3>
+                        <p class="card-description">
+                            Schedule tasks, resolve priority constraints, and
+                            isolate critical path dependencies.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Planner</span>
+                            <span class="card-tag">PERT</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Sequence.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Behavior &amp; Flows</div>
+                        <h3 class="card-title">Sequence</h3>
+                        <p class="card-description">
+                            Map sequence interactions and timelines with
+                            sync/async activations and loop/alt conditions.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Sequence</span>
+                            <span class="card-tag">Messages</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.ThreatModel.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Behavior &amp; Flows</div>
+                        <h3 class="card-title">Threat Model</h3>
+                        <p class="card-description">
+                            Map secure boundaries, trust barriers, assets,
+                            dataflows, and calculate threat levels statically.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.ThreatModel</span>
+                            <span class="card-tag">STRIDE</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.UML.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">
+                            Architecture &amp; Design
+                        </div>
+                        <h3 class="card-title">UML Class</h3>
+                        <p class="card-description">
+                            Generate object-oriented class structure layouts
+                            mapping structs, schemas, and associations.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.UML</span>
+                            <span class="card-tag">UML</span>
+                        </div>
+                    </a>
+
+                    <a
+                        href="https://hexdocs.pm/choreo/Choreo.Workflow.html"
+                        target="_blank"
+                        class="card-type"
+                    >
+                        <div class="card-category">Behavior &amp; Flows</div>
+                        <h3 class="card-title">Workflow</h3>
+                        <p class="card-description">
+                            Orchestrate tasks, parallel branches, latency
+                            weights, Saga compensation hooks, and bottlenecks.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Choreo.Workflow</span>
+                            <span class="card-tag">Sagas</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Installation -->
+        <section class="section">
+            <div class="container" style="max-width: 760px">
+                <div class="section-header">
+                    <h2 class="section-title">Install Choreo</h2>
+                    <p class="section-subtitle">
+                        Add Choreo to your <code>mix.exs</code> and start
+                        building visual models of your domain.
+                    </p>
+                </div>
+                <div class="install-box">
+                    <pre
+                        id="install-code"
+                        style="
+                            margin: 0;
+                            background: none;
+                            border: none;
+                            padding: 0;
+                            font-family: var(--font-mono);
+                            font-size: 0.9rem;
+                            color: var(--text);
+                        "
+                    >
+def deps do
   [
-    {:choreo, "~> 0.9"}
+    {:choreo, "~> 0.10"}
   ]
 end</pre>
-        <button class="btn-copy" onclick="copyInstall()">Copy snippet</button>
-      </div>
-    </div>
-  </section>
+                    <button class="btn-copy" onclick="copyInstall()">
+                        Copy snippet
+                    </button>
+                </div>
+            </div>
+        </section>
 
-  <!-- Footer -->
-  <footer>
-    <div class="container">
-      <p>&copy; 2026 Choreo. Built on top of Yog. Released under the MIT License.</p>
-    </div>
-  </footer>
+        <!-- Footer -->
+        <footer>
+            <div class="container">
+                <p>
+                    &copy; 2026 Choreo. Built on top of Yog. Released under the
+                    MIT License.
+                </p>
+            </div>
+        </footer>
 
-  <!-- Prism JS for syntax highlighting -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-elixir.min.js"></script>
+        <!-- Prism JS for syntax highlighting -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-elixir.min.js"></script>
 
-  <script>
-    // Mermaid presets for each tab
-    const tabPresets = {
-      fsm: `stateDiagram-v2
+        <script>
+            // Mermaid presets for each tab
+            const tabPresets = {
+                fsm: `stateDiagram-v2
   [*] --> idle
   idle --> processing : submit_order
   processing --> awaiting_payment : invoice_generated
@@ -1851,7 +2906,7 @@ end</pre>
   processing --> cancelled : cancel
   completed --> [*]`,
 
-      seq: `sequenceDiagram
+                seq: `sequenceDiagram
   actor User
   participant Frontend
   participant API as API Gateway
@@ -1870,7 +2925,7 @@ end</pre>
   API-->>Frontend: 201 Created
   Frontend-->>User: Order confirmed ✓`,
 
-      workflow: `graph TD
+                workflow: `graph TD
   received(("order_received"))
   validate["Validate Order\n1000ms"]
   reserve["Reserve Stock\n3000ms"]
@@ -1893,7 +2948,7 @@ end</pre>
   reserve -.-> release_stock
   charge -.-> refund`,
 
-      erd: `erDiagram
+                erd: `erDiagram
   users ||--o{ orders : places
   orders ||--o{ line_items : contains
   users {
@@ -1913,7 +2968,7 @@ end</pre>
     integer qty
   }`,
 
-      uml: `classDiagram
+                uml: `classDiagram
   class Account {
     +UUID id
     +String email
@@ -1937,7 +2992,7 @@ end</pre>
   Account "1" o-- "many" Session : has_many
   Account ..> AuditLog : generates`,
 
-      c4: `graph TB
+                c4: `graph TB
   customer["👤 Customer"]
   admin["👤 Admin"]
   subgraph ShopApp ["E-Commerce Platform (Internal)"]
@@ -1960,7 +3015,28 @@ end</pre>
   style payment_gw fill:#374151,color:#fff
   style email_svc fill:#374151,color:#fff`,
 
-      mind_map: `mindmap
+                infra: `graph TD
+  internet(("Internet"))
+  subgraph prod ["Production VPC"]
+    subgraph public ["Public Subnet"]
+      alb{{"ALB"}}
+    end
+    subgraph private ["Private Subnet"]
+      api[["API Service"]]
+      db[("Postgres")]
+    end
+  end
+
+  internet -->|HTTPS| alb
+  alb -->|HTTP| api
+  api -->|TCP| db
+
+  style internet fill:#38bdf8,color:#0c1a2e
+  style alb fill:#f59e0b,color:#fff
+  style api fill:#10b981,color:#fff
+  style db fill:#8b5cf6,color:#fff`,
+
+                mind_map: `mindmap
 elixir((Elixir))
   concurrency(Concurrency)
     processes[Processes]
@@ -1972,8 +3048,8 @@ elixir((Elixir))
     mix[Mix]
     livebook[Livebook]`,
 
-      planner: `gantt
-  title Launch v1.0 — Project Timeline
+                planner: `gantt
+  title Launch v0.10 — Project Timeline
   dateFormat  YYYY-MM-DD
   axisFormat  %b %d
 
@@ -1991,7 +3067,7 @@ elixir((Elixir))
     QA Testing        :         testing,    after api_impl, 3d
     Deploy            :         deploy,     after testing, 1d`,
 
-      threat: `graph TD
+                threat: `graph TD
   subgraph Internet ["🌐 Internet Boundary"]
     user["👤 End User"]
     attacker["☠ Attacker"]
@@ -2013,7 +3089,7 @@ elixir((Elixir))
   style attacker fill:#dc2626,color:#fff
   style user_db fill:#f59e0b,color:#fff`,
 
-      dependency: `graph TD
+                dependency: `graph TD
   subgraph Domain
     core["Core Business"]
     accounts["Accounts"]
@@ -2041,7 +3117,7 @@ elixir((Elixir))
   style repo fill:#6b7280,color:#fff
   style mailer fill:#6b7280,color:#fff`,
 
-      dataflow: `graph TD
+                dataflow: `graph TD
   kafka[/"Kafka Topic"/]
   webhook[/"Webhook"/]
   router{"Event Router"}
@@ -2066,7 +3142,7 @@ elixir((Elixir))
   style router fill:#f59e0b,color:#fff
   style dlq fill:#ef4444,color:#fff`,
 
-      decision: `graph TD
+                decision: `graph TD
   is_premium{"Is user premium?"}
   high_usage{"Monthly usage > 10k?"}
   has_discount{"Active discount code?"}
@@ -2087,7 +3163,7 @@ elixir((Elixir))
   style discounted fill:#10b981,color:#fff
   style free fill:#6b7280,color:#fff`,
 
-      embed: `graph LR
+                embed: `graph LR
   subgraph ing ["Data Ingestion"]
     ing_kafka[/"Kafka"/]
     ing_router{"Router"}
@@ -2109,7 +3185,7 @@ elixir((Elixir))
   style orc_trigger fill:#10b981,color:#fff
   style orc_done fill:#6366f1,color:#fff`,
 
-      tracing: `graph LR
+                tracing: `graph LR
   subgraph schema ["Data Schema"]
     db_users["users"]
     db_orders["orders"]
@@ -2136,95 +3212,110 @@ elixir((Elixir))
   linkStyle 5 stroke:#ef4444,stroke-dasharray:5 5
   linkStyle 6 stroke:#ef4444,stroke-dasharray:5 5`,
 
-      filter: `mindmap
+                filter: `mindmap
   elixir((Elixir))
     concurrency(Concurrency)
       processes[Processes]
     ecosystem(Ecosystem)
       beam[BEAM VM]`,
 
-      zoom: `mindmap
+                zoom: `mindmap
   elixir((Elixir))
     concurrency(Concurrency)
-    ecosystem(Ecosystem)`
-    };
+    ecosystem(Ecosystem)`,
+            };
 
-    // Initialize Mermaid
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'neutral',
-      securityLevel: 'loose'
-    });
+            // Initialize Mermaid
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: "neutral",
+                securityLevel: "loose",
+            });
 
-    const renderedTabs = {};
+            const renderedTabs = {};
 
-    async function renderDiagram(tabId) {
-      const targetDiv = document.getElementById(`diag-${tabId}`);
-      if (!targetDiv || renderedTabs[tabId]) return;
-      try {
-        const rawCode = tabPresets[tabId];
-        const uniqueId = `mermaid-${tabId}-${Date.now()}`;
-        const { svg } = await mermaid.render(uniqueId, rawCode);
-        targetDiv.innerHTML = svg;
-        renderedTabs[tabId] = true;
-      } catch (err) {
-        console.error(`Error rendering tab ${tabId}:`, err);
-        targetDiv.innerHTML = `<span style="color:#ef4444;font-family:monospace;font-size:0.8rem;">Render error: ${err.message}</span>`;
-      }
-    }
+            async function renderDiagram(tabId) {
+                const targetDiv = document.getElementById(`diag-${tabId}`);
+                if (!targetDiv || renderedTabs[tabId]) return;
+                try {
+                    const rawCode = tabPresets[tabId];
+                    const uniqueId = `mermaid-${tabId}-${Date.now()}`;
+                    const { svg } = await mermaid.render(uniqueId, rawCode);
+                    targetDiv.innerHTML = svg;
+                    renderedTabs[tabId] = true;
+                } catch (err) {
+                    console.error(`Error rendering tab ${tabId}:`, err);
+                    targetDiv.innerHTML = `<span style="color:#ef4444;font-family:monospace;font-size:0.8rem;">Render error: ${err.message}</span>`;
+                }
+            }
 
-    function switchTab(tabId, btn) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.showcase-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      const container = document.getElementById(`showcase-${tabId}`);
-      if (container) container.classList.add('active');
-      renderDiagram(tabId);
-    }
+            function switchTab(tabId, btn) {
+                document
+                    .querySelectorAll(".tab-btn")
+                    .forEach((b) => b.classList.remove("active"));
+                document
+                    .querySelectorAll(".showcase-content")
+                    .forEach((c) => c.classList.remove("active"));
+                btn.classList.add("active");
+                const container = document.getElementById(`showcase-${tabId}`);
+                if (container) container.classList.add("active");
+                renderDiagram(tabId);
+            }
 
-    function toggleNav() {
-      document.getElementById('nav-links').classList.toggle('open');
-    }
+            function toggleNav() {
+                document.getElementById("nav-links").classList.toggle("open");
+            }
 
-    // Close mobile nav when a link is clicked
-    document.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', () => {
-        document.getElementById('nav-links').classList.remove('open');
-      });
-    });
+            // Close mobile nav when a link is clicked
+            document.querySelectorAll(".nav-link").forEach((link) => {
+                link.addEventListener("click", () => {
+                    document
+                        .getElementById("nav-links")
+                        .classList.remove("open");
+                });
+            });
 
-    function copyInstall() {
-      const text = document.getElementById('install-code').textContent;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.querySelector('.btn-copy');
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = 'Copy snippet'; }, 2000);
-      });
-    }
+            function copyInstall() {
+                const text =
+                    document.getElementById("install-code").textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = document.querySelector(".btn-copy");
+                    btn.textContent = "Copied!";
+                    setTimeout(() => {
+                        btn.textContent = "Copy snippet";
+                    }, 2000);
+                });
+            }
 
-    // Render a Mermaid diagram into a static (non-tab) element by ID
-    async function renderStatic(elementId, code) {
-      const el = document.getElementById(elementId);
-      if (!el) return;
-      try {
-        const { svg } = await mermaid.render(`static-${elementId}-${Date.now()}`, code);
-        el.innerHTML = svg;
-      } catch (err) {
-        console.warn('Static render error:', err);
-      }
-    }
+            // Render a Mermaid diagram into a static (non-tab) element by ID
+            async function renderStatic(elementId, code) {
+                const el = document.getElementById(elementId);
+                if (!el) return;
+                try {
+                    const { svg } = await mermaid.render(
+                        `static-${elementId}-${Date.now()}`,
+                        code,
+                    );
+                    el.innerHTML = svg;
+                } catch (err) {
+                    console.warn("Static render error:", err);
+                }
+            }
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      // Render teaser hero diagram
-      mermaid.init(undefined, document.querySelectorAll('.teaser-diagram .mermaid'));
-      // Render initial C4 tab
-      await renderDiagram('c4');
-      // Render feature-section static diagrams
-      await renderStatic('diag-embed-feature', tabPresets.embed);
-      await renderStatic('diag-tracing-feature', tabPresets.tracing);
-      await renderStatic('diag-filter', tabPresets.filter);
-      await renderStatic('diag-zoom', tabPresets.zoom);
-    });
-  </script>
-</body>
+            window.addEventListener("DOMContentLoaded", async () => {
+                // Render teaser hero diagram
+                mermaid.init(
+                    undefined,
+                    document.querySelectorAll(".teaser-diagram .mermaid"),
+                );
+                // Render initial C4 tab
+                await renderDiagram("c4");
+                // Render feature-section static diagrams
+                await renderStatic("diag-embed-feature", tabPresets.embed);
+                await renderStatic("diag-tracing-feature", tabPresets.tracing);
+                await renderStatic("diag-filter", tabPresets.filter);
+                await renderStatic("diag-zoom", tabPresets.zoom);
+            });
+        </script>
+    </body>
 </html>
