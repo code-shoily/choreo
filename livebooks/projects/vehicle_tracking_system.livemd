@@ -373,8 +373,8 @@ connection_fsm =
 <!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
-mermaid_fsm = FSM.to_mermaid(connection_fsm)
-Siren.new(mermaid_fsm, height: "600px", theme: :forest)
+mermaid_fsm = FSM.to_mermaid(connection_fsm, syntax: :state_diagram)
+Siren.new(mermaid_fsm, height: "600px", theme: :minimal)
 ```
 
 ---
