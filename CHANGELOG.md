@@ -4,7 +4,8 @@
 
 ### Added
 
-- **Project skill for system design notebooks**:
+- **Agent guidance and project skill for system design notebooks**:
+  - Added `AGENTS.md` with project-specific guidance for build/test workflows, Livebook conventions, skill conventions, changelog style, and guardrails.
   - Added `.agents/skills/choreo-system-design/SKILL.md` to guide creation of Choreo-based system design Livebooks.
   - Covers clarifying prompts, choosing Choreo modules, C4/dataflow/ERD/threat-model workflows, validation, and LLM review prompts.
   - Added `livebooks/projects/api_gateway_system_design.livemd` as a worked example of the skill.
