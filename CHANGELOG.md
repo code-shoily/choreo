@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Project skill for system design notebooks**:
+  - Added `.agents/skills/choreo-system-design/SKILL.md` to guide creation of Choreo-based system design Livebooks.
+  - Covers clarifying prompts, choosing Choreo modules, C4/dataflow/ERD/threat-model workflows, validation, and LLM review prompts.
+
 - **Requirements traceability diagrams with `Choreo.Requirement`**:
   - Added `Choreo.Requirement` builder for requirements, components, tests, and stakeholders with `satisfies`, `verifies`, `refines`, `depends`, `traces`, `contains`, `derives`, and custom `relate` relationships.
   - Added Graphviz DOT and Mermaid `requirementDiagram` renderers with risk-based coloring and relationship styling.
