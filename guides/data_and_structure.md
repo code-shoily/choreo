@@ -104,7 +104,7 @@ graph TD
 
 ## Choreo.MindMap — Concept Mapping
 
-Model hierarchical concept maps with a central root, branching topics and subtopics, and associative cross-links.
+Model hierarchical concept maps with a central root, branching topics and subtopics, associative cross-links, and optional native Mermaid `mindmap` or `ishikawa` projections.
 
 ```elixir
 alias Choreo.MindMap
@@ -131,7 +131,7 @@ Analysis.paths(map)          #=> [[:elixir, :concurrency, :processes], [:elixir,
 Analysis.validate(map)       #=> []
 ```
 
-**Features:** single-root invariant, branch and associate edge types, depth/breadth/width metrics, root-to-leaf path enumeration, orphan detection, cycle detection, type-frequency analysis, validation.
+**Features:** single-root invariant, branch and associate edge types, Mermaid `flowchart`/`mindmap`/`ishikawa` rendering, depth/breadth/width metrics, root-to-leaf path enumeration, orphan detection, cycle detection, type-frequency analysis, validation.
 
 ```mermaid
 mindmap
@@ -140,6 +140,12 @@ elixir((Elixir))
     processes[Processes]
   ecosystem(Ecosystem)
     beam)BEAM VM(
+```
+
+For cause-and-effect/root-cause maps, render the same hierarchy as Mermaid `ishikawa`:
+
+```elixir
+MindMap.to_mermaid(map, syntax: :ishikawa)
 ```
 
 ---

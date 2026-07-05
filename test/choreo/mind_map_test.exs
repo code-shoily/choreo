@@ -241,6 +241,46 @@ defmodule Choreo.MindMapTest do
     end
   end
 
+  describe "to_mermaid/2" do
+    test "renders native Ishikawa syntax from branch hierarchy" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:latency, label: "Checkout Latency")
+        |> MindMap.add_topic(:people, label: "People")
+        |> MindMap.add_topic(:process, label: "Process")
+        |> MindMap.add_subtopic(:missing_runbook, label: "Missing Runbook")
+        |> MindMap.add_subtopic(:manual_release, label: "Manual Release")
+        |> MindMap.branch(:latency, :people)
+        |> MindMap.branch(:latency, :process)
+        |> MindMap.branch(:people, :missing_runbook)
+        |> MindMap.branch(:process, :manual_release)
+        |> MindMap.associate(:missing_runbook, :manual_release, label: "amplifies")
+
+      mermaid = MindMap.to_mermaid(map, syntax: :ishikawa)
+
+      assert mermaid =~ "ishikawa"
+      assert mermaid =~ "Checkout Latency"
+      assert mermaid =~ "  People"
+      assert mermaid =~ "    Missing Runbook"
+      assert mermaid =~ "  Process"
+      assert mermaid =~ "    Manual Release"
+      refute mermaid =~ "amplifies"
+    end
+
+    test "raises for cyclic maps rendered as Ishikawa" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:a)
+        |> MindMap.add_topic(:b)
+        |> MindMap.branch(:a, :b)
+        |> MindMap.branch(:b, :a)
+
+      assert_raise ArgumentError, ~r/:ishikawa syntax/, fn ->
+        MindMap.to_mermaid(map, syntax: :ishikawa)
+      end
+    end
+  end
+
   describe "to_dot/2" do
     test "renders a DOT string" do
       map =

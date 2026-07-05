@@ -1,51 +1,83 @@
-# Choreo MindMap: Comprehensive Walkthrough
+# Choreo MindMap: Concept Maps, Root Cause Maps, and Graph Lenses
 
 ```elixir
 Mix.install([
-  # For Hex publication/readers:
-  # {:choreo, "~> 0.10.0"},
-  # For local development:
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  # {:choreo, "~> 0.11.0"},
+  {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
 
-## Section
+## Why this Livebook exists
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
-> 
-> MindMap supports two Mermaid syntaxes:
-> 
-> * `:flowchart` (default) — standard Mermaid flowchart with styled shapes and colours
-> * `:mindmap` — native Mermaid `mindmap` syntax (requires Mermaid ≥9.2)
+`Choreo.MindMap` models structured thinking as code. Use it for:
 
----
+* brainstorming and knowledge maps;
+* product planning and documentation outlines;
+* incident/root-cause analysis;
+* validated idea hierarchies that are diffable, testable, and renderable in multiple ways.
 
-## What is Choreo.MindMap?
+Mind maps are intentionally simple:
 
-`Choreo.MindMap` models hierarchical concept maps where a central idea radiates into topics, sub-topics, and notes. Cross-links (associations) between branches are supported for non-hierarchical relationships.
+* one **root** concept;
+* **branch** edges for hierarchy;
+* optional **associate** edges for cross-links;
+* analysis functions for depth, breadth, leaves, paths, orphans, cycles, and validation.
 
-Unlike free-form graphs, mind maps enforce a **single-root invariant**:
+## Mermaid syntax options
 
-* **Exactly one root** — the central concept node
-* **Tree-like hierarchy** — branch edges form a directed acyclic graph from root outward
-* **Associative links** — dashed edges without direction for cross-cutting relationships
+`MindMap.to_mermaid/2` supports three views:
 
-These invariants mean you can analyze a mind map structurally: measure depth, detect orphans, enumerate root-to-leaf paths, and validate soundness.
+| Syntax       | Best for                         | Notes                                         |
+| ------------ | -------------------------------- | --------------------------------------------- |
+| `:flowchart` | Full-fidelity Choreo rendering   | Styled nodes, cross-links, themes, highlights |
+| `:mindmap`   | Native Mermaid hierarchy         | Compact hierarchy; branch edges only          |
+| `:ishikawa`  | Root-cause/cause-and-effect maps | Mermaid 11.12.3+; branch edges only           |
 
-### Node Types
-
-| Type       | Shape                    | Purpose                                 |
-| ---------- | ------------------------ | --------------------------------------- |
-| `root`     | ⭕ double circle (bold) | Central concept — exactly one per map |
-| `topic`    | 🔵 ellipse             | Main branch radiating from root         |
-| `subtopic` | ⬛ rounded box          | Nested idea under a topic               |
-| `note`     | 📝 note shape          | Annotation or detail                    |
+`Choreo.Lab.Siren` and `Choreo.Lab.Sketch` render Mermaid strings interactively in Livebook. `Kino.VizJS` renders Graphviz DOT.
 
 ```elixir
 alias Choreo.MindMap
 alias Choreo.MindMap.Analysis
+alias Choreo.View
+```
 
+```elixir
+mermaid_source = fn source ->
+  fence = String.duplicate("`", 3)
+  Kino.Markdown.new(fence <> "\n" <> source <> "\n" <> fence)
+end
+
+render_mind_map = fn map, opts ->
+  syntax = Keyword.get(opts, :syntax, :flowchart)
+  mermaid = MindMap.to_mermaid(map, opts)
+
+  tabs = [
+    Siren: Choreo.Lab.Siren.new(mermaid),
+    Graphviz: Kino.VizJS.render(MindMap.to_dot(map), height: Keyword.get(opts, :height, "800px")),
+    Sketch: Choreo.Lab.Sketch.new(mermaid),
+    Source: mermaid_source.(mermaid)
+  ]
+
+  title = "#{syntax}"
+  Kino.Layout.tabs([{title, Kino.Layout.tabs(tabs)}])
+end
+```
+
+---
+
+## 1. Legend: Node Types and Edges
+
+A mind map has four node types:
+
+| Type        | Meaning                 |
+| ----------- | ----------------------- |
+| `:root`     | central idea or problem |
+| `:topic`    | major branch            |
+| `:subtopic` | nested idea             |
+| `:note`     | annotation/detail       |
+
+```elixir
 legend =
   MindMap.new()
   |> MindMap.set_root(:root, label: "Root")
@@ -56,19 +88,21 @@ legend =
   |> MindMap.branch(:topic, :subtopic)
   |> MindMap.branch(:subtopic, :note)
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(MindMap.to_mermaid(legend, direction: :lr)),
-  "Graphviz": Kino.VizJS.render(
+Kino.Layout.tabs(
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(legend, syntax: :flowchart, direction: :lr)),
+  Mindmap: Choreo.Lab.Siren.new(MindMap.to_mermaid(legend, syntax: :mindmap)),
+  Ishikawa: Choreo.Lab.Siren.new(MindMap.to_mermaid(legend, syntax: :ishikawa)),
+  Graphviz: Kino.VizJS.render(
     MindMap.to_dot(legend, theme: Choreo.MindMap.theme(:default, graph_rankdir: :lr))
   )
-])
+)
 ```
 
 ---
 
-## Example 1: Brainstorming a Talk Outline
+## 2. Brainstorming: Talk Outline
 
-Map out the structure of a conference talk. The root is the talk title; topics are major sections; subtopics are key points; notes are speaker reminders.
+This map is best viewed as a native Mermaid `mindmap`: it is a clean hierarchy and the central goal is idea organization.
 
 ```elixir
 talk =
@@ -96,42 +130,39 @@ talk =
   |> MindMap.branch(:observability, :tracing)
   |> MindMap.branch(:circuit_breaker, :demo)
   |> MindMap.branch(:bulkhead, :story)
-  # Cross-link: circuit breakers improve telemetry signals
   |> MindMap.associate(:circuit_breaker, :telemetry, label: "improves")
 
-Kino.Layout.tabs([
-  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(talk, syntax: :mindmap)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(talk), height: "800px")
-])
+Kino.Layout.tabs(
+  Mindmap: Choreo.Lab.Siren.new(MindMap.to_mermaid(talk, syntax: :mindmap)),
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(talk, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(talk), height: "850px")
+)
 ```
 
-### Structural Metrics
+The native `:mindmap` view omits the `associate/4` cross-link. Use `:flowchart` when cross-links matter.
 
 ```elixir
-IO.puts("Depth: #{Analysis.depth(talk)}")
-IO.puts("Breadth (leaves): #{Analysis.breadth(talk)}")
-IO.puts("Max width: #{Analysis.max_width(talk)}")
-IO.inspect(Analysis.type_frequencies(talk), label: "Composition")
+%{
+  depth: Analysis.depth(talk),
+  leaves: Analysis.breadth(talk),
+  max_width: Analysis.max_width(talk),
+  composition: Analysis.type_frequencies(talk),
+  validation: Analysis.validate(talk)
+}
 ```
 
-Depth tells you how many levels of detail the map has. Breadth counts terminal ideas. Max width shows the widest level — useful for estimating how many ideas fit on a single slide.
-
-### Root-to-Leaf Paths
+Root-to-leaf paths become complete narrative threads:
 
 ```elixir
 Analysis.paths(talk)
-|> Enum.each(fn path ->
-  IO.puts(Enum.join(path, " → "))
-end)
+|> Enum.map(fn path -> Enum.join(path, " → ") end)
 ```
-
-Each path is a complete narrative thread from the central concept to a terminal detail. Use these to sanity-check that every section has depth and no section is under-developed.
 
 ---
 
-## Example 2: Domain Knowledge Map
+## 3. Knowledge Map: Flowchart vs Native Mindmap
 
-Document the key concepts of a software domain. Cross-links show relationships that cut across the hierarchy.
+A knowledge map often needs both hierarchy and cross-links. Here, CAP theorem, replication, and sharding are related beyond the tree.
 
 ```elixir
 domain =
@@ -145,7 +176,7 @@ domain =
   |> MindMap.add_subtopic(:raft, label: "Raft")
   |> MindMap.add_subtopic(:sharding, label: "Sharding")
   |> MindMap.add_subtopic(:replication, label: "Replication")
-  |> MindMap.add_note(:Brewer, label: "Eric Brewer, 2000")
+  |> MindMap.add_note(:brewer, label: "Eric Brewer, 2000")
   |> MindMap.branch(:dist_sys, :consistency)
   |> MindMap.branch(:dist_sys, :availability)
   |> MindMap.branch(:dist_sys, :partitioning)
@@ -154,37 +185,94 @@ domain =
   |> MindMap.branch(:consistency, :raft)
   |> MindMap.branch(:partitioning, :sharding)
   |> MindMap.branch(:partitioning, :replication)
-  |> MindMap.branch(:cap, :Brewer)
-  # Cross-links
+  |> MindMap.branch(:cap, :brewer)
   |> MindMap.associate(:cap, :sharding, label: "influences")
   |> MindMap.associate(:raft, :replication, label: "uses")
 
-Kino.Layout.tabs([
-  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :flowchart)),
-  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(domain, syntax: :mindmap)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(domain), height: "600px", width: "100%")
-])
+Kino.Layout.tabs(
+  "Flowchart — full fidelity": Choreo.Lab.Siren.new(MindMap.to_mermaid(domain, syntax: :flowchart)),
+  "Mindmap — hierarchy only": Choreo.Lab.Siren.new(MindMap.to_mermaid(domain, syntax: :mindmap)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(domain), height: "750px", width: "100%")
+)
 ```
-
-### Validation
 
 ```elixir
 Analysis.validate(domain)
-|> Enum.each(fn {sev, msg} ->
-  icon = if sev == :error, do: "❌", else: "⚠️"
-  IO.puts("#{icon} #{msg}")
-end)
+|> case do
+  [] -> Kino.Markdown.new("✅ **Knowledge map is structurally sound.**")
+  issues -> issues |> inspect(pretty: true) |> Kino.Text.new()
+end
 ```
-
-A valid mind map has exactly one root, no cycles in the hierarchy, and all nodes reachable from the root.
 
 ---
 
-## Example 3: Product Feature Planning
+## 4. Root Cause Analysis with Mermaid Ishikawa
 
-Plan a product roadmap as a mind map. Topics are release themes; subtopics are epics; notes are risk reminders.
+Ishikawa diagrams are cause-and-effect diagrams. In `Choreo.MindMap`, the root is the effect/problem and branch children are causes.
 
-<!-- livebook:{"output_size":"wide"} -->
+This makes `MindMap` useful for incident reviews:
+
+```elixir
+incident =
+  MindMap.new()
+  |> MindMap.set_root(:checkout_latency, label: "Checkout Latency")
+  |> MindMap.add_topic(:people, label: "People")
+  |> MindMap.add_topic(:process, label: "Process")
+  |> MindMap.add_topic(:platform, label: "Platform")
+  |> MindMap.add_topic(:data, label: "Data")
+  |> MindMap.add_topic(:environment, label: "Environment")
+  |> MindMap.add_subtopic(:missing_runbook, label: "Missing Runbook")
+  |> MindMap.add_subtopic(:unclear_ownership, label: "Unclear Ownership")
+  |> MindMap.add_subtopic(:manual_release, label: "Manual Release")
+  |> MindMap.add_subtopic(:no_canary, label: "No Canary")
+  |> MindMap.add_subtopic(:slow_queries, label: "Slow Queries")
+  |> MindMap.add_subtopic(:missing_index, label: "Missing Index")
+  |> MindMap.add_subtopic(:cold_cache, label: "Cold Cache")
+  |> MindMap.add_subtopic(:regional_spike, label: "Regional Traffic Spike")
+  |> MindMap.add_note(:action_runbook, label: "Action: write checkout runbook")
+  |> MindMap.add_note(:action_index, label: "Action: add order_items index")
+  |> MindMap.branch(:checkout_latency, :people)
+  |> MindMap.branch(:checkout_latency, :process)
+  |> MindMap.branch(:checkout_latency, :platform)
+  |> MindMap.branch(:checkout_latency, :data)
+  |> MindMap.branch(:checkout_latency, :environment)
+  |> MindMap.branch(:people, :unclear_ownership)
+  |> MindMap.branch(:people, :missing_runbook)
+  |> MindMap.branch(:process, :manual_release)
+  |> MindMap.branch(:process, :no_canary)
+  |> MindMap.branch(:platform, :cold_cache)
+  |> MindMap.branch(:data, :slow_queries)
+  |> MindMap.branch(:slow_queries, :missing_index)
+  |> MindMap.branch(:environment, :regional_spike)
+  |> MindMap.branch(:missing_runbook, :action_runbook)
+  |> MindMap.branch(:missing_index, :action_index)
+  |> MindMap.associate(:manual_release, :cold_cache, label: "amplified")
+
+ishikawa = MindMap.to_mermaid(incident, syntax: :ishikawa)
+
+Kino.Layout.tabs(
+  Ishikawa: Choreo.Lab.Siren.new(ishikawa),
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(incident, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(incident, theme: :warm), height: "950px"),
+  Source: mermaid_source.(ishikawa)
+)
+```
+
+Use `:ishikawa` when the question is “why did this happen?” Use `:flowchart` when cross-links and visual styling matter.
+
+```elixir
+%{
+  validation: Analysis.validate(incident),
+  root_to_leaf_causes: Analysis.paths(incident),
+  leaves: Analysis.leaves(incident)
+}
+```
+
+---
+
+## 5. Product Planning Map
+
+Product planning benefits from the full-fidelity flowchart renderer because cross-links often matter.
 
 ```elixir
 roadmap =
@@ -210,243 +298,130 @@ roadmap =
   |> MindMap.branch(:product, :integrations)
   |> MindMap.branch(:auth, :sso)
   |> MindMap.branch(:auth, :mfa)
+  |> MindMap.branch(:auth, :gdpr)
   |> MindMap.branch(:billing, :stripe)
   |> MindMap.branch(:billing, :usage)
   |> MindMap.branch(:performance, :caching)
   |> MindMap.branch(:performance, :cdn)
+  |> MindMap.branch(:performance, :load_test)
   |> MindMap.branch(:integrations, :webhooks)
   |> MindMap.branch(:integrations, :api)
-  |> MindMap.branch(:auth, :gdpr)
-  |> MindMap.branch(:performance, :load_test)
-  # Cross-link: webhooks affect caching strategy
   |> MindMap.associate(:webhooks, :caching, label: "affects")
+  |> MindMap.associate(:stripe, :gdpr, label: "data review")
 
 Kino.Layout.tabs(
-  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :flowchart)),
-  "Mermaid (Native)": Kino.Mermaid.new(MindMap.to_mermaid(roadmap, syntax: :mindmap)),
-  Graphviz: Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "600px")
-)
-```
-
-### Detect Orphans
-
-```elixir
-Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(roadmap, syntax: :mindmap)),
-  Graphviz: Kino.VizJS.render(MindMap.to_dot(roadmap, syntax: :mindmap)),
-  Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(roadmap, syntax: :mindmap))
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(roadmap, syntax: :flowchart, theme: :ocean)),
+  Mindmap: Choreo.Lab.Siren.new(MindMap.to_mermaid(roadmap, syntax: :mindmap)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(roadmap, theme: :ocean), height: "550px")
 )
 ```
 
 ```elixir
 Analysis.orphan_nodes(roadmap)
 |> case do
-  [] -> IO.puts("✅ All nodes reachable from root")
-  orphans -> IO.puts("⚠️ Orphan nodes: #{inspect(orphans)}")
+  [] -> Kino.Markdown.new("✅ **All roadmap items are reachable from the product root.**")
+  orphans -> Kino.Markdown.new("⚠️ Orphans: `#{inspect(orphans)}`")
 end
 ```
 
-Orphan nodes are ideas that have been added but not connected to the hierarchy. They're often forgotten requirements.
-
-### Type Composition
-
-```elixir
-Analysis.type_frequencies(roadmap)
-|> Enum.each(fn {type, count} ->
-  IO.puts("#{type}: #{count}")
-end)
-```
-
 ---
 
-## Example 4: Deep Hierarchical Map
+## 6. Fixing Broken Maps
 
-A deeply nested map demonstrates depth and width analysis.
-
-```elixir
-deep =
-  MindMap.new()
-  |> MindMap.set_root(:science, label: "Science")
-  |> MindMap.add_topic(:physics, label: "Physics")
-  |> MindMap.add_topic(:biology, label: "Biology")
-  |> MindMap.add_subtopic(:quantum, label: "Quantum Mechanics")
-  |> MindMap.add_subtopic(:relativity, label: "Relativity")
-  |> MindMap.add_subtopic(:genetics, label: "Genetics")
-  |> MindMap.add_subtopic(:ecology, label: "Ecology")
-  |> MindMap.add_note(:entanglement, label: "Quantum Entanglement")
-  |> MindMap.add_note(:dna, label: "DNA Structure")
-  |> MindMap.branch(:science, :physics)
-  |> MindMap.branch(:science, :biology)
-  |> MindMap.branch(:physics, :quantum)
-  |> MindMap.branch(:physics, :relativity)
-  |> MindMap.branch(:biology, :genetics)
-  |> MindMap.branch(:biology, :ecology)
-  |> MindMap.branch(:quantum, :entanglement)
-  |> MindMap.branch(:genetics, :dna)
-
-IO.puts("Depth: #{Analysis.depth(deep)}")
-IO.puts("Max width: #{Analysis.max_width(deep)}")
-IO.inspect(Analysis.leaves(deep), label: "Leaves")
-Kino.Layout.tabs([
-  "Mermaid (Mindmap)": Kino.Mermaid.new(MindMap.to_mermaid(deep, syntax: :mindmap)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(deep, theme: :forest), height: "800px", engine: "twopi")
-])
-```
-
----
-
-## Example 5: Fixing a Broken Map
-
-The builder does not enforce tree invariants at construction time (unlike `DecisionTree`), so validation is especially useful.
+The builder lets you iterate quickly, then `Analysis.validate/1` catches structural issues.
 
 ```elixir
 broken =
   MindMap.new()
-  |> MindMap.set_root(:a)
-  |> MindMap.add_topic(:b)
-  |> MindMap.add_topic(:c)
-  |> MindMap.add_topic(:d)
-  # c is orphaned — never branched from root
+  |> MindMap.set_root(:a, label: "A")
+  |> MindMap.add_topic(:b, label: "B")
+  |> MindMap.add_topic(:c, label: "Orphan C")
+  |> MindMap.add_topic(:d, label: "D")
   |> MindMap.branch(:a, :b)
   |> MindMap.branch(:b, :d)
-  # d has two branch parents (b and a) — unusual but allowed
   |> MindMap.branch(:a, :d)
 
 Analysis.validate(broken)
-|> Enum.each(fn {sev, msg} ->
-  icon = if sev == :error, do: "❌", else: "⚠️"
-  IO.puts("#{icon} #{msg}")
-end)
+|> Enum.map(fn {severity, message} -> "* `#{severity}` — #{message}" end)
+|> Enum.join("\n")
+|> Kino.Markdown.new()
 ```
 
 The validator catches:
 
-* Missing root
-* Cycles in the hierarchy
-* Orphan nodes (not reachable from root)
-* Nodes with multiple branch parents
+* missing root;
+* cycles;
+* orphan nodes;
+* nodes with multiple branch parents.
 
-### Cycle Detection
+Native `:mindmap` and `:ishikawa` renderers reject cycles because Mermaid hierarchy syntaxes cannot represent them safely.
 
 ```elixir
 cyclic =
   MindMap.new()
   |> MindMap.set_root(:a)
   |> MindMap.add_topic(:b)
-  |> MindMap.add_topic(:c)
   |> MindMap.branch(:a, :b)
-  |> MindMap.branch(:b, :c)
-  |> MindMap.branch(:c, :b)
+  |> MindMap.branch(:b, :a)
 
-Analysis.cyclic?(cyclic)
+try do
+  MindMap.to_mermaid(cyclic, syntax: :ishikawa)
+rescue
+  error in ArgumentError -> error.message
+end
 ```
-
-Cycles in a mind map hierarchy are usually a mistake. They break depth calculation and root-to-leaf path enumeration — the analysis functions detect cycles and terminate safely, but the results may be truncated.
 
 ---
 
-## Example 6: Graph Lenses with Choreo.View
+## 7. Graph Lenses with `Choreo.View`
 
-`Choreo.View` lets you look at the same mind map through different focal lengths — zoom out for an overview, focus on a specific branch, or filter out details.
-
-### Zoom Levels
-
-Show only the big picture (root + topics):
+`Choreo.View` lets you derive smaller maps without mutating the original.
 
 ```elixir
-alias Choreo.View
-
-zoom_by = fn i -> View.zoom(talk, level: i) end
+zoom_by = fn level -> View.zoom(talk, level: level) end
 
 Kino.Layout.tabs(
-  "Level 1": Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(1), syntax: :mindmap)),
-    Graphviz: Kino.VizJS.render(MindMap.to_dot(zoom_by.(1))),
-    Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(zoom_by.(1), syntax: :mindmap))
-  ),
-  "Level 2": Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(2), syntax: :mindmap)),
-    Graphviz: Kino.VizJS.render(MindMap.to_dot(zoom_by.(2))),
-    Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(zoom_by.(2), syntax: :mindmap))
-  ),
-  "Level 3": Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(3), syntax: :mindmap)),
-    Graphviz: Kino.VizJS.render(MindMap.to_dot(zoom_by.(3))),
-    Sketch: Choreo.Lab.Sketch.new(MindMap.to_mermaid(zoom_by.(3), syntax: :mindmap))
-  )
+  "Level 1": Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(1), syntax: :mindmap)),
+  "Level 2": Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(2), syntax: :mindmap)),
+  "Level 3": Choreo.Lab.Siren.new(MindMap.to_mermaid(zoom_by.(3), syntax: :mindmap))
 )
 ```
 
-### Focus on a Branch
-
-Highlight one topic and its neighbourhood:
+Focus on a branch and its immediate neighborhood:
 
 ```elixir
 focused = View.focus(talk, :patterns, radius: 1)
-Kino.VizJS.render(MindMap.to_dot(focused), height: "600px")
+
+Kino.Layout.tabs(
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(focused, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(focused), height: "650px")
+)
 ```
 
-Focus with a larger radius to see second-degree connections:
-
-```elixir
-wider = View.focus(talk, :supervision, radius: 2)
-Kino.VizJS.render(MindMap.to_dot(wider), height: "600px")
-```
-
-### Trace a Path
-
-Show only the shortest path between two ideas — useful for tracing a narrative thread:
+Trace a narrative path between two ideas:
 
 ```elixir
 path_view = View.focus_between(talk, :talk, :demo, radius: 1)
-Kino.VizJS.render(MindMap.to_dot(path_view), height: "600px")
+
+Kino.Layout.tabs(
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(path_view, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(path_view), height: "650px")
+)
 ```
 
-### Transitive Zoom
-
-When zooming out, hidden intermediate nodes can break the visual connection between remaining concepts. Enable `transitive: true` to draw virtual edges through collapsed intermediates:
-
-```elixir
-overview = View.zoom(talk, level: 1, transitive: true)
-Kino.VizJS.render(MindMap.to_dot(overview), height: "600px")
-```
-
-### Collapse — Aggregate Nodes
-
-Merge multiple related nodes into a single aggregate. All edges are rewired automatically:
-
-```elixir
-# Merge circuit breaker and bulkhead into a single aggregate node
-billing =
-  View.collapse(talk, fn id, _data ->
-    id in [:circuit_breaker, :bulkhead]
-  end, :resilience_patterns,
-    label: "Resilience Patterns",
-    data: %{node_type: :topic}
-  )
-
-Kino.VizJS.render(MindMap.to_dot(billing), height: "600px")
-```
-
-### Custom Filtering
-
-Remove all notes for a clean stakeholder deck:
+Remove notes for a clean stakeholder deck:
 
 ```elixir
 clean = View.filter(talk, fn _id, data -> data[:node_type] != :note end)
-Kino.VizJS.render(MindMap.to_dot(clean), height: "600px")
-```
 
-Show only the left half of the map:
-
-```elixir
-left_half = View.filter(talk, fn id, _data -> id in [:talk, :supervision, :patterns, :one_for_one, :one_for_all, :circuit_breaker, :bulkhead, :demo, :story] end)
-Kino.VizJS.render(MindMap.to_dot(left_half), height: "600px")
+Choreo.Lab.Siren.new(MindMap.to_mermaid(clean, syntax: :mindmap))
 ```
 
 ---
 
-## Advanced: Custom Theming
+## 8. Custom Theming
+
+Themes apply to the `:flowchart` and DOT renderers. Native Mermaid `:mindmap` and `:ishikawa` use Mermaid's own renderer styles.
 
 ```elixir
 brand_theme =
@@ -462,33 +437,29 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-Kino.Layout.tabs([
-  "Mermaid (Flowchart)": Kino.Mermaid.new(MindMap.to_mermaid(talk, theme: brand_theme, syntax: :flowchart)),
-  "Graphviz": Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "600px")
-])
+Kino.Layout.tabs(
+  Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(talk, theme: brand_theme, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(MindMap.to_dot(talk, theme: brand_theme), height: "750px")
+)
 ```
 
 ---
 
 ## Summary
 
-| Question                           | Function                      |
-| ---------------------------------- | ----------------------------- |
-| "How deep is the map?"             | `Analysis.depth/1`            |
-| "How many leaf ideas?"             | `Analysis.breadth/1`          |
-| "What is the widest level?"        | `Analysis.max_width/1`        |
-| "Which ideas have no children?"    | `Analysis.leaves/1`           |
-| "What are all root-to-leaf paths?" | `Analysis.paths/1`            |
-| "Which ideas are disconnected?"    | `Analysis.orphan_nodes/1`     |
-| "What is the composition?"         | `Analysis.type_frequencies/1` |
-| "Is there a cycle?"                | `Analysis.cyclic?/1`          |
-| "Is the map structurally sound?"   | `Analysis.validate/1`         |
-| "Zoom out to overview"             | `View.zoom/2`                 |
-| "Focus on a branch"                | `View.focus/3`                |
-| "Trace a path between two nodes"   | `View.focus_between/4`        |
-| "Filter nodes"                     | `View.filter/3`               |
-| "Collapse into aggregate"          | `View.collapse/4`             |
-| "Render to DOT"                    | `MindMap.to_dot/2`            |
-| "Render to Mermaid"                | `MindMap.to_mermaid/2`        |
+| Question                                 | Function / Syntax                             |
+| ---------------------------------------- | --------------------------------------------- |
+| Full-fidelity styled rendering?          | `MindMap.to_mermaid(map, syntax: :flowchart)` |
+| Compact native hierarchy?                | `MindMap.to_mermaid(map, syntax: :mindmap)`   |
+| Cause-and-effect/root-cause view?        | `MindMap.to_mermaid(map, syntax: :ishikawa)`  |
+| DOT / Graphviz rendering?                | `MindMap.to_dot/2`                            |
+| How deep is the map?                     | `Analysis.depth/1`                            |
+| How many leaf ideas?                     | `Analysis.breadth/1`                          |
+| What is the widest level?                | `Analysis.max_width/1`                        |
+| Which ideas are terminal?                | `Analysis.leaves/1`                           |
+| What are all narrative/root-cause paths? | `Analysis.paths/1`                            |
+| Which ideas are disconnected?            | `Analysis.orphan_nodes/1`                     |
+| Is the map structurally sound?           | `Analysis.validate/1`                         |
+| Zoom/focus/filter/collapse?              | `Choreo.View`                                 |
 
-Mind maps as code mean your brainstorming sessions, documentation, and planning artefacts are version-controlled, diffable, and automatically validated. Every addition is checked for reachability from the root and structural soundness — before it ever becomes a static diagram.
+Mind maps as code turn brainstorming, planning, and root-cause analysis into version-controlled artifacts that can be rendered in multiple visual forms and checked before they go stale.

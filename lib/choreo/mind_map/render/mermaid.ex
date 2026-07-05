@@ -22,25 +22,29 @@ defmodule Choreo.MindMap.Render.Mermaid do
   alias Choreo.Theme
 
   @doc """
-  Renders a mind map to a Mermaid flowchart string.
+  Renders a mind map to a Mermaid flowchart, native mindmap, or native Ishikawa string.
 
   ## Options
 
-    * `:syntax` — `:flowchart` (default) or `:mindmap`
+    * `:syntax` — `:flowchart` (default), `:mindmap`, or `:ishikawa`
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of `{from, to}` tuples to highlight
     * Any other option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
 
-  ## Native `:mindmap` syntax limitations
+  ## Native hierarchy syntax limitations
 
-  Mermaid's `mindmap` syntax is purely hierarchical — it cannot represent
-  associative (cross-link) edges. When `:syntax` is `:mindmap`:
+  Mermaid's `mindmap` and `ishikawa` syntaxes are purely hierarchical — they
+  cannot represent associative (cross-link) edges. When `:syntax` is `:mindmap`
+  or `:ishikawa`:
 
     * associative edges are silently omitted
-    * nodes with multiple branch parents are duplicated under each parent
-    * cycles will cause an infinite loop (use `Analysis.cyclic?/1` first)
+    * nodes with multiple branch parents may be duplicated under each parent
+    * cycles raise before rendering
+
+  `:ishikawa` requires Mermaid 11.12.3+ and is best suited for
+  cause-and-effect/root-cause maps.
 
   ## Examples
 
@@ -64,6 +68,9 @@ defmodule Choreo.MindMap.Render.Mermaid do
     case Keyword.get(opts, :syntax, :flowchart) do
       :mindmap ->
         to_native_mindmap(map)
+
+      :ishikawa ->
+        to_native_ishikawa(map)
 
       :flowchart ->
         theme = resolve_theme(Keyword.get(opts, :theme, :default))
@@ -100,16 +107,26 @@ defmodule Choreo.MindMap.Render.Mermaid do
   end
 
   defp to_native_mindmap(map) do
+    validate_native_hierarchy!(map, :mindmap)
+
+    "mindmap\n" <> render_mindmap_node(map, map.root, 0, MapSet.new([map.root])) <> "\n"
+  end
+
+  defp to_native_ishikawa(map) do
+    validate_native_hierarchy!(map, :ishikawa)
+
+    "ishikawa\n" <> render_ishikawa_node(map, map.root, 0, MapSet.new([map.root])) <> "\n"
+  end
+
+  defp validate_native_hierarchy!(map, syntax) do
     if is_nil(map.root) do
       raise ArgumentError, "MindMap must have a root set to be rendered"
     end
 
     if Choreo.MindMap.Analysis.cyclic?(map) do
       raise ArgumentError,
-            "MindMap contains a cycle and cannot be rendered with :mindmap syntax"
+            "MindMap contains a cycle and cannot be rendered with #{inspect(syntax)} syntax"
     end
-
-    "mindmap\n" <> render_mindmap_node(map, map.root, 0, MapSet.new([map.root])) <> "\n"
   end
 
   defp render_mindmap_node(map, node_id, depth, visited) do
@@ -135,10 +152,41 @@ defmodule Choreo.MindMap.Render.Mermaid do
     Enum.join([line | children_lines], "\n")
   end
 
+  defp render_ishikawa_node(map, node_id, depth, visited) do
+    data = Map.get(map.graph.nodes, node_id, %{})
+    label = data[:label] || to_string(node_id)
+
+    indent = String.duplicate("  ", depth)
+    line = indent <> sanitize_ishikawa_label(label)
+
+    children = branch_children(map, node_id, visited)
+    visited = MapSet.union(visited, MapSet.new(children))
+    child_lines = Enum.map(children, &render_ishikawa_node(map, &1, depth + 1, visited))
+
+    Enum.join([line | child_lines], "\n")
+  end
+
+  defp branch_children(map, node_id, visited) do
+    map.graph
+    |> Yog.successor_ids(node_id)
+    |> Enum.filter(fn child_id ->
+      meta = Map.get(map.edge_meta, {node_id, child_id}, %{})
+      meta[:edge_type] == :branch and not MapSet.member?(visited, child_id)
+    end)
+    |> Enum.sort()
+  end
+
   defp sanitize_mindmap_label(label) do
     label
     |> to_string()
     |> String.replace("\n", " ")
+  end
+
+  defp sanitize_ishikawa_label(label) do
+    label
+    |> sanitize_mindmap_label()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
   end
 
   @doc """

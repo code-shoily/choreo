@@ -22,6 +22,11 @@
   - Extended `Choreo.Domain.Analysis.validate/1` with semantic relationship endpoint checks, scenario path validation, and DDD metadata quality hints.
   - Revamped `livebooks/guides/domain_modeling_walkthrough.livemd` around the v0.11 Domain API, including semantic edges, invariants, named scenarios, Event Modeling projection, and audit output.
 
+- **Native Mermaid `ishikawa` syntax support for `Choreo.MindMap`**:
+  - Added `:syntax` option value `:ishikawa` to `Choreo.MindMap.to_mermaid/2` for cause-and-effect/root-cause projections (Mermaid 11.12.3+).
+  - Renders the mind-map root as the effect/problem and branch edges as cause/sub-cause hierarchy; associative cross-links are omitted like native `:mindmap` rendering.
+  - Revamped `livebooks/guides/mind_map_walkthrough.livemd` around flowchart, native mindmap, native Ishikawa, analysis, validation, and graph lenses.
+
 ### Fixed
 
 - Fixed Mermaid `requirementDiagram` renderer so multi-line requirement and element blocks are joined with newlines instead of being collapsed onto a single line.
