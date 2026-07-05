@@ -1,0 +1,843 @@
+# System Design: Multi-Tenant API Gateway
+
+```elixir
+Mix.install([
+  # {:choreo, "~> 0.11.0"},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## 1. Problem Statement
+
+Design a **multi-tenant API gateway** that sits in front of internal product APIs and provides shared platform capabilities:
+
+* tenant-aware routing;
+* authentication and API key validation;
+* authorization policy enforcement;
+* rate limiting and quota control;
+* audit logging;
+* operational observability;
+* safe onboarding of new tenants and backend services.
+
+The gateway is a shared edge/platform component. It must protect backend services from abusive traffic while giving product teams a consistent way to expose APIs to tenant applications.
+
+```elixir
+alias Choreo.C4
+alias Choreo.C4.Analysis, as: C4Analysis
+alias Choreo.Dataflow
+alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
+alias Choreo.ERD
+alias Choreo.ERD.Analysis, as: ERDAnalysis
+alias Choreo.Requirement
+alias Choreo.Requirement.Analysis, as: RequirementAnalysis
+alias Choreo.ThreatModel
+alias Choreo.ThreatModel.Analysis, as: ThreatAnalysis
+alias Choreo.Workflow
+alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
+```
+
+```elixir
+mermaid_source = fn source ->
+  fence = String.duplicate("`", 3)
+  Kino.Markdown.new(fence <> "mermaid\n" <> source <> "\n" <> fence)
+end
+
+render_tabs = fn mermaid, dot, height ->
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(mermaid),
+    Graphviz: Kino.VizJS.render(dot, height: height),
+    Sketch: Choreo.Lab.Sketch.new(mermaid),
+    Source: mermaid_source.(mermaid)
+  )
+end
+```
+
+---
+
+## 2. Requirements
+
+### Functional Requirements
+
+| ID   | Requirement                                                                                                |
+| ---- | ---------------------------------------------------------------------------------------------------------- |
+| FR-1 | Route API requests to the correct backend service based on tenant, host, path, and configured route rules. |
+| FR-2 | Authenticate callers using API keys and optionally JWT/OAuth2 tokens.                                      |
+| FR-3 | Enforce tenant-specific authorization policies.                                                            |
+| FR-4 | Enforce per-tenant, per-key, and per-route rate limits.                                                    |
+| FR-5 | Produce immutable audit logs for authentication, authorization, rate-limit, and routing decisions.         |
+| FR-6 | Provide operational metrics, tracing, and alerting signals.                                                |
+| FR-7 | Support safe tenant onboarding, key rotation, and revocation.                                              |
+
+### Non-Functional Requirements
+
+| ID    | Requirement                                                                                               |
+| ----- | --------------------------------------------------------------------------------------------------------- |
+| NFR-1 | Gateway p95 overhead should stay below 25ms excluding backend latency.                                    |
+| NFR-2 | Gateway should remain highly available across multiple zones.                                             |
+| NFR-3 | Rate-limit decisions should be consistent enough to prevent abuse but not require global linearizability. |
+| NFR-4 | Tenant data and credentials must be strongly isolated.                                                    |
+| NFR-5 | All external traffic must use TLS.                                                                        |
+| NFR-6 | Audit logs should be retained for compliance and incident response.                                       |
+
+---
+
+## 3. Assumptions and Constraints
+
+### Assumptions
+
+* Tenants are B2B customers with one or more client applications.
+* API keys are scoped to a tenant and may be further scoped to routes or products.
+* Internal backend APIs are owned by product teams and live behind private networking.
+* Rate limits are configured per tenant and route, with burst and sustained windows.
+* Redis or a compatible in-memory store is available for low-latency counters.
+* PostgreSQL is the source of truth for tenants, users, keys, policies, routes, and audit metadata.
+* A streaming/event pipeline is available for durable audit ingestion.
+
+### Explicitly Out of Scope
+
+* Full API developer portal UX.
+* Billing/invoicing based on API usage.
+* Global active-active consistency of every rate-limit counter.
+* Schema transformation or GraphQL federation.
+* Backend service implementation details.
+
+---
+
+## 4. C4 System Context
+
+The gateway is the in-scope software system. External users are tenant applications and tenant administrators. External systems include identity providers, backend product APIs, and observability tooling.
+
+```elixir
+c4 =
+  C4.new(strict: true)
+  |> C4.add_person(:tenant_app,
+    label: "Tenant Application",
+    description: "A customer-owned application calling public APIs."
+  )
+  |> C4.add_person(:tenant_admin,
+    label: "Tenant Admin",
+    description: "Customer administrator managing API keys and tenant settings."
+  )
+  |> C4.add_software_system(:api_gateway,
+    label: "Multi-Tenant API Gateway",
+    description: "Shared edge platform for authentication, authorization, rate limiting, routing, audit, and observability.",
+    scope: :in
+  )
+  |> C4.add_software_system(:identity_provider,
+    label: "Identity Provider",
+    description: "External OAuth2/OIDC provider for tenant admin and optional caller token validation.",
+    scope: :out
+  )
+  |> C4.add_software_system(:backend_apis,
+    label: "Backend Product APIs",
+    description: "Private internal services that implement product-specific API behavior.",
+    scope: :out
+  )
+  |> C4.add_software_system(:observability,
+    label: "Observability Platform",
+    description: "Metrics, logs, traces, dashboards, and alerts.",
+    scope: :out
+  )
+  |> C4.add_relationship(:tenant_app, :api_gateway,
+    label: "Calls public APIs via",
+    technology: "HTTPS"
+  )
+  |> C4.add_relationship(:tenant_admin, :api_gateway,
+    label: "Manages tenants and credentials via",
+    technology: "HTTPS"
+  )
+  |> C4.add_relationship(:api_gateway, :identity_provider,
+    label: "Validates tokens with",
+    technology: "OIDC / HTTPS"
+  )
+  |> C4.add_relationship(:api_gateway, :backend_apis,
+    label: "Routes authorized requests to",
+    technology: "mTLS / HTTP"
+  )
+  |> C4.add_relationship(:api_gateway, :observability,
+    label: "Publishes metrics, traces, logs to",
+    technology: "OTLP"
+  )
+```
+
+```elixir
+context_view = Choreo.View.zoom(c4, level: 0)
+render_tabs.(C4.to_mermaid(context_view), C4.to_dot(context_view), "650px")
+```
+
+---
+
+## 5. C4 Container View
+
+The gateway is decomposed into deployable/runtime containers and data stores. In C4 terminology, a container is not necessarily a Docker container; it is an independently runnable application or data store.
+
+```elixir
+c4 =
+  c4
+  |> C4.add_container(:edge_proxy,
+    label: "Edge Proxy",
+    technology: "Envoy / NGINX",
+    description: "Terminates TLS, normalizes requests, and forwards to the policy engine.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:policy_engine,
+    label: "Policy Engine",
+    technology: "Elixir / Phoenix",
+    description: "Authenticates callers, authorizes requests, selects routes, and emits decisions.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:rate_limiter,
+    label: "Rate Limit Service",
+    technology: "Elixir / GenServer + Redis",
+    description: "Computes tenant/key/route quotas using low-latency counters.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:admin_api,
+    label: "Admin API",
+    technology: "Elixir / Phoenix",
+    description: "Tenant onboarding, route configuration, API key lifecycle, and policy management.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:config_db,
+    label: "Configuration Database",
+    technology: "PostgreSQL",
+    description: "Source of truth for tenants, users, keys, routes, policies, and limits.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:rate_cache,
+    label: "Rate Counter Cache",
+    technology: "Redis Cluster",
+    description: "Low-latency distributed counters for rate-limit decisions.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:audit_stream,
+    label: "Audit Event Stream",
+    technology: "Kafka / Redpanda",
+    description: "Durable stream of gateway decisions and security-relevant events.",
+    parent: :api_gateway
+  )
+  |> C4.add_container(:audit_store,
+    label: "Audit Store",
+    technology: "Object Storage / Warehouse",
+    description: "Long-retention audit archive for compliance and investigations.",
+    parent: :api_gateway
+  )
+  |> C4.add_relationship(:tenant_app, :edge_proxy,
+    label: "Sends API requests to",
+    technology: "HTTPS"
+  )
+  |> C4.add_relationship(:tenant_admin, :admin_api,
+    label: "Configures tenant settings through",
+    technology: "HTTPS"
+  )
+  |> C4.add_relationship(:edge_proxy, :policy_engine,
+    label: "Delegates authz/routing decision to",
+    technology: "gRPC"
+  )
+  |> C4.add_relationship(:policy_engine, :identity_provider,
+    label: "Validates OAuth/JWT token with",
+    technology: "OIDC"
+  )
+  |> C4.add_relationship(:policy_engine, :config_db,
+    label: "Reads tenant policy and route config from",
+    technology: "SQL"
+  )
+  |> C4.add_relationship(:policy_engine, :rate_limiter,
+    label: "Checks quota with",
+    technology: "gRPC"
+  )
+  |> C4.add_relationship(:rate_limiter, :rate_cache,
+    label: "Updates counters in",
+    technology: "RESP / TCP"
+  )
+  |> C4.add_relationship(:policy_engine, :backend_apis,
+    label: "Routes allowed request to",
+    technology: "mTLS / HTTP"
+  )
+  |> C4.add_relationship(:policy_engine, :audit_stream,
+    label: "Publishes decision event to",
+    technology: "Kafka"
+  )
+  |> C4.add_relationship(:audit_stream, :audit_store,
+    label: "Archives events into",
+    technology: "Batch / Streaming Sink"
+  )
+  |> C4.add_relationship(:admin_api, :config_db,
+    label: "Writes configuration to",
+    technology: "SQL"
+  )
+  |> C4.add_relationship(:edge_proxy, :observability,
+    label: "Emits edge metrics/traces to",
+    technology: "OTLP"
+  )
+  |> C4.add_relationship(:policy_engine, :observability,
+    label: "Emits decision metrics/traces to",
+    technology: "OTLP"
+  )
+```
+
+```elixir
+container_view = Choreo.View.zoom(c4, level: 1)
+render_tabs.(C4.to_mermaid(container_view), C4.to_dot(container_view), "900px")
+```
+
+---
+
+## 6. Core Request Dataflow
+
+This dataflow focuses on the hot path for an API request. The gateway should minimize synchronous work while preserving correct security and rate-limit decisions.
+
+```elixir
+request_flow =
+  Dataflow.new(strict: true)
+  |> Dataflow.add_source(:client_request,
+    label: "Client Request",
+    rate: "variable by tenant"
+  )
+  |> Dataflow.add_transform(:tls_termination,
+    label: "TLS Termination",
+    latency_ms: 2,
+    capacity: "edge autoscale"
+  )
+  |> Dataflow.add_transform(:authn,
+    label: "Authenticate API Key / Token",
+    latency_ms: 5,
+    capacity: "policy pool"
+  )
+  |> Dataflow.add_transform(:authz,
+    label: "Authorize Route + Tenant Policy",
+    latency_ms: 4,
+    capacity: "policy pool"
+  )
+  |> Dataflow.add_transform(:rate_check,
+    label: "Rate Limit Check",
+    latency_ms: 3,
+    capacity: "redis-backed"
+  )
+  |> Dataflow.add_conditional(:allowed,
+    label: "Allowed?"
+  )
+  |> Dataflow.add_transform(:route_request,
+    label: "Route to Backend",
+    latency_ms: 2
+  )
+  |> Dataflow.add_sink(:backend_response,
+    label: "Backend Response"
+  )
+  |> Dataflow.add_sink(:reject_response,
+    label: "401 / 403 / 429 Response"
+  )
+  |> Dataflow.add_buffer(:audit_events,
+    label: "Audit Event Buffer",
+    capacity: "durable stream"
+  )
+  |> Dataflow.add_sink(:audit_archive,
+    label: "Audit Archive"
+  )
+  |> Dataflow.connect(:client_request, :tls_termination, data_type: "HTTPS request")
+  |> Dataflow.connect(:tls_termination, :authn, data_type: "normalized request")
+  |> Dataflow.connect(:authn, :authz, data_type: "identity + tenant")
+  |> Dataflow.connect(:authz, :rate_check, data_type: "policy decision context")
+  |> Dataflow.connect(:rate_check, :allowed, data_type: "quota decision")
+  |> Dataflow.connect(:allowed, :route_request, label: "yes", data_type: "authorized request")
+  |> Dataflow.connect(:route_request, :backend_response, data_type: "proxied response")
+  |> Dataflow.connect(:allowed, :reject_response, label: "no", data_type: "deny decision")
+  |> Dataflow.connect(:authn, :audit_events, data_type: "auth event")
+  |> Dataflow.connect(:authz, :audit_events, data_type: "policy event")
+  |> Dataflow.connect(:rate_check, :audit_events, data_type: "rate event")
+  |> Dataflow.connect(:audit_events, :audit_archive, data_type: "audit log")
+```
+
+```elixir
+render_tabs.(Dataflow.to_mermaid(request_flow), Dataflow.to_dot(request_flow), "900px")
+```
+
+---
+
+## 7. Authentication and Authorization Workflow
+
+This workflow shows the decision path for each request. The key operational concern is to fail closed for security-sensitive checks, while returning clear client errors and preserving audit evidence.
+
+```elixir
+auth_workflow =
+  Workflow.new()
+  |> Workflow.add_start(:request_received, label: "Request Received")
+  |> Workflow.add_task(:extract_credentials,
+    label: "Extract Credentials",
+    timeout_ms: 5,
+    retry: 0
+  )
+  |> Workflow.add_decision(:has_credentials, label: "Credentials Present?")
+  |> Workflow.add_task(:validate_identity,
+    label: "Validate API Key / JWT",
+    timeout_ms: 50,
+    retry: 1
+  )
+  |> Workflow.add_decision(:identity_valid, label: "Identity Valid?")
+  |> Workflow.add_task(:load_policy,
+    label: "Load Tenant Policy",
+    timeout_ms: 25,
+    retry: 2
+  )
+  |> Workflow.add_decision(:route_allowed, label: "Route Allowed?")
+  |> Workflow.add_task(:check_rate_limit,
+    label: "Check Rate Limit",
+    timeout_ms: 10,
+    retry: 1
+  )
+  |> Workflow.add_decision(:quota_available, label: "Quota Available?")
+  |> Workflow.add_task(:forward_request,
+    label: "Forward to Backend",
+    timeout_ms: 1000,
+    retry: 0
+  )
+  |> Workflow.add_task(:audit_decision,
+    label: "Audit Decision",
+    timeout_ms: 20,
+    retry: 3
+  )
+  |> Workflow.add_end(:allowed_response, label: "Allowed Response")
+  |> Workflow.add_end(:deny_response, label: "Deny Response")
+  |> Workflow.connect(:request_received, :extract_credentials)
+  |> Workflow.connect(:extract_credentials, :has_credentials)
+  |> Workflow.connect(:has_credentials, :validate_identity, condition: "yes")
+  |> Workflow.connect(:has_credentials, :audit_decision, condition: "no")
+  |> Workflow.connect(:validate_identity, :identity_valid)
+  |> Workflow.connect(:identity_valid, :load_policy, condition: "yes")
+  |> Workflow.connect(:identity_valid, :audit_decision, condition: "no")
+  |> Workflow.connect(:load_policy, :route_allowed)
+  |> Workflow.connect(:route_allowed, :check_rate_limit, condition: "yes")
+  |> Workflow.connect(:route_allowed, :audit_decision, condition: "no")
+  |> Workflow.connect(:check_rate_limit, :quota_available)
+  |> Workflow.connect(:quota_available, :forward_request, condition: "yes")
+  |> Workflow.connect(:quota_available, :audit_decision, condition: "no")
+  |> Workflow.connect(:forward_request, :audit_decision)
+  |> Workflow.connect(:audit_decision, :allowed_response, condition: "allow")
+  |> Workflow.connect(:audit_decision, :deny_response, condition: "deny")
+```
+
+```elixir
+render_tabs.(Workflow.to_mermaid(auth_workflow), Workflow.to_dot(auth_workflow), "950px")
+```
+
+---
+
+## 8. Data Model / ERD
+
+The data model separates tenant identity, credentials, policy, rate-limit configuration, and audit history. API key secrets should be stored as salted hashes, never plaintext.
+
+```elixir
+erd =
+  ERD.new(strict_column_matching: true, strict: true)
+  |> ERD.add_table(:tenants,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :slug, type: :varchar},
+      %{name: :name, type: :varchar},
+      %{name: :status, type: :varchar},
+      %{name: :created_at, type: :utc_datetime}
+    ]
+  )
+  |> ERD.add_table(:users,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :tenant_id, type: :uuid, key: :fk},
+      %{name: :email, type: :varchar},
+      %{name: :role, type: :varchar},
+      %{name: :created_at, type: :utc_datetime}
+    ]
+  )
+  |> ERD.add_table(:api_keys,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :tenant_id, type: :uuid, key: :fk},
+      %{name: :key_prefix, type: :varchar},
+      %{name: :secret_hash, type: :varchar},
+      %{name: :status, type: :varchar},
+      %{name: :expires_at, type: :utc_datetime}
+    ]
+  )
+  |> ERD.add_table(:routes,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :tenant_id, type: :uuid, key: :fk},
+      %{name: :host, type: :varchar},
+      %{name: :path_pattern, type: :varchar},
+      %{name: :backend_service, type: :varchar},
+      %{name: :enabled, type: :boolean}
+    ]
+  )
+  |> ERD.add_table(:rate_limits,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :tenant_id, type: :uuid, key: :fk},
+      %{name: :route_id, type: :uuid, key: :fk},
+      %{name: :api_key_id, type: :uuid, key: :fk},
+      %{name: :window_seconds, type: :integer},
+      %{name: :max_requests, type: :integer},
+      %{name: :burst_requests, type: :integer}
+    ]
+  )
+  |> ERD.add_table(:audit_logs,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :tenant_id, type: :uuid, key: :fk},
+      %{name: :api_key_id, type: :uuid, key: :fk},
+      %{name: :route_id, type: :uuid, key: :fk},
+      %{name: :decision, type: :varchar},
+      %{name: :status_code, type: :integer},
+      %{name: :request_id, type: :varchar},
+      %{name: :occurred_at, type: :utc_datetime}
+    ]
+  )
+  |> ERD.add_relationship(:tenants, :users,
+    cardinality: :one_to_many,
+    label: "owns",
+    from_column: :id,
+    to_column: :tenant_id
+  )
+  |> ERD.add_relationship(:tenants, :api_keys,
+    cardinality: :one_to_many,
+    label: "issues",
+    from_column: :id,
+    to_column: :tenant_id
+  )
+  |> ERD.add_relationship(:tenants, :routes,
+    cardinality: :one_to_many,
+    label: "configures",
+    from_column: :id,
+    to_column: :tenant_id
+  )
+  |> ERD.add_relationship(:routes, :rate_limits,
+    cardinality: :one_to_many,
+    label: "limits",
+    from_column: :id,
+    to_column: :route_id
+  )
+  |> ERD.add_relationship(:api_keys, :rate_limits,
+    cardinality: :one_to_many,
+    label: "overrides",
+    from_column: :id,
+    to_column: :api_key_id
+  )
+  |> ERD.add_relationship(:tenants, :audit_logs,
+    cardinality: :one_to_many,
+    label: "generates",
+    from_column: :id,
+    to_column: :tenant_id
+  )
+  |> ERD.add_relationship(:api_keys, :audit_logs,
+    cardinality: :one_to_many,
+    label: "authenticates",
+    from_column: :id,
+    to_column: :api_key_id
+  )
+  |> ERD.add_relationship(:routes, :audit_logs,
+    cardinality: :one_to_many,
+    label: "records",
+    from_column: :id,
+    to_column: :route_id
+  )
+```
+
+```elixir
+Kino.Layout.tabs(
+  Mermaid: Choreo.Lab.Siren.new(ERD.to_mermaid(erd, syntax: :erd)),
+  Graphviz: Kino.VizJS.render(ERD.to_dot(erd), height: "900px"),
+  Sketch: Choreo.Lab.Sketch.new(ERD.to_mermaid(erd, syntax: :erd)),
+  Source: mermaid_source.(ERD.to_mermaid(erd, syntax: :erd))
+)
+```
+
+---
+
+## 9. Threat Model
+
+The main risks are tenant isolation failure, credential leakage, rate-limit bypass, misrouting, audit tampering, and denial of service.
+
+```elixir
+threat_model =
+  ThreatModel.new(strict: true)
+  |> ThreatModel.add_trust_boundary("internet", label: "Internet", level: 0)
+  |> ThreatModel.add_trust_boundary("edge", label: "Gateway Edge", level: 1)
+  |> ThreatModel.add_trust_boundary("control_plane", label: "Control Plane", level: 2)
+  |> ThreatModel.add_trust_boundary("data_plane", label: "Data Plane", level: 2)
+  |> ThreatModel.add_trust_boundary("storage", label: "Storage Zone", level: 3)
+  |> ThreatModel.add_external_entity(:caller,
+    label: "Tenant App / Attacker",
+    boundary: "internet"
+  )
+  |> ThreatModel.add_external_entity(:tenant_admin,
+    label: "Tenant Admin",
+    boundary: "internet"
+  )
+  |> ThreatModel.add_process(:edge_proxy,
+    label: "Edge Proxy",
+    boundary: "edge",
+    privilege: :system
+  )
+  |> ThreatModel.add_process(:policy_engine,
+    label: "Policy Engine",
+    boundary: "data_plane",
+    privilege: :system
+  )
+  |> ThreatModel.add_process(:admin_api,
+    label: "Admin API",
+    boundary: "control_plane",
+    privilege: :admin
+  )
+  |> ThreatModel.add_process(:rate_limiter,
+    label: "Rate Limit Service",
+    boundary: "data_plane",
+    privilege: :system
+  )
+  |> ThreatModel.add_data_store(:config_db,
+    label: "Configuration DB",
+    boundary: "storage",
+    sensitivity: :restricted,
+    retention: "active config + history"
+  )
+  |> ThreatModel.add_data_store(:rate_cache,
+    label: "Rate Counter Cache",
+    boundary: "storage",
+    sensitivity: :internal,
+    retention: "short-lived counters"
+  )
+  |> ThreatModel.add_data_store(:audit_store,
+    label: "Audit Store",
+    boundary: "storage",
+    sensitivity: :confidential,
+    retention: "1 year"
+  )
+  |> ThreatModel.data_flow(:caller, :edge_proxy,
+    label: "API request",
+    protocol: :https,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:tenant_admin, :admin_api,
+    label: "Admin config request",
+    protocol: :https,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:edge_proxy, :policy_engine,
+    label: "Policy check",
+    protocol: :grpc,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:policy_engine, :rate_limiter,
+    label: "Quota check",
+    protocol: :grpc,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:policy_engine, :config_db,
+    label: "Read route/policy/key config",
+    protocol: :sql,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:admin_api, :config_db,
+    label: "Write tenant/key config",
+    protocol: :sql,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:rate_limiter, :rate_cache,
+    label: "Counter update",
+    protocol: :redis,
+    encrypted: true
+  )
+  |> ThreatModel.data_flow(:policy_engine, :audit_store,
+    label: "Decision audit event",
+    protocol: :https,
+    encrypted: true
+  )
+```
+
+```elixir
+render_tabs.(ThreatModel.to_mermaid(threat_model), ThreatModel.to_dot(threat_model), "900px")
+```
+
+---
+
+## 10. Requirements Traceability
+
+Traceability shows which components satisfy high-level requirements and which verification activities prove them.
+
+```elixir
+requirements =
+  Requirement.new("Multi-Tenant API Gateway")
+  |> Requirement.add_stakeholder(:platform_team, label: "Platform Team")
+  |> Requirement.add_stakeholder(:security_team, label: "Security Team")
+  |> Requirement.add_stakeholder(:tenant_admins, label: "Tenant Admins")
+  |> Requirement.add_requirement(:routing,
+    id: "FR-1",
+    text: "Route requests to the correct backend using tenant and route configuration.",
+    kind: :functional,
+    risk: :high
+  )
+  |> Requirement.add_requirement(:authn,
+    id: "FR-2",
+    text: "Authenticate requests using API keys and optional JWT/OAuth2 tokens.",
+    kind: :functional,
+    risk: :critical
+  )
+  |> Requirement.add_requirement(:authz,
+    id: "FR-3",
+    text: "Enforce tenant-specific authorization policies.",
+    kind: :functional,
+    risk: :critical
+  )
+  |> Requirement.add_requirement(:rate_limits,
+    id: "FR-4",
+    text: "Enforce tenant, key, and route-specific rate limits.",
+    kind: :performance,
+    risk: :high
+  )
+  |> Requirement.add_requirement(:audit,
+    id: "FR-5",
+    text: "Produce immutable audit logs for security-relevant gateway decisions.",
+    kind: :requirement,
+    risk: :high
+  )
+  |> Requirement.add_requirement(:latency,
+    id: "NFR-1",
+    text: "Keep p95 gateway overhead below 25ms excluding backend latency.",
+    kind: :performance,
+    risk: :medium
+  )
+  |> Requirement.add_requirement(:tenant_isolation,
+    id: "NFR-4",
+    text: "Strongly isolate tenant credentials, policy, and audit data.",
+    kind: :design_constraint,
+    risk: :critical
+  )
+  |> Requirement.add_component(:edge_proxy, label: "Edge Proxy")
+  |> Requirement.add_component(:policy_engine, label: "Policy Engine")
+  |> Requirement.add_component(:rate_limiter, label: "Rate Limit Service")
+  |> Requirement.add_component(:config_db, label: "Configuration DB")
+  |> Requirement.add_component(:audit_store, label: "Audit Store")
+  |> Requirement.add_test(:gateway_integration_tests, label: "Gateway integration tests")
+  |> Requirement.add_test(:security_tests, label: "Security and tenant isolation tests")
+  |> Requirement.add_test(:load_tests, label: "Latency and rate-limit load tests")
+  |> Requirement.traces(:platform_team, :routing)
+  |> Requirement.traces(:security_team, :authn)
+  |> Requirement.traces(:security_team, :authz)
+  |> Requirement.traces(:security_team, :tenant_isolation)
+  |> Requirement.traces(:tenant_admins, :audit)
+  |> Requirement.satisfies(:edge_proxy, :routing)
+  |> Requirement.satisfies(:policy_engine, :routing)
+  |> Requirement.satisfies(:policy_engine, :authn)
+  |> Requirement.satisfies(:policy_engine, :authz)
+  |> Requirement.satisfies(:rate_limiter, :rate_limits)
+  |> Requirement.satisfies(:config_db, :tenant_isolation)
+  |> Requirement.satisfies(:audit_store, :audit)
+  |> Requirement.verifies(:gateway_integration_tests, :routing)
+  |> Requirement.verifies(:security_tests, :authn)
+  |> Requirement.verifies(:security_tests, :authz)
+  |> Requirement.verifies(:security_tests, :tenant_isolation)
+  |> Requirement.verifies(:load_tests, :latency)
+  |> Requirement.verifies(:load_tests, :rate_limits)
+```
+
+```elixir
+Kino.Layout.tabs(
+  Mermaid: Choreo.Lab.Siren.new(Requirement.to_mermaid(requirements)),
+  Graphviz: Kino.VizJS.render(Requirement.to_dot(requirements), height: "850px"),
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(requirements)),
+  Source: mermaid_source.(Requirement.to_mermaid(requirements))
+)
+```
+
+---
+
+## 11. Analysis and Risks
+
+Use analysis output as design-review prompts. An empty validation list is not proof of correctness, but it is useful hygiene.
+
+```elixir
+%{
+  c4_validation: C4Analysis.validate(c4),
+  dataflow_validation: DataflowAnalysis.validate(request_flow),
+  workflow_validation: WorkflowAnalysis.validate(auth_workflow),
+  erd_validation: ERDAnalysis.validate(erd),
+  threat_model_validation: ThreatAnalysis.validate(threat_model),
+  requirement_coverage: RequirementAnalysis.coverage(requirements),
+  high_risk_requirement_gaps: RequirementAnalysis.high_risk_gaps(requirements)
+}
+```
+
+### Key Risks
+
+| Risk                     | Why it matters                                                      | Mitigation                                                                             |
+| ------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Rate-limit bypass        | Abuse can overload backend APIs or create noisy-neighbor effects.   | Enforce limits before routing; use tenant + key + route keys; alert on counter errors. |
+| Tenant isolation failure | Cross-tenant credential or policy leakage is a critical incident.   | Tenant-scoped keys, strict authorization checks, security tests, DB constraints.       |
+| Audit gaps               | Missing audit records make incident response and compliance harder. | Durable audit stream, retrying sink, request IDs, immutable archive.                   |
+| Config cache staleness   | Revoked keys or routes may remain active too long.                  | Short TTLs, push invalidation, fail closed on sensitive changes.                       |
+| Gateway overload         | Gateway is on every request path.                                   | Horizontal scaling, backpressure, fast local rejection, circuit breakers.              |
+
+---
+
+## 12. Tradeoffs
+
+| Decision                   | Option A                  | Option B                        | Recommendation                                                                                   |
+| -------------------------- | ------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Rate-limit storage         | Redis counters            | SQL counters                    | Use Redis for hot counters; SQL for policy/config source of truth.                               |
+| Rate-limit consistency     | Strong global consistency | Per-region approximate counters | Prefer per-region counters with conservative limits unless compliance requires global precision. |
+| Gateway implementation     | Build all custom          | Edge proxy + policy service     | Use proven proxy for edge concerns and Elixir service for policy/business rules.                 |
+| Audit logging              | Synchronous DB write      | Async durable stream            | Use async stream; fail closed only for critical audit pipeline outages if required.              |
+| API keys                   | Store plaintext           | Store salted hashes             | Store salted hashes and show only once at creation.                                              |
+| Tenant config distribution | Query DB per request      | Cache with invalidation         | Cache policy/config with short TTL and explicit revocation invalidation.                         |
+| Backend routing            | Static config only        | Dynamic tenant-aware routing    | Use dynamic config but validate changes with staged rollout and audit.                           |
+
+---
+
+## 13. Open Questions
+
+* Do tenants require custom domains or only shared gateway hostnames?
+* Are rate limits contractual/billing-related or primarily abuse protection?
+* Should rate limits be global per tenant or region-local with eventual aggregation?
+* What is the required audit retention period per compliance regime?
+* Are backend APIs homogeneous HTTP services or mixed protocols?
+* Is OAuth2 client credentials required in addition to API keys?
+* What is the expected tenant onboarding workflow and approval process?
+
+---
+
+## 14. Final Design Summary
+
+The proposed system uses a C4-modeled API gateway with a dedicated edge proxy, policy engine, rate-limit service, configuration database, Redis-backed counter cache, and audit stream/archive. The hot path performs TLS termination, identity validation, policy authorization, rate-limit checks, backend routing, and asynchronous audit publication.
+
+The design optimizes for:
+
+* low-latency rejection before backend routing;
+* tenant isolation and credential safety;
+* operational visibility;
+* durable security audit trails;
+* independent scaling of edge, policy, and rate-limit components.
+
+The most important follow-up decisions are rate-limit consistency model, config invalidation semantics, audit failure policy, and tenant onboarding controls.
+
+---
+
+## 15. LLM Review Prompt
+
+Use this Livebook as the source of truth. Review the multi-tenant API gateway design for:
+
+* scalability bottlenecks;
+* single points of failure;
+* unclear or missing requirements;
+* tenant isolation weaknesses;
+* API key lifecycle and revocation gaps;
+* consistency risks in rate limiting;
+* audit integrity and retention concerns;
+* abuse cases and denial-of-service paths;
+* operational complexity;
+* places where the design is over-engineered or under-specified.
+
+When responding, produce:
+
+1. a prioritized list of design risks;
+2. suggested architecture changes;
+3. missing diagrams or analyses;
+4. questions to ask stakeholders;
+5. a concise final recommendation.
