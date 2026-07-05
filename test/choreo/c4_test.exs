@@ -7,6 +7,7 @@ defmodule Choreo.C4Test do
   doctest Choreo.C4.Analysis
 
   alias Choreo.C4
+  alias Choreo.C4.Analysis
 
   describe "new/0" do
     test "creates an empty C4 model" do
@@ -244,6 +245,49 @@ defmodule Choreo.C4Test do
       end
 
       assert %Choreo.Theme{name: :c4_warm} = Choreo.C4.Render.Mermaid.theme(:warm)
+    end
+  end
+
+  describe "analysis" do
+    test "does not treat parent boundaries as isolated when descendants have relationships" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:customer, description: "A customer")
+        |> C4.add_software_system(:banking,
+          description: "Internet banking system",
+          scope: :in
+        )
+        |> C4.add_container(:api,
+          parent: :banking,
+          technology: "Phoenix",
+          description: "API container"
+        )
+        |> C4.add_component(:auth,
+          parent: :api,
+          technology: "Elixir",
+          description: "Auth component"
+        )
+        |> C4.add_relationship(:customer, :auth, label: "Uses")
+
+      refute :banking in Analysis.isolated_nodes(c4)
+      refute :api in Analysis.isolated_nodes(c4)
+      refute :banking in Analysis.parents_without_relationships(c4)
+      refute :api in Analysis.parents_without_relationships(c4)
+      assert Analysis.validate(c4) == []
+    end
+
+    test "still reports parent boundaries when neither they nor descendants have relationships" do
+      c4 =
+        C4.new()
+        |> C4.add_software_system(:banking, description: "Internet banking system")
+        |> C4.add_container(:api,
+          parent: :banking,
+          technology: "Phoenix",
+          description: "API container"
+        )
+
+      assert :banking in Analysis.parents_without_relationships(c4)
+      assert :api in Analysis.isolated_nodes(c4)
     end
   end
 

@@ -48,7 +48,7 @@ defmodule Choreo.C4.Analysis do
     simple_graph.nodes
     |> Map.keys()
     |> Enum.filter(fn id ->
-      Yog.in_degree(simple_graph, id) == 0 and Yog.out_degree(simple_graph, id) == 0
+      not effectively_connected?(c4, simple_graph, id)
     end)
     |> Enum.sort()
   end
@@ -181,12 +181,10 @@ defmodule Choreo.C4.Analysis do
 
     c4.graph.nodes
     |> Enum.filter(fn {id, _data} ->
-      has_children =
-        Enum.any?(c4.graph.nodes, fn {_, child_data} -> child_data[:parent] == id end)
+      children = descendants(c4, id)
 
-      has_children and
-        Yog.in_degree(simple_graph, id) == 0 and
-        Yog.out_degree(simple_graph, id) == 0
+      children != [] and
+        not effectively_connected?(c4, simple_graph, id)
     end)
     |> Enum.map(fn {id, _data} -> id end)
   end
@@ -236,6 +234,31 @@ defmodule Choreo.C4.Analysis do
   # ============================================================================
   # Private helpers
   # ============================================================================
+
+  defp effectively_connected?(c4, simple_graph, id) do
+    directly_connected?(simple_graph, id) or
+      Enum.any?(descendants(c4, id), &directly_connected?(simple_graph, &1))
+  end
+
+  defp directly_connected?(simple_graph, id) do
+    Yog.in_degree(simple_graph, id) > 0 or Yog.out_degree(simple_graph, id) > 0
+  end
+
+  defp descendants(%C4{graph: graph}, id) do
+    graph.nodes
+    |> Enum.filter(fn {_child_id, data} -> descendant_of?(graph.nodes, data[:parent], id) end)
+    |> Enum.map(fn {child_id, _data} -> child_id end)
+  end
+
+  defp descendant_of?(_nodes, nil, _ancestor_id), do: false
+  defp descendant_of?(_nodes, ancestor_id, ancestor_id), do: true
+
+  defp descendant_of?(nodes, parent_id, ancestor_id) do
+    case Map.get(nodes, parent_id) do
+      nil -> false
+      parent_data -> descendant_of?(nodes, parent_data[:parent], ancestor_id)
+    end
+  end
 
   defp check_isolated(acc, c4) do
     case isolated_nodes(c4) do

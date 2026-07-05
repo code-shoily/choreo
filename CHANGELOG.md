@@ -29,6 +29,8 @@
 
 ### Fixed
 
+- Fixed `Choreo.C4.Analysis` false positives where parent boundary nodes (software systems/containers) were reported as isolated when their descendant containers/components had relationships.
+
 - Fixed Mermaid `requirementDiagram` renderer so multi-line requirement and element blocks are joined with newlines instead of being collapsed onto a single line.
 
 - Fixed Mermaid `requirementDiagram` rendering syntax error by mapping the `:depends` relationship type (not natively supported by Mermaid's parser) to `traces`.
