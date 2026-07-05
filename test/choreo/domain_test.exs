@@ -125,7 +125,7 @@ defmodule Choreo.DomainTest do
       |> Domain.add_policy(:dangling_policy, label: "Dangling Policy")
 
     warnings = Analysis.warnings(storm)
-    assert length(warnings) == 6
+    assert length(warnings) == 7
 
     assert Enum.any?(warnings, fn {_sev, w} -> w =~ "Orphan Cmd" and w =~ "orphaned" end)
 
@@ -141,6 +141,10 @@ defmodule Choreo.DomainTest do
 
     assert Enum.any?(warnings, fn {_sev, w} ->
              w =~ "order_agg" and w =~ "no incoming commands"
+           end)
+
+    assert Enum.any?(warnings, fn {_sev, w} ->
+             w =~ "order_agg" and w =~ "no documented invariants"
            end)
   end
 
@@ -160,6 +164,109 @@ defmodule Choreo.DomainTest do
     assert glossary =~ "`Aggregate`"
     assert glossary =~ "Checkout Context"
     assert glossary =~ "Consistency boundary wrapping order entities."
+  end
+
+  test "supports DDD semantic relationship helpers and aggregate invariants" do
+    domain =
+      Domain.new()
+      |> Domain.add_actor(:customer, label: "Customer")
+      |> Domain.add_command(:place_order, label: "Place Order")
+      |> Domain.add_aggregate(:order,
+        label: "Order",
+        invariants: ["An order cannot be paid before pricing."]
+      )
+      |> Domain.add_event(:order_placed, label: "Order Placed")
+      |> Domain.add_read_model(:order_summary, label: "Order Summary")
+      |> Domain.initiates(:customer, :place_order)
+      |> Domain.handles(:place_order, :order)
+      |> Domain.emits(:order, :order_placed)
+      |> Domain.projects_to(:order_placed, :order_summary)
+
+    assert [] = Analysis.validate(domain)
+
+    mermaid = Domain.to_mermaid(domain)
+    assert mermaid =~ "initiates"
+    assert mermaid =~ "projects to"
+  end
+
+  test "supports subdomain metadata on bounded contexts" do
+    map =
+      Domain.new()
+      |> Domain.add_context(:ordering,
+        label: "Ordering",
+        subdomain: :core,
+        owner: "Checkout Team"
+      )
+      |> Domain.add_context(:billing, label: "Billing", subdomain: :supporting)
+      |> Domain.connect_contexts(:ordering, :billing, relationship: :customer_supplier)
+
+    assert map.graph.nodes.ordering.subdomain == :core
+    assert map.graph.nodes.ordering.owner == "Checkout Team"
+
+    refute Enum.any?(Analysis.validate(map), fn {_severity, message} -> message =~ "subdomain" end)
+  end
+
+  test "supports named scenarios and native Mermaid eventmodeling projection" do
+    domain =
+      Domain.new()
+      |> Domain.add_actor(:customer, label: "Customer")
+      |> Domain.add_command(:place_order, label: "Place Order")
+      |> Domain.add_aggregate(:order,
+        label: "Order",
+        invariants: ["Cannot place an empty order."]
+      )
+      |> Domain.add_event(:order_placed, label: "Order Placed")
+      |> Domain.add_policy(:payment_policy, label: "Payment Policy")
+      |> Domain.add_command(:authorize_payment, label: "Authorize Payment")
+      |> Domain.add_read_model(:order_summary, label: "Order Summary")
+      |> Domain.initiates(:customer, :place_order)
+      |> Domain.handles(:place_order, :order)
+      |> Domain.emits(:order, :order_placed)
+      |> Domain.triggers(:order_placed, :payment_policy)
+      |> Domain.triggers(:payment_policy, :authorize_payment)
+      |> Domain.projects_to(:order_placed, :order_summary)
+      |> Domain.add_scenario(:happy_path,
+        label: "Happy path",
+        path: [
+          :customer,
+          :place_order,
+          :order,
+          :order_placed,
+          :payment_policy,
+          :authorize_payment
+        ]
+      )
+
+    focused = Domain.focus_scenario(domain, :happy_path)
+    assert focused.highlighted_nodes == Domain.scenario(domain, :happy_path).path
+
+    mermaid = Domain.to_mermaid(domain, syntax: :event_modeling, scenario: :happy_path)
+    assert mermaid =~ "eventmodeling"
+    assert mermaid =~ "tf 01 ui Customer"
+    assert mermaid =~ "tf 02 cmd PlaceOrder"
+    assert mermaid =~ "tf 03 evt OrderPlaced"
+    assert mermaid =~ "tf 04 pcr PaymentPolicy"
+    assert mermaid =~ "tf 05 cmd AuthorizePayment"
+  end
+
+  test "validates scenario paths and semantic relationship endpoint shapes" do
+    domain =
+      Domain.new()
+      |> Domain.add_actor(:customer)
+      |> Domain.add_event(:order_placed)
+      |> Domain.add_command(:place_order)
+      |> Domain.handles(:customer, :order_placed)
+      |> Domain.add_scenario(:broken, path: [:customer, :missing, :place_order])
+
+    warnings = Analysis.validate(domain)
+
+    assert Enum.any?(warnings, fn {_severity, message} ->
+             message =~ "Relationship :handles" and message =~ "unusual endpoint types"
+           end)
+
+    assert Enum.any?(warnings, fn {severity, message} ->
+             severity == :error and message =~ "Scenario :broken references missing nodes"
+           end)
   end
 
   test "supports native class_diagram and erd syntax overrides in to_mermaid/2" do

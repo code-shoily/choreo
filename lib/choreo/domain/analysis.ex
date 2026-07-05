@@ -54,6 +54,12 @@ defmodule Choreo.Domain.Analysis do
     |> check_empty_types(nodes)
     # Rule 8: Context boundary with zero member nodes
     |> check_empty_contexts(domain)
+    # Rule 9: Semantic helper relationship endpoint validation
+    |> check_semantic_relationships(domain)
+    # Rule 10: Named scenario path validation
+    |> check_scenarios(domain)
+    # Rule 11: DDD strategic/tactical metadata quality hints
+    |> check_domain_design_metadata(nodes)
   end
 
   @doc """
@@ -265,6 +271,104 @@ defmodule Choreo.Domain.Analysis do
       else
         list
       end
+    end)
+  end
+
+  defp check_semantic_relationships(acc, %Domain{} = domain) do
+    Enum.reduce(domain.edge_meta, acc, fn {edge_id, meta}, list ->
+      relationship = meta[:relationship]
+
+      if meta[:type] == :domain_relationship and relationship do
+        {from, to, _weight} = Map.fetch!(domain.graph.edges, edge_id)
+        from_type = domain.graph.nodes |> Map.fetch!(from) |> Map.get(:type)
+        to_type = domain.graph.nodes |> Map.fetch!(to) |> Map.get(:type)
+
+        if valid_semantic_relationship?(relationship, from_type, to_type) do
+          list
+        else
+          [
+            {:warning,
+             "Relationship #{inspect(relationship)} from #{inspect(from)} (#{inspect(from_type)}) to #{inspect(to)} (#{inspect(to_type)}) has unusual endpoint types."}
+            | list
+          ]
+        end
+      else
+        list
+      end
+    end)
+  end
+
+  defp valid_semantic_relationship?(:initiates, from_type, :command),
+    do: from_type in [:actor, :external_system, :workflow, :policy]
+
+  defp valid_semantic_relationship?(:handles, :command, to_type),
+    do: to_type in [:aggregate, :workflow]
+
+  defp valid_semantic_relationship?(:emits, from_type, :event),
+    do: from_type in [:aggregate, :workflow, :external_system]
+
+  defp valid_semantic_relationship?(:triggers, from_type, to_type),
+    do: from_type in [:event, :policy, :workflow] and to_type in [:command, :policy, :workflow]
+
+  defp valid_semantic_relationship?(:projects_to, :event, :read_model), do: true
+  defp valid_semantic_relationship?(:notifies, :event, :actor), do: true
+
+  defp valid_semantic_relationship?(:translates_via, _from_type, to_type),
+    do: to_type in [:acl, :external_system, :context]
+
+  defp valid_semantic_relationship?(_relationship, _from_type, _to_type), do: false
+
+  defp check_scenarios(acc, %Domain{} = domain) do
+    Enum.reduce(domain.scenarios, acc, fn {name, scenario}, list ->
+      path = scenario[:path] || []
+      missing = Enum.reject(path, &Map.has_key?(domain.graph.nodes, &1))
+
+      disconnected =
+        path
+        |> Enum.chunk_every(2, 1, :discard)
+        |> Enum.reject(fn [from, to] -> connected?(domain.graph.edges, from, to) end)
+
+      list =
+        if missing == [] do
+          list
+        else
+          [
+            {:error, "Scenario #{inspect(name)} references missing nodes: #{inspect(missing)}"}
+            | list
+          ]
+        end
+
+      if disconnected == [] do
+        list
+      else
+        pairs = Enum.map(disconnected, fn [from, to] -> {from, to} end)
+
+        [
+          {:warning, "Scenario #{inspect(name)} contains disconnected steps: #{inspect(pairs)}"}
+          | list
+        ]
+      end
+    end)
+  end
+
+  defp check_domain_design_metadata(acc, nodes) do
+    Enum.reduce(nodes, acc, fn {_id, data}, list ->
+      cond do
+        data[:type] == :aggregate and (data[:invariants] || []) == [] ->
+          [{:warning, "Aggregate '#{data[:name]}' has no documented invariants."} | list]
+
+        data[:type] == :context and is_nil(data[:subdomain]) ->
+          [{:warning, "Bounded Context '#{data[:name]}' has no subdomain classification."} | list]
+
+        true ->
+          list
+      end
+    end)
+  end
+
+  defp connected?(edges, from, to) do
+    Enum.any?(edges, fn {_edge_id, {edge_from, edge_to, _weight}} ->
+      edge_from == from and edge_to == to
     end)
   end
 

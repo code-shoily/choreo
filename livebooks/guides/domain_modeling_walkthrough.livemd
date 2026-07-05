@@ -2,16 +2,25 @@
 
 ```elixir
 Mix.install([
-  # {:choreo, "~> 0.10.0"},
+  # {:choreo, "~> 0.11.0"},
   {:choreo, path: Path.expand("~/repos/elixir/choreo"), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
 
-## Section
+## Why this Livebook exists
 
-> **Rendering diagrams:** Mermaid output is rendered natively in Livebook. Graphviz DOT output is rendered using `Kino.VizJS`.
-> To ensure the best first impression, we list **Mermaid** as the default tab.
+This walkthrough shows how `Choreo.Domain` can be used as a compact, executable DDD notebook:
+
+* **Strategic DDD** — bounded contexts, subdomains, owners, and context-map relationships.
+* **Tactical Event Storming** — actors, commands, aggregates, events, policies, read models, and external systems.
+* **Domain Modeling Made Functional** — algebraic types and workflow pipelines inspired by Scott Wlaschin.
+* **Scenario storytelling** — named scenario paths rendered as normal flowcharts or Mermaid `eventmodeling` timelines.
+* **Semantic auditing** — design checks for dangling commands, missing causes, empty invariants, and broken scenarios.
+
+> **Rendering diagrams:** Mermaid output is shown with `Choreo.Lab.Siren` and `Choreo.Lab.Sketch`. Graphviz DOT output is shown with `Kino.VizJS`.
+> 
+> Mermaid `eventmodeling` requires Mermaid 11.15+. If your Livebook frontend does not support it yet, keep the generated text and paste it into a newer Mermaid renderer.
 
 ```elixir
 alias Choreo.Domain
@@ -19,86 +28,143 @@ alias Choreo.Domain.Analysis
 alias Choreo.Sequence
 ```
 
----
-
-## 1. Strategic Context Mapping
-
-In Strategic Domain-Driven Design (DDD), we divide a large system into distinct partitions called **Bounded Contexts**. We then map how these contexts communicate.
-
-Below, we model a complete strategic context map for our **Order Placement & Fulfillment Stream** modeled after the core workflow in *Domain Modeling Made Functional*:
-
-* **Order Taking** (Core Bounded Context)
-* **Billing** (Supporting Context)
-* **Shipping** (Generic Context)
-* **Inventory** (Supporting Context)
-* **Legacy CRM** (Upstream External System)
-* **Online Shopping Cart** (Upstream Customer/Supplier)
-
 ```elixir
-context_map =
-  Domain.new()
-  # Add Bounded Context nodes
-  |> Domain.add_context(:legacy_crm, label: "Legacy CRM System")
-  |> Domain.add_context(:shopping_cart, label: "Online Shopping Cart")
-  |> Domain.add_context(:order_taking, label: "Order Taking Context")
-  |> Domain.add_context(:billing, label: "Billing Bounded Context")
-  |> Domain.add_context(:inventory, label: "Inventory Bounded Context")
-  |> Domain.add_context(:shipping, label: "Shipping Bounded Context")
+mermaid_markdown = fn source ->
+  fence = String.duplicate("`", 3)
+  Kino.Markdown.new(fence <> "markdown\n" <> source <> "\n" <> fence)
+end
 
-  # Define Strategic DDD context-mapping relationships
-  |> Domain.connect_contexts(:legacy_crm, :order_taking,
-    relationship: :acl,
-    label: "CRM Customer Translation"
-  )
-  |> Domain.connect_contexts(:shopping_cart, :order_taking,
-    relationship: :customer_supplier,
-    label: "Submit Cart Details"
-  )
-  |> Domain.connect_contexts(:order_taking, :billing,
-    relationship: :customer_supplier,
-    label: "Invoice Requests"
-  )
-  |> Domain.connect_contexts(:order_taking, :inventory,
-    relationship: :shared_kernel,
-    label: "Stock Levels Sync"
-  )
-  |> Domain.connect_contexts(:order_taking, :shipping,
-    relationship: :conformist,
-    label: "Deliveries Feed"
-  )
+render_domain = fn domain, opts ->
+  mermaid = Domain.to_mermaid(domain, opts)
+  dot = Domain.to_dot(domain)
 
-# Render Strategic Map (Mermaid tab is primary)
-Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(context_map)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(context_map)),
-  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(context_map))
-)
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(mermaid),
+    Graphviz: Kino.VizJS.render(dot, height: Keyword.get(opts, :height, "900px")),
+    Sketch: Choreo.Lab.Sketch.new(mermaid),
+    Source: mermaid_markdown.(mermaid)
+  )
+end
 ```
 
 ---
 
-## 2. Tactical Event Storming
+## 1. Strategic Context Map
 
-During an Event Storming session, we explore the flow of business actions. We place colored "sticky notes" to map how users/actors initiate **Commands**, which target **Aggregates**, which then emit **Domain Events** that trigger reaction **Policies**.
+Strategic DDD starts by asking where language, ownership, and models change. Those boundaries become **Bounded Contexts**.
 
-Here we model the full Order fulfillment flow:
+In this order-placement example, we classify contexts by subdomain type and owner:
 
-1. A **Customer** places an order, updating the **Order Aggregate**, emitting `Order Placed`.
-2. The `Payment Saga Policy` reacts to `Order Placed` by issuing `Request Payment` to the **Billing Aggregate**, which emits `Payment Received`.
-3. The `Allocation Saga Policy` reacts to `Payment Received` by issuing `Reserve Inventory` to the **Inventory Aggregate**, which emits `Inventory Reserved`.
-4. The `Shipment Saga Policy` reacts to `Inventory Reserved` by issuing `Ship Goods` to the **Shipping Aggregate**, which emits `Goods Shipped` to notify the **Shipping Agent**.
+* **Order Taking** — core subdomain, owned by the Checkout Team.
+* **Billing** — supporting subdomain, owned by the Finance Platform Team.
+* **Inventory** — supporting subdomain, owned by the Stock Team.
+* **Shipping** — generic subdomain, owned by the Fulfillment Team.
+* **Legacy CRM** — upstream legacy source protected by an ACL.
+* **Online Shopping Cart** — upstream supplier of customer cart intent.
+
+```elixir
+context_map =
+  Domain.new()
+  |> Domain.add_context(:legacy_crm,
+    label: "Legacy CRM System",
+    subdomain: :generic,
+    owner: "CRM Migration Team",
+    description: "Legacy source of customer account data."
+  )
+  |> Domain.add_context(:shopping_cart,
+    label: "Online Shopping Cart",
+    subdomain: :supporting,
+    owner: "Web Experience Team",
+    description: "Captures customer cart intent before checkout."
+  )
+  |> Domain.add_context(:order_taking,
+    label: "Order Taking Context",
+    subdomain: :core,
+    owner: "Checkout Team",
+    description: "Core language for validating, pricing, and accepting orders."
+  )
+  |> Domain.add_context(:billing,
+    label: "Billing Context",
+    subdomain: :supporting,
+    owner: "Finance Platform Team",
+    description: "Invoices and payment authorization."
+  )
+  |> Domain.add_context(:inventory,
+    label: "Inventory Context",
+    subdomain: :supporting,
+    owner: "Stock Team",
+    description: "Stock reservations and availability."
+  )
+  |> Domain.add_context(:shipping,
+    label: "Shipping Context",
+    subdomain: :generic,
+    owner: "Fulfillment Team",
+    description: "Shipping labels, warehouse handoff, and delivery status."
+  )
+  |> Domain.connect_contexts(:legacy_crm, :order_taking,
+    relationship: :acl,
+    label: "Customer translation"
+  )
+  |> Domain.connect_contexts(:shopping_cart, :order_taking,
+    relationship: :customer_supplier,
+    label: "Submit cart details"
+  )
+  |> Domain.connect_contexts(:order_taking, :billing,
+    relationship: :customer_supplier,
+    label: "Invoice requests"
+  )
+  |> Domain.connect_contexts(:order_taking, :inventory,
+    relationship: :shared_kernel,
+    label: "SKU and stock vocabulary"
+  )
+  |> Domain.connect_contexts(:order_taking, :shipping,
+    relationship: :published_language,
+    label: "Fulfillment events"
+  )
+
+render_domain.(context_map, height: "700px")
+```
+
+The model is not only visual. It can also generate a glossary from labels, descriptions, and bounded-context membership.
+
+```elixir
+Kino.Markdown.new(Analysis.ubiquitous_language(context_map))
+```
+
+---
+
+## 2. Tactical Event Storming with Semantic Edges
+
+A tactical board explains how a business process changes state:
+
+1. A **Customer** initiates `Place Order`.
+2. The **Order Aggregate** handles the command and emits `Order Placed`.
+3. The **Payment Policy** reacts and requests payment.
+4. The **Billing Aggregate** emits `Payment Received`.
+5. The **Allocation Policy** reserves inventory.
+6. The **Inventory Aggregate** emits `Inventory Reserved`.
+7. The **Shipment Policy** ships goods.
+8. The **Shipping Aggregate** emits `Goods Shipped` and notifies the customer.
+
+The v0.11 Domain API lets us state those relationships directly:
+
+* `initiates/4`
+* `handles/4`
+* `emits/4`
+* `triggers/4`
+* `projects_to/4`
+* `notifies/4`
 
 ```elixir
 storming =
   Domain.new()
-  # Define context cluster boundaries
+  # Context cluster boundaries
   |> Domain.add_context_boundary("order_taking", label: "Order Taking Context")
   |> Domain.add_context_boundary("billing", label: "Billing Context")
   |> Domain.add_context_boundary("inventory", label: "Inventory Context")
   |> Domain.add_context_boundary("shipping", label: "Shipping Context")
 
-  # Define visual Event Storming sticky notes
-  # Context: Order Taking
+  # Order Taking
   |> Domain.add_actor(:customer,
     label: "Customer",
     description: "The buyer requesting an order placement."
@@ -106,151 +172,279 @@ storming =
   |> Domain.add_command(:place_order,
     label: "Place Order",
     cluster: "order_taking",
-    description: "Command to submit cart contents for validation."
+    description: "Submit cart contents for validation and pricing."
   )
   |> Domain.add_aggregate(:order_agg,
     label: "Order Aggregate",
     cluster: "order_taking",
-    description: "Consistency boundary wrapping order entities and lines."
+    description: "Consistency boundary wrapping the accepted order.",
+    invariants: [
+      "An accepted order must have at least one validated line.",
+      "The total amount must equal the sum of priced lines.",
+      "A paid order cannot be repriced without compensation."
+    ]
   )
   |> Domain.add_event(:order_placed,
-    label: "Order Placed Event",
+    label: "Order Placed",
     cluster: "order_taking",
-    description: "Emitted when order is validation-cleared."
+    description: "Emitted when an order is accepted by the core domain."
+  )
+  |> Domain.add_read_model(:order_status,
+    label: "Order Status View",
+    cluster: "order_taking",
+    description: "Customer-facing projection of the order lifecycle."
   )
 
-  # Context: Billing
+  # Billing
   |> Domain.add_policy(:payment_saga,
-    label: "Payment Saga Policy",
+    label: "Payment Policy",
     cluster: "billing",
-    description: "Saga executing payment collection on order placed."
+    description: "Requests payment after an order is placed."
   )
   |> Domain.add_command(:request_payment,
     label: "Request Payment",
     cluster: "billing",
-    description: "Triggers payment gateway processing."
+    description: "Ask Billing to authorize and capture payment."
   )
   |> Domain.add_aggregate(:billing_agg,
     label: "Billing Aggregate",
     cluster: "billing",
-    description: "Manages invoice status records."
+    description: "Protects invoice and payment state.",
+    invariants: [
+      "A captured payment must reference an issued invoice.",
+      "A payment can be captured only once."
+    ]
   )
   |> Domain.add_event(:payment_received,
-    label: "Payment Received Event",
+    label: "Payment Received",
     cluster: "billing",
-    description: "Emitted after payment validation."
+    description: "Emitted after successful payment capture."
   )
 
-  # Context: Inventory
+  # Inventory
   |> Domain.add_policy(:allocation_saga,
-    label: "Allocation Saga Policy",
+    label: "Allocation Policy",
     cluster: "inventory",
-    description: "Saga verifying stock levels once payment is secured."
+    description: "Reserves stock after payment succeeds."
   )
   |> Domain.add_command(:reserve_inventory,
     label: "Reserve Inventory",
     cluster: "inventory",
-    description: "Deducts pending stock counts."
+    description: "Reserve available stock for this order."
   )
   |> Domain.add_aggregate(:inventory_agg,
     label: "Inventory Aggregate",
     cluster: "inventory",
-    description: "Maintains real-time stock balances."
+    description: "Protects available and reserved stock counts.",
+    invariants: [
+      "Reserved quantity cannot exceed available quantity.",
+      "Stock reservations are idempotent by order ID."
+    ]
   )
   |> Domain.add_event(:inventory_reserved,
-    label: "Inventory Reserved Event",
+    label: "Inventory Reserved",
     cluster: "inventory",
-    description: "Emitted when stock is allocated."
+    description: "Emitted when stock is allocated for fulfillment."
   )
 
-  # Context: Shipping
+  # Shipping
   |> Domain.add_policy(:shipment_saga,
-    label: "Shipment Saga Policy",
+    label: "Shipment Policy",
     cluster: "shipping",
-    description: "Saga initiating shipping dispatch."
+    description: "Initiates dispatch after inventory is reserved."
   )
   |> Domain.add_command(:ship_goods,
     label: "Ship Goods",
     cluster: "shipping",
-    description: "Commands warehouse to box items."
+    description: "Ask Shipping to create labels and dispatch goods."
   )
   |> Domain.add_aggregate(:shipping_agg,
     label: "Shipping Aggregate",
     cluster: "shipping",
-    description: "Handles shipping labels."
+    description: "Protects shipment lifecycle state.",
+    invariants: [
+      "A shipment cannot be dispatched before inventory is reserved.",
+      "A shipment must have a delivery address."
+    ]
   )
   |> Domain.add_event(:goods_shipped,
-    label: "Goods Shipped Event",
+    label: "Goods Shipped",
     cluster: "shipping",
-    description: "Emitted when package departs."
-  )
-  |> Domain.add_actor(:shipping_agent,
-    label: "Shipping Agent",
-    description: "Warehouse picker dispatcher."
+    description: "Emitted when the package leaves the warehouse."
   )
 
-  # Connect the execution flow
-  # Customer -> Order Placed
-  |> Domain.connect(:customer, :place_order)
-  |> Domain.connect(:place_order, :order_agg)
-  |> Domain.connect(:order_agg, :order_placed)
+  # Semantic Event Storming edges
+  |> Domain.initiates(:customer, :place_order)
+  |> Domain.handles(:place_order, :order_agg)
+  |> Domain.emits(:order_agg, :order_placed)
+  |> Domain.projects_to(:order_placed, :order_status)
+  |> Domain.triggers(:order_placed, :payment_saga)
+  |> Domain.triggers(:payment_saga, :request_payment)
+  |> Domain.handles(:request_payment, :billing_agg)
+  |> Domain.emits(:billing_agg, :payment_received)
+  |> Domain.projects_to(:payment_received, :order_status)
+  |> Domain.triggers(:payment_received, :allocation_saga)
+  |> Domain.triggers(:allocation_saga, :reserve_inventory)
+  |> Domain.handles(:reserve_inventory, :inventory_agg)
+  |> Domain.emits(:inventory_agg, :inventory_reserved)
+  |> Domain.projects_to(:inventory_reserved, :order_status)
+  |> Domain.triggers(:inventory_reserved, :shipment_saga)
+  |> Domain.triggers(:shipment_saga, :ship_goods)
+  |> Domain.handles(:ship_goods, :shipping_agg)
+  |> Domain.emits(:shipping_agg, :goods_shipped)
+  |> Domain.projects_to(:goods_shipped, :order_status)
+  |> Domain.notifies(:goods_shipped, :customer)
+  |> Domain.add_scenario(:happy_path,
+    label: "Happy path: order to shipment",
+    description: "The complete successful order placement, payment, inventory, and shipment path.",
+    path: [
+      :customer,
+      :place_order,
+      :order_agg,
+      :order_placed,
+      :payment_saga,
+      :request_payment,
+      :billing_agg,
+      :payment_received,
+      :allocation_saga,
+      :reserve_inventory,
+      :inventory_agg,
+      :inventory_reserved,
+      :shipment_saga,
+      :ship_goods,
+      :shipping_agg,
+      :goods_shipped,
+      :customer
+    ]
+  )
+  |> Domain.add_scenario(:payment_path,
+    label: "Payment path",
+    description: "A shorter scenario showing order acceptance through payment capture.",
+    path: [
+      :customer,
+      :place_order,
+      :order_agg,
+      :order_placed,
+      :payment_saga,
+      :request_payment,
+      :billing_agg,
+      :payment_received
+    ]
+  )
 
-  # Order Placed -> Payment Received
-  |> Domain.connect(:order_placed, :payment_saga)
-  |> Domain.connect(:payment_saga, :request_payment)
-  |> Domain.connect(:request_payment, :billing_agg)
-  |> Domain.connect(:billing_agg, :payment_received)
-
-  # Payment Received -> Inventory Reserved
-  |> Domain.connect(:payment_received, :allocation_saga)
-  |> Domain.connect(:allocation_saga, :reserve_inventory)
-  |> Domain.connect(:reserve_inventory, :inventory_agg)
-  |> Domain.connect(:inventory_agg, :inventory_reserved)
-
-  # Inventory Reserved -> Goods Shipped
-  |> Domain.connect(:inventory_reserved, :shipment_saga)
-  |> Domain.connect(:shipment_saga, :ship_goods)
-  |> Domain.connect(:ship_goods, :shipping_agg)
-  |> Domain.connect(:shipping_agg, :goods_shipped)
-  |> Domain.connect(:goods_shipped, :shipping_agent)
-
-# Render Event Storming Flow
-Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(storming)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(storming),
-      height: "1800px"),
-  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(storming))
-)
+render_domain.(storming, height: "1700px")
 ```
 
 ---
 
-## 3. Tactical ADT Data Pipelines
+## 3. Semantic Audit
 
-In *Domain Modeling Made Functional*, Scott Wlaschin focuses on modeling business workflows as pipelines of pure functions that transform algebraic data types.
+The same model can be checked for basic Event Storming and DDD quality issues.
 
-Here, we map the core order validation, pricing, and billing pipeline showing how types are transformed:
-`UnvalidatedOrder -> [ValidateOrder] -> ValidatedOrder -> [PriceOrder] -> PricedOrder -> [AcknowledgeOrder] -> OrderAcknowledgmentSent -> [BillCustomer] -> BillRequested`
+```elixir
+audit = Analysis.validate(storming)
 
-`Choreo.Domain` renders these types as structured UML-like tables listing fields and their types.
+if audit == [] do
+  Kino.Markdown.new("✅ **Domain audit passed.** Commands, events, policies, aggregates, scenarios, and metadata look coherent.")
+else
+  audit
+  |> Enum.map(fn {severity, message} -> "* `#{severity}` — #{message}" end)
+  |> Enum.join("\n")
+  |> Kino.Markdown.new()
+end
+```
+
+Try breaking the model mentally:
+
+* a command with no aggregate/workflow target;
+* an event with no aggregate/workflow/external-system cause;
+* a policy that does not trigger a command;
+* an aggregate with no documented invariants;
+* a scenario path that references missing or disconnected nodes.
+
+Those are the kinds of checks `Choreo.Domain.Analysis` is designed to catch early.
+
+---
+
+## 4. Scenario Focus
+
+A full Event Storming board is useful, but a business conversation often needs one path. Named scenarios make that repeatable.
+
+```elixir
+Domain.scenarios(storming)
+```
+
+```elixir
+payment_focus = Domain.focus_scenario(storming, :payment_path)
+
+render_domain.(payment_focus, height: "1700px")
+```
+
+You can also trace backwards from a business event to discover all upstream causes.
+
+```elixir
+Domain.causes(storming, :goods_shipped)
+|> Enum.sort()
+```
+
+---
+
+## 5. Mermaid Event Modeling Timeline
+
+Mermaid's `eventmodeling` syntax is timeline-oriented. It is a great companion view for a selected scenario.
+
+`Choreo.Domain` maps the scenario path as follows:
+
+| Choreo node                                        | Mermaid Event Modeling frame                                       |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `:actor`                                           | `ui`                                                               |
+| `:command`                                         | `cmd`                                                              |
+| `:event`                                           | `evt`                                                              |
+| `:read_model`                                      | `rmo`                                                              |
+| `:policy`, `:workflow`, `:external_system`, `:acl` | `pcr`                                                              |
+| `:aggregate`                                       | skipped — aggregates have no direct Mermaid Event Modeling shape |
+
+<!-- livebook:{"output_size":"full"} -->
+
+```elixir
+event_modeling = Domain.to_mermaid(storming, syntax: :event_modeling, scenario: :happy_path)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(event_modeling, height: "900px"),
+  Source: mermaid_markdown.(event_modeling)
+)
+```
+
+This is not a replacement for Event Storming. It is a **scenario projection**: the same model rendered as a temporal story.
+
+---
+
+## 6. Domain Modeling Made Functional: Types and Workflows
+
+Scott Wlaschin's style of domain modeling focuses on making illegal states unrepresentable and modeling workflows as transformations between explicit types.
+
+Here is a compact order pipeline:
+
+`UnvalidatedOrder -> ValidateOrder -> ValidatedOrder -> PriceOrder -> PricedOrder -> AcknowledgeOrder -> OrderAcknowledgmentSent -> BillCustomer -> BillRequested`
 
 ```elixir
 algebraic_pipeline =
   Domain.new()
-  # Define Domain Types with fields (renders as structured UML Class tables)
   |> Domain.add_type(:unvalidated_order,
     label: "Unvalidated Order",
     fields: [
       {:customer_id, :string},
       {:lines, "list of UnvalidatedLine"}
-    ]
+    ],
+    description: "Raw order submitted by the customer."
   )
   |> Domain.add_type(:validated_order,
     label: "Validated Order",
     fields: [
       {:customer_info, "CustomerInfo"},
       {:lines, "list of ValidatedLine"}
-    ]
+    ],
+    description: "Order whose customer and line items have been validated."
   )
   |> Domain.add_type(:priced_order,
     label: "Priced Order",
@@ -258,14 +452,16 @@ algebraic_pipeline =
       {:customer_info, "CustomerInfo"},
       {:lines, "list of PricedLine"},
       {:total_amount, :money}
-    ]
+    ],
+    description: "Validated order with final prices and totals."
   )
   |> Domain.add_type(:order_acknowledgment_sent,
     label: "Order Acknowledgment Sent",
     fields: [
       {:customer_email, :string},
-      {:pdf_receipt, :binary}
-    ]
+      {:receipt_id, :string}
+    ],
+    description: "Customer-visible acknowledgment that the order was accepted."
   )
   |> Domain.add_type(:bill_requested,
     label: "Bill Requested",
@@ -273,55 +469,62 @@ algebraic_pipeline =
       {:invoice_id, :string},
       {:total, :money},
       {:payment_terms, [:due_on_receipt, :net_30, :net_60]}
-    ]
+    ],
+    description: "Billing request created from an acknowledged order."
   )
+  |> Domain.add_workflow(:validate_order,
+    label: "Validate Order",
+    invariants: ["Invalid customer IDs and empty order lines are rejected."]
+  )
+  |> Domain.add_workflow(:price_order,
+    label: "Price Order",
+    invariants: ["Every accepted line receives a price before totals are calculated."]
+  )
+  |> Domain.add_workflow(:acknowledge_order,
+    label: "Acknowledge Order",
+    invariants: ["Acknowledgment is sent once per accepted order."]
+  )
+  |> Domain.add_workflow(:bill_customer,
+    label: "Bill Customer",
+    invariants: ["Billing receives only priced and acknowledged orders."]
+  )
+  |> Domain.connect(:unvalidated_order, :validate_order, label: "input")
+  |> Domain.connect(:validate_order, :validated_order, label: "ok")
+  |> Domain.connect(:validated_order, :price_order, label: "input")
+  |> Domain.connect(:price_order, :priced_order, label: "ok")
+  |> Domain.connect(:priced_order, :acknowledge_order, label: "input")
+  |> Domain.connect(:acknowledge_order, :order_acknowledgment_sent, label: "sent")
+  |> Domain.connect(:order_acknowledgment_sent, :bill_customer, label: "input")
+  |> Domain.connect(:bill_customer, :bill_requested, label: "requested")
 
-  # Define Workflow action pipeline functions
-  |> Domain.add_workflow(:validate_order, label: "Validate Order (Workflow)")
-  |> Domain.add_workflow(:price_order, label: "Price Order (Workflow)")
-  |> Domain.add_workflow(:acknowledge_order, label: "Acknowledge Order (Workflow)")
-  |> Domain.add_workflow(:bill_customer, label: "Bill Customer (Workflow)")
-
-  # Wire the pipeline transitions
-  |> Domain.connect(:unvalidated_order, :validate_order)
-  |> Domain.connect(:validate_order, :validated_order)
-  |> Domain.connect(:validated_order, :price_order)
-  |> Domain.connect(:price_order, :priced_order)
-  |> Domain.connect(:priced_order, :acknowledge_order)
-  |> Domain.connect(:acknowledge_order, :order_acknowledgment_sent)
-  |> Domain.connect(:order_acknowledgment_sent, :bill_customer)
-  |> Domain.connect(:bill_customer, :bill_requested)
-
-# Render UML-like Pipeline Flow
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1200px"),
-  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd))
+  ClassDiagram: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :class_diagram)),
+  ERD: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1100px")
 )
 ```
 
 ---
 
-## 4. Entity vs. Aggregate: Detailed Design Example
+## 7. Aggregate Detail: Invariants, Entities, and Value Objects
 
-An **Entity** has a persistent identity that spans time and state, while an **Aggregate** represents a transactional consistency boundary wrapping one or more entities and value objects.
-
-Below, we detail the internal schemas of our **Order Aggregate** boundary. Inside the aggregate, we have:
-
-* The **Order Entity** (its root)
-* An **Order Line Entity** (representing selected items)
-* A **Customer Info Value Object** (representing client details)
+Aggregates matter because they protect business invariants. The diagram below shows the internal shape of the Order aggregate.
 
 ```elixir
 aggregate_detail =
   Domain.new()
   |> Domain.add_aggregate(:order_root,
-    label: "Order (Aggregate Root Entity)",
+    label: "Order (Aggregate Root)",
     fields: [
       {:id, :uuid},
-      {:status, [:placed, :processing, :fulfilled]},
-      {:customer_info, "CustomerInfo (Value Object)"},
+      {:status, [:placed, :paid, :allocated, :shipped]},
+      {:customer_info, "CustomerInfo"},
       {:total_price, :money}
+    ],
+    invariants: [
+      "Order status transitions must follow the lifecycle.",
+      "Total price equals the sum of order-line prices.",
+      "Customer information must be valid before payment."
     ]
   )
   |> Domain.add_type(:order_line,
@@ -333,32 +536,30 @@ aggregate_detail =
       {:price, :money}
     ]
   )
-  |> Domain.add_type(:customer_info_vo,
+  |> Domain.add_type(:customer_info,
     label: "CustomerInfo (Value Object)",
     fields: [
       {:customer_id, :uuid},
       {:name, :string},
-      {:email, :string}
+      {:email, :string},
+      {:shipping_address, :string}
     ]
   )
-
-  # Connect internal relations inside the Aggregate
-  |> Domain.connect(:order_root, :customer_info_vo, label: "contains")
+  |> Domain.connect(:order_root, :customer_info, label: "contains")
   |> Domain.connect(:order_root, :order_line, label: "has 1..*")
 
-# Render detailed Aggregate structures
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(aggregate_detail), height: "500px"),
-  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram))
+  ClassDiagram: Choreo.Lab.Siren.new(Domain.to_mermaid(aggregate_detail, syntax: :class_diagram)),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(aggregate_detail), height: "650px"),
+  Audit: Analysis.validate(aggregate_detail) |> inspect(pretty: true) |> Kino.Text.new()
 )
 ```
 
 ---
 
-## 5. Sequence Diagram: Timeline Workflow
+## 8. Sequence Timeline for One Integration Slice
 
-To visualize the sequential timeline of messages exchanged during order validation and payment collection, we construct a Sequence Diagram using `Choreo.Sequence`.
+Domain diagrams explain business semantics. Sequence diagrams are still useful when you want to show runtime collaboration between systems.
 
 ```elixir
 seq =
@@ -367,20 +568,17 @@ seq =
   |> Sequence.add_participant(:order_service, label: "Order Service")
   |> Sequence.add_participant(:billing_service, label: "Billing Service")
   |> Sequence.add_participant(:stripe, label: "Stripe Gateway")
-
-  # Message flow
   |> Sequence.message(:customer, :order_service, label: "Submit Order")
   |> Sequence.activate(:order_service)
   |> Sequence.message(:order_service, :billing_service, label: "Request Payment")
   |> Sequence.activate(:billing_service)
-  |> Sequence.message(:billing_service, :stripe, label: "Authorise Charge")
+  |> Sequence.message(:billing_service, :stripe, label: "Authorize Charge")
   |> Sequence.return(:stripe, :billing_service, label: "Token Approved")
-  |> Sequence.return(:billing_service, :order_service, label: "Invoice Issued")
+  |> Sequence.return(:billing_service, :order_service, label: "Payment Received")
   |> Sequence.deactivate(:billing_service)
-  |> Sequence.return(:order_service, :customer, label: "Receipt Received")
+  |> Sequence.return(:order_service, :customer, label: "Order Accepted")
   |> Sequence.deactivate(:order_service)
 
-# Render Sequence Diagram (Mermaid is native)
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(seq)),
   Graphviz: Kino.VizJS.render(Sequence.to_dot(seq)),
@@ -390,67 +588,22 @@ Kino.Layout.tabs(
 
 ---
 
-## 6. Ubiquitous Language (Domain Glossary)
+## 9. Final Domain Pack
 
-The **Ubiquitous Language** represents the common glossary of terms agreed upon by developers and domain experts.
+A good domain notebook should leave you with several reusable artifacts:
 
-By extracting definitions directly from the graph node labels and description parameters, Choreo enforces that code remains the single, compile-verified source of truth for the domain dictionary:
-
-```elixir
-# Extract glossary dynamically from code
-glossary_md = Analysis.ubiquitous_language(storming)
-
-# Render as Markdown in Livebook
-Kino.Markdown.new(glossary_md)
-```
-
----
-
-## 7. Scenario Tracing & Semantic Auditing
-
-With Choreo, you can highlight specific transaction scenarios (paths) and run semantic checks against your diagrams.
-
-### Highlighting a Scenario: "The Successful Order-to-Payment Lifecycle"
-
-We highlight only the path from the customer's request down to the payment validation event, leaving the rest of the storming board grayed out.
+* a context map for strategy and team ownership;
+* an Event Storming board for tactical flow;
+* an audit report for model quality;
+* a glossary for ubiquitous language;
+* scenario timelines for product conversations;
+* type/workflow diagrams for functional design.
 
 ```elixir
-payment_scenario = [
-  :customer,
-  :place_order,
-  :order_agg,
-  :order_placed,
-  :payment_saga,
-  :request_payment,
-  :billing_agg,
-  :payment_received
-]
-
-highlighted_storm = Domain.focus_path(storming, payment_scenario)
-
-# Render highlighted scenario
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Domain.to_mermaid(highlighted_storm)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(highlighted_storm), height: "1600px"),
-  Sketch: Choreo.Lab.Sketch.new(Domain.to_mermaid(highlighted_storm))
+  "Context glossary": Kino.Markdown.new(Analysis.ubiquitous_language(context_map)),
+  "Tactical glossary": Kino.Markdown.new(Analysis.ubiquitous_language(storming)),
+  "Storming audit": Analysis.validate(storming) |> inspect(pretty: true) |> Kino.Text.new(),
+  "Event modeling source": mermaid_markdown.(event_modeling)
 )
-```
-
-### Tracing Roots
-
-We can trace backward from the shipping event to determine all preceding triggers across contexts:
-
-```elixir
-Domain.causes(storming, :goods_shipped)
-```
-
-### Semantic Design Auditor
-
-We run semantic rule checks on our Event Storming board to verify that there are no dangling triggers or unhandled events.
-
-```elixir
-[{:warning, wm}] = Analysis.warnings(storming)
-
-IO.puts("⚠️  #{wm}")
-
 ```

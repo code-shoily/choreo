@@ -14,6 +14,14 @@
   - Added `:syntax` option to `Choreo.Workflow.to_mermaid/2`; accepts `:flowchart` (default) or `:swimlane` (Mermaid 11.16+ `swimlane-beta`).
   - Maps defined swimlanes to subgraphs and renders tasks, decisions, starts/ends, and styled sequence or compensation edges.
 
+- **DDD/Event Modeling API additions for `Choreo.Domain`**:
+  - Added semantic relationship helpers: `initiates/4`, `handles/4`, `emits/4`, `triggers/4`, `projects_to/4`, `notifies/4`, and `translates_via/4`.
+  - Added bounded-context metadata for `:subdomain` and `:owner`, plus aggregate/workflow `:invariants` documentation.
+  - Added named scenarios with `add_scenario/3`, `scenarios/1`, `scenario/2`, and `focus_scenario/2`.
+  - Added native Mermaid `eventmodeling` projection via `Domain.to_mermaid(domain, syntax: :event_modeling, path: [...])` or `scenario: :name`.
+  - Extended `Choreo.Domain.Analysis.validate/1` with semantic relationship endpoint checks, scenario path validation, and DDD metadata quality hints.
+  - Revamped `livebooks/guides/domain_modeling_walkthrough.livemd` around the v0.11 Domain API, including semantic edges, invariants, named scenarios, Event Modeling projection, and audit output.
+
 ### Fixed
 
 - Fixed Mermaid `requirementDiagram` renderer so multi-line requirement and element blocks are joined with newlines instead of being collapsed onto a single line.

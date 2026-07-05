@@ -214,7 +214,7 @@ alias Choreo.Domain.Analysis
 model =
   Domain.new()
   |> Domain.add_context_boundary("ordering", label: "Ordering Bounded Context")
-  |> Domain.add_aggregate(:order_agg, label: "Order Aggregate", parent: "ordering")
+  |> Domain.add_aggregate(:order_agg, label: "Order Aggregate", cluster: "ordering")
   |> Domain.add_command(:place_order, label: "Place Order")
   |> Domain.add_event(:order_placed, label: "Order Placed")
   |> Domain.connect(:place_order, :order_agg, label: "handles")
@@ -225,7 +225,10 @@ context_map =
   Domain.new()
   |> Domain.add_context(:ordering, label: "Ordering Service")
   |> Domain.add_context(:billing, label: "Billing Service")
-  |> Domain.connect_contexts(:ordering, :billing, type: :acl, label: "Upstream -> Downstream")
+  |> Domain.connect_contexts(:ordering, :billing,
+    relationship: :acl,
+    label: "Upstream -> Downstream"
+  )
 
 # Render
 mermaid = Domain.to_mermaid(model)
