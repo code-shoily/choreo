@@ -34,14 +34,17 @@ defmodule Choreo.UML.Render.DOT do
 
     direction =
       case Keyword.get(opts, :direction, :tb) do
-        :td ->
-          :tb
-
-        other ->
-          other
-          |> to_string()
-          |> String.downcase()
-          |> String.to_existing_atom()
+        :td -> :tb
+        :tb -> :tb
+        :lr -> :lr
+        :bt -> :bt
+        :rl -> :rl
+        "td" -> :tb
+        "tb" -> :tb
+        "lr" -> :lr
+        "bt" -> :bt
+        "rl" -> :rl
+        _ -> :tb
       end
 
     base_opts =

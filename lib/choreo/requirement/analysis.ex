@@ -516,13 +516,16 @@ defmodule Choreo.Requirement.Analysis do
   end
 
   @doc """
-  Validates the requirements diagram and returns structured diagnostics.
-
-  Returns a list of `{:error, reason, details}` or `{:warning, reason, details}`
-  tuples.
+  Evaluates structural integrity and returns a list of human-readable warnings and errors.
   """
-  @spec validate(Requirement.t()) :: [{:error | :warning, atom(), any()}]
+  @spec validate(Requirement.t()) :: [{:error | :warning, String.t()}]
   def validate(%Requirement{} = req) do
+    req
+    |> validate_raw()
+    |> Enum.map(&format_message/1)
+  end
+
+  defp validate_raw(%Requirement{} = req) do
     []
     |> validate_requirement_fields(req)
     |> validate_allowed_values(req)
@@ -534,11 +537,9 @@ defmodule Choreo.Requirement.Analysis do
   @doc """
   Returns human-readable validation messages.
   """
-  @spec validate_messages(Requirement.t()) :: [String.t()]
+  @spec validate_messages(Requirement.t()) :: [{:error | :warning, String.t()}]
   def validate_messages(%Requirement{} = req) do
-    req
-    |> validate()
-    |> Enum.map(&format_message/1)
+    validate(req)
   end
 
   defp validate_requirement_fields(acc, req) do
@@ -608,32 +609,32 @@ defmodule Choreo.Requirement.Analysis do
     end)
   end
 
-  defp format_message({:error, :missing_requirement_id, id}) do
-    "Requirement #{inspect(id)} is missing a required :id"
+  defp format_message({severity, :missing_requirement_id, id}) do
+    {severity, "Requirement #{inspect(id)} is missing a required :id"}
   end
 
-  defp format_message({:error, :missing_requirement_text, id}) do
-    "Requirement #{inspect(id)} is missing required :text"
+  defp format_message({severity, :missing_requirement_text, id}) do
+    {severity, "Requirement #{inspect(id)} is missing required :text"}
   end
 
-  defp format_message({:warning, :invalid_risk, id}) do
-    "Requirement #{inspect(id)} has an invalid :risk value"
+  defp format_message({severity, :invalid_risk, id}) do
+    {severity, "Requirement #{inspect(id)} has an invalid :risk value"}
   end
 
-  defp format_message({:warning, :invalid_verification, id}) do
-    "Requirement #{inspect(id)} has an invalid :verification value"
+  defp format_message({severity, :invalid_verification, id}) do
+    {severity, "Requirement #{inspect(id)} has an invalid :verification value"}
   end
 
-  defp format_message({:warning, :empty_label, id}) do
-    "Node #{inspect(id)} has an empty :label"
+  defp format_message({severity, :empty_label, id}) do
+    {severity, "Node #{inspect(id)} has an empty :label"}
   end
 
-  defp format_message({:warning, :circular_dependency, cycle}) do
-    "Circular dependency detected: #{Enum.map_join(cycle, " -> ", &inspect/1)}"
+  defp format_message({severity, :circular_dependency, cycle}) do
+    {severity, "Circular dependency detected: #{Enum.map_join(cycle, " -> ", &inspect/1)}"}
   end
 
-  defp format_message({:warning, :high_risk_gap, id}) do
-    "High-risk requirement #{inspect(id)} is not fully satisfied or verified"
+  defp format_message({severity, :high_risk_gap, id}) do
+    {severity, "High-risk requirement #{inspect(id)} is not fully satisfied or verified"}
   end
 
   # ============================================================================

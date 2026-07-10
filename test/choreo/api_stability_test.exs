@@ -16,7 +16,8 @@ defmodule Choreo.APIStabilityTest do
     Choreo.ERD,
     Choreo.UML,
     Choreo.Domain,
-    Choreo.Sequence
+    Choreo.Sequence,
+    Choreo.Requirement
   ]
 
   @analysis_modules [
@@ -34,7 +35,8 @@ defmodule Choreo.APIStabilityTest do
     Choreo.ERD.Analysis,
     Choreo.UML.Analysis,
     Choreo.Domain.Analysis,
-    Choreo.Sequence.Analysis
+    Choreo.Sequence.Analysis,
+    Choreo.Requirement.Analysis
   ]
 
   @renderer_modules [
@@ -63,7 +65,9 @@ defmodule Choreo.APIStabilityTest do
     Choreo.UML.Render.DOT,
     Choreo.UML.Render.Mermaid,
     Choreo.Sequence.Render.DOT,
-    Choreo.Sequence.Render.Mermaid
+    Choreo.Sequence.Render.Mermaid,
+    Choreo.Requirement.Render.DOT,
+    Choreo.Requirement.Render.Mermaid
   ]
 
   @stable_main_api [

@@ -4,11 +4,22 @@
 
 ### Added
 
+- **Livebook execution test runner**:
+  - Added `mix choreo.test_livebooks` task to find, parse, and execute all Elixir cells inside `.livemd` files.
+  - Implements a headless `Kino` mock suite (inputs, layouts, frames, etc.) and a nested-aware markdown code block parser to safely validate Livebooks at runtime without dependencies or browser instances.
+  - Integrated the validation task directly into the GitHub Actions CI/CD workflow (`ci.yml`).
+
 - **Agent guidance and project skill for system design notebooks**:
   - Added `AGENTS.md` with project-specific guidance for build/test workflows, Livebook conventions, skill conventions, changelog style, and guardrails.
   - Added `.agents/skills/choreo-system-design/SKILL.md` to guide creation of Choreo-based system design Livebooks.
   - Covers clarifying prompts, choosing Choreo modules, C4/dataflow/ERD/threat-model workflows, validation, and LLM review prompts.
-  - Added `livebooks/projects/api_gateway_system_design.livemd` as a worked example of the skill.
+  - Added `livebooks/projects/api_gateway_system_design.livemd` and `livebooks/projects/web_crawler_system_design.livemd` as worked examples of the skill.
+
+- **Lightweight Zero-Dependency MCP Server**:
+  - Added `Choreo.MCP` module implementing an stdio MCP server for system design loops.
+  - Added mix task `mix choreo.mcp` to run the server via standard JSON-RPC.
+  - Includes tools for initializing design notebooks (`choreo_initialize_design_notebook`), parsing notebook sections (`choreo_read_design_notebook`), updating design blocks (`choreo_update_design_section`), and verifying Elixir code syntax (`choreo_verify_design`).
+  - Added unit test suite in `test/choreo/mcp_test.exs`.
 
 - **Requirements traceability diagrams with `Choreo.Requirement`**:
   - Added `Choreo.Requirement` builder for requirements, components, tests, and stakeholders with `satisfies`, `verifies`, `refines`, `depends`, `traces`, `contains`, `derives`, and custom `relate` relationships.
@@ -32,6 +43,14 @@
   - Added `:syntax` option value `:ishikawa` to `Choreo.MindMap.to_mermaid/2` for cause-and-effect/root-cause projections (Mermaid 11.12.3+).
   - Renders the mind-map root as the effect/problem and branch edges as cause/sub-cause hierarchy; associative cross-links are omitted like native `:mindmap` rendering.
   - Revamped `livebooks/guides/mind_map_walkthrough.livemd` around flowchart, native mindmap, native Ishikawa, analysis, validation, and graph lenses.
+
+### Changed
+
+- **Validation Signature Harmonization**:
+  - Harmonized `validate/1` and `validate_messages/1` in `Choreo.Planner.Analysis` and `Choreo.Requirement.Analysis` to return standard `[{severity, message_string}]` 2-tuples consistent with all other domains.
+  - Added theme helpers `theme/0`, `theme/1`, and `theme/2` to `Choreo.Requirement.Render.Mermaid` and added `:minimal` theme support in `Choreo.Requirement.Render.DOT`.
+  - Added `Choreo.Requirement` and its submodules to the API stability suite in `test/choreo/api_stability_test.exs`.
+  - Fixed runtime crash vulnerability in direction option parsing of `Choreo.ERD.Render.DOT` and `Choreo.UML.Render.DOT` by replacing unsafe `String.to_existing_atom` with static mapping.
 
 ### Fixed
 

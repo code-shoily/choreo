@@ -143,10 +143,8 @@ defmodule Choreo.Planner.AnalysisTest do
         |> Planner.depends_on(:a, :c)
         |> Planner.depends_on(:c, :b)
 
-      assert [{:error, :cycle_detected, nodes}] = Analysis.validate(project)
-      assert :a in nodes
-      assert :b in nodes
-      assert :c in nodes
+      assert [{:error, msg}] = Analysis.validate(project)
+      assert msg =~ "Cycle detected"
     end
 
     test "warns about unassigned in-progress tasks" do
@@ -156,7 +154,8 @@ defmodule Choreo.Planner.AnalysisTest do
         |> Planner.add_task(:a, status: :in_progress)
         |> Planner.contains(:v1, :a)
 
-      assert [{:warning, :unassigned_in_progress, :a}] = Analysis.validate(project)
+      assert [{:warning, msg}] = Analysis.validate(project)
+      assert msg =~ "has no assignee"
     end
 
     test "returns empty for valid project" do

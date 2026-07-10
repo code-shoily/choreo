@@ -221,4 +221,13 @@ defmodule Choreo.Requirement.Render.Mermaid do
 
     "\"#{escaped}\""
   end
+
+  # ============================================================================
+  # Theme helpers
+  # ============================================================================
+
+  @doc false
+  def theme(name \\ :default, overrides \\ []) do
+    Choreo.Requirement.Render.DOT.theme(name, overrides)
+  end
 end

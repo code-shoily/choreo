@@ -52,7 +52,7 @@ defmodule Choreo.Infrastructure do
         |> Choreo.Infrastructure.connect(:api, :db)
 
       # Check for architecture warning violations
-      warnings = Choreo.Infrastructure.Analysis.warnings(infra)
+      warnings = Choreo.Infrastructure.Analysis.validate(infra)
 
       dot = Choreo.Infrastructure.to_dot(infra)
       mermaid = Choreo.Infrastructure.to_mermaid(infra)

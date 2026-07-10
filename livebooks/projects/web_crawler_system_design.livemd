@@ -1,0 +1,208 @@
+# System Design: Distributed Web Crawler
+
+```elixir
+Mix.install([
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
+  {:kino_vizjs, "~> 0.9.0"}
+])
+```
+
+## 1. Problem Statement
+
+Design a **Distributed Web Crawler** capable of scraping 10,000 websites daily. The system must satisfy the following constraints:
+
+* **URL Ingestion**: Ingests seed URLs daily from a date-named S3 bucket (`s3://crawler-seeds/YYYY-MM-DD.txt`).
+* **Deduplication**: Daily deduplication ensures no URL is crawled more than once per day. If a URL appears the next day, it should be crawled again.
+* **Politeness**: Respects `robots.txt` directives per domain.
+* **Storage**: Crawled page contents and metadata must be stored in a relational PostgreSQL database.
+
+```elixir
+alias Choreo.C4
+alias Choreo.C4.Analysis, as: C4Analysis
+alias Choreo.Dataflow
+alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
+alias Choreo.ERD
+alias Choreo.ERD.Analysis, as: ERDAnalysis
+alias Choreo.Workflow
+alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
+```
+
+```elixir
+mermaid_source = fn source ->
+  fence = String.duplicate("`", 3)
+  Kino.Markdown.new(fence <> "mermaid\n" <> source <> "\n" <> fence)
+end
+
+render_tabs = fn mermaid, dot, height ->
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(mermaid),
+    Graphviz: Kino.VizJS.render(dot, height: height),
+    Sketch: Choreo.Lab.Sketch.new(mermaid),
+    Source: mermaid_source.(mermaid)
+  )
+end
+```
+
+---
+
+## 2. Requirements
+
+### Functional Requirements
+
+* Ingest new targets daily from date-named S3 buckets.
+* Maintain a deduplication state reset/namespaced daily to avoid recrawling a URL on the same day.
+* Parse and cache `robots.txt` rules per domain.
+* Extract page HTML and save results to Postgres.
+
+### Non-Functional Requirements
+
+* **Politeness**: Implement rate-limiting per domain to avoid triggering DDoS blocks.
+* **Fault Tolerance**: Recover gracefully from DNS timeouts, connection errors, and bad HTTP statuses.
+* **Scalability**: Distributed pool of crawler workers to handle 10,000 sites efficiently within the daily window.
+
+---
+
+## 3. Assumptions and Constraints
+
+* 10,000 URLs to crawl daily. Assuming an average crawl time of 2s, a single crawler would take ~5.5 hours. A small pool of concurrent workers can complete this in minutes.
+* Upstream deduplication is handled at the S3 level (meaning the daily text file has unique entries, but URLs can repeat day-to-day).
+* S3 files are formatted with one URL per line, named `s3://crawler-seeds/YYYY-MM-DD.txt`.
+
+---
+
+## 4. C4 System Context (L1)
+
+```elixir
+c4_context =
+  C4.new()
+  |> C4.add_person(:operator, label: "Platform Operator")
+  |> C4.add_software_system(:crawler_system, label: "Crawler System", scope: :in)
+  |> C4.add_software_system(:s3_seeds, label: "S3 Seed Store", scope: :out)
+  |> C4.add_software_system(:target_sites, label: "External Websites", scope: :out)
+  |> C4.add_relationship(:operator, :crawler_system, label: "Manages and monitors")
+  |> C4.add_relationship(:crawler_system, :s3_seeds, label: "Reads daily URL lists from")
+  |> C4.add_relationship(:crawler_system, :target_sites, label: "Crawls pages respecting robots.txt")
+
+# Render diagrams
+mermaid = C4.to_mermaid(c4_context)
+dot = C4.to_dot(c4_context)
+render_tabs.(mermaid, dot, 300)
+```
+
+---
+
+## 5. C4 Container View (L2)
+
+```elixir
+c4_containers =
+  C4.new()
+  |> C4.add_software_system(:crawler_system, label: "Crawler System", scope: :in)
+  |> C4.add_container(:seed_loader, label: "Seed Loader", technology: "Elixir / Cron Task", parent: :crawler_system)
+  |> C4.add_container(:dedup_cache, label: "Deduplication Cache", technology: "Redis (Daily TTL Sets)", parent: :crawler_system)
+  |> C4.add_container(:url_queue, label: "URL Broker", technology: "RabbitMQ / Redis Queue", parent: :crawler_system)
+  |> C4.add_container(:crawler_workers, label: "Crawler Workers", technology: "Elixir / DynamicSupervisor Pool", parent: :crawler_system)
+  |> C4.add_container(:postgres_db, label: "Postgres DB", technology: "PostgreSQL Database", parent: :crawler_system)
+  |> C4.add_software_system(:s3_seeds, label: "S3 Seed Store", scope: :out)
+  |> C4.add_software_system(:target_sites, label: "External Websites", scope: :out)
+  # Links
+  |> C4.add_relationship(:seed_loader, :s3_seeds, label: "Downloads daily file")
+  |> C4.add_relationship(:seed_loader, :dedup_cache, label: "Checks if URL already crawled today")
+  |> C4.add_relationship(:seed_loader, :url_queue, label: "Pushes new daily URLs to")
+  |> C4.add_relationship(:crawler_workers, :url_queue, label: "Consumes URLs from")
+  |> C4.add_relationship(:crawler_workers, :target_sites, label: "Fetches pages from")
+  |> C4.add_relationship(:crawler_workers, :postgres_db, label: "Saves parsed HTML to")
+
+mermaid = C4.to_mermaid(c4_containers)
+dot = C4.to_dot(c4_containers)
+render_tabs.(mermaid, dot, 500)
+```
+
+---
+
+## 6. Core Dataflow
+
+```elixir
+dataflow =
+  Dataflow.new()
+  |> Dataflow.add_source(:s3, label: "S3 Daily File")
+  |> Dataflow.add_transform(:filter, label: "Redis Dedup Filter")
+  |> Dataflow.add_transform(:queue, label: "RabbitMQ Broker")
+  |> Dataflow.add_transform(:politeness, label: "Robots.txt Cache Matcher")
+  |> Dataflow.add_transform(:fetcher, label: "HTTP Fetcher (Req)")
+  |> Dataflow.add_sink(:postgres, label: "Postgres Store")
+  |> Dataflow.connect(:s3, :filter, label: "Streams lines")
+  |> Dataflow.connect(:filter, :queue, label: "Enqueues fresh URLs")
+  |> Dataflow.connect(:queue, :politeness, label: "Pulls next URL")
+  |> Dataflow.connect(:politeness, :fetcher, label: "Dispatches rate-limited request")
+  |> Dataflow.connect(:fetcher, :postgres, label: "Saves page HTML")
+
+mermaid = Dataflow.to_mermaid(dataflow)
+dot = Dataflow.to_dot(dataflow)
+render_tabs.(mermaid, dot, 400)
+```
+
+---
+
+## 7. Database Model / ERD
+
+```elixir
+erd =
+  ERD.new()
+  |> ERD.add_table(:crawl_jobs,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :date, type: :date, comment: "Daily job identifier (YYYY-MM-DD)"},
+      %{name: :status, type: :varchar, comment: "queued, running, completed"}
+    ]
+  )
+  |> ERD.add_table(:crawled_pages,
+    columns: [
+      %{name: :id, type: :uuid, key: :pk},
+      %{name: :crawl_job_id, type: :uuid, key: :fk},
+      %{name: :url, type: :text},
+      %{name: :raw_html, type: :text},
+      %{name: :status_code, type: :integer},
+      %{name: :crawled_at, type: :timestamp}
+    ]
+  )
+  |> ERD.add_table(:robots_cache,
+    columns: [
+      %{name: :domain, type: :varchar, key: :pk},
+      %{name: :directives, type: :text, comment: "Serialized rules JSON"},
+      %{name: :expires_at, type: :timestamp}
+    ]
+  )
+  |> ERD.add_relationship(:crawl_jobs, :crawled_pages, cardinality: :one_to_many, label: "contains")
+
+mermaid = ERD.to_mermaid(erd)
+dot = ERD.to_dot(erd)
+render_tabs.(mermaid, dot, 350)
+```
+
+---
+
+## 8. Analysis & Verification
+
+```elixir
+C4.Analysis.validate(c4_containers)
+```
+
+---
+
+## 9. Tradeoffs
+
+| Choice            | Selected               | Tradeoff                                                                                                                                                                 |
+| ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Deduplication** | Redis Set with 24h TTL | Simple, fast, and resets memory automatically daily. However, it requires a Redis instance.                                                                              |
+| **Queuing**       | RabbitMQ / Redis       | Keeps workers decoupled from ingestion. Can buffer spikes if S3 loader pushes thousands of links instantly.                                                              |
+| **Database**      | PostgreSQL             | Postgres is great for storing page metadata. For huge raw HTML storage scale, moving HTML payloads to S3/MinIO and storing only references in PG would be the next step. |
+
+---
+
+## 10. LLM Review Prompt
+
+Use this Livebook as the source of truth. Review the design for:
+
+* Politeness bottlenecks (e.g. handling a case where 50% of the 10,000 URLs belong to a single domain).
+* Fault tolerance (retries and backoffs on HTTP workers).
+* Scalability limits of concurrent database writes.
