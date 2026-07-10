@@ -33,10 +33,19 @@ defmodule Choreo.ERD.Render.DOT do
       |> MapSet.new()
 
     direction =
-      Keyword.get(opts, :direction, :lr)
-      |> to_string()
-      |> String.downcase()
-      |> String.to_existing_atom()
+      case Keyword.get(opts, :direction, :lr) do
+        :td -> :tb
+        :tb -> :tb
+        :lr -> :lr
+        :bt -> :bt
+        :rl -> :rl
+        "td" -> :tb
+        "tb" -> :tb
+        "lr" -> :lr
+        "bt" -> :bt
+        "rl" -> :rl
+        _ -> :lr
+      end
 
     base_opts =
       Yog.Render.DOT.default_options()

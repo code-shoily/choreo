@@ -192,8 +192,14 @@ defmodule Choreo.Requirement.AnalysisTest do
         |> Requirement.add_requirement(:bad, id: "", text: "")
 
       errors = Analysis.validate(req)
-      assert {:error, :missing_requirement_id, :bad} in errors
-      assert {:error, :missing_requirement_text, :bad} in errors
+
+      assert Enum.any?(errors, fn {sev, msg} ->
+               sev == :error and msg =~ "missing a required :id"
+             end)
+
+      assert Enum.any?(errors, fn {sev, msg} ->
+               sev == :error and msg =~ "missing required :text"
+             end)
     end
 
     test "reports circular dependencies" do
@@ -206,8 +212,8 @@ defmodule Choreo.Requirement.AnalysisTest do
 
       warnings = Analysis.validate(req)
 
-      assert Enum.any?(warnings, fn {sev, reason, _} ->
-               sev == :warning and reason == :circular_dependency
+      assert Enum.any?(warnings, fn {sev, msg} ->
+               sev == :warning and msg =~ "Circular dependency"
              end)
     end
 
@@ -217,7 +223,10 @@ defmodule Choreo.Requirement.AnalysisTest do
         |> Requirement.add_requirement(:bad, id: "", text: "")
 
       messages = Analysis.validate_messages(req)
-      assert Enum.any?(messages, &String.contains?(&1, "missing a required :id"))
+
+      assert Enum.any?(messages, fn {sev, msg} ->
+               sev == :error and msg =~ "missing a required :id"
+             end)
     end
   end
 end

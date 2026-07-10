@@ -175,16 +175,16 @@ defmodule Choreo.Planner.Analysis do
   end
 
   @doc """
-  Validates structural integrity.
-
-  Returns a list of issues like `{:error, :cycle_detected, nodes}` or
-  `{:warning, :unassigned_in_progress, task_id}`.
+  Evaluates the planner and returns a list of human-readable warnings and errors.
 
   ## Examples
 
       iex> project = Choreo.Planner.new() |> Choreo.Planner.add_task(:a, status: :in_progress)
       iex> Choreo.Planner.Analysis.validate(project)
-      [{:warning, :unassigned_in_progress, :a}, {:warning, :orphan_task, :a}]
+      [
+        {:warning, "Task :a is in progress but has no assignee"},
+        {:warning, "Task :a is not in any milestone"}
+      ]
 
       iex> project = Choreo.Planner.new()
       ...> |> Choreo.Planner.add_task(:a)
@@ -193,14 +193,18 @@ defmodule Choreo.Planner.Analysis do
       ...> |> Choreo.Planner.depends_on(:b, :a)
       ...> |> Choreo.Planner.depends_on(:a, :c)
       ...> |> Choreo.Planner.depends_on(:c, :b)
-      iex> [{:error, :cycle_detected, nodes} | _] = Choreo.Planner.Analysis.validate(project)
-      iex> is_list(nodes)
-      true
-      iex> :a in nodes
+      iex> [{:error, msg} | _] = Choreo.Planner.Analysis.validate(project)
+      iex> String.contains?(msg, "Cycle detected")
       true
   """
-  @spec validate(Planner.t()) :: list()
+  @spec validate(Planner.t()) :: [{:error | :warning, String.t()}]
   def validate(%Planner{} = planner) do
+    planner
+    |> validate_raw()
+    |> Enum.map(&format_message/1)
+  end
+
+  defp validate_raw(%Planner{} = planner) do
     issues = []
 
     dep_graph = dependency_subgraph(planner)
@@ -250,21 +254,23 @@ defmodule Choreo.Planner.Analysis do
   """
   @spec validate_messages(Planner.t()) :: [{:error | :warning, String.t()}]
   def validate_messages(%Planner{} = planner) do
-    planner
-    |> validate()
-    |> Enum.map(fn
-      {:error, :cycle_detected, nodes} ->
-        {:error, "Cycle detected among: #{Enum.map_join(nodes, ", ", &inspect/1)}"}
+    validate(planner)
+  end
 
-      {:warning, :unassigned_in_progress, id} ->
-        {:warning, "Task #{inspect(id)} is in progress but has no assignee"}
+  defp format_message({:error, :cycle_detected, nodes}) do
+    {:error, "Cycle detected among: #{Enum.map_join(nodes, ", ", &inspect/1)}"}
+  end
 
-      {:warning, :orphan_task, id} ->
-        {:warning, "Task #{inspect(id)} is not in any milestone"}
+  defp format_message({:warning, :unassigned_in_progress, id}) do
+    {:warning, "Task #{inspect(id)} is in progress but has no assignee"}
+  end
 
-      {:warning, :empty_milestone, id} ->
-        {:warning, "Milestone #{inspect(id)} has no tasks"}
-    end)
+  defp format_message({:warning, :orphan_task, id}) do
+    {:warning, "Task #{inspect(id)} is not in any milestone"}
+  end
+
+  defp format_message({:warning, :empty_milestone, id}) do
+    {:warning, "Milestone #{inspect(id)} has no tasks"}
   end
 
   # ============================================================================
