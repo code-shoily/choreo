@@ -4,7 +4,9 @@
 # For Hex publication/readers:
 Mix.install([
   # {:choreo, "~> 0.10.0"}, {:kino_vizjs, "~> 0.9.0"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
+  {:kino, "~> 0.19.0"},
+  {:kino_vizjs, "~> 0.9.0"}
 ])
 
 # For local development:
@@ -90,8 +92,9 @@ end
 
 Relationships support standard crow's foot multiplicities via the `:cardinality` option:
 
-| Cardinality Identifier | DOT Arrow Style         | Mermaid Syntax Shape |
-| ---------------------- | ----------------------- | -------------------- |
+| Cardinality Identifier | DOT Arrow Style | Mermaid Syntax Shape |
+| ---------------------- | --------------- | -------------------- |
+
 | `:one_to_one`          | `teetee` / `teetee`     | `||--||`             |
 | `:one_to_many`         | `teetee` / `crowodot`   | `||--o{`             |
 | `:zero_or_one_to_many` | `odot` / `crowodot`     | `|o--o{`             |
@@ -254,20 +257,20 @@ Analysis.normalization_score(schema)
 
 ## Cheat Sheet
 
-| Task / Feature              | Command                                                             |
-| --------------------------- | ------------------------------------------------------------------- |
-| Create ERD                  | `ERD.new/1`                                                         |
-| Add Database Table          | `ERD.add_table/3` (Opts: `:label`, `:columns`)                      |
-| Add Relationship            | `ERD.add_relationship/4` (Opts: `:label`, `:cardinality`)           |
-| Render Styled DOT Graphviz  | `ERD.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`) |
-| Render Native Mermaid       | `ERD.to_mermaid/2`                                                  |
-| Discover Join Sequence      | `Analysis.shortest_join_path/3`                                     |
-| Detect FK Circular Cycles   | `Analysis.cycles/1`                                                 |
-| Find Disconnected Tables    | `Analysis.orphans/1`                                                |
-| Compute Coupling Centrality | `Analysis.table_degrees/1`                                          |
-| Find Affected Tables        | `Analysis.affected_by/2`                                            |
-| Find Table Dependencies     | `Analysis.depends_on/2`                                             |
-| Find Redundant Relationships| `Analysis.transitive_reduction/1`                                   |
-| Find Longest Cascade        | `Analysis.longest_dependency_chain/1`                               |
-| Validate Schema             | `Analysis.validate/1`                                               |
-| Score Normalization         | `Analysis.normalization_score/2`                                    |
+| Task / Feature               | Command                                                             |
+| ---------------------------- | ------------------------------------------------------------------- |
+| Create ERD                   | `ERD.new/1`                                                         |
+| Add Database Table           | `ERD.add_table/3` (Opts: `:label`, `:columns`)                      |
+| Add Relationship             | `ERD.add_relationship/4` (Opts: `:label`, `:cardinality`)           |
+| Render Styled DOT Graphviz   | `ERD.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`) |
+| Render Native Mermaid        | `ERD.to_mermaid/2`                                                  |
+| Discover Join Sequence       | `Analysis.shortest_join_path/3`                                     |
+| Detect FK Circular Cycles    | `Analysis.cycles/1`                                                 |
+| Find Disconnected Tables     | `Analysis.orphans/1`                                                |
+| Compute Coupling Centrality  | `Analysis.table_degrees/1`                                          |
+| Find Affected Tables         | `Analysis.affected_by/2`                                            |
+| Find Table Dependencies      | `Analysis.depends_on/2`                                             |
+| Find Redundant Relationships | `Analysis.transitive_reduction/1`                                   |
+| Find Longest Cascade         | `Analysis.longest_dependency_chain/1`                               |
+| Validate Schema              | `Analysis.validate/1`                                               |
+| Score Normalization          | `Analysis.normalization_score/2`                                    |
