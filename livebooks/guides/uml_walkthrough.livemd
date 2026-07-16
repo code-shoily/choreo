@@ -4,7 +4,8 @@
 # For Hex publication/readers:
 Mix.install([
   # {:choreo, "~> 0.10.0"}, {:kino_vizjs, "~> 0.9.0"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
+  {:kino_vizjs, "~> 0.9.0"}
 ])
 
 # For local development:
@@ -95,12 +96,14 @@ end
 
 Relationships between software blocks map exactly to standard UML connectors:
 
-| Relationship Type | Arrow Style | Connector Style | Intended Semantics                                  |
-| ----------------- | ----------- | --------------- | --------------------------------------------------- |
-| `:inherits`       | Hollow      | Solid (`--|>`)  | Class inheritance or adopting a behavior.           |
-| `:realizes`       | Hollow      | Dashed (`..|>`) | Adopting/implementing an Elixir protocol.           |
-| `:associates`     | Solid       | Solid (`-->`)   | Composition (e.g. struct nesting/embedding).        |
-| `:depends`        | Open        | Dashed (`..>`)  | Run-time dependency or function calling invocation. |
+| Relationship Type | Arrow Style | Connector Style | Intended Semantics |
+| ----------------- | ----------- | --------------- | ------------------ |
+
+| `:inherits` | Hollow | Solid (`--  | >`) | Class inheritance or adopting a behavior. |
+| `:realizes` | Hollow | Dashed (`.. | >`) | Adopting/implementing an Elixir protocol. |
+
+| `:associates` | Solid | Solid (`-->`)  | Composition (e.g. struct nesting/embedding).        |
+| `:depends`    | Open  | Dashed (`..>`) | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance
@@ -112,8 +115,7 @@ inheritance_uml =
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram)),
-  Graphviz: Kino.VizJS.render(UML.to_dot(inheritance_uml)),
-  Sketch: Choreo.Lab.Sketch.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram))
+  Graphviz: Kino.VizJS.render(UML.to_dot(inheritance_uml))
 )
 ```
 
@@ -247,19 +249,19 @@ Choreo.UML.Analysis.coupling_metrics(uml)
 
 ## Cheat Sheet
 
-| Task / Feature              | Command                                                              |
-| --------------------------- | -------------------------------------------------------------------- |
-| Create UML Diagram          | `UML.new/1`                                                          |
-| Add Struct/Behavior/Class   | `UML.add_class/3` (Opts: `:type`, `:fields`, `:functions`, `:label`) |
-| Add Connection Relationship | `UML.add_relationship/4` (Opts: `:type`, `:label`)                   |
-| Render Styled DOT Graphviz  | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)  |
-| Render Native Mermaid Class | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)    |
-| Filter Graph via Lens focus | `Choreo.View.focus/3`                                                |
-| Detect circular cycles      | `Choreo.UML.Analysis.cycles/1`                                       |
-| Verify behavior contracts   | `Choreo.UML.Analysis.broken_contracts/1`                             |
-| Compute coupling metrics    | `Choreo.UML.Analysis.coupling_metrics/1`                             |
-| Check Law of Demeter        | `Choreo.UML.Analysis.law_of_demeter_violations/1`                    |
-| Validate diagram            | `Choreo.UML.Analysis.validate/1`                                     |
-| Find affected classes       | `Choreo.UML.Analysis.affected_by/2`                                  |
-| Find class dependencies     | `Choreo.UML.Analysis.depends_on/2`                                   |
-| Find redundant relationships| `Choreo.UML.Analysis.transitive_reduction/1`                         |
+| Task / Feature               | Command                                                              |
+| ---------------------------- | -------------------------------------------------------------------- |
+| Create UML Diagram           | `UML.new/1`                                                          |
+| Add Struct/Behavior/Class    | `UML.add_class/3` (Opts: `:type`, `:fields`, `:functions`, `:label`) |
+| Add Connection Relationship  | `UML.add_relationship/4` (Opts: `:type`, `:label`)                   |
+| Render Styled DOT Graphviz   | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)  |
+| Render Native Mermaid Class  | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)    |
+| Filter Graph via Lens focus  | `Choreo.View.focus/3`                                                |
+| Detect circular cycles       | `Choreo.UML.Analysis.cycles/1`                                       |
+| Verify behavior contracts    | `Choreo.UML.Analysis.broken_contracts/1`                             |
+| Compute coupling metrics     | `Choreo.UML.Analysis.coupling_metrics/1`                             |
+| Check Law of Demeter         | `Choreo.UML.Analysis.law_of_demeter_violations/1`                    |
+| Validate diagram             | `Choreo.UML.Analysis.validate/1`                                     |
+| Find affected classes        | `Choreo.UML.Analysis.affected_by/2`                                  |
+| Find class dependencies      | `Choreo.UML.Analysis.depends_on/2`                                   |
+| Find redundant relationships | `Choreo.UML.Analysis.transitive_reduction/1`                         |

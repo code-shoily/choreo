@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   # {:choreo, "~> 0.10.0"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -231,7 +231,7 @@ Kino.Layout.tabs(
 
 ### Swimlane Diagrams (Grouping by Assignee, Milestone, or Status)
 
-Swimlanes allow you to visualize task dependencies laid out across logical boundaries. 
+Swimlanes allow you to visualize task dependencies laid out across logical boundaries.
 
 You can group swimlanes by assignee (`swimlane_by: :assignee`), milestone (`swimlane_by: :milestone`), or task status (`swimlane_by: :status`).
 

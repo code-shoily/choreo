@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   # {:choreo, "~> 0.10.0"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -415,7 +415,7 @@ incomplete =
   )
 
 Analysis.validate_messages(incomplete)
-|> Enum.each(fn msg -> IO.puts("  #{msg}") end)
+|> Enum.each(fn {t, msg} -> IO.puts("[#{t}]  #{msg}") end)
 ```
 
 Fix the model and validate again:
