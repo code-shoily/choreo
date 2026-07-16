@@ -6,6 +6,8 @@ defmodule Choreo.MCP do
 
   require Logger
 
+  alias Choreo.Livebook
+
   @protocol_version "2024-11-05"
 
   @doc """
@@ -44,8 +46,19 @@ defmodule Choreo.MCP do
                 loop()
             end
 
-          {:error, _} ->
-            # Ignore malformed JSON or write error response if we can parse an ID
+          {:error, reason} ->
+            # Best-effort parse error response when we cannot read an id
+            response =
+              case Jason.decode(line, keys: :strings) do
+                {:ok, %{"id" => id}} ->
+                  jsonrpc_error(id, -32_700, "Parse error: #{inspect(reason)}")
+
+                _ ->
+                  jsonrpc_error(nil, -32_700, "Parse error: #{inspect(reason)}")
+              end
+
+            # credo:disable-for-next-line Credo.Check.Refactor.IoPuts
+            IO.puts(Jason.encode!(response))
             loop()
         end
     end
@@ -64,7 +77,7 @@ defmodule Choreo.MCP do
         },
         "serverInfo" => %{
           "name" => "choreo-mcp",
-          "version" => "0.1.0"
+          "version" => server_version()
         }
       }
     }
@@ -113,17 +126,25 @@ defmodule Choreo.MCP do
   end
 
   @doc false
-  def handle_request(request) do
-    id = Map.get(request, "id")
+  def handle_request(%{"jsonrpc" => "2.0", "id" => id} = _req) do
+    jsonrpc_error(id, -32_601, "Method not found")
+  end
 
-    %{
+  @doc false
+  def handle_request(_request) do
+    jsonrpc_error(nil, -32_600, "Invalid Request")
+  end
+
+  defp jsonrpc_error(id, code, message) do
+    error = %{
       "jsonrpc" => "2.0",
-      "id" => id,
       "error" => %{
-        "code" => -32_601,
-        "message" => "Method not found"
+        "code" => code,
+        "message" => message
       }
     }
+
+    if id, do: Map.put(error, "id", id), else: error
   end
 
   # Tool definitions
@@ -158,6 +179,7 @@ defmodule Choreo.MCP do
         Parses an existing Choreo system design Livebook.
         Extracts structured sections, requirements, and current Choreo diagrams/code cells
         to reduce token overhead during investigation.
+        Returns a JSON array of {section, content} objects.
         """,
         inputSchema: %{
           type: "object",
@@ -172,6 +194,7 @@ defmodule Choreo.MCP do
         description: """
         Updates or inserts content for a specific section (e.g., C4 Context, C4 Container, Tradeoffs, or Requirements)
         within the target design Livebook. Replaces existing content inside that section while preserving the rest of the notebook.
+        Section matching is exact: the section_name must appear in the header.
         """,
         inputSchema: %{
           type: "object",
@@ -193,8 +216,9 @@ defmodule Choreo.MCP do
       %{
         name: "choreo_verify_design",
         description: """
-        Parses and evaluates all Elixir code blocks in the target system design Livebook.
-        Verifies syntax correctness and executes Choreo validations, returning any warnings or design issues.
+        Extracts and evaluates all Elixir code blocks in the target system design Livebook.
+        Verifies syntax correctness, module availability, and Choreo runtime behavior,
+        returning any warnings or design issues.
         """,
         inputSchema: %{
           type: "object",
@@ -230,7 +254,7 @@ defmodule Choreo.MCP do
   defp call_tool("choreo_read_design_notebook", %{"path" => path}) do
     case File.read(path) do
       {:ok, content} ->
-        sections = parse_markdown_sections(content)
+        sections = Livebook.parse_sections(content)
         {:ok, Jason.encode!(sections, pretty: true)}
 
       {:error, reason} ->
@@ -264,33 +288,15 @@ defmodule Choreo.MCP do
   defp call_tool("choreo_verify_design", %{"path" => path}) do
     case File.read(path) do
       {:ok, content} ->
-        # Find all elixir code blocks
-        blocks =
-          Regex.scan(~r/```elixir\n(.*?)```/s, content) |> Enum.map(fn [_, code] -> code end)
+        blocks = Livebook.extract_elixir_blocks(content)
 
-        errors =
-          blocks
-          |> Enum.with_index(1)
-          |> Enum.reduce([], fn {code, idx}, acc ->
-            case Code.string_to_quoted(code) do
-              {:ok, _} ->
-                acc
+        case Livebook.evaluate_blocks(blocks) do
+          :ok ->
+            {:ok,
+             "All Elixir blocks evaluated successfully! Verified #{length(blocks)} code blocks."}
 
-              {:error, {line, error_desc, token}} ->
-                [
-                  "Code block #{idx} has syntax error on line #{line}: #{error_desc} (token: #{inspect(token)})"
-                  | acc
-                ]
-
-              {:error, error} ->
-                ["Code block #{idx} failed to parse: #{inspect(error)}" | acc]
-            end
-          end)
-
-        if Enum.empty?(errors) do
-          {:ok, "All Elixir blocks parse successfully! Verified #{length(blocks)} code blocks."}
-        else
-          {:error, "Verification failed:\n" <> Enum.join(Enum.reverse(errors), "\n")}
+          {:error, exception, stacktrace} ->
+            {:error, "Evaluation failed:\n#{Exception.format(:error, exception, stacktrace)}"}
         end
 
       {:error, reason} ->
@@ -440,58 +446,29 @@ defmodule Choreo.MCP do
     """
   end
 
-  # Helper to parse markdown headers and their contents
-  defp parse_markdown_sections(content) do
-    # Regex to find standard Markdown headers (e.g. "## 1. Problem Statement" or "## Tradeoffs")
-    lines = String.split(content, "\n")
-
-    {sections, current_section, current_body} =
-      Enum.reduce(lines, {[], nil, []}, fn line, {acc_sections, current_name, acc_body} ->
-        if String.starts_with?(line, "#") do
-          new_name = String.trim(line)
-
-          new_acc_sections =
-            if current_name do
-              [
-                %{section: current_name, content: Enum.join(Enum.reverse(acc_body), "\n")}
-                | acc_sections
-              ]
-            else
-              acc_sections
-            end
-
-          {new_acc_sections, new_name, []}
-        else
-          {acc_sections, current_name, [line | acc_body]}
-        end
-      end)
-
-    final_sections =
-      if current_section do
-        [
-          %{section: current_section, content: Enum.join(Enum.reverse(current_body), "\n")}
-          | sections
-        ]
-      else
-        sections
-      end
-
-    Enum.reverse(final_sections)
-  end
-
-  # Helper to find and replace section body content
+  # Helper to find and replace section body content using exact header matching.
   defp replace_section_content(current_content, section_name, new_content) do
     lines = String.split(current_content, "\n")
-    target = String.downcase(section_name)
+    target = String.downcase(String.trim(section_name))
 
     result =
       Enum.reduce_while(lines, {:finding, []}, fn line, {state, acc} ->
-        case {state, String.starts_with?(line, "#")} do
+        is_header = String.starts_with?(line, "#")
+
+        case {state, is_header} do
           {:finding, true} ->
             normalized_header = line |> String.downcase() |> String.trim()
 
-            if String.contains?(normalized_header, target) do
-              # We found the starting header
+            # Match the requested section name against the full header text,
+            # not a substring, so "Requirements" does not match
+            # "Non-Functional Requirements".
+            header_without_prefix =
+              normalized_header
+              |> String.trim_leading("#")
+              |> String.trim()
+              |> String.replace(~r/^\d+\.\s*/, "")
+
+            if header_without_prefix == target do
               {:cont, {:skipping, [line | acc]}}
             else
               {:cont, {:finding, [line | acc]}}
@@ -525,5 +502,11 @@ defmodule Choreo.MCP do
       {:finding, _} ->
         {:error, "Section '#{section_name}' not found in the notebook"}
     end
+  end
+
+  defp server_version do
+    Mix.Project.config()[:version] || "0.0.0"
+  rescue
+    _ -> "0.0.0"
   end
 end

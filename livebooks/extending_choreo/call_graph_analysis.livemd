@@ -527,7 +527,8 @@ defmodule Choreo.CallGraph.MixXref do
 
   `mix xref graph --format=dot` writes a file named `xref_graph.dot` in the
   project root. This adapter reads that file, converts each file path to a
-  module atom, and builds a module-level call graph.
+  module atom, builds a module-level call graph, and then removes the
+  temporary DOT file.
 
   A real adapter would extract MFA-level edges from `mix xref trace` or from
   the Elixir AST.
@@ -545,7 +546,7 @@ defmodule Choreo.CallGraph.MixXref do
 
   ## Side effects
 
-  Creates `path/xref_graph.dot` if it does not already exist.
+  Creates `path/xref_graph.dot` temporarily while reading it, then deletes it.
   """
   @spec from_project(String.t(), keyword()) :: CallGraph.t()
   def from_project(path \\ ".", opts \\ []) do
@@ -560,15 +561,19 @@ defmodule Choreo.CallGraph.MixXref do
 
     dot_path = Path.join(path, "xref_graph.dot")
 
-    dot_path
-    |> File.read!()
-    |> parse_dot_edges()
-    |> Enum.reduce(CallGraph.new(), fn {caller, callee}, graph ->
-      graph
-      |> CallGraph.add_function({caller, :module, 0}, type: :private)
-      |> CallGraph.add_function({callee, :module, 0}, type: :private)
-      |> CallGraph.add_call({caller, :module, 0}, {callee, :module, 0})
-    end)
+    try do
+      dot_path
+      |> File.read!()
+      |> parse_dot_edges()
+      |> Enum.reduce(CallGraph.new(), fn {caller, callee}, graph ->
+        graph
+        |> CallGraph.add_function({caller, :module, 0}, type: :private)
+        |> CallGraph.add_function({callee, :module, 0}, type: :private)
+        |> CallGraph.add_call({caller, :module, 0}, {callee, :module, 0})
+      end)
+    after
+      File.rm(dot_path)
+    end
   end
 
   defp parse_dot_edges(dot) do

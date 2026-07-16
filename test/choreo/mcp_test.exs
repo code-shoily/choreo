@@ -1,6 +1,8 @@
 defmodule Choreo.MCPTest do
   use ExUnit.Case
 
+  alias Choreo.MCP
+
   setup do
     tmp_dir = Path.expand("../../tmp/mcp_tests", __DIR__)
     File.mkdir_p!(tmp_dir)
@@ -107,12 +109,180 @@ defmodule Choreo.MCPTest do
     assert resp_verify["result"]["isError"] == false
   end
 
+  test "initialize returns project version", %{tmp_dir: _tmp_dir} do
+    req = %{"jsonrpc" => "2.0", "id" => 1, "method" => "initialize"}
+    resp = send_request(req)
+
+    assert resp["result"]["serverInfo"]["version"] == Mix.Project.config()[:version]
+  end
+
+  test "unknown method returns method not found" do
+    req = %{"jsonrpc" => "2.0", "id" => 42, "method" => "tools/does_not_exist"}
+    resp = send_request(req)
+
+    assert resp["id"] == 42
+    assert resp["error"]["code"] == -32_601
+  end
+
+  test "unknown tool returns error", %{tmp_dir: tmp_dir} do
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 7,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_unknown_tool",
+        "arguments" => %{"path" => Path.join(tmp_dir, "missing.livemd")}
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["id"] == 7
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "not implemented"
+  end
+
+  test "update missing section returns error", %{tmp_dir: tmp_dir} do
+    notebook_path = Path.join(tmp_dir, "no_section.livemd")
+    File.write!(notebook_path, "# System Design: X\n\n## 1. Problem\n\nText\n")
+
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 8,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_update_design_section",
+        "arguments" => %{
+          "path" => notebook_path,
+          "section_name" => "Nonexistent",
+          "content" => "new"
+        }
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["id"] == 8
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "not found"
+  end
+
+  test "verify detects runtime errors", %{tmp_dir: tmp_dir} do
+    notebook_path = Path.join(tmp_dir, "bad.livemd")
+
+    File.write!(notebook_path, """
+    # Bad
+
+    ```elixir
+    raise "boom"
+    ```
+    """)
+
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 9,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_verify_design",
+        "arguments" => %{"path" => notebook_path}
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["id"] == 9
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "boom"
+  end
+
+  test "verify ignores elixir comments as section headers", %{tmp_dir: tmp_dir} do
+    notebook_path = Path.join(tmp_dir, "commented.livemd")
+
+    File.write!(notebook_path, """
+    # Test
+
+    ## 1. Problem
+
+    ```elixir
+    # This is a comment, not a header
+    x = 1 + 1
+    ```
+
+    ## 2. Tradeoffs
+
+    Text.
+    """)
+
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 10,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_read_design_notebook",
+        "arguments" => %{"path" => notebook_path}
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["id"] == 10
+    assert resp["result"]["isError"] == false
+
+    sections = Jason.decode!(hd(resp["result"]["content"])["text"])
+    section_names = Enum.map(sections, & &1["section"])
+
+    assert "## 1. Problem" in section_names
+    assert "## 2. Tradeoffs" in section_names
+    refute "# This is a comment, not a header" in section_names
+  end
+
+  test "update uses exact section matching", %{tmp_dir: tmp_dir} do
+    notebook_path = Path.join(tmp_dir, "exact.livemd")
+
+    File.write!(notebook_path, """
+    # Test
+
+    ## 1. Requirements
+
+    Original.
+
+    ## 2. Non-Functional Requirements
+
+    Keep me.
+    """)
+
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 11,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_update_design_section",
+        "arguments" => %{
+          "path" => notebook_path,
+          "section_name" => "Requirements",
+          "content" => "Updated."
+        }
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["id"] == 11
+    assert resp["result"]["isError"] == false
+
+    content = File.read!(notebook_path)
+    assert content =~ "Updated."
+    assert content =~ "Keep me."
+  end
+
+  test "handle_request rejects invalid jsonrpc requests" do
+    req = %{"id" => 99, "method" => "tools/list"}
+    resp = send_request(req)
+
+    assert resp["error"]["code"] == -32_600
+  end
+
   defp send_request(req) do
     # Simulates JSON-RPC handling with full serialization boundary
     req
     |> Jason.encode!()
     |> Jason.decode!()
-    |> Choreo.MCP.handle_request()
+    |> MCP.handle_request()
     |> Jason.encode!()
     |> Jason.decode!()
   end

@@ -4,9 +4,22 @@
 
 ### Added
 
+- Added an MCP section to `README.md` with setup instructions, client configuration, and example prompts.
+
 ### Changed
 
+- Refactored Livebook validation internals so the MCP server and `mix choreo.test_livebooks` share the same parser, evaluator, and `Kino` mock suite via `Choreo.Livebook` and `Choreo.Livebook.KinoMock`.
+- `choreo_verify_design` now evaluates Elixir code blocks (with `Mix.install` stripped and `Kino` redirected to mocks) instead of only checking syntax.
+- Disabled protocol consolidation in `mix.exs` so Livebooks that define protocol implementations at runtime validate headlessly.
+
 ### Fixed
+
+- Made markdown section parsing code-fence-aware so Elixir comments are not mistaken for section headers.
+- Made section replacement in `choreo_update_design_section` use exact normalized header matching rather than substring matching.
+- Fixed `Mix.install/2` stripping to handle additional keyword arguments such as `consolidate_protocols: false`.
+- Fixed `KinoMock.Input.select/3` crash when the options list is empty.
+- `mix choreo.test_livebooks` now skips integration notebooks that require external project features (e.g. `ecto_schema_erd.livemd`).
+- `call_graph_analysis.livemd` now removes the temporary `xref_graph.dot` it creates; added the generated pattern to `.gitignore`.
 
 ## [0.11.0] - 2026-07-14
 

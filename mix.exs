@@ -10,6 +10,7 @@ defmodule Choreo.MixProject do
       version: @version,
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
+      consolidate_protocols: false,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       dialyzer: [plt_add_apps: [:mix], flags: [:no_opaque]],

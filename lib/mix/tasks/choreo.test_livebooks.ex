@@ -1,103 +1,30 @@
-# Mock modules for Kino to allow headless validation of Livebooks
-defmodule KinoMock do
-  @moduledoc false
-
-  defmodule Layout do
-    @moduledoc false
-    def tabs(opts), do: opts
-    def grid(inputs, _opts \\ []), do: inputs
-  end
-
-  defmodule Markdown do
-    @moduledoc false
-    def new(txt), do: txt
-  end
-
-  defmodule HTML do
-    @moduledoc false
-    def new(html), do: html
-  end
-
-  defmodule VizJS do
-    @moduledoc false
-    def render(dot, _opts \\ []), do: dot
-  end
-
-  defmodule JS do
-    @moduledoc false
-    def new(module, data), do: %{module: module, data: data}
-  end
-
-  defmodule Input do
-    @moduledoc false
-    def text(_label, opts \\ []) do
-      {:input, opts[:default]}
-    end
-
-    def password(_label, opts \\ []) do
-      {:input, opts[:default]}
-    end
-
-    def textarea(_label, opts \\ []) do
-      {:input, opts[:default]}
-    end
-
-    def select(_label, options, opts \\ []) do
-      default = opts[:default] || (is_list(options) && elem(List.first(options), 0))
-      {:input, default}
-    end
-
-    def checkbox(_label, opts \\ []) do
-      {:input, opts[:default]}
-    end
-
-    def read({:input, val}), do: val
-    def read(val), do: val
-  end
-
-  defmodule Control do
-    @moduledoc false
-    def button(label), do: {:control, label}
-
-    def select(_label, options, opts \\ []) do
-      default = opts[:default] || (is_list(options) && elem(List.first(options), 0))
-      {:control, default}
-    end
-  end
-
-  defmodule Frame do
-    @moduledoc false
-    def new, do: {:frame, nil}
-    def render(frame, content), do: {frame, content}
-  end
-
-  defmodule Image do
-    @moduledoc false
-    def new(data, _mime_type), do: data
-  end
-
-  defmodule Download do
-    @moduledoc false
-    def new(func, _opts \\ []), do: func
-  end
-
-  defmodule Process do
-    @moduledoc false
-    def render(content), do: content
-  end
-end
-
 defmodule Mix.Tasks.Choreo.TestLivebooks do
   use Mix.Task
+
+  alias Choreo.Livebook
 
   @shortdoc "Runs and evaluates all Elixir blocks inside the Livebooks"
   @moduledoc """
   Finds and runs all Elixir code blocks inside the `.livemd` files under the `livebooks/` directory.
   Ensures that the notebooks execute successfully without any runtime compilation or execution errors.
 
+  Notebooks that declare external dependencies beyond `choreo`, `kino`, and `kino_vizjs`
+  are skipped, because those dependencies are fetched by `Mix.install/1` when the notebook
+  runs inside Livebook and are not available in the project's test environment.
+
   Run this task via:
       mix choreo.test_livebooks
   """
+
+  # Dependencies that are either already loaded in the project or mocked headlessly.
+  @supported_deps MapSet.new([:choreo, :kino, :kino_vizjs])
+
+  # Notebooks that cannot be validated headlessly because they depend on an
+  # external project feature rather than a Hex package.
+  @skipped_livebooks %{
+    "livebooks/integrations/ecto_schema_erd.livemd" =>
+      "requires a target project with Ecto schemas"
+  }
 
   @impl Mix.Task
   def run(_args) do
@@ -119,6 +46,10 @@ defmodule Mix.Tasks.Choreo.TestLivebooks do
           :ok ->
             IO.write("\e[32m[OK]\e[0m\n")
             {:ok, path}
+
+          :skipped ->
+            IO.write("\e[33m[SKIPPED]\e[0m\n")
+            {:skipped, path}
 
           {:error, exception, stacktrace} ->
             IO.write("\e[31m[FAIL]\e[0m\n")
@@ -148,56 +79,63 @@ defmodule Mix.Tasks.Choreo.TestLivebooks do
   defp run_livebook(path) do
     content = File.read!(path)
 
-    # Extract code blocks using a nested-aware backticks parser
-    blocks = extract_code_blocks(content)
+    case Map.fetch(@skipped_livebooks, path) do
+      {:ok, reason} ->
+        Mix.shell().info("\n  skipping: #{reason}")
+        :skipped
 
-    # Concat blocks into a single execution block
-    # Strip Mix.install calls and redirect Kino references to our mock module
-    code_to_eval =
-      blocks
-      |> Enum.map_join("\n", &strip_mix_install/1)
-      |> String.replace("Kino.", "KinoMock.")
-      |> String.replace("Choreo.Lab.Siren.new", "Kernel.inspect")
-      |> String.replace("Choreo.Lab.Sketch.new", "Kernel.inspect")
+      :error ->
+        case external_dependencies(content) do
+          [] ->
+            content
+            |> Livebook.extract_elixir_blocks()
+            |> Livebook.evaluate_blocks()
 
-    try do
-      Code.eval_string(code_to_eval, [], __ENV__)
-      :ok
-    rescue
-      exception ->
-        {:error, exception, __STACKTRACE__}
+          deps ->
+            Mix.shell().info("\n  skipping: requires #{Enum.join(deps, ", ")}")
+            :skipped
+        end
     end
   end
 
-  defp extract_code_blocks(content) do
-    content
-    |> String.split("\n")
-    |> Enum.reduce({[], nil, []}, fn line, {blocks, current_block, current_lines} ->
-      case current_block do
-        nil ->
-          case Regex.run(~r/^( `{3,})elixir\s*$/, line) do
-            [_, ticks] ->
-              {blocks, ticks, []}
+  # Extracts dependency names declared in the notebook's Mix.install/1 call.
+  # Returns a list of external dependency atoms not supported headlessly.
+  defp external_dependencies(content) do
+    blocks = Livebook.extract_elixir_blocks(content)
 
-            _ ->
-              {blocks, nil, []}
-          end
-
-        ticks ->
-          if String.trim(line) == ticks do
-            block = Enum.reverse(current_lines) |> Enum.join("\n")
-            {[block | blocks], nil, []}
-          else
-            {blocks, ticks, [line | current_lines]}
-          end
-      end
-    end)
-    |> elem(0)
-    |> Enum.reverse()
+    blocks
+    |> Enum.flat_map(&extract_mix_install_deps/1)
+    |> Enum.reject(&MapSet.member?(@supported_deps, &1))
+    |> Enum.uniq()
   end
 
-  defp strip_mix_install(code) do
-    # Remove Mix.install([...]) blocks
-    String.replace(code, ~r/Mix\.install\(\[.*?\]\)/s, "")
+  defp extract_mix_install_deps(code) do
+    # Match Mix.install([...]) or Mix.install([...], opts) across multiple lines.
+    case Regex.scan(~r/Mix\.install\(((?:[^()]|\([^()]*\))*)\)/s, code) do
+      [] ->
+        []
+
+      matches ->
+        matches
+        |> Enum.flat_map(fn [_, inner] ->
+          # The first argument should be the dependency list.
+          case Regex.run(~r/^\s*\[(.*?)\]/s, inner, capture: :all_but_first) do
+            [list_content] -> parse_dep_names(list_content)
+            _ -> []
+          end
+        end)
+    end
+  end
+
+  defp parse_dep_names(list_content) do
+    list_content
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.flat_map(fn item ->
+      case Regex.run(~r/^\{:(\w+)/, item) do
+        [_, name] -> [String.to_atom(name)]
+        _ -> []
+      end
+    end)
   end
 end

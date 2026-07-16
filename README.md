@@ -164,6 +164,47 @@ Choreo provides two custom [Livebook](https://livebook.dev/) widgets for rich, i
 
 ---
 
+## MCP Server for Agents
+
+Choreo ships with a zero-dependency stdio MCP server so agents can read, write, and verify system-design notebooks using the same validation logic as `mix choreo.test_livebooks`. Run it from the Choreo repo:
+
+```bash
+mix choreo.mcp
+```
+
+It exposes four tools over JSON-RPC:
+
+| Tool | Purpose |
+|------|---------|
+| `choreo_initialize_design_notebook` | Scaffold a new design notebook under `livebooks/projects/<name>_system_design.livemd`. |
+| `choreo_read_design_notebook` | Parse a notebook into sections and code cells. |
+| `choreo_update_design_section` | Replace the body of an existing section by exact header match. |
+| `choreo_verify_design` | Evaluate every Elixir cell headlessly and report runtime errors or design issues. |
+
+### Configuring a client
+
+For example, in Claude Desktop add this to `claude_desktop_config.json` (replace `/path/to/choreo` with your local clone):
+
+```json
+{
+  "mcpServers": {
+    "choreo": {
+      "command": "sh",
+      "args": ["-c", "cd /path/to/choreo && exec mix choreo.mcp"]
+    }
+  }
+}
+```
+
+### Example prompts
+
+- "Initialize a system-design notebook for a real-time URL shortener at `livebooks/projects/url_shortener_system_design.livemd`."
+- "Read the C4 Context and C4 Container sections from `livebooks/projects/api_gateway_system_design.livemd`."
+- "Add a Dataflow section to the URL-shortener notebook showing clients → API → cache → database."
+- "Verify the URL-shortener notebook and report any runtime errors or design issues."
+
+---
+
 ## Testing
 
 ```bash
