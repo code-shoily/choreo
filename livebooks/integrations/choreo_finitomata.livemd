@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   # {:choreo, github: "code-shoily/choreo", branch: "main"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:finitomata, "~> 0.41"},
   {:kino_vizjs, "~> 0.9.0"}
 ])
@@ -694,8 +694,6 @@ minimized_order = Analysis.minimize(order_fsm)
 IO.puts("Order FSM: #{length(FSM.states(order_fsm))} states → #{length(FSM.states(minimized_order))} states")
 IO.puts("Equivalent? #{Analysis.equivalent?(order_fsm, minimized_order)}")
 ```
-
-
 
 ```elixir
 fsms = %{

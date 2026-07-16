@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   # {:choreo, github: "code-shoily/choreo", branch: "main"},
-  {:choreo, path: Path.expand("~/repos/elixir/choreo")},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"},
   {:req, "~> 0.5"}
 ])
@@ -373,7 +373,7 @@ case Analysis.validate(plan) do
     IO.puts("✅ Planner graph is structurally sound")
 
   issues ->
-    Enum.each(issues, fn {sev, _, msg} ->
+    Enum.each(issues, fn {sev, msg} ->
       icon = if sev == :error, do: "❌", else: "⚠️"
       IO.puts("#{icon} #{msg}")
     end)
