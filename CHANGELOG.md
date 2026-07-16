@@ -4,6 +4,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.11.0] - 2026-07-14
+
+### Added
+
 - **Livebook execution test runner**:
   - Added `mix choreo.test_livebooks` task to find, parse, and execute all Elixir cells inside `.livemd` files.
   - Implements a headless `Kino` mock suite (inputs, layouts, frames, etc.) and a nested-aware markdown code block parser to safely validate Livebooks at runtime without dependencies or browser instances.
