@@ -4,27 +4,15 @@
 
 ### Added
 
-- Added an MCP section to `README.md` with setup instructions, client configuration, and example prompts.
-
 ### Changed
-
-- Refactored Livebook validation internals so the MCP server and `mix choreo.test_livebooks` share the same parser, evaluator, and `Kino` mock suite via `Choreo.Livebook` and `Choreo.Livebook.KinoMock`.
-- `choreo_verify_design` now evaluates Elixir code blocks (with `Mix.install` stripped and `Kino` redirected to mocks) instead of only checking syntax.
-- Disabled protocol consolidation in `mix.exs` so Livebooks that define protocol implementations at runtime validate headlessly.
 
 ### Fixed
 
-- Made markdown section parsing code-fence-aware so Elixir comments are not mistaken for section headers.
-- Made section replacement in `choreo_update_design_section` use exact normalized header matching rather than substring matching.
-- Fixed `Mix.install/2` stripping to handle additional keyword arguments such as `consolidate_protocols: false`.
-- Fixed `KinoMock.Input.select/3` crash when the options list is empty.
-- `mix choreo.test_livebooks` now skips integration notebooks that require external project features (e.g. `ecto_schema_erd.livemd`).
-- `call_graph_analysis.livemd` now removes the temporary `xref_graph.dot` it creates; added the generated pattern to `.gitignore`.
-
-## [0.11.0] - 2026-07-14
+## [0.11.0] - 2026-07-17
 
 ### Added
 
+- Added an MCP section to `README.md` with setup instructions, client configuration, and example prompts.
 - **Livebook execution test runner**:
   - Added `mix choreo.test_livebooks` task to find, parse, and execute all Elixir cells inside `.livemd` files.
   - Implements a headless `Kino` mock suite (inputs, layouts, frames, etc.) and a nested-aware markdown code block parser to safely validate Livebooks at runtime without dependencies or browser instances.
@@ -67,6 +55,9 @@
 
 ### Changed
 
+- Refactored Livebook validation internals so the MCP server and `mix choreo.test_livebooks` share the same parser, evaluator, and `Kino` mock suite via `Choreo.Livebook` and `Choreo.Livebook.KinoMock`.
+- `choreo_verify_design` now evaluates Elixir code blocks (with `Mix.install` stripped and `Kino` redirected to mocks) instead of only checking syntax.
+- Disabled protocol consolidation in `mix.exs` so Livebooks that define protocol implementations at runtime validate headlessly.
 - **Validation Signature Harmonization**:
   - Harmonized `validate/1` and `validate_messages/1` in `Choreo.Planner.Analysis` and `Choreo.Requirement.Analysis` to return standard `[{severity, message_string}]` 2-tuples consistent with all other domains.
   - Added theme helpers `theme/0`, `theme/1`, and `theme/2` to `Choreo.Requirement.Render.Mermaid` and added `:minimal` theme support in `Choreo.Requirement.Render.DOT`.
@@ -75,14 +66,16 @@
 
 ### Fixed
 
+- Made markdown section parsing code-fence-aware so Elixir comments are not mistaken for section headers.
+- Made section replacement in `choreo_update_design_section` use exact normalized header matching rather than substring matching.
+- Fixed `Mix.install/2` stripping to handle additional keyword arguments such as `consolidate_protocols: false`.
+- Fixed `KinoMock.Input.select/3` crash when the options list is empty.
+- `mix choreo.test_livebooks` now skips integration notebooks that require external project features (e.g. `ecto_schema_erd.livemd`).
+- `call_graph_analysis.livemd` now removes the temporary `xref_graph.dot` it creates; added the generated pattern to `.gitignore`.
 - Fixed `Choreo.C4.Analysis` false positives where parent boundary nodes (software systems/containers) were reported as isolated when their descendant containers/components had relationships.
-
 - Fixed Mermaid `requirementDiagram` renderer so multi-line requirement and element blocks are joined with newlines instead of being collapsed onto a single line.
-
 - Fixed Mermaid `requirementDiagram` rendering syntax error by mapping the `:depends` relationship type (not natively supported by Mermaid's parser) to `traces`.
-
 - **Mermaid `architecture-beta` syntax support for `Choreo` and `Choreo.Infrastructure`**:
-
   - Added `Choreo.Render.Architecture` to render system and infrastructure diagrams using Mermaid's native `architecture-beta` diagram type.
   - Added `:syntax` option to `Choreo.to_mermaid/2` and `Choreo.Infrastructure.to_mermaid/2`; accepts `:flowchart` (default) or `:architecture`.
   - Maps Choreo node types to architecture icons (`:internet` → `internet`, `:database`/`:managed_db`/`:cache` → `database`, `:storage` → `disk`, `:network` → `cloud`, others → `server`).
