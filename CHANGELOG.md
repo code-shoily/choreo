@@ -12,6 +12,7 @@
 - Added incubating `Choreo.Lab.DSL.Dataflow` syntax for Livebook-friendly pipeline sketches over the stable `Choreo.Dataflow` builders, including stage clusters and typed normal/error/retry/dead-letter paths.
 - Added incubating `Choreo.Lab.DSL.Sequence` syntax for Livebook-friendly sequence sketches over the stable `Choreo.Sequence` builders, including ordered messages, activations, notes, and block fragments.
 - Added incubating `Choreo.Lab.DSL.C4` syntax for Livebook-friendly C4 sketches over the stable `Choreo.C4` builders, including hierarchy-aware constructors, scope statements, clusters, and relationship verbs.
+- Added incubating `Choreo.Lab.DSL.DecisionTree` syntax for Livebook-friendly decision policy sketches over the stable `Choreo.DecisionTree` builders, including condition-labeled branch helpers.
 - Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
 - Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
 

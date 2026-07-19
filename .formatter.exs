@@ -215,6 +215,18 @@
     relates: 3,
     calls: 1,
     calls: 2,
-    calls: 3
+    calls: 3,
+    question: 1,
+    question: 2,
+    outcome: 1,
+    outcome: 2,
+    result: 1,
+    result: 2,
+    leaf: 1,
+    leaf: 2,
+    branch: 1,
+    branch: 2,
+    condition: 1,
+    when_: 1
   ]
 ]
