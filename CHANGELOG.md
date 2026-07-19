@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly infrastructure sketches over the stable `Choreo` builders.
+
 ### Changed
 
 ### Fixed
