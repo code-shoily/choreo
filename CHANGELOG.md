@@ -8,6 +8,8 @@
 - Added incubating `Choreo.Lab.DSL.FSM` syntax for variable-bound finite-state-machine sketches over the stable `Choreo.FSM` builders.
 - Added incubating `Choreo.Lab.DSL.MindMap` syntax for Livebook-friendly mind-map sketches over the stable `Choreo.MindMap` builders, including typed branch and association edges.
 - Added incubating `Choreo.Lab.DSL.ERD` syntax for Livebook-friendly schema sketches over the stable `Choreo.ERD` builders, including block-based table columns and typed cardinality edges.
+- Added incubating `Choreo.Lab.DSL.UML` syntax for Livebook-friendly class/struct sketches over the stable `Choreo.UML` builders, including block-based fields/functions and typed relationship edges.
+- Added incubating `Choreo.Lab.DSL.Dataflow` syntax for Livebook-friendly pipeline sketches over the stable `Choreo.Dataflow` builders, including stage clusters and typed normal/error/retry/dead-letter paths.
 - Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
 - Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
 
