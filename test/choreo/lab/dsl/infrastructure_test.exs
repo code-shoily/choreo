@@ -5,18 +5,19 @@ defmodule Choreo.Lab.InfrastructureDSLTest do
 
   doctest Choreo.Lab.DSL.Infrastructure
 
-  test "verbs returns the Livebook discovery vocabulary" do
-    verbs = Choreo.Lab.DSL.Infrastructure.verbs()
+  test "taxonomy returns the Livebook discovery vocabulary" do
+    taxonomy = Choreo.Lab.DSL.Infrastructure.taxonomy()
 
-    assert :vpc in verbs.clusters
-    assert :public_subnet in verbs.clusters
-    assert :service in verbs.nodes
-    assert :database in verbs.nodes
-    assert :~> in verbs.edges
-    assert :edge in verbs.edges
-    assert :on in verbs.modifiers
-    assert :parent in verbs.options
-    assert :with in verbs.options
+    assert :vpc in taxonomy.clusters
+    assert :public_subnet in taxonomy.clusters
+    assert :service in taxonomy.nodes
+    assert :database in taxonomy.nodes
+    assert :~> in taxonomy.edges
+    assert :edge in taxonomy.edges
+    assert :on in taxonomy.modifiers
+    assert :parent in taxonomy.options
+    assert :with in taxonomy.options
+    assert Choreo.Lab.DSL.Infrastructure.verbs() == taxonomy
   end
 
   test "builds an infrastructure sketch with variable-bound clusters" do

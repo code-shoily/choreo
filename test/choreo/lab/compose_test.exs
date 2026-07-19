@@ -5,15 +5,16 @@ defmodule Choreo.Lab.ComposeTest do
 
   doctest Choreo.Lab.Compose
 
-  test "verbs returns the Livebook discovery vocabulary" do
-    verbs = Compose.verbs()
+  test "taxonomy returns the Livebook discovery vocabulary" do
+    taxonomy = Compose.taxonomy()
 
-    assert :cluster in verbs.structure
-    assert :embed in verbs.structure
-    assert :connect in verbs.links
-    assert :trace in verbs.links
-    assert :into in verbs.options
-    assert :as in verbs.options
+    assert :cluster in taxonomy.structure
+    assert :embed in taxonomy.structure
+    assert :connect in taxonomy.links
+    assert :trace in taxonomy.links
+    assert :into in taxonomy.options
+    assert :as in taxonomy.options
+    assert Compose.verbs() == taxonomy
   end
 
   test "cluster adds a visual grouping" do

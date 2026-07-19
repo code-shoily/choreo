@@ -63,21 +63,24 @@ defmodule Choreo.Lab.DSL.MindMap do
   @doc """
   Returns the vocabulary supported by the mind-map DSL.
 
-      iex> verbs = Choreo.Lab.DSL.MindMap.verbs()
-      iex> :root in verbs.nodes
+  This is meant as a lightweight Livebook discovery helper when autocomplete is
+  not enough.
+
+      iex> taxonomy = Choreo.Lab.DSL.MindMap.taxonomy()
+      iex> :root in taxonomy.nodes
       true
-      iex> :associate in verbs.edges
+      iex> :associate in taxonomy.edges
       true
-      iex> :on in verbs.modifiers
+      iex> :on in taxonomy.modifiers
       true
   """
-  @spec verbs() :: %{
+  @spec taxonomy() :: %{
           nodes: [atom()],
           edges: [atom()],
           modifiers: [atom()],
           options: [atom()]
         }
-  def verbs do
+  def taxonomy do
     %{
       nodes: @node_verbs,
       edges: [:~>, :edge, :branch, :associate, :association],
@@ -85,6 +88,17 @@ defmodule Choreo.Lab.DSL.MindMap do
       options: [:label, :with, :id, :branch, :associate, :association, :type]
     }
   end
+
+  @doc """
+  Compatibility alias for `taxonomy/0`.
+  """
+  @spec verbs() :: %{
+          nodes: [atom()],
+          edges: [atom()],
+          modifiers: [atom()],
+          options: [atom()]
+        }
+  def verbs, do: taxonomy()
 
   @doc """
   Builds a `%Choreo.MindMap{}` from a compact Lab DSL block.

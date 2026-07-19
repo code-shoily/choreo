@@ -7,14 +7,15 @@ defmodule Choreo.Lab.ViewTest do
 
   doctest Choreo.Lab.View
 
-  test "verbs returns the Livebook discovery vocabulary" do
-    verbs = View.verbs()
+  test "taxonomy returns the Livebook discovery vocabulary" do
+    taxonomy = View.taxonomy()
 
-    assert :zoom in verbs.transforms
-    assert :focus in verbs.transforms
-    assert :only_type in verbs.filters
-    assert :without_nodes in verbs.filters
-    assert :collapse_type in verbs.collapse
+    assert :zoom in taxonomy.transforms
+    assert :focus in taxonomy.transforms
+    assert :only_type in taxonomy.filters
+    assert :without_nodes in taxonomy.filters
+    assert :collapse_type in taxonomy.collapse
+    assert View.verbs() == taxonomy
   end
 
   test "zoom is pipe friendly" do

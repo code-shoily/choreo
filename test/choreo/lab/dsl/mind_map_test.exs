@@ -5,18 +5,19 @@ defmodule Choreo.Lab.MindMapDSLTest do
 
   doctest Choreo.Lab.DSL.MindMap
 
-  test "verbs returns the Livebook discovery vocabulary" do
-    verbs = Choreo.Lab.DSL.MindMap.verbs()
+  test "taxonomy returns the Livebook discovery vocabulary" do
+    taxonomy = Choreo.Lab.DSL.MindMap.taxonomy()
 
-    assert :root in verbs.nodes
-    assert :topic in verbs.nodes
-    assert :subtopic in verbs.nodes
-    assert :note in verbs.nodes
-    assert :branch in verbs.edges
-    assert :associate in verbs.edges
-    assert :association in verbs.edges
-    assert :on in verbs.modifiers
-    assert :with in verbs.options
+    assert :root in taxonomy.nodes
+    assert :topic in taxonomy.nodes
+    assert :subtopic in taxonomy.nodes
+    assert :note in taxonomy.nodes
+    assert :branch in taxonomy.edges
+    assert :associate in taxonomy.edges
+    assert :association in taxonomy.edges
+    assert :on in taxonomy.modifiers
+    assert :with in taxonomy.options
+    assert Choreo.Lab.DSL.MindMap.verbs() == taxonomy
   end
 
   test "builds a mind map with variable-bound nodes" do

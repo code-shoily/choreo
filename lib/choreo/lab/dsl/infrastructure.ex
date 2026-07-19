@@ -140,24 +140,24 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   This is meant as a lightweight Livebook discovery helper when autocomplete is
   not enough.
 
-      iex> verbs = Choreo.Lab.DSL.Infrastructure.verbs()
-      iex> :vpc in verbs.clusters
+      iex> taxonomy = Choreo.Lab.DSL.Infrastructure.taxonomy()
+      iex> :vpc in taxonomy.clusters
       true
-      iex> :service in verbs.nodes
+      iex> :service in taxonomy.nodes
       true
-      iex> :~> in verbs.edges
+      iex> :~> in taxonomy.edges
       true
-      iex> :on in verbs.modifiers
+      iex> :on in taxonomy.modifiers
       true
   """
-  @spec verbs() :: %{
+  @spec taxonomy() :: %{
           clusters: [atom()],
           nodes: [atom()],
           edges: [atom()],
           modifiers: [atom()],
           options: [atom()]
         }
-  def verbs do
+  def taxonomy do
     %{
       clusters: @cluster_verbs,
       nodes: @node_verbs,
@@ -166,6 +166,18 @@ defmodule Choreo.Lab.DSL.Infrastructure do
       options: [:label, :with, :id, :kind, :cluster, :parent, :description]
     }
   end
+
+  @doc """
+  Compatibility alias for `taxonomy/0`.
+  """
+  @spec verbs() :: %{
+          clusters: [atom()],
+          nodes: [atom()],
+          edges: [atom()],
+          modifiers: [atom()],
+          options: [atom()]
+        }
+  def verbs, do: taxonomy()
 
   @doc """
   Builds a `%Choreo{}` infrastructure sketch from a compact Lab DSL block.

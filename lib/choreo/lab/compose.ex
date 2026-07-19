@@ -32,26 +32,36 @@ defmodule Choreo.Lab.Compose do
   @doc """
   Returns the composition helper vocabulary for Livebook discovery.
 
-      iex> verbs = Choreo.Lab.Compose.verbs()
-      iex> :embed in verbs.structure
+      iex> taxonomy = Choreo.Lab.Compose.taxonomy()
+      iex> :embed in taxonomy.structure
       true
-      iex> :trace in verbs.links
+      iex> :trace in taxonomy.links
       true
-      iex> :as in verbs.options
+      iex> :as in taxonomy.options
       true
   """
-  @spec verbs() :: %{
+  @spec taxonomy() :: %{
           structure: [atom()],
           links: [atom()],
           options: [atom()]
         }
-  def verbs do
+  def taxonomy do
     %{
       structure: [:cluster, :embed],
       links: [:connect, :trace],
       options: [:into, :as, :prefix, :label, :type]
     }
   end
+
+  @doc """
+  Compatibility alias for `taxonomy/0`.
+  """
+  @spec verbs() :: %{
+          structure: [atom()],
+          links: [atom()],
+          options: [atom()]
+        }
+  def verbs, do: taxonomy()
 
   @doc """
   Adds a visual cluster/grouping boundary to a composed system.

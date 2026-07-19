@@ -32,21 +32,21 @@ defmodule Choreo.Lab.View do
   @doc """
   Returns the view helper vocabulary for Livebook discovery.
 
-      iex> verbs = Choreo.Lab.View.verbs()
-      iex> :zoom in verbs.transforms
+      iex> taxonomy = Choreo.Lab.View.taxonomy()
+      iex> :zoom in taxonomy.transforms
       true
-      iex> :only_type in verbs.filters
+      iex> :only_type in taxonomy.filters
       true
-      iex> :collapse_type in verbs.collapse
+      iex> :collapse_type in taxonomy.collapse
       true
   """
-  @spec verbs() :: %{
+  @spec taxonomy() :: %{
           transforms: [atom()],
           filters: [atom()],
           collapse: [atom()],
           options: [atom()]
         }
-  def verbs do
+  def taxonomy do
     %{
       transforms: [:zoom, :focus, :neighborhood, :between, :path, :trace],
       filters: [:only, :without, :only_nodes, :without_nodes, :only_type, :without_type],
@@ -54,6 +54,17 @@ defmodule Choreo.Lab.View do
       options: [:depth, :radius, :mode, :transitive, :label, :data]
     }
   end
+
+  @doc """
+  Compatibility alias for `taxonomy/0`.
+  """
+  @spec verbs() :: %{
+          transforms: [atom()],
+          filters: [atom()],
+          collapse: [atom()],
+          options: [atom()]
+        }
+  def verbs, do: taxonomy()
 
   @doc """
   Applies `Choreo.View.zoom/2` with a positional level.

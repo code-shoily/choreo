@@ -53,21 +53,24 @@ defmodule Choreo.Lab.DSL.FSM do
   @doc """
   Returns the vocabulary supported by the FSM DSL.
 
-      iex> verbs = Choreo.Lab.DSL.FSM.verbs()
-      iex> :initial in verbs.states
+  This is meant as a lightweight Livebook discovery helper when autocomplete is
+  not enough.
+
+      iex> taxonomy = Choreo.Lab.DSL.FSM.taxonomy()
+      iex> :initial in taxonomy.states
       true
-      iex> :~> in verbs.edges
+      iex> :~> in taxonomy.edges
       true
-      iex> :guard in verbs.modifiers
+      iex> :guard in taxonomy.modifiers
       true
   """
-  @spec verbs() :: %{
+  @spec taxonomy() :: %{
           states: [atom()],
           edges: [atom()],
           modifiers: [atom()],
           options: [atom()]
         }
-  def verbs do
+  def taxonomy do
     %{
       states: @state_verbs,
       edges: [:~>, :edge],
@@ -75,6 +78,17 @@ defmodule Choreo.Lab.DSL.FSM do
       options: [:label, :with, :guard, :id]
     }
   end
+
+  @doc """
+  Compatibility alias for `taxonomy/0`.
+  """
+  @spec verbs() :: %{
+          states: [atom()],
+          edges: [atom()],
+          modifiers: [atom()],
+          options: [atom()]
+        }
+  def verbs, do: taxonomy()
 
   @doc """
   Builds a `%Choreo.FSM{}` from a compact Lab DSL block.

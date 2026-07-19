@@ -5,17 +5,18 @@ defmodule Choreo.Lab.FSMDSLTest do
 
   doctest Choreo.Lab.DSL.FSM
 
-  test "verbs returns the Livebook discovery vocabulary" do
-    verbs = Choreo.Lab.DSL.FSM.verbs()
+  test "taxonomy returns the Livebook discovery vocabulary" do
+    taxonomy = Choreo.Lab.DSL.FSM.taxonomy()
 
-    assert :state in verbs.states
-    assert :initial in verbs.states
-    assert :final in verbs.states
-    assert :~> in verbs.edges
-    assert :edge in verbs.edges
-    assert :on in verbs.modifiers
-    assert :guard in verbs.modifiers
-    assert :with in verbs.options
+    assert :state in taxonomy.states
+    assert :initial in taxonomy.states
+    assert :final in taxonomy.states
+    assert :~> in taxonomy.edges
+    assert :edge in taxonomy.edges
+    assert :on in taxonomy.modifiers
+    assert :guard in taxonomy.modifiers
+    assert :with in taxonomy.options
+    assert Choreo.Lab.DSL.FSM.verbs() == taxonomy
   end
 
   test "builds an FSM with variable-bound states" do
