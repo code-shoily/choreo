@@ -31,6 +31,13 @@ defmodule Choreo.Lab.DSL.Infrastructure do
       iex> system.edge_meta |> Map.values() |> Enum.map(& &1.label) |> Enum.sort()
       [nil, "checks quota", "reads/writes"]
 
+  Supported cluster constructors:
+
+    * `cluster/1`
+    * `vpc/1`
+    * `public_subnet/1`, `subnet_public/1`
+    * `private_subnet/1`, `subnet_private/1`
+
   Supported node constructors:
 
     * `user/1`, `client/1`
@@ -46,16 +53,42 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     * `network/1`, `external/1`
     * `node/1`, `custom/1`
 
+  Cluster variables can be used in `parent:` and node `cluster:` options:
+
+      prod = vpc("Production VPC")
+      private = private_subnet("Private Subnet", parent: prod)
+      api = service("API", cluster: private)
+
   Edge labels can use either pipe modifiers or the explicit `edge` form:
 
       api ~> db |> on("reads")
       api ~> db |> label("reads")
+      edge api ~> db, "reads"
       edge api ~> db, label: "reads"
       edge api ~> db, with: "reads"
   """
 
+  @type cluster_decl :: %{id: String.t(), builder: atom(), opts: keyword()}
   @type node_decl :: %{id: Yog.node_id(), builder: atom(), opts: keyword()}
   @type edge_decl :: %{from: Yog.node_id(), to: Yog.node_id(), opts: keyword()}
+
+  @cluster_verbs [
+    :cluster,
+    :vpc,
+    :public_subnet,
+    :subnet_public,
+    :private_subnet,
+    :subnet_private
+  ]
+
+  @cluster_builders %{
+    cluster: :add_cluster,
+    vpc: :add_vpc,
+    public_subnet: :add_subnet_public,
+    subnet_public: :add_subnet_public,
+    private_subnet: :add_subnet_private,
+    subnet_private: :add_subnet_private
+  }
 
   @node_verbs [
     :user,
@@ -108,6 +141,8 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   not enough.
 
       iex> verbs = Choreo.Lab.DSL.Infrastructure.verbs()
+      iex> :vpc in verbs.clusters
+      true
       iex> :service in verbs.nodes
       true
       iex> :~> in verbs.edges
@@ -116,6 +151,7 @@ defmodule Choreo.Lab.DSL.Infrastructure do
       true
   """
   @spec verbs() :: %{
+          clusters: [atom()],
           nodes: [atom()],
           edges: [atom()],
           modifiers: [atom()],
@@ -123,10 +159,11 @@ defmodule Choreo.Lab.DSL.Infrastructure do
         }
   def verbs do
     %{
+      clusters: @cluster_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge],
       modifiers: [:on, :label],
-      options: [:label, :with, :id, :kind, :cluster, :description]
+      options: [:label, :with, :id, :kind, :cluster, :parent, :description]
     }
   end
 
@@ -145,7 +182,7 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     {steps, _env} =
       block
       |> statements()
-      |> Enum.reduce({[], %{}}, fn statement, {steps, env} ->
+      |> Enum.reduce({[], empty_env()}, fn statement, {steps, env} ->
         {statement_steps, env} = statement_steps(statement, env)
         {steps ++ statement_steps, env}
       end)
@@ -157,12 +194,30 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   defp statements(nil), do: []
   defp statements(single), do: [single]
 
+  defp empty_env, do: %{nodes: %{}, clusters: %{}}
+
   # variable = constructor("Label", opts)
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
-    node = node_from_constructor(constructor, var, env, meta)
-    step = {:node, node}
-    {[step], Map.put(env, var, node.id)}
+    cond do
+      cluster_constructor?(constructor) ->
+        cluster = cluster_from_constructor(constructor, var, env, meta)
+        {[{:cluster, cluster}], put_in(env.clusters[var], cluster.id)}
+
+      node_constructor?(constructor) ->
+        node = node_from_constructor(constructor, var, env, meta)
+        {[{:node, node}], put_in(env.nodes[var], node.id)}
+
+      true ->
+        raise ArgumentError,
+              "expected infrastructure constructor, got #{Macro.to_string(constructor)}#{line_suffix(meta)}"
+    end
+  end
+
+  # edge api ~> db, "reads"
+  defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
+    {edge, nodes} = edge_from_ast(edge_ast, [label: label], env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   # edge api ~> db, label: "reads"
@@ -188,13 +243,19 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     {edge_declaration_steps(nodes, edge), env}
   end
 
-  # inline node declaration, e.g. service("API")
+  # inline cluster/node declaration, e.g. vpc("Prod") or service("API")
   defp statement_steps({name, meta, args} = ast, env) when is_atom(name) and is_list(args) do
-    if Map.has_key?(@node_builders, name) do
-      node = node_from_constructor(ast, nil, env, meta)
-      {[{:node, node}], env}
-    else
-      unsupported_statement!(ast, meta)
+    cond do
+      Map.has_key?(@cluster_builders, name) ->
+        cluster = cluster_from_constructor(ast, nil, env, meta)
+        {[{:cluster, cluster}], env}
+
+      Map.has_key?(@node_builders, name) ->
+        node = node_from_constructor(ast, nil, env, meta)
+        {[{:node, node}], env}
+
+      true ->
+        unsupported_statement!(ast, meta)
     end
   end
 
@@ -242,7 +303,7 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   end
 
   defp endpoint_id({var, _meta, context}, env, meta) when is_atom(var) and is_atom(context) do
-    case Map.fetch(env, var) do
+    case Map.fetch(env.nodes, var) do
       {:ok, id} ->
         {id, nil}
 
@@ -268,7 +329,7 @@ defmodule Choreo.Lab.DSL.Infrastructure do
             "bind a node first, e.g. `api = service(\"API\")`"
   end
 
-  defp node_from_constructor({name, meta, args}, var, _env, _statement_meta)
+  defp node_from_constructor({name, meta, args}, var, env, _statement_meta)
        when is_atom(name) and is_list(args) do
     builder =
       Map.get(@node_builders, name) ||
@@ -276,6 +337,7 @@ defmodule Choreo.Lab.DSL.Infrastructure do
               "unknown infrastructure node constructor `#{name}`#{line_suffix(meta)}"
 
     {opts, positional} = pop_trailing_opts(args)
+    opts = resolve_cluster_option(opts, :cluster, env, meta)
 
     {id, opts} = node_id_and_opts(var, positional, opts, meta)
     %{id: id, builder: builder, opts: opts}
@@ -284,6 +346,25 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   defp node_from_constructor(other, _var, _env, meta) do
     raise ArgumentError,
           "expected infrastructure node constructor, got #{Macro.to_string(other)}#{line_suffix(meta)}"
+  end
+
+  defp cluster_from_constructor({name, meta, args}, var, env, _statement_meta)
+       when is_atom(name) and is_list(args) do
+    builder =
+      Map.get(@cluster_builders, name) ||
+        raise ArgumentError,
+              "unknown infrastructure cluster constructor `#{name}`#{line_suffix(meta)}"
+
+    {opts, positional} = pop_trailing_opts(args)
+    opts = resolve_cluster_option(opts, :parent, env, meta)
+
+    {id, opts} = cluster_id_and_opts(var, positional, opts, meta)
+    %{id: id, builder: builder, opts: opts}
+  end
+
+  defp cluster_from_constructor(other, _var, _env, meta) do
+    raise ArgumentError,
+          "expected infrastructure cluster constructor, got #{Macro.to_string(other)}#{line_suffix(meta)}"
   end
 
   defp pop_trailing_opts(args) do
@@ -320,6 +401,30 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     end
   end
 
+  defp cluster_id_and_opts(var, positional, opts, meta) do
+    {explicit_id, opts} = Keyword.pop(opts, :id)
+
+    cond do
+      length(positional) > 1 ->
+        raise ArgumentError,
+              "cluster constructors take at most one positional label/id#{line_suffix(meta)}"
+
+      explicit_id != nil ->
+        {to_string(explicit_id), maybe_put_label(opts, List.first(positional))}
+
+      var != nil ->
+        {to_string(var), maybe_put_label(opts, List.first(positional))}
+
+      positional != [] ->
+        label_or_id = List.first(positional)
+        {cluster_id_from_label(label_or_id), maybe_put_label(opts, label_or_id)}
+
+      true ->
+        raise ArgumentError,
+              "inline infrastructure cluster constructors need a label/id or `id:` option#{line_suffix(meta)}"
+    end
+  end
+
   defp maybe_put_label(opts, nil), do: opts
 
   defp maybe_put_label(opts, label) when is_binary(label),
@@ -338,6 +443,14 @@ defmodule Choreo.Lab.DSL.Infrastructure do
           "inline infrastructure node label/id must be a string or atom, got #{inspect(other)}"
   end
 
+  defp cluster_id_from_label(id) when is_atom(id), do: to_string(id)
+  defp cluster_id_from_label(id) when is_binary(id), do: id |> slug_atom() |> to_string()
+
+  defp cluster_id_from_label(other) do
+    raise ArgumentError,
+          "inline infrastructure cluster label/id must be a string or atom, got #{inspect(other)}"
+  end
+
   defp slug_atom(label) do
     label
     |> String.downcase()
@@ -349,6 +462,25 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     end
   end
 
+  defp resolve_cluster_option(opts, key, env, meta) do
+    Keyword.update(opts, key, nil, &resolve_cluster_reference(&1, env, key, meta))
+    |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp resolve_cluster_reference({var, _meta, context}, env, key, meta)
+       when is_atom(var) and is_atom(context) do
+    case Map.fetch(env.clusters, var) do
+      {:ok, id} ->
+        id
+
+      :error ->
+        raise ArgumentError,
+              "unknown infrastructure cluster variable `#{var}` in `#{key}:`#{line_suffix(meta)}"
+    end
+  end
+
+  defp resolve_cluster_reference(value, _env, _key, _meta), do: value
+
   defp normalize_edge_opts(opts) do
     {with_label, opts} = Keyword.pop(opts, :with)
 
@@ -356,6 +488,26 @@ defmodule Choreo.Lab.DSL.Infrastructure do
       Keyword.put_new(opts, :label, with_label)
     else
       opts
+    end
+  end
+
+  defp cluster_constructor?({name, _meta, args}) when is_atom(name) and is_list(args),
+    do: Map.has_key?(@cluster_builders, name)
+
+  defp cluster_constructor?(_other), do: false
+
+  defp node_constructor?({name, _meta, args}) when is_atom(name) and is_list(args),
+    do: Map.has_key?(@node_builders, name)
+
+  defp node_constructor?(_other), do: false
+
+  defp pipe_step({:cluster, %{id: id, builder: builder, opts: opts}}, acc) do
+    quote do
+      apply(Choreo, unquote(builder), [
+        unquote(acc),
+        unquote(Macro.escape(id)),
+        unquote(Macro.escape(opts))
+      ])
     end
   end
 

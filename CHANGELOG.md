@@ -4,8 +4,10 @@
 
 ### Added
 
-- Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly infrastructure sketches over the stable `Choreo` builders.
+- Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly infrastructure sketches over the stable `Choreo` builders, including bindable cluster constructors for VPCs and subnets.
+- Added incubating `Choreo.Lab.DSL.FSM` syntax for variable-bound finite-state-machine sketches over the stable `Choreo.FSM` builders.
 - Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
+- Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
 
 ### Changed
 
