@@ -57,6 +57,28 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   @type node_decl :: %{id: Yog.node_id(), builder: atom(), opts: keyword()}
   @type edge_decl :: %{from: Yog.node_id(), to: Yog.node_id(), opts: keyword()}
 
+  @node_verbs [
+    :user,
+    :client,
+    :gateway,
+    :load_balancer,
+    :lb,
+    :service,
+    :compute,
+    :database,
+    :db,
+    :managed_db,
+    :cache,
+    :queue,
+    :storage,
+    :object_store,
+    :internet,
+    :network,
+    :external,
+    :node,
+    :custom
+  ]
+
   @node_builders %{
     user: :add_user,
     client: :add_user,
@@ -78,6 +100,35 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     node: :add_node,
     custom: :add_node
   }
+
+  @doc """
+  Returns the vocabulary supported by the infrastructure DSL.
+
+  This is meant as a lightweight Livebook discovery helper when autocomplete is
+  not enough.
+
+      iex> verbs = Choreo.Lab.DSL.Infrastructure.verbs()
+      iex> :service in verbs.nodes
+      true
+      iex> :~> in verbs.edges
+      true
+      iex> :on in verbs.modifiers
+      true
+  """
+  @spec verbs() :: %{
+          nodes: [atom()],
+          edges: [atom()],
+          modifiers: [atom()],
+          options: [atom()]
+        }
+  def verbs do
+    %{
+      nodes: @node_verbs,
+      edges: [:~>, :edge],
+      modifiers: [:on, :label],
+      options: [:label, :with, :id, :kind, :cluster, :description]
+    }
+  end
 
   @doc """
   Builds a `%Choreo{}` infrastructure sketch from a compact Lab DSL block.

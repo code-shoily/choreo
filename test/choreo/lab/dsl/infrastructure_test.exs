@@ -5,6 +5,17 @@ defmodule Choreo.Lab.InfrastructureDSLTest do
 
   doctest Choreo.Lab.DSL.Infrastructure
 
+  test "verbs returns the Livebook discovery vocabulary" do
+    verbs = Choreo.Lab.DSL.Infrastructure.verbs()
+
+    assert :service in verbs.nodes
+    assert :database in verbs.nodes
+    assert :~> in verbs.edges
+    assert :edge in verbs.edges
+    assert :on in verbs.modifiers
+    assert :with in verbs.options
+  end
+
   test "builds an infrastructure sketch with variable-bound nodes" do
     system =
       infrastructure do

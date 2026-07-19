@@ -5,6 +5,7 @@
 ### Added
 
 - Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly infrastructure sketches over the stable `Choreo` builders.
+- Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
 
 ### Changed
 
