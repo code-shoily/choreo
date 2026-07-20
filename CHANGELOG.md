@@ -4,7 +4,25 @@
 
 ### Added
 
+- Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly infrastructure sketches over the stable `Choreo` builders, including bindable cluster constructors for VPCs and subnets.
+- Added incubating `Choreo.Lab.DSL.FSM` syntax for variable-bound finite-state-machine sketches over the stable `Choreo.FSM` builders.
+- Added incubating `Choreo.Lab.DSL.MindMap` syntax for Livebook-friendly mind-map sketches over the stable `Choreo.MindMap` builders, including typed branch and association edges.
+- Added incubating `Choreo.Lab.DSL.ERD` syntax for Livebook-friendly schema sketches over the stable `Choreo.ERD` builders, including block-based table columns and typed cardinality edges.
+- Added incubating `Choreo.Lab.DSL.UML` syntax for Livebook-friendly class/struct sketches over the stable `Choreo.UML` builders, including block-based fields/functions and typed relationship edges.
+- Added incubating `Choreo.Lab.DSL.Dataflow` syntax for Livebook-friendly pipeline sketches over the stable `Choreo.Dataflow` builders, including stage clusters and typed normal/error/retry/dead-letter paths.
+- Added incubating `Choreo.Lab.DSL.Sequence` syntax for Livebook-friendly sequence sketches over the stable `Choreo.Sequence` builders, including ordered messages, activations, notes, and block fragments.
+- Added incubating `Choreo.Lab.DSL.C4` syntax for Livebook-friendly C4 sketches over the stable `Choreo.C4` builders, including hierarchy-aware constructors, scope statements, clusters, and relationship verbs.
+- Added incubating `Choreo.Lab.DSL.DecisionTree` syntax for Livebook-friendly decision policy sketches over the stable `Choreo.DecisionTree` builders, including condition-labeled branch helpers.
+- Added incubating `Choreo.Lab.DSL.Workflow` syntax for Livebook-friendly process sketches over the stable `Choreo.Workflow` builders, including swimlanes, typed execution edges, conditions, and Saga compensation helpers.
+- Added incubating `Choreo.Lab.DSL.Dependency` syntax for Livebook-friendly software dependency sketches over the stable `Choreo.Dependency` builders, including clusters and typed dependency edges.
+- Added incubating `Choreo.Lab.DSL.Requirement` syntax for Livebook-friendly requirements traceability sketches over the stable `Choreo.Requirement` builders, including requirement-kind constructors and typed traceability edges.
+- Added incubating `Choreo.Lab.DSL.Domain` syntax for Livebook-friendly DDD and event-storming sketches over the stable `Choreo.Domain` builders, including context maps, tactical domain flows, and named scenarios.
+- Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
+- Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
+
 ### Changed
+
+- Added `taxonomy/0` as the preferred Livebook discovery helper for `Choreo.Lab.View`, `Choreo.Lab.Compose`, and current `Choreo.Lab.DSL.*` modules; kept `verbs/0` as a compatibility alias.
 
 ### Fixed
 

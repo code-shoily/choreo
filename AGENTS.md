@@ -108,6 +108,34 @@ Keep `CHANGELOG.md` up to date. Use the `[Unreleased]` section at the top with t
 
 Group related bullets. Mention new modules, significant behavior changes, new guides/livebooks, and new skills.
 
+## API and DSL Philosophy
+
+Choreo's stable API should remain pipe-first and explicit. Builders such as
+`Choreo.C4.add_container/3`, `Choreo.Dataflow.add_source/3`, and
+`Choreo.Infrastructure.connect/4` are the canonical programmatic interface.
+
+Macro DSLs are valuable for sketches, examples, tests, and Livebook ergonomics, but they should incubate under
+`Choreo.Lab.DSL.*` unless there is a strong reason to make them part of a stable domain module. Prefer this maturity path:
+
+```text
+Choreo.Lab.DSL.<Domain>
+  experimental / Livebook-friendly / sketch syntax
+
+→ maybe later
+
+Choreo.<Domain>.DSL or Choreo.<NewDomain>
+  stable public API, only after the syntax and semantics prove durable
+```
+
+DSL design guardrails:
+
+- DSLs should compile down to existing stable builders and return ordinary Choreo structs.
+- Do not replace or obscure the pipe API; document DSLs as convenience syntax.
+- Keep DSL grammars small and strict: fail on unknown constructors or variables instead of silently creating odd models.
+- Prefer variable-bound semantic nodes in Lab DSLs when labels/metadata matter, e.g. `api = service("API")` then `api ~> db`.
+- Use pipe modifiers for edge metadata when possible, e.g. `api ~> db |> on("reads")`, and explicit forms like `edge api ~> db, label: "reads"` when clarity is needed.
+- Avoid adding a generic cross-domain DSL engine to core Choreo unless multiple Lab DSLs converge on the same proven grammar.
+
 ## Style Guidelines
 
 - Prefer small, coherent models over exhaustive ones.
