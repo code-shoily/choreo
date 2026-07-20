@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly infrastructure sketches over the stable `Choreo` builders, including bindable cluster constructors for VPCs and subnets.
+- Added incubating `Choreo.Lab.DSL.Infrastructure` syntax for Livebook-friendly chinfrastructure sketches over the stable `Choreo` builders, including bindable cluster constructors for VPCs and subnets.
 - Added incubating `Choreo.Lab.DSL.FSM` syntax for variable-bound finite-state-machine sketches over the stable `Choreo.FSM` builders.
 - Added incubating `Choreo.Lab.DSL.MindMap` syntax for Livebook-friendly mind-map sketches over the stable `Choreo.MindMap` builders, including typed branch and association edges.
 - Added incubating `Choreo.Lab.DSL.ERD` syntax for Livebook-friendly schema sketches over the stable `Choreo.ERD` builders, including block-based table columns and typed cardinality edges.
@@ -17,6 +17,7 @@
 - Added incubating `Choreo.Lab.DSL.Dependency` syntax for Livebook-friendly software dependency sketches over the stable `Choreo.Dependency` builders, including clusters and typed dependency edges.
 - Added incubating `Choreo.Lab.DSL.Requirement` syntax for Livebook-friendly requirements traceability sketches over the stable `Choreo.Requirement` builders, including requirement-kind constructors and typed traceability edges.
 - Added incubating `Choreo.Lab.DSL.Domain` syntax for Livebook-friendly DDD and event-storming sketches over the stable `Choreo.Domain` builders, including context maps, tactical domain flows, and named scenarios.
+- Added `mix choreo.render` for rendering `.choreo.exs` or `.exs` Choreo model files into Mermaid (`.mmd`) or Graphviz DOT (`.dot`) artifacts, including named multi-artifact outputs and per-artifact render options.
 - Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
 - Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
 

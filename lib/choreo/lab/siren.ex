@@ -17,13 +17,13 @@ if Code.ensure_loaded?(Kino) do
 
       * `:height` - The height of the widget container (e.g., `"400px"`, `"600px"`, `500`). Defaults to `"400px"`.
       * `:theme` - The Mermaid theme to use (e.g., `"default"`, `"dark"`, `"forest"`, `"neutral"`).
-        If not set, it will auto-detect based on the environment's background brightness.
+        Defaults to `"default"` to match Livebook's light notebook canvas.
 
     """
     @spec new(String.t(), keyword()) :: t()
     def new(mermaid_code, opts \\ []) do
       height = Keyword.get(opts, :height, "400px")
-      theme = Keyword.get(opts, :theme)
+      theme = Keyword.get(opts, :theme, "default")
       Kino.JS.new(__MODULE__, %{code: mermaid_code, height: height, theme: theme})
     end
 
@@ -36,7 +36,7 @@ if Code.ensure_loaded?(Kino) do
 
         const container = document.createElement("div");
         container.className = "siren-container";
-        
+
         const defaultHeightNum = typeof data.height === 'number' ? data.height : parseInt(data.height) || 400;
         const updateHeight = () => {
           if (window.innerHeight > defaultHeightNum + 10) {
@@ -73,7 +73,7 @@ if Code.ensure_loaded?(Kino) do
         const btnZoomIn = document.createElement("button");
         btnZoomIn.innerHTML = "＋";
         btnZoomIn.title = "Zoom In";
-        
+
         const btnZoomOut = document.createElement("button");
         btnZoomOut.innerHTML = "－";
         btnZoomOut.title = "Zoom Out";
@@ -92,18 +92,7 @@ if Code.ensure_loaded?(Kino) do
         controls.appendChild(btnReset);
         container.appendChild(controls);
 
-        // Auto-detect theme if not explicitly provided
-        let theme = data.theme;
-        if (!theme) {
-          const bg = window.getComputedStyle(document.body).backgroundColor;
-          const rgb = bg.match(/\\d+/g);
-          if (rgb && rgb.length >= 3) {
-            const brightness = (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000;
-            theme = brightness < 128 ? 'dark' : 'default';
-          } else {
-            theme = 'default';
-          }
-        }
+        const theme = data.theme || 'default';
 
         mermaid.initialize({
           startOnLoad: false,
@@ -160,7 +149,7 @@ if Code.ensure_loaded?(Kino) do
           const { svg } = await mermaid.render(renderId, data.code);
           viewport.innerHTML = svg;
           svgElement = viewport.querySelector("svg");
-          
+
           if (svgElement) {
             svgElement.removeAttribute("width");
             svgElement.removeAttribute("height");
@@ -168,7 +157,7 @@ if Code.ensure_loaded?(Kino) do
             svgElement.style.height = "100%";
             svgElement.style.maxWidth = "none";
             svgElement.style.display = "block";
-            
+
             // Set viewport size explicitly to SVG dimensions to avoid double scaling
             const viewBoxAttr = svgElement.getAttribute('viewBox');
             if (viewBoxAttr) {
@@ -176,7 +165,7 @@ if Code.ensure_loaded?(Kino) do
               viewport.style.width = `${vw}px`;
               viewport.style.height = `${vh}px`;
             }
-            
+
             fitView();
           }
         } catch (error) {
@@ -256,7 +245,7 @@ if Code.ensure_loaded?(Kino) do
           const cx = rect.width / 2;
           const cy = rect.height / 2;
           const newScale = Math.min(10, scale * 1.2);
-          
+
           translateX = cx - (cx - translateX) * (newScale / scale);
           translateY = cy - (cy - translateY) * (newScale / scale);
           scale = newScale;
