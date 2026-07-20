@@ -26,7 +26,8 @@ defmodule Choreo.MixProject do
       docs: docs(),
 
       # Test Coverage
-      test_coverage: [tool: ExCoveralls]
+      test_coverage: [tool: ExCoveralls],
+      coverage_options: [minimum_coverage: 82]
     ]
   end
 

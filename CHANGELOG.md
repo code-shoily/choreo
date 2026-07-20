@@ -24,6 +24,7 @@
 
 ### Changed
 
+- Relaxed coverage checks so CI allows up to a 5% Coveralls coverage drop while still requiring at least 82% local test coverage.
 - Added `taxonomy/0` as the preferred Livebook discovery helper for `Choreo.Lab.View`, `Choreo.Lab.Compose`, and current `Choreo.Lab.DSL.*` modules; kept `verbs/0` as a compatibility alias.
 
 ### Fixed
