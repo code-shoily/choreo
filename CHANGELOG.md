@@ -18,6 +18,7 @@
 - Added incubating `Choreo.Lab.DSL.Requirement` syntax for Livebook-friendly requirements traceability sketches over the stable `Choreo.Requirement` builders, including requirement-kind constructors and typed traceability edges.
 - Added incubating `Choreo.Lab.DSL.Domain` syntax for Livebook-friendly DDD and event-storming sketches over the stable `Choreo.Domain` builders, including context maps, tactical domain flows, and named scenarios.
 - Added `mix choreo.render` for rendering `.choreo.exs` or `.exs` Choreo model files into Mermaid (`.mmd`) or Graphviz DOT (`.dot`) artifacts, including named multi-artifact outputs and per-artifact render options.
+- Added the `Lab DSLs and Sketch Syntax` guide covering DSL philosophy, shared grammar, current DSL modules, Compose/View usage, and `.choreo.exs` rendering workflows.
 - Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`.
 - Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
 
