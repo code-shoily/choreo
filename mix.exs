@@ -163,6 +163,27 @@ defmodule Choreo.MixProject do
           Choreo.UML.Render.DOT,
           Choreo.UML.Render.Mermaid
         ],
+        Lab: [
+          Choreo.Lab.Compose,
+          Choreo.Lab.View,
+          Choreo.Lab.Siren,
+          Choreo.Lab.Sketch,
+          Choreo.Lab.DSL.C4,
+          Choreo.Lab.DSL.Dataflow,
+          Choreo.Lab.DSL.DecisionTree,
+          Choreo.Lab.DSL.Dependency,
+          Choreo.Lab.DSL.Domain,
+          Choreo.Lab.DSL.ERD,
+          Choreo.Lab.DSL.FSM,
+          Choreo.Lab.DSL.Infrastructure,
+          Choreo.Lab.DSL.MindMap,
+          Choreo.Lab.DSL.Planner,
+          Choreo.Lab.DSL.Requirement,
+          Choreo.Lab.DSL.Sequence,
+          Choreo.Lab.DSL.ThreatModel,
+          Choreo.Lab.DSL.UML,
+          Choreo.Lab.DSL.Workflow
+        ],
         Analysis: [
           Choreo.Analysis,
           Choreo.Analysis.Tracing,

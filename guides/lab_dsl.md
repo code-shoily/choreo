@@ -146,8 +146,10 @@ The current Lab DSL modules are:
 - `Choreo.Lab.DSL.DecisionTree` — decision policy and routing sketches.
 - `Choreo.Lab.DSL.Workflow` — process, orchestration, Saga, and swimlane sketches.
 - `Choreo.Lab.DSL.Dependency` — software dependency and coupling sketches.
+- `Choreo.Lab.DSL.Planner` — task, milestone, ownership, label, and dependency planning sketches.
 - `Choreo.Lab.DSL.Requirement` — requirement traceability sketches.
 - `Choreo.Lab.DSL.Domain` — DDD, context mapping, event storming, and scenarios.
+- `Choreo.Lab.DSL.ThreatModel` — STRIDE-oriented DFD sketches with trust boundaries and flow metadata.
 
 ## Example: C4
 
