@@ -73,6 +73,26 @@ defmodule Choreo.Lab.DomainDSLTest do
     assert Enum.any?(labels, &String.contains?(&1, "Shipment adapter"))
   end
 
+  test "builds a domain model with nested context blocks" do
+    model =
+      domain do
+        customer = actor("Customer")
+
+        context_boundary("Checkout") do
+          place_order = command("Place Order")
+          order = aggregate("Order", invariants: ["Cannot place empty order."])
+        end
+
+        customer ~> place_order |> initiates("starts")
+      end
+
+    assert model.clusters["cluster_checkout"].label == "Checkout"
+    assert Domain.nodes(model).order.type == :aggregate
+    assert Domain.nodes(model).order.cluster == "cluster_checkout"
+    assert Domain.nodes(model).place_order.type == :command
+    assert Domain.nodes(model).place_order.cluster == "cluster_checkout"
+  end
+
   test "supports inline constructors for one-off sketches" do
     model =
       domain do

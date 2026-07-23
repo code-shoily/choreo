@@ -1,4 +1,6 @@
 defmodule Choreo.Lab.DSL.UML do
+  import Choreo.Lab.DSL.Compiler
+
   @moduledoc """
   Experimental Livebook-friendly DSL for sketching UML class diagrams.
 
@@ -150,20 +152,20 @@ defmodule Choreo.Lab.DSL.UML do
   end
 
   defp compile(block, opts \\ []) do
-    {steps, _env} =
+    {steps_reversed, _env} =
       block
       |> statements()
       |> Enum.reduce({[], %{}}, fn statement, {steps, env} ->
         {statement_steps, env} = statement_steps(statement, env)
-        {steps ++ statement_steps, env}
+        {Enum.reverse(statement_steps, steps), env}
       end)
 
-    Enum.reduce(steps, quote(do: Choreo.UML.new(unquote(Macro.escape(opts)))), &pipe_step/2)
+    Enum.reduce(
+      Enum.reverse(steps_reversed),
+      quote(do: Choreo.UML.new(unquote(Macro.escape(opts)))),
+      &pipe_step/2
+    )
   end
-
-  defp statements({:__block__, _meta, list}), do: list
-  defp statements(nil), do: []
-  defp statements(single), do: [single]
 
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
@@ -255,9 +257,6 @@ defmodule Choreo.Lab.DSL.UML do
     opts = modifiers |> Enum.reduce([], &modifier_opt/2) |> normalize_relationship_opts()
     relationship_from_ast(base, opts, env, line_meta(base))
   end
-
-  defp unwrap_pipe({:|>, _meta, [left, right]}, acc), do: unwrap_pipe(left, [right | acc])
-  defp unwrap_pipe(base, acc), do: {base, acc}
 
   defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
     Keyword.put(acc, :label, value)
@@ -357,23 +356,6 @@ defmodule Choreo.Lab.DSL.UML do
        when is_map_key(@node_types, name) and is_list(args), do: true
 
   defp class_constructor?(_other), do: false
-
-  defp pop_do_block(args) do
-    case List.last(args) do
-      [do: block] -> {block, Enum.drop(args, -1)}
-      _other -> {nil, args}
-    end
-  end
-
-  defp pop_trailing_opts(args) do
-    case List.last(args) do
-      last when is_list(last) ->
-        if Keyword.keyword?(last), do: {last, Enum.drop(args, -1)}, else: {[], args}
-
-      _other ->
-        {[], args}
-    end
-  end
 
   defp class_id_and_opts(var, positional, opts, meta) do
     {explicit_id, opts} = Keyword.pop(opts, :id)
@@ -491,17 +473,6 @@ defmodule Choreo.Lab.DSL.UML do
           "inline UML class label/id must be a string or atom, got #{inspect(other)}"
   end
 
-  defp slug_atom(label) do
-    label
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/u, "_")
-    |> String.trim("_")
-    |> case do
-      "" -> raise ArgumentError, "cannot derive a UML class id from an empty label"
-      slug -> String.to_atom(slug)
-    end
-  end
-
   defp normalize_relationship_opts(opts) do
     opts
     |> normalize_label_alias(:with)
@@ -556,15 +527,35 @@ defmodule Choreo.Lab.DSL.UML do
           "unsupported statement in UML DSL: #{Macro.to_string(ast)}#{line_suffix(meta)}"
   end
 
-  defp line_meta({_name, meta, _args}) when is_list(meta), do: meta
-  defp line_meta(_other), do: []
-
-  defp line_suffix(meta) when is_list(meta) do
-    case Keyword.get(meta, :line) do
-      nil -> ""
-      line -> " (line #{line})"
+  # Autocomplete helper stubs
+  for verb <- [
+        :associates,
+        :association,
+        :attr,
+        :attribute,
+        :behavior,
+        :class,
+        :dependency,
+        :depends,
+        :extends,
+        :field,
+        :function,
+        :has,
+        :implements,
+        :inherits,
+        :interface,
+        :method,
+        :operation,
+        :private,
+        :protected,
+        :protocol,
+        :public,
+        :realizes,
+        :struct,
+        :uses
+      ] do
+    def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
+      raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end
   end
-
-  defp line_suffix(_meta), do: ""
 end

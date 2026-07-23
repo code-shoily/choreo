@@ -56,6 +56,28 @@ defmodule Choreo.Lab.WorkflowDSLTest do
            end)
   end
 
+  test "builds a workflow with nested swimlane blocks" do
+    flow =
+      workflow do
+        swimlane("Backend") do
+          validate = task("Validate token", timeout_ms: 100)
+          decision("Authorized?")
+        end
+
+        swimlane("Customer") do
+          start = begin("Request received")
+        end
+
+        start ~> validate
+      end
+
+    assert :validate in Workflow.tasks(flow)
+    assert Map.get(flow.graph.nodes, :validate).cluster == "cluster_backend"
+    assert Map.get(flow.graph.nodes, :validate).timeout_ms == 100
+    assert Map.get(flow.graph.nodes, :authorized).cluster == "cluster_backend"
+    assert Map.get(flow.graph.nodes, :start).cluster == "cluster_customer"
+  end
+
   test "supports inline constructors for one-off sketches" do
     flow =
       workflow do

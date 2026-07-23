@@ -1,4 +1,6 @@
 defmodule Choreo.Lab.DSL.C4 do
+  import Choreo.Lab.DSL.Compiler
+
   @moduledoc """
   Experimental Livebook-friendly DSL for sketching C4 models.
 
@@ -142,20 +144,48 @@ defmodule Choreo.Lab.DSL.C4 do
   defmacro c4(opts, do: block), do: compile(block, opts)
 
   defp compile(block, opts \\ []) do
-    {steps, _env} =
+    {steps_reversed, _env} =
       block
       |> statements()
       |> Enum.reduce({[], empty_env()}, fn statement, {steps, env} ->
-        {statement_steps, env} = statement_steps(statement, env)
-        {steps ++ statement_steps, env}
+        {statement_steps, env} = process_statement(statement, env)
+        {Enum.reverse(statement_steps, steps), env}
       end)
 
-    Enum.reduce(steps, quote(do: Choreo.C4.new(unquote(Macro.escape(opts)))), &pipe_step/2)
+    Enum.reduce(
+      Enum.reverse(steps_reversed),
+      quote(do: Choreo.C4.new(unquote(Macro.escape(opts)))),
+      &pipe_step/2
+    )
   end
 
-  defp statements({:__block__, _meta, list}), do: list
-  defp statements(nil), do: []
-  defp statements(single), do: [single]
+  defp process_statement(statement, env) do
+    case extract_do_block(statement) do
+      {block, stripped_statement} when not is_nil(block) ->
+        {parent_steps, inner_env_base} = statement_steps(stripped_statement, env)
+        parent_id = get_parent_id_from_steps(parent_steps)
+
+        {inner_steps, final_inner_env} =
+          compile_block_statements(
+            block,
+            Map.put(inner_env_base, :parent, parent_id),
+            &process_statement/2
+          )
+
+        {parent_steps ++ inner_steps, Map.put(final_inner_env, :parent, Map.get(env, :parent))}
+
+      _ ->
+        statement_steps(statement, env)
+    end
+  end
+
+  defp get_parent_id_from_steps(steps) do
+    case List.last(steps) do
+      {:cluster, %{id: id}} -> id
+      {:node, %{id: id}} -> id
+      _ -> nil
+    end
+  end
 
   defp empty_env, do: %{nodes: %{}, clusters: %{}}
 
@@ -272,9 +302,6 @@ defmodule Choreo.Lab.DSL.C4 do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp unwrap_pipe({:|>, _meta, [left, right]}, acc), do: unwrap_pipe(left, [right | acc])
-  defp unwrap_pipe(base, acc), do: {base, acc}
-
   defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
     Keyword.put(acc, :label, value)
   end
@@ -356,16 +383,6 @@ defmodule Choreo.Lab.DSL.C4 do
     opts = resolve_cluster_option(opts, :parent, env, meta)
     {id, opts} = cluster_id_and_opts(var, positional, opts, meta)
     %{id: id, builder: builder, opts: opts}
-  end
-
-  defp pop_trailing_opts(args) do
-    case List.last(args) do
-      last when is_list(last) ->
-        if Keyword.keyword?(last), do: {last, Enum.drop(args, -1)}, else: {[], args}
-
-      _other ->
-        {[], args}
-    end
   end
 
   defp node_id_and_opts(var, positional, opts, meta) do
@@ -453,24 +470,21 @@ defmodule Choreo.Lab.DSL.C4 do
     if String.starts_with?(id, "cluster_"), do: id, else: "cluster_" <> id
   end
 
-  defp slug_atom(label) do
-    label
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/u, "_")
-    |> String.trim("_")
-    |> case do
-      "" -> raise ArgumentError, "cannot derive a C4 node id from an empty label"
-      slug -> String.to_atom(slug)
-    end
-  end
-
   defp resolve_node_references(opts, env, meta) do
     resolve_node_option(opts, :parent, env, meta)
   end
 
   defp resolve_node_option(opts, key, env, meta) do
-    Keyword.update(opts, key, nil, &resolve_node_reference(&1, env, key, meta))
-    |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
+    case Keyword.fetch(opts, key) do
+      {:ok, val} ->
+        Keyword.put(opts, key, resolve_node_reference(val, env, key, meta))
+
+      :error ->
+        case Map.fetch(env, :parent) do
+          {:ok, parent_id} -> Keyword.put(opts, key, parent_id)
+          :error -> opts
+        end
+    end
   end
 
   defp resolve_node_reference({var, _meta, context}, env, key, meta)
@@ -487,8 +501,16 @@ defmodule Choreo.Lab.DSL.C4 do
   defp resolve_node_reference(value, _env, _key, _meta), do: value
 
   defp resolve_cluster_option(opts, key, env, meta) do
-    Keyword.update(opts, key, nil, &resolve_cluster_reference(&1, env, key, meta))
-    |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
+    case Keyword.fetch(opts, key) do
+      {:ok, val} ->
+        Keyword.put(opts, key, resolve_cluster_reference(val, env, key, meta))
+
+      :error ->
+        case Map.fetch(env, :parent) do
+          {:ok, parent_id} -> Keyword.put(opts, key, parent_id)
+          :error -> opts
+        end
+    end
   end
 
   defp resolve_cluster_reference({var, _meta, context}, env, key, meta)
@@ -581,15 +603,40 @@ defmodule Choreo.Lab.DSL.C4 do
           "unsupported statement in C4 DSL: #{Macro.to_string(ast)}#{line_suffix(meta)}"
   end
 
-  defp line_meta({_name, meta, _args}) when is_list(meta), do: meta
-  defp line_meta(_other), do: []
-
-  defp line_suffix(meta) when is_list(meta) do
-    case Keyword.get(meta, :line) do
-      nil -> ""
-      line -> " (line #{line})"
+  # Autocomplete helper stubs
+  for verb <- [
+        :actor,
+        :app,
+        :application,
+        :boundary,
+        :calls,
+        :cluster,
+        :component,
+        :consumes,
+        :container,
+        :database,
+        :datastore,
+        :depends,
+        :external_system,
+        :group,
+        :in_scope,
+        :module,
+        :person,
+        :publishes,
+        :reads,
+        :relates,
+        :routes,
+        :scope,
+        :sends,
+        :service,
+        :software_system,
+        :system,
+        :user,
+        :uses,
+        :writes
+      ] do
+    def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
+      raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end
   end
-
-  defp line_suffix(_meta), do: ""
 end

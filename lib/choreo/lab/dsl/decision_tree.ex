@@ -1,4 +1,6 @@
 defmodule Choreo.Lab.DSL.DecisionTree do
+  import Choreo.Lab.DSL.Compiler
+
   @moduledoc """
   Experimental Livebook-friendly DSL for sketching decision trees.
 
@@ -85,24 +87,20 @@ defmodule Choreo.Lab.DSL.DecisionTree do
   defmacro decision_tree(opts, do: block), do: compile(block, opts)
 
   defp compile(block, opts \\ []) do
-    {steps, _env} =
+    {steps_reversed, _env} =
       block
       |> statements()
       |> Enum.reduce({[], %{}}, fn statement, {steps, env} ->
         {statement_steps, env} = statement_steps(statement, env)
-        {steps ++ statement_steps, env}
+        {Enum.reverse(statement_steps, steps), env}
       end)
 
     Enum.reduce(
-      steps,
+      Enum.reverse(steps_reversed),
       quote(do: Choreo.DecisionTree.new(unquote(Macro.escape(opts)))),
       &pipe_step/2
     )
   end
-
-  defp statements({:__block__, _meta, list}), do: list
-  defp statements(nil), do: []
-  defp statements(single), do: [single]
 
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
@@ -168,9 +166,6 @@ defmodule Choreo.Lab.DSL.DecisionTree do
     branch_from_ast(base, condition, env, line_meta(base))
   end
 
-  defp unwrap_pipe({:|>, _meta, [left, right]}, acc), do: unwrap_pipe(left, [right | acc])
-  defp unwrap_pipe(base, acc), do: {base, acc}
-
   defp condition_modifier({name, _meta, [value]}, _acc)
        when name in [:when_, :condition, :on, :label] do
     value
@@ -234,16 +229,6 @@ defmodule Choreo.Lab.DSL.DecisionTree do
     %{id: id, builder: builder, opts: opts}
   end
 
-  defp pop_trailing_opts(args) do
-    case List.last(args) do
-      last when is_list(last) ->
-        if Keyword.keyword?(last), do: {last, Enum.drop(args, -1)}, else: {[], args}
-
-      _other ->
-        {[], args}
-    end
-  end
-
   defp node_id_and_opts(var, positional, opts, meta) do
     {explicit_id, opts} = Keyword.pop(opts, :id)
 
@@ -292,17 +277,6 @@ defmodule Choreo.Lab.DSL.DecisionTree do
           "inline decision-tree node label/id must be a string or atom, got #{inspect(other)}"
   end
 
-  defp slug_atom(label) do
-    label
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/u, "_")
-    |> String.trim("_")
-    |> case do
-      "" -> raise ArgumentError, "cannot derive a decision-tree node id from an empty label"
-      slug -> String.to_atom(slug)
-    end
-  end
-
   defp condition_from_opts(opts, meta) do
     opts
     |> Keyword.get(:condition, Keyword.get(opts, :label, Keyword.get(opts, :with)))
@@ -342,15 +316,10 @@ defmodule Choreo.Lab.DSL.DecisionTree do
           "unsupported statement in decision-tree DSL: #{Macro.to_string(ast)}#{line_suffix(meta)}"
   end
 
-  defp line_meta({_name, meta, _args}) when is_list(meta), do: meta
-  defp line_meta(_other), do: []
-
-  defp line_suffix(meta) when is_list(meta) do
-    case Keyword.get(meta, :line) do
-      nil -> ""
-      line -> " (line #{line})"
+  # Autocomplete helper stubs
+  for verb <- [:branch, :decision, :leaf, :outcome, :question, :result, :root] do
+    def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
+      raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end
   end
-
-  defp line_suffix(_meta), do: ""
 end

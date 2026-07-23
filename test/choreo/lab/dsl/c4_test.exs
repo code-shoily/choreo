@@ -55,6 +55,32 @@ defmodule Choreo.Lab.C4DSLTest do
            ]
   end
 
+  test "builds a C4 model with nested do-block hierarchy" do
+    model =
+      c4 do
+        customer = person("Customer")
+
+        system("API Gateway", scope: :in) do
+          api =
+            container("Gateway API", technology: "Phoenix") do
+              component("Auth Controller", technology: "Phoenix")
+            end
+
+          database("Tenant DB", technology: "Postgres")
+        end
+
+        customer ~> api |> uses("Submits requests")
+      end
+
+    assert model.graph.nodes[:customer].node_type == :person
+    assert model.graph.nodes[:api].node_type == :container
+    assert model.graph.nodes[:api].parent == :api_gateway
+    assert model.graph.nodes[:auth_controller].node_type == :component
+    assert model.graph.nodes[:auth_controller].parent == :api
+    assert model.graph.nodes[:tenant_db].node_type == :container
+    assert model.graph.nodes[:tenant_db].parent == :api_gateway
+  end
+
   test "supports inline constructors for one-off sketches" do
     model =
       c4 do

@@ -1,4 +1,6 @@
 defmodule Choreo.Lab.DSL.Sequence do
+  import Choreo.Lab.DSL.Compiler
+
   @moduledoc """
   Experimental Livebook-friendly DSL for sketching sequence diagrams.
 
@@ -150,15 +152,14 @@ defmodule Choreo.Lab.DSL.Sequence do
   end
 
   defp compile_statements(statements, env) do
-    Enum.reduce(statements, {[], env}, fn statement, {steps, env} ->
-      {statement_steps, env} = statement_steps(statement, env)
-      {steps ++ statement_steps, env}
-    end)
-  end
+    {steps_reversed, env} =
+      Enum.reduce(statements, {[], env}, fn statement, {steps, env} ->
+        {statement_steps, env} = statement_steps(statement, env)
+        {Enum.reverse(statement_steps, steps), env}
+      end)
 
-  defp statements({:__block__, _meta, list}), do: list
-  defp statements(nil), do: []
-  defp statements(single), do: [single]
+    {Enum.reverse(steps_reversed), env}
+  end
 
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
@@ -274,9 +275,6 @@ defmodule Choreo.Lab.DSL.Sequence do
     opts = modifiers |> Enum.reduce([], &modifier_opt/2) |> normalize_message_opts()
     message_from_ast(base, opts, env, line_meta(base))
   end
-
-  defp unwrap_pipe({:|>, _meta, [left, right]}, acc), do: unwrap_pipe(left, [right | acc])
-  defp unwrap_pipe(base, acc), do: {base, acc}
 
   defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
     Keyword.put(acc, :label, value)
@@ -444,23 +442,6 @@ defmodule Choreo.Lab.DSL.Sequence do
           "fragment label must be a string, got #{inspect(args)}#{line_suffix(meta)}"
   end
 
-  defp pop_do_block(args) do
-    case List.last(args) do
-      [do: block] -> {block, Enum.drop(args, -1)}
-      _other -> {nil, args}
-    end
-  end
-
-  defp pop_trailing_opts(args) do
-    case List.last(args) do
-      last when is_list(last) ->
-        if Keyword.keyword?(last), do: {last, Enum.drop(args, -1)}, else: {[], args}
-
-      _other ->
-        {[], args}
-    end
-  end
-
   defp participant_id_and_opts(var, positional, opts, meta) do
     {explicit_id, opts} = Keyword.pop(opts, :id)
 
@@ -501,17 +482,6 @@ defmodule Choreo.Lab.DSL.Sequence do
   defp id_from_label(other) do
     raise ArgumentError,
           "inline sequence participant label/id must be a string or atom, got #{inspect(other)}"
-  end
-
-  defp slug_atom(label) do
-    label
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/u, "_")
-    |> String.trim("_")
-    |> case do
-      "" -> raise ArgumentError, "cannot derive a sequence participant id from an empty label"
-      slug -> String.to_atom(slug)
-    end
   end
 
   defp normalize_message_opts(opts) do
@@ -597,15 +567,41 @@ defmodule Choreo.Lab.DSL.Sequence do
           "unsupported statement in sequence DSL: #{Macro.to_string(ast)}#{line_suffix(meta)}"
   end
 
-  defp line_meta({_name, meta, _args}) when is_list(meta), do: meta
-  defp line_meta(_other), do: []
-
-  defp line_suffix(meta) when is_list(meta) do
-    case Keyword.get(meta, :line) do
-      nil -> ""
-      line -> " (line #{line})"
+  # Autocomplete helper stubs
+  for verb <- [
+        :activate,
+        :actor,
+        :alt,
+        :async,
+        :between,
+        :break,
+        :call,
+        :critical,
+        :deactivate,
+        :else,
+        :left,
+        :loop,
+        :message,
+        :note,
+        :opt,
+        :otherwise,
+        :over,
+        :par,
+        :participant,
+        :publish,
+        :reply,
+        :request,
+        :response,
+        :return,
+        :right,
+        :service,
+        :signal,
+        :sync,
+        :system,
+        :user
+      ] do
+    def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
+      raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end
   end
-
-  defp line_suffix(_meta), do: ""
 end
