@@ -80,6 +80,17 @@ defmodule Choreo.Lab.ViewTest do
     refute Map.has_key?(Choreo.nodes(collapsed_type), :policy)
   end
 
+  test "rendering helpers return strings or Kino widgets" do
+    system = sample_system()
+
+    assert byte_size(View.to_mermaid(system)) > 0
+    assert byte_size(View.to_dot(system)) > 0
+
+    assert %Kino.JS{} = View.to_siren(system)
+    assert %Kino.JS{} = View.to_sketch(system)
+    assert %Kino.Layout{} = View.tabs(system)
+  end
+
   defp sample_system do
     infrastructure do
       client = user("API Client")

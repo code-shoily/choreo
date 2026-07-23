@@ -44,14 +44,16 @@ defmodule Choreo.Lab.View do
           transforms: [atom()],
           filters: [atom()],
           collapse: [atom()],
-          options: [atom()]
+          options: [atom()],
+          renders: [atom()]
         }
   def taxonomy do
     %{
       transforms: [:zoom, :focus, :neighborhood, :between, :path, :trace],
       filters: [:only, :without, :only_nodes, :without_nodes, :only_type, :without_type],
       collapse: [:collapse_nodes, :collapse_type],
-      options: [:depth, :radius, :mode, :transitive, :label, :data]
+      options: [:depth, :radius, :mode, :transitive, :label, :data],
+      renders: [:tabs, :to_siren, :to_sketch, :to_mermaid, :to_dot]
     }
   end
 
@@ -62,7 +64,8 @@ defmodule Choreo.Lab.View do
           transforms: [atom()],
           filters: [atom()],
           collapse: [atom()],
-          options: [atom()]
+          options: [atom()],
+          renders: [atom()]
         }
   def verbs, do: taxonomy()
 
@@ -231,6 +234,83 @@ defmodule Choreo.Lab.View do
       new_id,
       opts
     )
+  end
+
+  @doc """
+  Renders the diagram as a tabbed layout in Livebook featuring Siren, Graphviz, and Sketch.
+
+  Only active when `Kino` is loaded. Returns the Kino widget tab layout.
+  If Kino is not loaded, returns the diagram unmodified.
+  """
+  @spec tabs(viewable(), keyword()) :: any()
+  def tabs(diagram, opts \\ []) when is_struct(diagram) do
+    if Code.ensure_loaded?(Kino) do
+      mermaid = Choreo.to_mermaid(diagram, opts)
+      dot = Choreo.to_dot(diagram, opts)
+      height = Keyword.get(opts, :height, 400)
+
+      graphviz =
+        if Code.ensure_loaded?(Kino.VizJS) do
+          module = Module.concat([Kino, VizJS])
+          module.render(dot, height: height)
+        else
+          dot
+        end
+
+      Kino.Layout.tabs(
+        Siren: Choreo.Lab.Siren.new(mermaid, opts),
+        Graphviz: graphviz,
+        Sketch: Choreo.Lab.Sketch.new(mermaid, opts)
+      )
+    else
+      diagram
+    end
+  end
+
+  @doc """
+  Renders the diagram using the Siren Kino widget in Livebook.
+
+  Only active when `Kino` is loaded. Returns the Kino widget.
+  If Kino is not loaded, returns the diagram unmodified.
+  """
+  @spec to_siren(viewable(), keyword()) :: any()
+  def to_siren(diagram, opts \\ []) when is_struct(diagram) do
+    if Code.ensure_loaded?(Kino) do
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(diagram, opts), opts)
+    else
+      diagram
+    end
+  end
+
+  @doc """
+  Renders the diagram using the Sketch Kino widget in Livebook.
+
+  Only active when `Kino` is loaded. Returns the Kino widget.
+  If Kino is not loaded, returns the diagram unmodified.
+  """
+  @spec to_sketch(viewable(), keyword()) :: any()
+  def to_sketch(diagram, opts \\ []) when is_struct(diagram) do
+    if Code.ensure_loaded?(Kino) do
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(diagram, opts), opts)
+    else
+      diagram
+    end
+  end
+
+  @doc """
+  Converts the diagram to a Mermaid string.
+  """
+  @spec to_mermaid(viewable(), keyword()) :: String.t()
+  def to_mermaid(diagram, opts \\ []) when is_struct(diagram) do
+    Choreo.to_mermaid(diagram, opts)
+  end
+
+  @doc """
+  Converts the diagram to a Graphviz DOT string.
+  """
+  @spec to_dot(viewable(), keyword()) :: String.t()
+  def to_dot(diagram, opts \\ []) when is_struct(diagram) do
+    Choreo.to_dot(diagram, opts)
   end
 
   defp normalize_focus_opts(opts) do
