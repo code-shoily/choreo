@@ -160,4 +160,22 @@ defmodule Choreo.Lab.InfrastructureDSLTest do
       )
     end
   end
+
+  test "supports security validation checks on DSL output" do
+    system =
+      infrastructure do
+        internet = internet(:gateway)
+        subnet = private_subnet("Private Subnet")
+        db = managed_db(:postgres, cluster: subnet)
+
+        internet ~> db
+      end
+
+    warnings = Choreo.Infrastructure.Analysis.validate(system)
+    assert warnings != []
+
+    assert Enum.any?(warnings, fn {severity, msg} ->
+             severity == :error and String.contains?(msg, "connected directly to public internet")
+           end)
+  end
 end

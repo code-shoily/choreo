@@ -25,7 +25,11 @@ defmodule Choreo.Infrastructure.Analysis do
       iex> Choreo.Infrastructure.Analysis.validate(infra)
       [{:error, "Private resource 'api' is connected directly to public internet boundary 'gateway'."}]
   """
-  @spec validate(Infrastructure.t()) :: [{:error | :warning, String.t()}]
+  @spec validate(Infrastructure.t() | Choreo.t()) :: [{:error | :warning, String.t()}]
+  def validate(%Choreo{} = system) do
+    system |> Choreo.Infrastructure.from_choreo() |> validate()
+  end
+
   def validate(%Infrastructure{} = infra) do
     []
     |> check_direct_internet_connections(infra)
@@ -37,7 +41,7 @@ defmodule Choreo.Infrastructure.Analysis do
 
   @doc false
   @deprecated "Use validate/1 instead"
-  def warnings(%Infrastructure{} = infra) do
+  def warnings(infra) do
     infra |> validate() |> Enum.map(&elem(&1, 1))
   end
 

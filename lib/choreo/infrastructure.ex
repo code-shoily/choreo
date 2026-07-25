@@ -360,6 +360,18 @@ defmodule Choreo.Infrastructure do
     }
   end
 
+  @doc """
+  Converts a generic `%Choreo{}` diagram into a `%Choreo.Infrastructure{}` diagram.
+  """
+  @spec from_choreo(Choreo.t()) :: t()
+  def from_choreo(%Choreo{} = system) do
+    %__MODULE__{
+      graph: system.graph,
+      edge_meta: system.edge_meta,
+      clusters: system.clusters
+    }
+  end
+
   # ============================================================================
   # Internal helpers
   # ============================================================================
