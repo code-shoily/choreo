@@ -126,45 +126,47 @@ if Code.ensure_loaded?(Kino) do
           // Preprocess Mermaid code to make it Excalidraw friendly
           // Specifically handles C4 model diagrams and custom styles which crash or clutter the parser
           const preprocessMermaid = function(code) {
+            const isSequence = code.toLowerCase().includes("sequencediagram");
             const lines = code.split("\\n");
             const cleanLines = [];
             for (let line of lines) {
               const trimmed = line.trim();
               
-              // Skip style definitions, class definitions, subgraphs, and link styles to keep the diagram clean & hand-drawn
+              // Skip style definitions, class definitions, subgraphs, and link styles to keep the diagram clean & hand-drawn.
+              // Note: Do not remove 'subgraph' or 'end' lines if we are inside a sequence diagram, where they are required loops/conditionals.
               if (
                 trimmed.startsWith("style ") ||
                 trimmed.startsWith("classDef ") ||
                 trimmed.startsWith("class ") ||
                 trimmed.startsWith("linkStyle ") ||
-                trimmed.toLowerCase().startsWith("subgraph") ||
-                trimmed.toLowerCase() === "end"
+                (trimmed.toLowerCase().startsWith("subgraph") && !isSequence) ||
+                (trimmed.toLowerCase() === "end" && !isSequence)
               ) {
                 continue;
               }
               
-              // Normalize custom shapes that are not well supported by Excalidraw:
+              // Normalize custom shapes that are not well supported by Excalidraw (supporting hyphens in IDs):
               // Stadium ([label]) to Rounded Rect (label)
-              line = line.replace(/(\\w+)\\(\\[([^\\]]+)\\]\\)/g, '$1($2)');
+              line = line.replace(/([\\w\\-]+)\\(\\[([^\\]]+)\\]\\)/g, '$1($2)');
               
               // Subroutine [[label]] to Rect [label]
-              line = line.replace(/(\\w+)\\[\\[([^\\]]+)\\]\\]/g, '$1[$2]');
+              line = line.replace(/([\\w\\-]+)\\[\\[([^\\]]+)\\]\\]/g, '$1[$2]');
               
               // Person/Double circle (((label))) to Circle ((label))
-              line = line.replace(/(\\w+)\\(\\(\\(([^)]+)\\)\\)\\)/g, '$1(($2))');
+              line = line.replace(/([\\w\\-]+)\\(\\(\\(([^)]+)\\)\\)\\)/g, '$1(($2))');
 
               // Cylinder/Database shape with double quotes [("label")] to Rect ["label"]
-              line = line.replace(/(\\w+)\\[\\(\\"(.*?)\\"\\)\\]/g, '$1["$2"]');
+              line = line.replace(/([\\w\\-]+)\\[\\(\\"(.*?)\\"\\)\\]/g, '$1["$2"]');
               // Cylinder/Database shape without double quotes [(label)] to Rect [label]
-              line = line.replace(/(\\w+)\\[\\((.*?)\\)\\]/g, '$1[$2]');
+              line = line.replace(/([\\w\\-]+)\\[\\((.*?)\\)\\]/g, '$1[$2]');
 
               // Parallelograms [/"label"\] and [/label\] to Rect
-              line = line.replace(/(\\w+)\\[\\/\\"(.*?)\\"\\\\\\]/g, '$1["$2"]');
-              line = line.replace(/(\\w+)\\[\\/([^\]]+)\\\\\\]/g, '$1[$2]');
+              line = line.replace(/([\\w\\-]+)\\[\\/\\"(.*?)\\"\\\\\\]/g, '$1["$2"]');
+              line = line.replace(/([\\w\\-]+)\\[\\/([^\]]+)\\\\\\]/g, '$1[$2]');
 
               // Parallelograms [\"label"/] and [\label/] to Rect
-              line = line.replace(/(\\w+)\\[\\\\\\"(.*?)\\"\\/\\]/g, '$1["$2"]');
-              line = line.replace(/(\\w+)\\[\\\\([^\]]+)\\/\\]/g, '$1[$2]');
+              line = line.replace(/([\\w\\-]+)\\[\\\\\\"(.*?)\\"\\/\\]/g, '$1["$2"]');
+              line = line.replace(/([\\w\\-]+)\\[\\\\([^\]]+)\\/\\]/g, '$1[$2]');
 
               // Replace HTML line breaks <br> / <br/> with newlines so Excalidraw parses them as multi-line labels
               line = line.replace(new RegExp("\\\\x3cbr\\\\\\\\s*\\\\\\\\/?\\\\x3e", "gi"), "\\\\n");
