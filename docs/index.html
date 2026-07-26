@@ -4,18 +4,17 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>
-            Choreo — Domain-Specific Diagrams and Code-Driven Graph Analysis in
-            Elixir
-        </title>
+                    Choreo — Model Systems as Graphs with Elixir, Livebook, and Mermaid
+                </title>
 
         <!-- SEO Meta Tags -->
         <meta
             name="description"
-            content="Choreo is an Elixir library for building domain-specific diagrams (C4, FSM, ERD, Sequence, Workflow, Threat Model) and performing semantic graph analysis on top of Yog."
+            content="Choreo is an Elixir toolkit for modeling, analyzing, composing, and rendering systems as graph-backed C4, dataflow, workflow, ERD, threat model, requirement, and domain diagrams."
         />
         <meta
             name="keywords"
-            content="Elixir, Mermaid, Graphviz, C4 model, Event Storming, DDD, threat modeling, state machines, sequence diagrams, visual modeling"
+            content="Elixir, Mermaid, Graphviz, C4 model, Livebook, system design, Event Storming, DDD, threat modeling, requirements traceability, workflow, dataflow, visual modeling"
         />
         <meta name="author" content="Choreo team" />
 
@@ -235,7 +234,7 @@
 
             /* Blueprint title block — top-right corner annotation */
             .hero::after {
-                content: "CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.11.0  ·  ELIXIR / BEAM";
+                content: "CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.12.0  ·  ELIXIR / BEAM";
                 white-space: pre;
                 position: absolute;
                 top: 1.5rem;
@@ -986,13 +985,11 @@
                     ☰
                 </button>
                 <div class="nav-links" id="nav-links">
+                    <a href="#workflow" class="nav-link">Workflow</a>
+                    <a href="#choose" class="nav-link">Choose</a>
                     <a href="#showcase" class="nav-link">Showcase</a>
-                    <a href="#labs" class="nav-link">Labs</a>
+                    <a href="#labs" class="nav-link">Lab</a>
                     <a href="#livebooks" class="nav-link">Livebooks</a>
-                    <a href="#embed" class="nav-link">Embed</a>
-                    <a href="#tracing" class="nav-link">Tracing</a>
-                    <a href="#filter" class="nav-link">Filter</a>
-                    <a href="#zoom" class="nav-link">Zoom</a>
                     <a href="#analysis" class="nav-link">Analysis</a>
                     <a href="#types" class="nav-link">DSLs</a>
                     <a href="https://hexdocs.pm/choreo" class="nav-link"
@@ -1022,72 +1019,195 @@
         <!-- Hero Section -->
         <section class="hero">
             <div class="container">
-                <div class="hero-badge">
-                    Now v0.10 — Livebook Labs &amp; Stable Renderers
-                </div>
-                <h1 class="hero-title">
-                    Model Complex Systems<br />With <span>Elixir Code</span>
-                </h1>
-                <p class="hero-subtitle">
-                    Choreo is an Elixir visual modeling library. Write
-                    declarative, domain-specific graph definitions, render
-                    diagrams with Mermaid or Graphviz, explore them in Livebook,
-                    and back every model with semantic static analysis.
-                </p>
-                <div class="hero-actions">
-                    <a href="#showcase" class="btn-primary">See It in Action</a>
-                    <a href="#livebooks" class="btn-secondary"
-                        >Open Livebooks</a
-                    >
-                    <a href="#types" class="btn-secondary">Explore Diagrams</a>
-                </div>
+                            <div class="hero-badge">
+                                Now v0.12 — Lab DSLs, Compose/View &amp; Livebook-first modeling
+                            </div>
+                            <h1 class="hero-title">
+                                Model Systems as Graphs.<br />Render Them as <span>Diagrams</span>.
+                            </h1>
+                            <p class="hero-subtitle">
+                                Choreo is an Elixir toolkit for modeling architecture,
+                                dataflows, workflows, requirements, ERDs, threat models, and
+                                domain designs as graph-backed system models — then composing,
+                                analyzing, and rendering them with Mermaid, Graphviz, and Livebook.
+                            </p>
+                            <div class="hero-actions">
+                                <a href="#workflow" class="btn-primary">How It Works</a>
+                                <a href="https://hexdocs.pm/choreo/lab_cheatsheet.html" class="btn-secondary"></a>
+                                    DSL Cheatsheet
+                                </a>
+                                <a href="#choose" class="btn-secondary">Choose a Diagram</a>
+                            </div>
 
                 <!-- Teaser Preview -->
                 <div class="teaser-wrapper">
                     <div class="teaser-header">
-                        <div class="teaser-tag">
-                            Dataflow &amp; Processing Pipelines
-                        </div>
-                        <div class="teaser-title">Choreo.Dataflow</div>
-                    </div>
+                                            <div class="teaser-tag">
+                                                Lab DSL sketch → graph model → rendered output
+                                            </div>
+                                            <div class="teaser-title">Choreo.Lab.DSL.C4</div>
+                                        </div>
                     <div class="teaser-content">
                         <div class="teaser-code">
                             <pre
-                                class="language-elixir"
-                            ><code class="language-elixir">alias Choreo.Dataflow
+                                                            class="language-elixir"
+                                                        ><code class="language-elixir">alias Choreo.Lab.DSL.C4, as: C4DSL
+                            alias Choreo.Lab.View
 
-pipeline =
-  Dataflow.new()
-  |> Dataflow.add_source(:kafka, label: "Kafka Ingest")
-  |> Dataflow.add_transform(:parser, label: "JSON Parser")
-  |> Dataflow.add_transform(:enricher, label: "Enricher")
-  |> Dataflow.add_sink(:postgres, label: "Postgres Sink")
-  |> Dataflow.add_sink(:s3, label: "S3 Archive")
-  |> Dataflow.connect(:kafka, :parser)
-  |> Dataflow.connect(:parser, :enricher)
-  |> Dataflow.connect(:enricher, :postgres)
-  |> Dataflow.connect(:enricher, :s3)</code></pre>
+                            architecture =
+                              C4DSL.c4 do
+                                customer = person("Customer")
+                                api = container("API", technology: "Phoenix")
+                                db = database("Tenant DB", technology: "Postgres")
+
+                                customer ~> api |> uses("HTTPS")
+                                api ~> db |> reads("SQL")
+                              end
+
+                            View.tabs(architecture)</code></pre>
                         </div>
                         <div class="teaser-diagram">
                             <div class="mermaid">
-graph TD;
-kafka[("Kafka Ingest")];
-parser["JSON Parser"];
-enricher["Enricher"];
-postgres[("Postgres Sink")];
-s3[("S3 Archive")];
-style kafka fill:#3b82f6,stroke:#1d64d8,color:#fff;
-style parser fill:#10b981,stroke:#059669,color:#fff;
-style enricher fill:#10b981,stroke:#059669,color:#fff;
-style postgres fill:#8b5cf6,stroke:#6d28d9,color:#fff;
-style s3 fill:#8b5cf6,stroke:#6d28d9,color:#fff;
-kafka --> parser;
-parser --> enricher;
-enricher --> postgres;
-enricher --> s3;
+flowchart LR;
+customer["Customer"];
+api["API\nPhoenix"];
+db[("Tenant DB\nPostgres")];
+customer -- "HTTPS" --> api;
+api -- "SQL" --> db;
+style customer fill:#38bdf8,stroke:#0284c7,color:#0c1a2e;
+style api fill:#10b981,stroke:#059669,color:#fff;
+style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Model-first workflow -->
+        <section id="workflow" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Model-first workflow</span>
+                    <h2 class="section-title">Sketch, compose, analyze, render</h2>
+                    <p class="section-subtitle">
+                        Choreo treats diagrams as outputs from reusable graph models,
+                        not as one-off drawing files. Start with a domain vocabulary,
+                        then use the same model for views, checks, docs, and reviews.
+                    </p>
+                </div>
+
+                <div class="grid-types">
+                    <a href="https://hexdocs.pm/choreo/lab_dsl.html" target="_blank" class="card-type">
+                        <div class="card-category">1 · Create</div>
+                        <h3 class="card-title">Lab DSLs or pipe APIs</h3>
+                        <p class="card-description">
+                            Use Livebook-friendly nouns and verbs for fast sketches,
+                            or the stable pipe-first builders for explicit programmatic models.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">DSL</span><span class="card-tag">Pipe API</span>
+                        </div>
+                    </a>
+
+                    <a href="https://hexdocs.pm/choreo/Choreo.Lab.Compose.html" target="_blank" class="card-type">
+                        <div class="card-category">2 · Compose</div>
+                        <h3 class="card-title">Connect many views</h3>
+                        <p class="card-description">
+                            Embed architecture, dataflow, workflow, requirements, and threat models
+                            into a larger system graph with traceable cross-model relationships.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Compose</span><span class="card-tag">Trace</span>
+                        </div>
+                    </a>
+
+                    <a href="https://hexdocs.pm/choreo/Choreo.Lab.View.html" target="_blank" class="card-type">
+                        <div class="card-category">3 · Explore</div>
+                        <h3 class="card-title">Focus, paths, zoom, collapse</h3>
+                        <p class="card-description">
+                            Slice a model for the conversation you are having: zoom levels,
+                            focused neighborhoods, dependency paths, and collapsed subsystems.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">View</span><span class="card-tag">Livebook</span>
+                        </div>
+                    </a>
+
+                    <a href="https://hexdocs.pm/choreo/readme.html" target="_blank" class="card-type">
+                        <div class="card-category">4 · Present</div>
+                        <h3 class="card-title">Render and review</h3>
+                        <p class="card-description">
+                            Render to Mermaid or Graphviz, open interactive Livebook tabs,
+                            export artifacts from `.choreo.exs`, and run domain analysis.
+                        </p>
+                        <div class="card-tags">
+                            <span class="card-tag">Mermaid</span><span class="card-tag">Graphviz</span>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Choose diagram section -->
+        <section id="choose" class="section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-label">Choose the right model</span>
+                    <h2 class="section-title">One toolkit, many system views</h2>
+                    <p class="section-subtitle">
+                        Pick the vocabulary that matches the design question. Compose the views
+                        later when you need an end-to-end system model.
+                    </p>
+                </div>
+
+                <div class="analysis-wrapper">
+                    <table class="analysis-table">
+                        <thead></thead>
+                            <tr></tr>
+                                <th>Question</th></th>
+                                <th></th>Use</th>
+                                <th>Typical</th> nouns and verbs</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                            <tr></tr>
+                                <td></td>What are the people, systems, containers, and components?</td>
+                                <td><span class="artifact-chip">C4</span></td>
+                                <td>`person`, `system`, `container` · `uses`, `calls`, `reads`</td>
+                            </tr>
+                            <tr></tr>
+                                <td></td>How does data move through sources, transforms, queues, and sinks?</td>
+                                <td><span class="artifact-chip">Dataflow</span></td>
+                                <td>`source`, `transform`, `sink` · `emits`, `writes`, `dead_letter`</td>
+                            </tr>
+                            <tr></tr>
+                                <td></td>What process, Saga, approval, or CI/CD path runs over time?</td>
+                                <td><span class="artifact-chip">Workflow</span></td>
+                                <td>`begin`, `task`, `decision`, `finish` · `failure`, `retry`</td>
+                            </tr>
+                            <tr></tr>
+                                <td></td>What are the tables, keys, and relationships in the data model?</td>
+                                <td><span class="artifact-chip">ERD</span></td>
+                                <td>`table`, `pk`, `fk` · `one_to_many`, `many_to_many`</td>
+                            </tr>
+                            <tr>
+                                <td>Where are trust boundaries, stores</tr></td>, processes, and risky flows?</td>
+                                <td><span class="artifact-chip">ThreatModel</span></td>
+                                <td>`external_entity`, `process`, `data_store` · `sends`, `encrypted`</td>
+                            </tr>
+                            <tr></tr>
+                                <td></td>Which requirements are owned, implemented, verified, and traced?</td>
+                                <td><span class="artifact-chip">Requirement</span></td>
+                                <td>`functional`, `stakeholder`, `test_case` · `satisfies`, `verifies`</td>
+                            </tr>
+                            <tr></tr>
+                                <td>How</td> do bounded contexts, commands, aggregates, and events interact?</td>
+                                <td><span class="artifact-chip">Domain</span></td>
+                                <td>`actor`, `command`, `aggregate`, `event` · `handles`, `emits`</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
@@ -1470,7 +1590,7 @@ map =
                             ><code class="language-elixir">alias Choreo.Planner
 
 project =
-  Planner.new("Launch v0.10")
+  Planner.new("Launch v0.12")
   |> Planner.add_milestone(:design_complete, title: "Design Complete")
   |> Planner.add_milestone(:beta_release, title: "Beta Release")
   |> Planner.add_task(:wireframes, title: "Wireframes",   status: :done,        estimate_hours: 12)
@@ -1711,56 +1831,98 @@ DecisionTree.Analysis.rules(tree)     # IF/THEN paths</code></pre>
         <section id="labs" class="section">
             <div class="container">
                 <div class="section-header">
-                    <span class="section-label">Livebook Labs</span>
-                    <h2 class="section-title">
-                        Interactive Renderers for Exploration
-                    </h2>
-                    <p class="section-subtitle">
-                        Choreo.Lab turns generated Mermaid into interactive
-                        Livebook views: zoomable diagrams for inspection and
-                        editable sketches for collaborative modeling.
-                    </p>
+                    <span class="section-label">Choreo.Lab in v0.12</span>
+                                        <h2 class="section-title">
+                                            Sketch syntax, composition, and Livebook views
+                                        </h2>
+                                        <p class="section-subtitle">
+                                            The Lab layer is optimized for fast human modeling: concise DSLs,
+                                            model composition, exploratory views, and interactive renderers.
+                                        </p>
                 </div>
 
                 <div class="grid-types">
-                    <a
-                        href="https://hexdocs.pm/choreo/Choreo.Lab.Siren.html"
-                        target="_blank"
-                        class="card-type"
-                    >
-                        <div class="card-category">Choreo.Lab</div>
-                        <h3 class="card-title">Siren</h3>
-                        <p class="card-description">
-                            A Mermaid renderer for Livebook with pan, zoom,
-                            fit-to-screen controls, and automatic dark/light
-                            theme detection.
-                        </p>
-                        <div class="card-tags">
-                            <span class="card-tag">Choreo.Lab.Siren</span>
-                            <span class="card-tag">Mermaid</span>
-                            <span class="card-tag">Pan/Zoom</span>
-                        </div>
-                    </a>
+                                    <a href="https://hexdocs.pm/choreo/lab_dsl.html" target="_blank" class="card-type">
+                                        <div class="card-category">Choreo.Lab.DSL.*</div>
+                                        <h3 class="card-title">Lab DSLs</h3>
+                                        <p class="card-description">
+                                            Livebook-friendly nouns and verbs for C4, Dataflow, ERD,
+                                            Workflow, Domain, ThreatModel, Requirements, and more.
+                                        </p>
+                                        <div class="card-tags">
+                                            <span class="card-tag">Nouns/Verbs</span>
+                                            <span class="card-tag">taxonomy/0</span>
+                                            <span class="card-tag">Sketching</span>
+                                        </div>
+                                    </a>
 
-                    <a
-                        href="https://hexdocs.pm/choreo/Choreo.Lab.Sketch.html"
-                        target="_blank"
-                        class="card-type"
-                    >
-                        <div class="card-category">Choreo.Lab</div>
-                        <h3 class="card-title">Sketch</h3>
-                        <p class="card-description">
-                            Converts Mermaid diagrams into editable Excalidraw
-                            whiteboards so teams can annotate, rearrange, and
-                            iterate visually.
-                        </p>
-                        <div class="card-tags">
-                            <span class="card-tag">Choreo.Lab.Sketch</span>
-                            <span class="card-tag">Excalidraw</span>
-                            <span class="card-tag">Whiteboard</span>
-                        </div>
-                    </a>
-                </div>
+                                    <a href="https://hexdocs.pm/choreo/lab_cheatsheet.html" target="_blank" class="card-type">
+                                        <div class="card-category">Guide</div>
+                                        <h3 class="card-title">DSL + Compose/View Cheatsheet</h3>
+                                        <p class="card-description">
+                                            A compact reference for edge forms, diagram vocabularies,
+                                            copy-paste snippets, Compose helpers, and View helpers.
+                                        </p>
+                                        <div class="card-tags">
+                                            <span class="card-tag">Cheatsheet</span>
+                                            <span class="card-tag">Examples</span>
+                                        </div>
+                                    </a>
+
+                                    <a href="https://hexdocs.pm/choreo/Choreo.Lab.Compose.html" target="_blank" class="card-type">
+                                        <div class="card-category">Choreo.Lab</div>
+                                        <h3 class="card-title">Compose</h3>
+                                        <p class="card-description">
+                                            Embed separate models into one graph, connect nodes across
+                                            model boundaries, and add trace relationships.
+                                        </p>
+                                        <div class="card-tags">
+                                            <span class="card-tag">Embed</span>
+                                            <span class="card-tag">Connect</span>
+                                            <span class="card-tag">Trace</span>
+                                        </div>
+                                    </a>
+
+                                    <a href="https://hexdocs.pm/choreo/Choreo.Lab.View.html" target="_blank" class="card-type">
+                                        <div class="card-category">Choreo.Lab</div>
+                                        <h3 class="card-title">View</h3>
+                                        <p class="card-description">
+                                            Focus, trace, path, zoom, collapse, and render diagrams
+                                            directly from Livebook-friendly helper functions.
+                                        </p>
+                                        <div class="card-tags">
+                                            <span class="card-tag">Focus</span>
+                                            <span class="card-tag">Zoom</span>
+                                            <span class="card-tag">Tabs</span>
+                                        </div>
+                                    </a>
+
+                                    <a href="https://hexdocs.pm/choreo/Choreo.Lab.Siren.html" target="_blank" class="card-type">
+                                        <div class="card-category">Choreo.Lab</div>
+                                        <h3 class="card-title">Siren</h3>
+                                        <p class="card-description">
+                                            A Mermaid renderer for Livebook with pan, zoom,
+                                            fit-to-screen controls, and notebook-friendly themes.
+                                        </p>
+                                        <div class="card-tags">
+                                            <span class="card-tag">Mermaid</span>
+                                            <span class="card-tag">Pan/Zoom</span>
+                                        </div>
+                                    </a>
+
+                                    <a href="https://hexdocs.pm/choreo/Choreo.Lab.Sketch.html" target="_blank" class="card-type">
+                                        <div class="card-category">Choreo.Lab</div>
+                                        <h3 class="card-title">Sketch</h3>
+                                        <p class="card-description">
+                                            Converts Mermaid diagrams into editable Excalidraw
+                                            whiteboards so teams can annotate and iterate visually.
+                                        </p>
+                                        <div class="card-tags">
+                                            <span class="card-tag">Excalidraw</span>
+                                            <span class="card-tag">Whiteboard</span>
+                                        </div>
+                                    </a>
+                                </div>
             </div>
         </section>
 
@@ -2870,7 +3032,7 @@ MindMap.to_dot(overview)</code></pre>
                     >
 def deps do
   [
-    {:choreo, "~> 0.10"}
+    {:choreo, "~> 0.12"}
   ]
 end</pre>
                     <button class="btn-copy" onclick="copyInstall()">
@@ -3049,7 +3211,7 @@ elixir((Elixir))
     livebook[Livebook]`,
 
                 planner: `gantt
-  title Launch v0.10 — Project Timeline
+  title Launch v0.12 — Project Timeline
   dateFormat  YYYY-MM-DD
   axisFormat  %b %d
 
