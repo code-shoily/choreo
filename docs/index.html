@@ -517,6 +517,50 @@
                 background: var(--primary);
             }
 
+            .code-style-switcher {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                margin-top: 1.25rem;
+                padding: 0.35rem;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                font-family: var(--font-mono);
+            }
+
+            .code-style-label {
+                color: var(--text-3);
+                font-size: 0.68rem;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                padding: 0 0.4rem;
+            }
+
+            .code-style-btn {
+                background: transparent;
+                border: none;
+                color: var(--text-2);
+                padding: 0.35rem 0.7rem;
+                border-radius: var(--radius);
+                font-family: var(--font-mono);
+                font-size: 0.72rem;
+                font-weight: 600;
+                cursor: pointer;
+                letter-spacing: 0.03em;
+            }
+
+            .code-style-btn:hover {
+                color: var(--primary);
+                background: var(--primary-lt);
+            }
+
+            .code-style-btn.active {
+                background: var(--primary);
+                color: #0c1a2e;
+            }
+
+
             .showcase-content {
                 display: none;
             }
@@ -1242,9 +1286,28 @@ style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                         Visual Architectures of Any Type
                     </h2>
                     <p class="section-subtitle">
-                        Each tab shows current Choreo API usage above its
-                        rendered diagram output.
+                        Switch between fast Lab DSL sketches and the stable pipe-first API.
+                        Both styles produce ordinary Choreo models and the same rendered output.
                     </p>
+                    <div class="code-style-switcher" aria-label="Code style selector">
+                        <span class="code-style-label">Code style</span>
+                        <button
+                            type="button"
+                            class="code-style-btn active"
+                            data-code-style="dsl"
+                            onclick="switchCodeStyle('dsl')"
+                        >
+                            Lab DSL
+                        </button>
+                        <button
+                            type="button"
+                            class="code-style-btn"
+                            data-code-style="pipe"
+                            onclick="switchCodeStyle('pipe')"
+                        >
+                            Pipe API
+                        </button>
+                    </div>
                 </div>
 
                 <div class="showcase-tabs" style="margin-bottom: 2rem">
@@ -3603,6 +3666,344 @@ elixir((Elixir))
                 });
             }
 
+
+
+            const pipeCodePresets = {};
+            let currentCodeStyle = "dsl";
+
+            const dslCodePresets = {
+                c4: `alias Choreo.Lab.DSL.C4, as: C4DSL
+
+system =
+  C4DSL.c4 do
+    customer = person("Customer")
+    admin = person("Admin")
+    shop = system("E-Commerce Platform", scope: :in)
+    web = container("Web UI", parent: shop, technology: "LiveView")
+    api = container("REST API", parent: shop, technology: "Phoenix/Elixir")
+    db = database("Database", parent: shop, technology: "PostgreSQL")
+    payment = external_system("Payment Gateway", scope: :out)
+    email = external_system("Email Service", scope: :out)
+
+    customer ~> web |> uses("Browses")
+    admin ~> api |> uses("Manages")
+    web ~> api |> calls("JSON/HTTPS")
+    api ~> db |> reads("Orders")
+    api ~> payment |> calls("Charges cards")
+    api ~> email |> sends("Receipts")
+  end`,
+
+                dataflow: `alias Choreo.Lab.DSL.Dataflow, as: DataflowDSL
+
+pipeline =
+  DataflowDSL.dataflow do
+    kafka = source("Kafka Topic")
+    webhook = source("Webhook")
+    router = conditional("Event Router")
+    parser = transform("JSON Parser")
+    enricher = transform("Enricher")
+    validator = transform("Schema Validator")
+    postgres = sink("Postgres")
+    s3 = sink("S3 Archive")
+    dlq = sink("Dead Letter Queue")
+
+    kafka ~> router |> emits("events")
+    webhook ~> router |> emits("events")
+    router ~> parser |> routes("valid events")
+    parser ~> enricher |> emits("parsed")
+    enricher ~> validator |> emits("enriched")
+    validator ~> postgres |> writes("rows")
+    validator ~> s3 |> writes("archive")
+    error validator ~> dlq, "invalid payload"
+  end`,
+
+                decision: `alias Choreo.Lab.DSL.DecisionTree, as: DecisionDSL
+
+tree =
+  DecisionDSL.decision_tree do
+    premium = root("Is user premium?")
+    usage = decision("Monthly usage > 10k?")
+    discount = decision("Active discount code?")
+    enterprise = outcome("Enterprise Tier", class: "$499/mo")
+    pro = outcome("Pro Tier", class: "$99/mo")
+    discounted = outcome("Discounted", class: "$29/mo")
+    free = outcome("Free Tier", class: "$0/mo")
+
+    premium ~> usage |> branch("yes")
+    premium ~> discount |> branch("no")
+    usage ~> enterprise |> branch("yes")
+    usage ~> pro |> branch("no")
+    discount ~> discounted |> branch("yes")
+    discount ~> free |> branch("no")
+  end`,
+
+                dependency: `alias Choreo.Lab.DSL.Dependency, as: DependencyDSL
+
+deps =
+  DependencyDSL.dependency do
+    core = library("Core Business")
+    accounts = library("Accounts")
+    orders = library("Orders")
+    auth = application("Auth")
+    repo = package("Repo")
+    mailer = package("Mailer")
+
+    accounts ~> core |> depends_on("domain logic")
+    orders ~> core |> depends_on("domain logic")
+    orders ~> accounts |> calls("account state")
+    auth ~> accounts |> calls("identity")
+    repo ~> core |> implements("persistence")
+    mailer ~> orders |> depends_on("order events")
+  end`,
+
+                domain: `alias Choreo.Lab.DSL.Domain, as: DomainDSL
+
+domain =
+  DomainDSL.domain do
+    customer = actor("Customer")
+    place_order = command("Place Order")
+    order = aggregate("Order")
+    placed = event("Order Placed")
+    summary = read_model("Order Summary")
+
+    customer ~> place_order |> initiates("starts")
+    place_order ~> order |> handles("validates")
+    order ~> placed |> emits("records")
+    placed ~> summary |> projects_to("updates")
+  end`,
+
+                erd: `alias Choreo.Lab.DSL.ERD, as: ERDDSL
+
+schema =
+  ERDDSL.erd do
+    users = table("users") do
+      pk :id, :uuid
+      field :email, :string
+      field :name, :string
+    end
+
+    orders = table("orders") do
+      pk :id, :uuid
+      fk :user_id, :uuid
+      field :total, :decimal
+    end
+
+    items = table("line_items") do
+      pk :id, :uuid
+      fk :order_id, :uuid
+      field :product, :string
+      field :qty, :integer
+    end
+
+    one_to_many users ~> orders, "places", from: :id, to: :user_id
+    one_to_many orders ~> items, "contains", from: :id, to: :order_id
+  end`,
+
+                fsm: `alias Choreo.Lab.DSL.FSM, as: FSMDsl
+
+fsm =
+  FSMDsl.fsm do
+    idle = initial("Idle")
+    processing = state("Processing")
+    awaiting_payment = state("Awaiting Payment")
+    cancelled = state("Cancelled")
+    completed = final("Completed")
+
+    idle ~> processing |> on("submit_order")
+    processing ~> awaiting_payment |> on("invoice_generated")
+    awaiting_payment ~> completed |> on("payment_received")
+    awaiting_payment ~> cancelled |> on("payment_timeout")
+    processing ~> cancelled |> on("cancel")
+  end`,
+
+                infra: `alias Choreo.Lab.DSL.Infrastructure, as: InfraDSL
+
+infra =
+  InfraDSL.infrastructure do
+    internet = internet("Internet")
+    prod = vpc("Production VPC")
+    public = public_subnet("Public Subnet", parent: prod)
+    private = private_subnet("Private Subnet", parent: prod)
+    alb = load_balancer("ALB", cluster: public)
+    api = service("API Service", cluster: private)
+    db = database("Postgres", cluster: private)
+
+    internet ~> alb |> on("HTTPS")
+    alb ~> api |> on("HTTP")
+    api ~> db |> on("TCP")
+  end`,
+
+                mind_map: `alias Choreo.Lab.DSL.MindMap, as: MindMapDSL
+
+map =
+  MindMapDSL.mind_map do
+    elixir = root("Elixir")
+    concurrency = topic("Concurrency")
+    ecosystem = topic("Ecosystem")
+    tooling = topic("Tooling")
+
+    elixir ~> concurrency
+    elixir ~> ecosystem
+    elixir ~> tooling
+    concurrency ~> subtopic("Processes")
+    concurrency ~> subtopic("GenServers")
+    ecosystem ~> subtopic("BEAM VM")
+    ecosystem ~> subtopic("Hex.pm")
+    tooling ~> subtopic("Mix")
+    tooling ~> subtopic("Livebook")
+  end`,
+
+                planner: `alias Choreo.Lab.DSL.Planner, as: PlannerDSL
+
+project =
+  PlannerDSL.planner do
+    launch = milestone("Launch v0.12")
+    wireframes = task("Wireframes")
+    ui = task("UI Design")
+    api = task("API Implementation")
+    frontend = task("Frontend Build")
+    qa = task("QA Testing")
+    deploy = task("Deploy")
+
+    launch ~> wireframes |> contains("starts with")
+    ui ~> wireframes |> after("after wireframes")
+    api ~> wireframes |> after("after wireframes")
+    frontend ~> ui |> after("after UI")
+    qa ~> api |> after("after API")
+    deploy ~> qa |> after("after QA")
+  end`,
+
+                requirement: `alias Choreo.Lab.DSL.Requirement, as: RequirementDSL
+
+reqs =
+  RequirementDSL.requirements "Auth v2" do
+    security = stakeholder("Security Team")
+    mfa = functional("Users must authenticate with MFA", id: "REQ-001")
+    auth = component("Auth Service")
+    test = test_case("MFA login test")
+
+    security ~> mfa |> traces("owns")
+    auth ~> mfa |> satisfies("implements")
+    test ~> mfa |> verifies("proves")
+  end`,
+
+                seq: `alias Choreo.Lab.DSL.Sequence, as: SequenceDSL
+
+seq =
+  SequenceDSL.sequence do
+    user = actor("User")
+    frontend = participant("Frontend")
+    api = participant("API Gateway")
+    payment = participant("Payment Service")
+    db = participant("Database")
+
+    user ~> frontend |> call("Click checkout")
+    frontend ~> api |> request("POST /orders")
+    activate api
+    api ~> payment |> call("charge_card(amount)")
+    payment ~> api |> reply("charge_id")
+    api ~> db |> call("INSERT order")
+    db ~> api |> reply("order_id")
+    deactivate api
+    api ~> frontend |> response("201 Created")
+    frontend ~> user |> response("Order confirmed ✓")
+  end`,
+
+                threat: `alias Choreo.Lab.DSL.ThreatModel, as: ThreatDSL
+
+model =
+  ThreatDSL.threat_model do
+    user = external_entity("End User")
+    attacker = external_entity("Attacker")
+    web = process("Web Server")
+    auth = process("Auth Service")
+    db = data_store("User DB", sensitivity: :high)
+    cache = data_store("Redis Cache")
+
+    user ~> web |> encrypted("HTTPS/443")
+    attacker ~> web |> encrypted("HTTPS/443")
+    web ~> auth |> encrypted("gRPC")
+    auth ~> db |> reads("SQL")
+    auth ~> cache |> writes("SET/GET")
+  end`,
+
+                uml: `alias Choreo.Lab.DSL.UML, as: UMLDSL
+
+uml =
+  UMLDSL.uml do
+    account = class("Account") do
+      field :id, :uuid
+      field :email, :string
+      field :role, :atom
+      function :authenticate, 1
+      function :deactivate, 0
+    end
+
+    profile = class("Profile")
+    session = class("Session")
+    audit = class("AuditLog")
+
+    account ~> profile |> has("has_one")
+    account ~> session |> has("has_many")
+    account ~> audit |> depends("generates")
+  end`,
+
+                workflow: `alias Choreo.Lab.DSL.Workflow, as: WorkflowDSL
+
+workflow =
+  WorkflowDSL.workflow do
+    received = begin("order_received")
+    validate = task("Validate Order", timeout_ms: 1000)
+    reserve = task("Reserve Stock", timeout_ms: 3000)
+    charge = task("Charge Card", timeout_ms: 5000)
+    ship = task("Ship Order", timeout_ms: 10_000)
+    release_stock = compensation("release_stock", for: reserve)
+    refund = compensation("refund", for: charge)
+    fulfilled = finish("fulfilled")
+
+    received ~> validate
+    validate ~> reserve
+    reserve ~> charge
+    charge ~> ship
+    ship ~> fulfilled
+    compensation reserve ~> release_stock
+    compensation charge ~> refund
+  end`,
+            };
+
+            function showcaseCodeElement(tabId) {
+                const panel = document.getElementById(`showcase-${tabId}`);
+                return panel ? panel.querySelector("code.language-elixir") : null;
+            }
+
+            function capturePipeCodePresets() {
+                Object.keys(tabPresets).forEach((tabId) => {
+                    const code = showcaseCodeElement(tabId);
+                    if (code && !pipeCodePresets[tabId]) {
+                        pipeCodePresets[tabId] = code.textContent.trim();
+                    }
+                });
+            }
+
+            function setShowcaseCode(tabId) {
+                const code = showcaseCodeElement(tabId);
+                if (!code) return;
+                const presets = currentCodeStyle === "dsl" ? dslCodePresets : pipeCodePresets;
+                const next = presets[tabId];
+                if (!next) return;
+                code.textContent = next;
+                if (window.Prism) Prism.highlightElement(code);
+            }
+
+            function switchCodeStyle(style) {
+                currentCodeStyle = style;
+                document.querySelectorAll(".code-style-btn").forEach((btn) => {
+                    btn.classList.toggle("active", btn.dataset.codeStyle === style);
+                });
+                Object.keys(tabPresets).forEach(setShowcaseCode);
+            }
+
+
             // Render a Mermaid diagram into a static (non-tab) element by ID
             async function renderStatic(elementId, code) {
                 const el = document.getElementById(elementId);
@@ -3619,6 +4020,9 @@ elixir((Elixir))
             }
 
             window.addEventListener("DOMContentLoaded", async () => {
+                capturePipeCodePresets();
+                switchCodeStyle("dsl");
+
                 // Render teaser hero diagram
                 mermaid.init(
                     undefined,
