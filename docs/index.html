@@ -687,12 +687,37 @@
                 color: var(--text);
             }
             .analysis-table tbody td:nth-child(2) {
-                font-family: var(--font-mono);
-                font-size: 0.8rem;
-                color: var(--text-3);
-            }
+                            font-family: var(--font-mono);
+                            font-size: 0.8rem;
+                            color: var(--text-3);
+                        }
 
-            .artifact-chip {
+                        .diagram-choice-table th:nth-child(1),
+                        .diagram-choice-table td:nth-child(1) {
+                            width: 48%;
+                        }
+
+                        .diagram-choice-table th:nth-child(2),
+                        .diagram-choice-table td:nth-child(2) {
+                            width: 16%;
+                            white-space: nowrap;
+                        }
+
+                        .diagram-choice-table th:nth-child(3),
+                        .diagram-choice-table td:nth-child(3) {
+                            width: 36%;
+                        }
+
+                        .diagram-choice-table code {
+                            font-family: var(--font-mono);
+                            font-size: 0.78rem;
+                            color: var(--primary);
+                            background: rgba(56, 189, 248, 0.08);
+                            border: 1px solid rgba(56, 189, 248, 0.16);
+                            padding: 0.05rem 0.25rem;
+                        }
+
+                        .artifact-chip {
                 display: inline-block;
                 font-family: var(--font-mono);
                 font-size: 0.7rem;
@@ -1019,52 +1044,50 @@
         <!-- Hero Section -->
         <section class="hero">
             <div class="container">
-                            <div class="hero-badge">
-                                Now v0.12 — Lab DSLs, Compose/View &amp; Livebook-first modeling
-                            </div>
-                            <h1 class="hero-title">
-                                Model Systems as Graphs.<br />Render Them as <span>Diagrams</span>.
-                            </h1>
-                            <p class="hero-subtitle">
-                                Choreo is an Elixir toolkit for modeling architecture,
-                                dataflows, workflows, requirements, ERDs, threat models, and
-                                domain designs as graph-backed system models — then composing,
-                                analyzing, and rendering them with Mermaid, Graphviz, and Livebook.
-                            </p>
-                            <div class="hero-actions">
-                                <a href="#workflow" class="btn-primary">How It Works</a>
-                                <a href="https://hexdocs.pm/choreo/lab_cheatsheet.html" class="btn-secondary"></a>
-                                    DSL Cheatsheet
-                                </a>
-                                <a href="#choose" class="btn-secondary">Choose a Diagram</a>
-                            </div>
+                <div class="hero-badge">
+                    Now v0.12 — Lab DSLs, Compose/View &amp; Livebook-first modeling
+                </div>
+                <h1 class="hero-title">
+                    Model Systems as Graphs.<br />Render Them as <span>Diagrams</span>.
+                </h1>
+                <p class="hero-subtitle">
+                    Choreo is an Elixir toolkit for modeling architecture,
+                    dataflows, workflows, requirements, ERDs, threat models, and
+                    domain designs as graph-backed system models — then composing,
+                    analyzing, and rendering them with Mermaid, Graphviz, and Livebook.
+                </p>
+                <div class="hero-actions">
+                    <a href="#workflow" class="btn-primary">How It Works</a>
+                    <a href="https://hexdocs.pm/choreo/lab_cheatsheet.html" class="btn-secondary">
+                        DSL Cheatsheet
+                    </a>
+                    <a href="#choose" class="btn-secondary">Choose a Diagram</a>
+                </div>
 
                 <!-- Teaser Preview -->
                 <div class="teaser-wrapper">
                     <div class="teaser-header">
-                                            <div class="teaser-tag">
-                                                Lab DSL sketch → graph model → rendered output
-                                            </div>
-                                            <div class="teaser-title">Choreo.Lab.DSL.C4</div>
-                                        </div>
+                        <div class="teaser-tag">
+                            Lab DSL sketch → graph model → rendered output
+                        </div>
+                        <div class="teaser-title">Choreo.Lab.DSL.C4</div>
+                    </div>
                     <div class="teaser-content">
                         <div class="teaser-code">
-                            <pre
-                                                            class="language-elixir"
-                                                        ><code class="language-elixir">alias Choreo.Lab.DSL.C4, as: C4DSL
-                            alias Choreo.Lab.View
+                            <pre class="language-elixir"><code class="language-elixir">alias Choreo.Lab.DSL.C4, as: C4DSL
+alias Choreo.Lab.View
 
-                            architecture =
-                              C4DSL.c4 do
-                                customer = person("Customer")
-                                api = container("API", technology: "Phoenix")
-                                db = database("Tenant DB", technology: "Postgres")
+architecture =
+  C4DSL.c4 do
+    customer = person("Customer")
+    api = container("API", technology: "Phoenix")
+    db = database("Tenant DB", technology: "Postgres")
 
-                                customer ~> api |> uses("HTTPS")
-                                api ~> db |> reads("SQL")
-                              end
+    customer ~> api |> uses("HTTPS")
+    api ~> db |> reads("SQL")
+  end
 
-                            View.tabs(architecture)</code></pre>
+View.tabs(architecture)</code></pre>
                         </div>
                         <div class="teaser-diagram">
                             <div class="mermaid">
@@ -1083,7 +1106,6 @@ style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                 </div>
             </div>
         </section>
-
         <!-- Model-first workflow -->
         <section id="workflow" class="section">
             <div class="container">
@@ -1162,49 +1184,49 @@ style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                 </div>
 
                 <div class="analysis-wrapper">
-                    <table class="analysis-table">
-                        <thead></thead>
-                            <tr></tr>
-                                <th>Question</th></th>
-                                <th></th>Use</th>
-                                <th>Typical</th> nouns and verbs</th>
+                    <table class="analysis-table diagram-choice-table">
+                        <thead>
+                            <tr>
+                                <th>Question</th>
+                                <th>Use</th>
+                                <th>Typical nouns and verbs</th>
                             </tr>
                         </thead>
-                        <tbody></tbody>
-                            <tr></tr>
-                                <td></td>What are the people, systems, containers, and components?</td>
+                        <tbody>
+                            <tr>
+                                <td>What are the people, systems, containers, and components?</td>
                                 <td><span class="artifact-chip">C4</span></td>
-                                <td>`person`, `system`, `container` · `uses`, `calls`, `reads`</td>
-                            </tr>
-                            <tr></tr>
-                                <td></td>How does data move through sources, transforms, queues, and sinks?</td>
-                                <td><span class="artifact-chip">Dataflow</span></td>
-                                <td>`source`, `transform`, `sink` · `emits`, `writes`, `dead_letter`</td>
-                            </tr>
-                            <tr></tr>
-                                <td></td>What process, Saga, approval, or CI/CD path runs over time?</td>
-                                <td><span class="artifact-chip">Workflow</span></td>
-                                <td>`begin`, `task`, `decision`, `finish` · `failure`, `retry`</td>
-                            </tr>
-                            <tr></tr>
-                                <td></td>What are the tables, keys, and relationships in the data model?</td>
-                                <td><span class="artifact-chip">ERD</span></td>
-                                <td>`table`, `pk`, `fk` · `one_to_many`, `many_to_many`</td>
+                                <td><code>person</code>, <code>system</code>, <code>container</code> · <code>uses</code>, <code>calls</code>, <code>reads</code></td>
                             </tr>
                             <tr>
-                                <td>Where are trust boundaries, stores</tr></td>, processes, and risky flows?</td>
+                                <td>How does data move through sources, transforms, queues, and sinks?</td>
+                                <td><span class="artifact-chip">Dataflow</span></td>
+                                <td><code>source</code>, <code>transform</code>, <code>sink</code> · <code>emits</code>, <code>writes</code>, <code>dead_letter</code></td>
+                            </tr>
+                            <tr>
+                                <td>What process, Saga, approval, or CI/CD path runs over time?</td>
+                                <td><span class="artifact-chip">Workflow</span></td>
+                                <td><code>begin</code>, <code>task</code>, <code>decision</code>, <code>finish</code> · <code>failure</code>, <code>retry</code></td>
+                            </tr>
+                            <tr>
+                                <td>What are the tables, keys, and relationships in the data model?</td>
+                                <td><span class="artifact-chip">ERD</span></td>
+                                <td><code>table</code>, <code>pk</code>, <code>fk</code> · <code>one_to_many</code>, <code>many_to_many</code></td>
+                            </tr>
+                            <tr>
+                                <td>Where are trust boundaries, stores, processes, and risky flows?</td>
                                 <td><span class="artifact-chip">ThreatModel</span></td>
-                                <td>`external_entity`, `process`, `data_store` · `sends`, `encrypted`</td>
+                                <td><code>external_entity</code>, <code>process</code>, <code>data_store</code> · <code>sends</code>, <code>encrypted</code></td>
                             </tr>
-                            <tr></tr>
-                                <td></td>Which requirements are owned, implemented, verified, and traced?</td>
+                            <tr>
+                                <td>Which requirements are owned, implemented, verified, and traced?</td>
                                 <td><span class="artifact-chip">Requirement</span></td>
-                                <td>`functional`, `stakeholder`, `test_case` · `satisfies`, `verifies`</td>
+                                <td><code>functional</code>, <code>stakeholder</code>, <code>test_case</code> · <code>satisfies</code>, <code>verifies</code></td>
                             </tr>
-                            <tr></tr>
-                                <td>How</td> do bounded contexts, commands, aggregates, and events interact?</td>
+                            <tr>
+                                <td>How do bounded contexts, commands, aggregates, and events interact?</td>
                                 <td><span class="artifact-chip">Domain</span></td>
-                                <td>`actor`, `command`, `aggregate`, `event` · `handles`, `emits`</td>
+                                <td><code>actor</code>, <code>command</code>, <code>aggregate</code>, <code>event</code> · <code>handles</code>, <code>emits</code></td>
                             </tr>
                         </tbody>
                     </table>
