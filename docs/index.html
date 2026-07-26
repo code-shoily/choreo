@@ -1272,6 +1272,9 @@ style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                     >
                         Dependencies
                     </button>
+                    <button class="tab-btn" onclick="switchTab('domain', this)">
+                        Domain
+                    </button>
                     <button class="tab-btn" onclick="switchTab('erd', this)">
                         ERD
                     </button>
@@ -1292,6 +1295,9 @@ style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                         onclick="switchTab('planner', this)"
                     >
                         Planner
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('requirement', this)">
+                        Requirement
                     </button>
                     <button class="tab-btn" onclick="switchTab('seq', this)">
                         Sequence
@@ -1846,6 +1852,75 @@ DecisionTree.Analysis.rules(tree)     # IF/THEN paths</code></pre>
                         ></div>
                     </div>
                 </div>
+
+                <!-- Domain -->
+                <div id="showcase-domain" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">checkout_domain.exs</span>
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Domain
+
+domain =
+  Domain.new()
+  |> Domain.add_actor(:customer, label: "Customer")
+  |> Domain.add_command(:place_order, label: "Place Order")
+  |> Domain.add_aggregate(:order, label: "Order")
+  |> Domain.add_event(:order_placed, label: "Order Placed")
+  |> Domain.add_read_model(:order_summary, label: "Order Summary")
+  |> Domain.initiates(:customer, :place_order)
+  |> Domain.handles(:place_order, :order)
+  |> Domain.emits(:order, :order_placed)
+  |> Domain.projects_to(:order_placed, :order_summary)
+
+Domain.Analysis.validate(domain)</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-domain"
+                        ></div>
+                    </div>
+                </div>
+
+                <!-- Requirement -->
+                <div id="showcase-requirement" class="showcase-content">
+                    <div class="showcase-panel">
+                        <div class="showcase-panel-header">
+                            <div class="dot dot-red"></div>
+                            <div class="dot dot-amber"></div>
+                            <div class="dot dot-green"></div>
+                            <span class="panel-filename">auth_requirements.exs</span>
+                        </div>
+                        <div class="showcase-code-block">
+                            <pre
+                                class="language-elixir"
+                            ><code class="language-elixir">alias Choreo.Requirement
+
+reqs =
+  Requirement.new("Auth v2")
+  |> Requirement.add_stakeholder(:security, label: "Security Team")
+  |> Requirement.add_functional(:mfa, id: "REQ-001", text: "Users must authenticate with MFA")
+  |> Requirement.add_component(:auth_service, label: "Auth Service")
+  |> Requirement.add_test_case(:mfa_login_test, label: "MFA login test")
+  |> Requirement.traces(:security, :mfa, label: "owns")
+  |> Requirement.satisfies(:auth_service, :mfa, label: "implements")
+  |> Requirement.verifies(:mfa_login_test, :mfa, label: "proves")
+
+Requirement.Analysis.coverage(reqs)</code></pre>
+                        </div>
+                        <div
+                            class="showcase-diagram-block"
+                            id="diag-requirement"
+                        ></div>
+                    </div>
+                </div>
+
             </div>
         </section>
 
@@ -3155,6 +3230,39 @@ end</pre>
   ship --> fulfilled
   reserve -.-> release_stock
   charge -.-> refund`,
+
+                domain: `graph LR
+  customer["Customer"]
+  place_order["Place Order"]
+  order["Order Aggregate"]
+  order_placed["Order Placed"]
+  order_summary["Order Summary"]
+
+  customer -->|initiates| place_order
+  place_order -->|handles| order
+  order -->|emits| order_placed
+  order_placed -->|projects_to| order_summary
+
+  style customer fill:#38bdf8,color:#0c1a2e
+  style place_order fill:#f59e0b,color:#fff
+  style order fill:#6366f1,color:#fff
+  style order_placed fill:#10b981,color:#fff
+  style order_summary fill:#8b5cf6,color:#fff`,
+
+                requirement: `graph LR
+  security["Security Team"]
+  mfa["REQ-001\nMFA required"]
+  auth["Auth Service"]
+  test["MFA login test"]
+
+  security -->|owns| mfa
+  auth -->|satisfies| mfa
+  test -->|verifies| mfa
+
+  style security fill:#38bdf8,color:#0c1a2e
+  style mfa fill:#f59e0b,color:#fff
+  style auth fill:#6366f1,color:#fff
+  style test fill:#10b981,color:#fff`,
 
                 erd: `erDiagram
   users ||--o{ orders : places
