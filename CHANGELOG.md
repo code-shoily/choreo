@@ -4,6 +4,14 @@
 
 ### Added
 
+### Fixed
+
+### Changed
+
+## [0.12.0] - 2026-07-26
+
+### Added
+
 - Added `Choreo.Infrastructure.from_choreo/1` function to cast generic `%Choreo{}` diagrams into `%Choreo.Infrastructure{}` diagrams.
 - Added `Choreo.Lab.DSL.Compiler` module to consolidate shared AST parsing helpers (`statements/1`, `pop_trailing_opts/1`, `slug_atom/1`, etc.) used by experimental diagram DSLs.
 - Added autocomplete helper function stubs to all 15 incubating `Choreo.Lab.DSL.*` modules to support editor and Livebook autocompletion for diagram constructors and modifiers.
@@ -11,11 +19,13 @@
 - Added incubating `Choreo.Lab.DSL.*` sketch syntax across all current Choreo diagram/modeling modules, providing Livebook-friendly constructors, variable-bound nodes, typed edges, pipe modifiers, `taxonomy/0` discovery, and compilation back to the stable pipe-first builders.
 - Added `mix choreo.render` for rendering `.choreo.exs` or `.exs` Choreo model files into Mermaid (`.mmd`) or Graphviz DOT (`.dot`) artifacts, including named multi-artifact outputs and per-artifact render options.
 - Added the `Lab DSLs and Sketch Syntax` guide covering DSL philosophy, shared grammar, current DSL modules, Compose/View usage, and `.choreo.exs` rendering workflows.
+- Added the `Lab DSL + Compose/View Cheatsheet` guide with quick DSL grammar, nouns/verbs, copy-paste examples, Compose helpers, View helpers, and rendering shortcuts.
 - Added `Choreo.Lab.View` pipe-friendly helpers for Livebook zoom, focus, filter, path, and collapse exploration over `Choreo.View`, alongside rendering pipeline helper functions `tabs/2`, `to_siren/2`, `to_sketch/2`, `to_mermaid/2`, and `to_dot/2` for quick Livebook diagram presentation.
 - Added `Choreo.Lab.Compose` pipe-friendly helpers for Livebook cluster, embed, connect, and trace composition over `Choreo`.
 
 ### Changed
 
+- Expanded the `Lab DSLs and Sketch Syntax` guide with shared grammar details, a diagram nouns/verbs reference table, canonical vocabulary guidance, per-DSL cheat sheets, examples, and rendering notes.
 - Optimized compile-time statement processing in `Choreo.Lab.DSL.*` modules to use linear $O(N)$ prepending and reversing instead of $O(N^2)$ list append (`steps ++ statement_steps`).
 
 ### Fixed

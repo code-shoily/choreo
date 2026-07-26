@@ -1,7 +1,7 @@
 defmodule Choreo.MixProject do
   use Mix.Project
 
-  @version "0.11.0"
+  @version "0.12.0"
   @source_url "https://github.com/code-shoily/choreo"
 
   def project do
@@ -85,6 +85,7 @@ defmodule Choreo.MixProject do
         "guides/data_and_structure.md",
         "guides/livebooks.md",
         "guides/lab_dsl.md",
+        "guides/lab_cheatsheet.md",
         "guides/ALGORITHMS.md",
         "CHANGELOG.md"
       ],

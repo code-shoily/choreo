@@ -48,7 +48,7 @@ Livebooks are first-class artifacts in Choreo. Follow these conventions:
 
   ```elixir
   Mix.install([
-    # {:choreo, "~> 0.11.0"},
+    # {:choreo, "~> 0.12.0"},
     {:choreo, path: Path.expand("../..", __DIR__), force: true},
     {:kino_vizjs, "~> 0.9.0"}
   ])

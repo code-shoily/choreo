@@ -215,7 +215,7 @@ Use this setup for project-local development inside the Choreo repository:
 
 ```elixir
 Mix.install([
-  # {:choreo, "~> 0.11.0"},
+  # {:choreo, "~> 0.12.0"},
   # For notebooks inside the Choreo repo, resolve the library relative to the notebook.
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"}

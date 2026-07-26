@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   # For Hex publication/readers:
-  # {:choreo, "~> 0.11.0"},
+  # {:choreo, "~> 0.12.0"},
   # For local development:
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"}
