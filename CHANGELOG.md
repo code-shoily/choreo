@@ -31,6 +31,7 @@
 
 ### Fixed
 
+- Hardened native Mermaid `mindmap` and `ishikawa` rendering for `Choreo.MindMap` by normalizing hierarchy labels and clarifying native syntax limitations.
 - Hardened native Mermaid `stateDiagram-v2` rendering for `Choreo.FSM` by escaping state and transition labels, and clarified FSM complement, guard, and Mermaid syntax documentation.
 - Fixed a parsing bug in `Choreo.Lab.Sketch` where `end` statements in sequence diagrams were stripped, which caused loop and conditional blocks to remain unclosed and crash the Excalidraw diagram renderer.
 - Fixed shape normalization in `Choreo.Lab.Sketch` to support hyphens inside node IDs (by updating node ID matching from `\w+` to `[\w\-]+`).

@@ -279,6 +279,24 @@ defmodule Choreo.MindMapTest do
         MindMap.to_mermaid(map, syntax: :ishikawa)
       end
     end
+
+    test "normalizes labels for native mindmap and Ishikawa syntax" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:root, label: ~s(Root "Cause"\nMap))
+        |> MindMap.add_topic(:topic, label: "Auth|Security\tRisk")
+        |> MindMap.branch(:root, :topic)
+
+      mindmap = MindMap.to_mermaid(map, syntax: :mindmap)
+      ishikawa = MindMap.to_mermaid(map, syntax: :ishikawa)
+
+      assert mindmap =~ "Root 'Cause' Map"
+      assert mindmap =~ "Auth/Security Risk"
+      assert ishikawa =~ "Root 'Cause' Map"
+      assert ishikawa =~ "Auth/Security Risk"
+      refute mindmap =~ "\nMap"
+      refute ishikawa =~ "\t"
+    end
   end
 
   describe "to_dot/2" do

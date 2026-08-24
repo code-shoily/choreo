@@ -622,6 +622,11 @@ defmodule Choreo.MindMap do
   @doc """
   Renders the mind map to Mermaid.js flowchart, native mindmap, or native Ishikawa syntax.
 
+  Native `:mindmap` and `:ishikawa` syntax is hierarchical: associative cross-links
+  are omitted, labels are normalized to single-line text, and cyclic maps raise
+  before rendering. Use the default `:flowchart` syntax when cross-links or full
+  edge styling matter.
+
   ## Options
 
     * `:syntax` — `:flowchart` (default), `:mindmap`, or `:ishikawa`

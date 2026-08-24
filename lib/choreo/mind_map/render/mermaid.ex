@@ -40,6 +40,7 @@ defmodule Choreo.MindMap.Render.Mermaid do
   or `:ishikawa`:
 
     * associative edges are silently omitted
+    * labels are normalized to single-line hierarchy text
     * nodes with multiple branch parents may be duplicated under each parent
     * cycles raise before rendering
 
@@ -176,17 +177,23 @@ defmodule Choreo.MindMap.Render.Mermaid do
     |> Enum.sort()
   end
 
-  defp sanitize_mindmap_label(label) do
+  defp sanitize_mindmap_label(label), do: sanitize_native_hierarchy_label(label)
+
+  defp sanitize_ishikawa_label(label), do: sanitize_native_hierarchy_label(label)
+
+  defp sanitize_native_hierarchy_label(label) do
     label
     |> to_string()
-    |> String.replace("\n", " ")
-  end
-
-  defp sanitize_ishikawa_label(label) do
-    label
-    |> sanitize_mindmap_label()
+    |> String.replace("\\", "/")
+    |> String.replace("\"", "'")
+    |> String.replace("|", "/")
+    |> String.replace(~r/[\r\n\t]+/, " ")
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
+    |> case do
+      "" -> " "
+      text -> text
+    end
   end
 
   @doc """
