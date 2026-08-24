@@ -44,22 +44,25 @@ We will use a tiny order-lifecycle state machine. Build it first so we have some
 
 ```elixir
 alias Choreo.FSM
+import Choreo.Lab.DSL.FSM
 
 order_fsm =
-  FSM.new()
-  |> FSM.add_initial_state(:pending, label: "Pending")
-  |> FSM.add_state(:paid, label: "Paid")
-  |> FSM.add_state(:shipped, label: "Shipped")
-  |> FSM.add_final_state(:delivered, label: "Delivered")
-  |> FSM.add_final_state(:refunded, label: "Refunded")
-  |> FSM.add_state(:cancelled, label: "Cancelled")
-  |> FSM.add_transition(:pending, :paid, label: "pay")
-  |> FSM.add_transition(:pending, :cancelled, label: "cancel")
-  |> FSM.add_transition(:paid, :shipped, label: "ship")
-  |> FSM.add_transition(:paid, :refunded, label: "refund")
-  |> FSM.add_transition(:shipped, :delivered, label: "deliver")
-  |> FSM.add_transition(:cancelled, :refunded, label: "refund")
-  |> FSM.add_transition(:delivered, :refunded, label: "return")
+  fsm do
+    pending = initial("Pending")
+    paid = state("Paid")
+    shipped = state("Shipped")
+    delivered = final("Delivered")
+    refunded = final("Refunded")
+    cancelled = state("Cancelled")
+
+    pending ~> paid |> on("pay")
+    pending ~> cancelled |> on("cancel")
+    paid ~> shipped |> on("ship")
+    paid ~> refunded |> on("refund")
+    shipped ~> delivered |> on("deliver")
+    cancelled ~> refunded |> on("refund")
+    delivered ~> refunded |> on("return")
+  end
 
 IO.puts("States: #{length(FSM.states(order_fsm))}")
 IO.puts("Initial: #{inspect(FSM.initial_state(order_fsm))}")

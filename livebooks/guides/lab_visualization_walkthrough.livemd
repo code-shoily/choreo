@@ -24,20 +24,23 @@ Let's build a sample Finite State Machine (FSM) using Choreo to use as our visua
 
 ```elixir
 alias Choreo.FSM
+import Choreo.Lab.DSL.FSM
 
 # Define a standard login authentication flow
 flow =
-  FSM.new()
-  |> FSM.add_initial_state(:logged_out)
-  |> FSM.add_state(:prompting_credentials)
-  |> FSM.add_state(:verifying)
-  |> FSM.add_final_state(:logged_in)
-  |> FSM.add_state(:account_locked)
-  |> FSM.add_transition(:logged_out, :prompting_credentials, label: "click_login")
-  |> FSM.add_transition(:prompting_credentials, :verifying, label: "submit_credentials")
-  |> FSM.add_transition(:verifying, :logged_in, label: "credentials_match")
-  |> FSM.add_transition(:verifying, :prompting_credentials, label: "credentials_invalid")
-  |> FSM.add_transition(:verifying, :account_locked, label: "consecutive_failures")
+  fsm do
+    logged_out = initial("Logged Out")
+    prompting_credentials = state("Prompting Credentials")
+    verifying = state("Verifying")
+    logged_in = final("Logged In")
+    account_locked = state("Account Locked")
+
+    logged_out ~> prompting_credentials |> on("click_login")
+    prompting_credentials ~> verifying |> on("submit_credentials")
+    verifying ~> logged_in |> on("credentials_match")
+    verifying ~> prompting_credentials |> on("credentials_invalid")
+    verifying ~> account_locked |> on("consecutive_failures")
+  end
 
 # Generate the raw Mermaid representation
 mermaid_code = FSM.to_mermaid(flow)

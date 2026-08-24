@@ -17,14 +17,17 @@ Mix.install([
 ```elixir
 alias Choreo.FSM
 alias Choreo.FSM.Analysis
+import Choreo.Lab.DSL.FSM
 
 fsm =
-  FSM.new()
-  |> FSM.add_initial_state(:idle)
-  |> FSM.add_state(:authenticating)
-  |> FSM.add_final_state(:logged_in)
-  |> FSM.add_transition(:idle, :authenticating, label: "submit_credentials")
-  |> FSM.add_transition(:authenticating, :logged_in, label: "success")
+  fsm do
+    idle = initial("Idle")
+    authenticating = state("Authenticating")
+    logged_in = final("Logged In")
+
+    idle ~> authenticating |> on("submit_credentials")
+    authenticating ~> logged_in |> on("success")
+  end
 
 # Render diagrams (Mermaid is preferred as primary tab)
 Kino.Layout.tabs([
@@ -47,8 +50,12 @@ There are three ways to add states. Each stores type information in the FSM's `m
 You can also **remove** a special status without deleting the state:
 
 ```elixir
-# Promote and demote
-fsm = FSM.new() |> FSM.add_state(:a, type: :initial)
+# Promote with the DSL, then demote with the explicit API
+fsm =
+  fsm do
+    initial(:a)
+  end
+
 IO.inspect(FSM.initial_state(fsm), label: "Initial state ID")
 
 fsm = FSM.remove_initial_state(fsm, :a)
@@ -61,10 +68,12 @@ This is useful for modelling "already accepted" start conditions (e.g. an empty 
 
 ```elixir
 empty_match =
-  FSM.new()
-  |> FSM.add_initial_state(:q0)
-  |> FSM.add_final_state(:q0)
-  |> FSM.add_transition(:q0, :q0, label: "a")
+  fsm do
+    q0 = initial(:q0)
+    final(:q0)
+
+    q0 ~> q0 |> on("a")
+  end
 
 Kino.Layout.tabs([
   "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(empty_match)),
@@ -76,18 +85,20 @@ Kino.Layout.tabs([
 
 ```elixir
 order_flow =
-  FSM.new()
-  |> FSM.add_initial_state(:cart_created)
-  |> FSM.add_state(:checkout)
-  |> FSM.add_state(:payment_pending)
-  |> FSM.add_state(:fraud_check)
-  |> FSM.add_final_state(:order_shipped)
-  |> FSM.add_final_state(:cancelled)
-  |> FSM.add_transition(:cart_created, :checkout, label: "proceed")
-  |> FSM.add_transition(:checkout, :payment_pending, label: "pay")
-  |> FSM.add_transition(:payment_pending, :fraud_check, label: "authorized")
-  |> FSM.add_transition(:fraud_check, :order_shipped, label: "passed")
-  |> FSM.add_transition(:payment_pending, :cancelled, label: "declined")
+  fsm do
+    cart_created = initial("Cart Created")
+    checkout = state("Checkout")
+    payment_pending = state("Payment Pending")
+    fraud_check = state("Fraud Check")
+    order_shipped = final("Order Shipped")
+    cancelled = final("Cancelled")
+
+    cart_created ~> checkout |> on("proceed")
+    checkout ~> payment_pending |> on("pay")
+    payment_pending ~> fraud_check |> on("authorized")
+    fraud_check ~> order_shipped |> on("passed")
+    payment_pending ~> cancelled |> on("declined")
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(FSM.to_mermaid(order_flow)),
@@ -108,12 +119,14 @@ An FSM is **deterministic** when two conditions hold:
 ```elixir
 # Let's see what happens if we attempt to add duplicate outgoing transition labels:
 try do
-  FSM.new()
-  |> FSM.add_initial_state(:q0)
-  |> FSM.add_state(:q1)
-  |> FSM.add_state(:q2)
-  |> FSM.add_transition(:q0, :q1, label: "x")
-  |> FSM.add_transition(:q0, :q2, label: "x")
+  fsm do
+    q0 = initial(:q0)
+    q1 = state(:q1)
+    q2 = state(:q2)
+
+    q0 ~> q1 |> on("x")
+    q0 ~> q2 |> on("x")
+  end
 rescue
   e in ArgumentError -> e.message
 end
@@ -122,9 +135,10 @@ end
 ```elixir
 # Or if we attempt to define a second initial state:
 try do
-  FSM.new()
-  |> FSM.add_initial_state(:q0)
-  |> FSM.add_initial_state(:q1)
+  fsm do
+    initial(:q0)
+    initial(:q1)
+  end
 rescue
   e in ArgumentError -> e.message
 end
@@ -134,12 +148,14 @@ We can build a valid DFA safely:
 
 ```elixir
 dfa =
-  FSM.new()
-  |> FSM.add_initial_state(:q0)
-  |> FSM.add_state(:q1)
-  |> FSM.add_final_state(:q2)
-  |> FSM.add_transition(:q0, :q1, label: "a")
-  |> FSM.add_transition(:q1, :q2, label: "b")
+  fsm do
+    q0 = initial(:q0)
+    q1 = state(:q1)
+    q2 = final(:q2)
+
+    q0 ~> q1 |> on("a")
+    q1 ~> q2 |> on("b")
+  end
 ```
 
 ## Analysis
@@ -165,12 +181,14 @@ For branching FSMs, `Analysis.accepted_strings/2` computes all valid paths up to
 
 ```elixir
 branching_fsm =
-  FSM.new()
-  |> FSM.add_initial_state(:q0)
-  |> FSM.add_final_state(:q1)
-  |> FSM.add_transition(:q0, :q0, label: "0")
-  |> FSM.add_transition(:q0, :q1, label: "1")
-  |> FSM.add_transition(:q1, :q1, label: "0")
+  fsm do
+    q0 = initial(:q0)
+    q1 = final(:q1)
+
+    q0 ~> q0 |> on("0")
+    q0 ~> q1 |> on("1")
+    q1 ~> q1 |> on("0")
+  end
 
 IO.inspect(Analysis.shortest_accepting_path(order_flow), label: "Shortest accepting path (order_flow)")
 IO.inspect(Analysis.accepted_strings(branching_fsm, 3), label: "Accepted strings up to length 3 (branching)")
@@ -191,13 +209,15 @@ Note that `state_diagram` syntax does not show orphan states.
 
 ```elixir
 incomplete_fsm =
-  FSM.new()
-  |> FSM.add_state(:orphan)
-  |> FSM.add_state(:trap)
-  |> FSM.add_initial_state(:a)
-  |> FSM.add_final_state(:c)
-  |> FSM.add_transition(:a, :c, label: "x", guard: "ready")
-  |> FSM.add_transition(:a, :c, label: "y")
+  fsm do
+    state(:orphan)
+    state(:trap)
+    a = initial(:a)
+    c = final(:c)
+
+    a ~> c |> on("x") |> guard("ready")
+    a ~> c |> on("y")
+  end
 
 Analysis.validate(incomplete_fsm)
 |> Enum.each(fn {severity, msg} ->
@@ -256,19 +276,19 @@ Kino.Layout.tabs([
 
 ## Summary
 
-| Task              | Function                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| Build             | `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
-| Demote            | `remove_initial_state/2`, `remove_final_state/2`                                           |
-| Query             | `FSM.initial_state/1`, `FSM.final_states/1`, `FSM.states/1`                                |
-| Acceptance        | `Analysis.accepts?/2`                                                                      |
-| Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`, `Analysis.livelock_states/1`      |
-| Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                        |
-| Test Cases        | `Analysis.generate_test_cases/2`                                                           |
-| Equivalence       | `Analysis.equivalent?/2`                                                                   |
-| Minimization      | `Analysis.minimize/1`                                                                      |
-| Invariants        | `Analysis.violates_invariant?/2`                                                           |
-| Validation        | `Analysis.validate/1`                                                                      |
-| Transforms        | `FSM.complement/1`, `FSM.prune/1`, `FSM.to_simple_graph/2`                                 |
-| Render to DOT     | `FSM.to_dot/2`                                                                             |
-| Render to Mermaid | `FSM.to_mermaid/2`                                                                         |
+| Task              | Function                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Build             | `Choreo.Lab.DSL.FSM.fsm/1`, or pipe builders `FSM.new/1`, `add_state/3`, `add_initial_state/3`, `add_final_state/3`, `add_transition/4` |
+| Demote            | `remove_initial_state/2`, `remove_final_state/2`                                                                                        |
+| Query             | `FSM.initial_state/1`, `FSM.final_states/1`, `FSM.states/1`                                                                             |
+| Acceptance        | `Analysis.accepts?/2`                                                                                                                   |
+| Reachability      | `Analysis.reachable_states/1`, `Analysis.dead_states/1`, `Analysis.livelock_states/1`                                                   |
+| Paths             | `Analysis.shortest_accepting_path/1`, `Analysis.accepted_strings/2`                                                                     |
+| Test Cases        | `Analysis.generate_test_cases/2`                                                                                                        |
+| Equivalence       | `Analysis.equivalent?/2`                                                                                                                |
+| Minimization      | `Analysis.minimize/1`                                                                                                                   |
+| Invariants        | `Analysis.violates_invariant?/2`                                                                                                        |
+| Validation        | `Analysis.validate/1`                                                                                                                   |
+| Transforms        | `FSM.complement/1`, `FSM.prune/1`, `FSM.to_simple_graph/2`                                                                              |
+| Render to DOT     | `FSM.to_dot/2`                                                                                                                          |
+| Render to Mermaid | `FSM.to_mermaid/2`                                                                                                                      |

@@ -187,33 +187,39 @@ Let's model an **order processing** workflow in Choreo, then generate the Finito
 ```elixir
 alias Choreo.FSM
 alias Choreo.FSM.Analysis
+import Choreo.Lab.DSL.FSM
 
 order_fsm =
-  FSM.new()
-  |> FSM.add_initial_state(:cart)
-  |> FSM.add_state(:checkout)
-  |> FSM.add_state(:payment_pending)
-  |> FSM.add_state(:payment_failed)
-  |> FSM.add_state(:processing)
-  |> FSM.add_state(:shipped)
-  |> FSM.add_final_state(:delivered)
-  |> FSM.add_final_state(:cancelled)
-  |> FSM.add_final_state(:refunded)
-  # Happy path
-  |> FSM.add_transition(:cart, :checkout, label: "begin_checkout")
-  |> FSM.add_transition(:checkout, :payment_pending, label: "submit_payment")
-  |> FSM.add_transition(:payment_pending, :processing, label: "payment_confirmed")
-  |> FSM.add_transition(:processing, :shipped, label: "ship")
-  |> FSM.add_transition(:shipped, :delivered, label: "deliver")
-  # Payment retry
-  |> FSM.add_transition(:payment_pending, :payment_failed, label: "payment_declined")
-  |> FSM.add_transition(:payment_failed, :payment_pending, label: "retry_payment")
-  # Cancellation
-  |> FSM.add_transition(:cart, :cancelled, label: "cancel")
-  |> FSM.add_transition(:checkout, :cancelled, label: "cancel")
-  |> FSM.add_transition(:payment_failed, :cancelled, label: "abandon")
-  # Refund
-  |> FSM.add_transition(:shipped, :refunded, label: "refund")
+  fsm do
+    cart = initial("Cart")
+    checkout = state("Checkout")
+    payment_pending = state("Payment Pending")
+    payment_failed = state("Payment Failed")
+    processing = state("Processing")
+    shipped = state("Shipped")
+    delivered = final("Delivered")
+    cancelled = final("Cancelled")
+    refunded = final("Refunded")
+
+    # Happy path
+    cart ~> checkout |> on("begin_checkout")
+    checkout ~> payment_pending |> on("submit_payment")
+    payment_pending ~> processing |> on("payment_confirmed")
+    processing ~> shipped |> on("ship")
+    shipped ~> delivered |> on("deliver")
+
+    # Payment retry
+    payment_pending ~> payment_failed |> on("payment_declined")
+    payment_failed ~> payment_pending |> on("retry_payment")
+
+    # Cancellation
+    cart ~> cancelled |> on("cancel")
+    checkout ~> cancelled |> on("cancel")
+    payment_failed ~> cancelled |> on("abandon")
+
+    # Refund
+    shipped ~> refunded |> on("refund")
+  end
 
 :ok
 ```
@@ -645,22 +651,25 @@ Choreo can minimize an FSM by merging equivalent states, producing a smaller mac
 
 ```elixir
 redundant =
-  FSM.new()
-  |> FSM.add_initial_state(:s0)
-  |> FSM.add_state(:s1)
-  |> FSM.add_state(:s2)
-  |> FSM.add_state(:s3)
-  |> FSM.add_state(:s4)
-  |> FSM.add_final_state(:s5)
-  |> FSM.add_final_state(:s6)
-  # s1 and s2 are equivalent (same outgoing transitions to equivalent targets)
-  |> FSM.add_transition(:s0, :s1, label: "a")
-  |> FSM.add_transition(:s0, :s2, label: "b")
-  |> FSM.add_transition(:s1, :s3, label: "x")
-  |> FSM.add_transition(:s2, :s4, label: "x")
-  # s3,s4 → equivalent final states
-  |> FSM.add_transition(:s3, :s5, label: "done")
-  |> FSM.add_transition(:s4, :s6, label: "done")
+  fsm do
+    s0 = initial(:s0)
+    s1 = state(:s1)
+    s2 = state(:s2)
+    s3 = state(:s3)
+    s4 = state(:s4)
+    s5 = final(:s5)
+    s6 = final(:s6)
+
+    # s1 and s2 are equivalent (same outgoing transitions to equivalent targets)
+    s0 ~> s1 |> on("a")
+    s0 ~> s2 |> on("b")
+    s1 ~> s3 |> on("x")
+    s2 ~> s4 |> on("x")
+
+    # s3,s4 → equivalent final states
+    s3 ~> s5 |> on("done")
+    s4 ~> s6 |> on("done")
+  end
 
 IO.puts("Before: #{length(FSM.states(redundant))} states, #{length(FSM.transitions(redundant))} transitions")
 ```
