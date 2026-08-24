@@ -27,6 +27,7 @@
 
 - Expanded the `Lab DSLs and Sketch Syntax` guide with shared grammar details, a diagram nouns/verbs reference table, canonical vocabulary guidance, per-DSL cheat sheets, examples, and rendering notes.
 - Updated FSM-focused Livebooks to demonstrate the incubating `Choreo.Lab.DSL.FSM` sketch syntax for hand-authored state machines while keeping pipe builders for dynamic adapter code.
+- Updated the MindMap walkthrough Livebook to demonstrate the incubating `Choreo.Lab.DSL.MindMap` sketch syntax for hand-authored maps.
 - Optimized compile-time statement processing in `Choreo.Lab.DSL.*` modules to use linear $O(N)$ prepending and reversing instead of $O(N^2)$ list append (`steps ++ statement_steps`).
 
 ### Fixed

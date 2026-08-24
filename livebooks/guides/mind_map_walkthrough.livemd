@@ -40,6 +40,7 @@ Mind maps are intentionally simple:
 alias Choreo.MindMap
 alias Choreo.MindMap.Analysis
 alias Choreo.View
+import Choreo.Lab.DSL.MindMap
 ```
 
 ```elixir
@@ -79,14 +80,16 @@ A mind map has four node types:
 
 ```elixir
 legend =
-  MindMap.new()
-  |> MindMap.set_root(:root, label: "Root")
-  |> MindMap.add_topic(:topic, label: "Topic")
-  |> MindMap.add_subtopic(:subtopic, label: "Subtopic")
-  |> MindMap.add_note(:note, label: "Note")
-  |> MindMap.branch(:root, :topic)
-  |> MindMap.branch(:topic, :subtopic)
-  |> MindMap.branch(:subtopic, :note)
+  mind_map do
+    root = root("Root")
+    topic = topic("Topic")
+    subtopic = subtopic("Subtopic")
+    note = note("Note")
+
+    root ~> topic
+    topic ~> subtopic
+    subtopic ~> note
+  end
 
 Kino.Layout.tabs(
   Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(legend, syntax: :flowchart, direction: :lr)),
@@ -106,31 +109,33 @@ This map is best viewed as a native Mermaid `mindmap`: it is a clean hierarchy a
 
 ```elixir
 talk =
-  MindMap.new()
-  |> MindMap.set_root(:talk, label: "Building\nResilient\nElixir\nSystems")
-  |> MindMap.add_topic(:supervision, label: "Supervision\nTrees")
-  |> MindMap.add_topic(:patterns, label: "Fault-Tolerance\nPatterns")
-  |> MindMap.add_topic(:observability, label: "Observability")
-  |> MindMap.add_subtopic(:one_for_one, label: "One-for-One")
-  |> MindMap.add_subtopic(:one_for_all, label: "One-for-All")
-  |> MindMap.add_subtopic(:circuit_breaker, label: "Circuit Breaker")
-  |> MindMap.add_subtopic(:bulkhead, label: "Bulkhead")
-  |> MindMap.add_subtopic(:telemetry, label: "Telemetry")
-  |> MindMap.add_subtopic(:tracing, label: "OpenTelemetry")
-  |> MindMap.add_note(:demo, label: "Live demo at 15 min")
-  |> MindMap.add_note(:story, label: "Tell outage story")
-  |> MindMap.branch(:talk, :supervision)
-  |> MindMap.branch(:talk, :patterns)
-  |> MindMap.branch(:talk, :observability)
-  |> MindMap.branch(:supervision, :one_for_one)
-  |> MindMap.branch(:supervision, :one_for_all)
-  |> MindMap.branch(:patterns, :circuit_breaker)
-  |> MindMap.branch(:patterns, :bulkhead)
-  |> MindMap.branch(:observability, :telemetry)
-  |> MindMap.branch(:observability, :tracing)
-  |> MindMap.branch(:circuit_breaker, :demo)
-  |> MindMap.branch(:bulkhead, :story)
-  |> MindMap.associate(:circuit_breaker, :telemetry, label: "improves")
+  mind_map do
+    talk = root("Building\nResilient\nElixir\nSystems")
+    supervision = topic("Supervision\nTrees")
+    patterns = topic("Fault-Tolerance\nPatterns")
+    observability = topic("Observability")
+    one_for_one = subtopic("One-for-One")
+    one_for_all = subtopic("One-for-All")
+    circuit_breaker = subtopic("Circuit Breaker")
+    bulkhead = subtopic("Bulkhead")
+    telemetry = subtopic("Telemetry")
+    tracing = subtopic("OpenTelemetry")
+    demo = note("Live demo at 15 min")
+    story = note("Tell outage story")
+
+    talk ~> supervision
+    talk ~> patterns
+    talk ~> observability
+    supervision ~> one_for_one
+    supervision ~> one_for_all
+    patterns ~> circuit_breaker
+    patterns ~> bulkhead
+    observability ~> telemetry
+    observability ~> tracing
+    circuit_breaker ~> demo
+    bulkhead ~> story
+    circuit_breaker ~> telemetry |> associate("improves")
+  end
 
 Kino.Layout.tabs(
   Mindmap: Choreo.Lab.Siren.new(MindMap.to_mermaid(talk, syntax: :mindmap)),
@@ -166,28 +171,30 @@ A knowledge map often needs both hierarchy and cross-links. Here, CAP theorem, r
 
 ```elixir
 domain =
-  MindMap.new()
-  |> MindMap.set_root(:dist_sys, label: "Distributed\nSystems")
-  |> MindMap.add_topic(:consistency, label: "Consistency")
-  |> MindMap.add_topic(:availability, label: "Availability")
-  |> MindMap.add_topic(:partitioning, label: "Partitioning")
-  |> MindMap.add_subtopic(:cap, label: "CAP Theorem")
-  |> MindMap.add_subtopic(:paxos, label: "Paxos")
-  |> MindMap.add_subtopic(:raft, label: "Raft")
-  |> MindMap.add_subtopic(:sharding, label: "Sharding")
-  |> MindMap.add_subtopic(:replication, label: "Replication")
-  |> MindMap.add_note(:brewer, label: "Eric Brewer, 2000")
-  |> MindMap.branch(:dist_sys, :consistency)
-  |> MindMap.branch(:dist_sys, :availability)
-  |> MindMap.branch(:dist_sys, :partitioning)
-  |> MindMap.branch(:consistency, :cap)
-  |> MindMap.branch(:consistency, :paxos)
-  |> MindMap.branch(:consistency, :raft)
-  |> MindMap.branch(:partitioning, :sharding)
-  |> MindMap.branch(:partitioning, :replication)
-  |> MindMap.branch(:cap, :brewer)
-  |> MindMap.associate(:cap, :sharding, label: "influences")
-  |> MindMap.associate(:raft, :replication, label: "uses")
+  mind_map do
+    dist_sys = root("Distributed\nSystems")
+    consistency = topic("Consistency")
+    availability = topic("Availability")
+    partitioning = topic("Partitioning")
+    cap = subtopic("CAP Theorem")
+    paxos = subtopic("Paxos")
+    raft = subtopic("Raft")
+    sharding = subtopic("Sharding")
+    replication = subtopic("Replication")
+    brewer = note("Eric Brewer, 2000")
+
+    dist_sys ~> consistency
+    dist_sys ~> availability
+    dist_sys ~> partitioning
+    consistency ~> cap
+    consistency ~> paxos
+    consistency ~> raft
+    partitioning ~> sharding
+    partitioning ~> replication
+    cap ~> brewer
+    cap ~> sharding |> associate("influences")
+    raft ~> replication |> associate("uses")
+  end
 
 Kino.Layout.tabs(
   "Flowchart — full fidelity": Choreo.Lab.Siren.new(MindMap.to_mermaid(domain, syntax: :flowchart)),
@@ -214,39 +221,41 @@ This makes `MindMap` useful for incident reviews:
 
 ```elixir
 incident =
-  MindMap.new()
-  |> MindMap.set_root(:checkout_latency, label: "Checkout Latency")
-  |> MindMap.add_topic(:people, label: "People")
-  |> MindMap.add_topic(:process, label: "Process")
-  |> MindMap.add_topic(:platform, label: "Platform")
-  |> MindMap.add_topic(:data, label: "Data")
-  |> MindMap.add_topic(:environment, label: "Environment")
-  |> MindMap.add_subtopic(:missing_runbook, label: "Missing Runbook")
-  |> MindMap.add_subtopic(:unclear_ownership, label: "Unclear Ownership")
-  |> MindMap.add_subtopic(:manual_release, label: "Manual Release")
-  |> MindMap.add_subtopic(:no_canary, label: "No Canary")
-  |> MindMap.add_subtopic(:slow_queries, label: "Slow Queries")
-  |> MindMap.add_subtopic(:missing_index, label: "Missing Index")
-  |> MindMap.add_subtopic(:cold_cache, label: "Cold Cache")
-  |> MindMap.add_subtopic(:regional_spike, label: "Regional Traffic Spike")
-  |> MindMap.add_note(:action_runbook, label: "Action: write checkout runbook")
-  |> MindMap.add_note(:action_index, label: "Action: add order_items index")
-  |> MindMap.branch(:checkout_latency, :people)
-  |> MindMap.branch(:checkout_latency, :process)
-  |> MindMap.branch(:checkout_latency, :platform)
-  |> MindMap.branch(:checkout_latency, :data)
-  |> MindMap.branch(:checkout_latency, :environment)
-  |> MindMap.branch(:people, :unclear_ownership)
-  |> MindMap.branch(:people, :missing_runbook)
-  |> MindMap.branch(:process, :manual_release)
-  |> MindMap.branch(:process, :no_canary)
-  |> MindMap.branch(:platform, :cold_cache)
-  |> MindMap.branch(:data, :slow_queries)
-  |> MindMap.branch(:slow_queries, :missing_index)
-  |> MindMap.branch(:environment, :regional_spike)
-  |> MindMap.branch(:missing_runbook, :action_runbook)
-  |> MindMap.branch(:missing_index, :action_index)
-  |> MindMap.associate(:manual_release, :cold_cache, label: "amplified")
+  mind_map do
+    checkout_latency = root("Checkout Latency")
+    people = topic("People")
+    process = topic("Process")
+    platform = topic("Platform")
+    data = topic("Data")
+    environment = topic("Environment")
+    missing_runbook = subtopic("Missing Runbook")
+    unclear_ownership = subtopic("Unclear Ownership")
+    manual_release = subtopic("Manual Release")
+    no_canary = subtopic("No Canary")
+    slow_queries = subtopic("Slow Queries")
+    missing_index = subtopic("Missing Index")
+    cold_cache = subtopic("Cold Cache")
+    regional_spike = subtopic("Regional Traffic Spike")
+    action_runbook = note("Action: write checkout runbook")
+    action_index = note("Action: add order_items index")
+
+    checkout_latency ~> people
+    checkout_latency ~> process
+    checkout_latency ~> platform
+    checkout_latency ~> data
+    checkout_latency ~> environment
+    people ~> unclear_ownership
+    people ~> missing_runbook
+    process ~> manual_release
+    process ~> no_canary
+    platform ~> cold_cache
+    data ~> slow_queries
+    slow_queries ~> missing_index
+    environment ~> regional_spike
+    missing_runbook ~> action_runbook
+    missing_index ~> action_index
+    manual_release ~> cold_cache |> associate("amplified")
+  end
 
 ishikawa = MindMap.to_mermaid(incident, syntax: :ishikawa)
 
@@ -276,38 +285,40 @@ Product planning benefits from the full-fidelity flowchart renderer because cros
 
 ```elixir
 roadmap =
-  MindMap.new()
-  |> MindMap.set_root(:product, label: "SaaS Platform v2")
-  |> MindMap.add_topic(:auth, label: "Auth & Security")
-  |> MindMap.add_topic(:billing, label: "Billing")
-  |> MindMap.add_topic(:performance, label: "Performance")
-  |> MindMap.add_topic(:integrations, label: "Integrations")
-  |> MindMap.add_subtopic(:sso, label: "SSO (SAML)")
-  |> MindMap.add_subtopic(:mfa, label: "MFA")
-  |> MindMap.add_subtopic(:stripe, label: "Stripe Checkout")
-  |> MindMap.add_subtopic(:usage, label: "Usage-Based Pricing")
-  |> MindMap.add_subtopic(:caching, label: "Redis Caching")
-  |> MindMap.add_subtopic(:cdn, label: "CDN")
-  |> MindMap.add_subtopic(:webhooks, label: "Webhooks")
-  |> MindMap.add_subtopic(:api, label: "REST API v2")
-  |> MindMap.add_note(:gdpr, label: "GDPR review required")
-  |> MindMap.add_note(:load_test, label: "Load test before release")
-  |> MindMap.branch(:product, :auth)
-  |> MindMap.branch(:product, :billing)
-  |> MindMap.branch(:product, :performance)
-  |> MindMap.branch(:product, :integrations)
-  |> MindMap.branch(:auth, :sso)
-  |> MindMap.branch(:auth, :mfa)
-  |> MindMap.branch(:auth, :gdpr)
-  |> MindMap.branch(:billing, :stripe)
-  |> MindMap.branch(:billing, :usage)
-  |> MindMap.branch(:performance, :caching)
-  |> MindMap.branch(:performance, :cdn)
-  |> MindMap.branch(:performance, :load_test)
-  |> MindMap.branch(:integrations, :webhooks)
-  |> MindMap.branch(:integrations, :api)
-  |> MindMap.associate(:webhooks, :caching, label: "affects")
-  |> MindMap.associate(:stripe, :gdpr, label: "data review")
+  mind_map do
+    product = root("SaaS Platform v2")
+    auth = topic("Auth & Security")
+    billing = topic("Billing")
+    performance = topic("Performance")
+    integrations = topic("Integrations")
+    sso = subtopic("SSO (SAML)")
+    mfa = subtopic("MFA")
+    stripe = subtopic("Stripe Checkout")
+    usage = subtopic("Usage-Based Pricing")
+    caching = subtopic("Redis Caching")
+    cdn = subtopic("CDN")
+    webhooks = subtopic("Webhooks")
+    api = subtopic("REST API v2")
+    gdpr = note("GDPR review required")
+    load_test = note("Load test before release")
+
+    product ~> auth
+    product ~> billing
+    product ~> performance
+    product ~> integrations
+    auth ~> sso
+    auth ~> mfa
+    auth ~> gdpr
+    billing ~> stripe
+    billing ~> usage
+    performance ~> caching
+    performance ~> cdn
+    performance ~> load_test
+    integrations ~> webhooks
+    integrations ~> api
+    webhooks ~> caching |> associate("affects")
+    stripe ~> gdpr |> associate("data review")
+  end
 
 Kino.Layout.tabs(
   Flowchart: Choreo.Lab.Siren.new(MindMap.to_mermaid(roadmap, syntax: :flowchart, theme: :ocean)),
@@ -332,14 +343,16 @@ The builder lets you iterate quickly, then `Analysis.validate/1` catches structu
 
 ```elixir
 broken =
-  MindMap.new()
-  |> MindMap.set_root(:a, label: "A")
-  |> MindMap.add_topic(:b, label: "B")
-  |> MindMap.add_topic(:c, label: "Orphan C")
-  |> MindMap.add_topic(:d, label: "D")
-  |> MindMap.branch(:a, :b)
-  |> MindMap.branch(:b, :d)
-  |> MindMap.branch(:a, :d)
+  mind_map do
+    a = root("A")
+    b = topic("B")
+    c = topic("Orphan C")
+    d = topic("D")
+
+    a ~> b
+    b ~> d
+    a ~> d
+  end
 
 Analysis.validate(broken)
 |> Enum.map(fn {severity, message} -> "* `#{severity}` — #{message}" end)
@@ -358,11 +371,13 @@ Native `:mindmap` and `:ishikawa` renderers reject cycles because Mermaid hierar
 
 ```elixir
 cyclic =
-  MindMap.new()
-  |> MindMap.set_root(:a)
-  |> MindMap.add_topic(:b)
-  |> MindMap.branch(:a, :b)
-  |> MindMap.branch(:b, :a)
+  mind_map do
+    a = root(:a)
+    b = topic(:b)
+
+    a ~> b
+    b ~> a
+  end
 
 try do
   MindMap.to_mermaid(cyclic, syntax: :ishikawa)
