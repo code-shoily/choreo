@@ -95,7 +95,7 @@ defmodule Choreo.FSM.Render.Mermaid do
         m_id = mermaid_id(id)
 
         if label != m_id or to_string(id) != m_id do
-          "  state \"#{label}\" as #{m_id}"
+          "  state \"#{escape_state_label(label)}\" as #{m_id}"
         else
           nil
         end
@@ -125,7 +125,7 @@ defmodule Choreo.FSM.Render.Mermaid do
         m_to = mermaid_id(to)
 
         if label != "" do
-          "  #{m_from} --> #{m_to} : #{label}"
+          "  #{m_from} --> #{m_to} : #{escape_transition_label(label)}"
         else
           "  #{m_from} --> #{m_to}"
         end
@@ -144,6 +144,21 @@ defmodule Choreo.FSM.Render.Mermaid do
 
     "stateDiagram-v2\n" <>
       state_defs_part <> platform_part(initial_part, transitions_part, final_part)
+  end
+
+  defp escape_state_label(label) do
+    label
+    |> to_string()
+    |> String.replace("\\", "\\\\")
+    |> String.replace("\"", "\\\"")
+    |> String.replace(~r/[\r\n]+/, " ")
+  end
+
+  defp escape_transition_label(label) do
+    label
+    |> to_string()
+    |> String.replace(~r/[\r\n]+/, " ")
+    |> String.replace("|", "\\|")
   end
 
   defp mermaid_id(id) do

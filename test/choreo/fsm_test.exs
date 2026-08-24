@@ -604,6 +604,19 @@ defmodule Choreo.FSMTest do
       assert String.contains?(mermaid, "my_state --> another_state_ : go")
       assert String.contains?(mermaid, "another_state_ --> [*]")
     end
+
+    test "to_mermaid/1 with syntax: :state_diagram escapes labels" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:quoted, label: ~s(He said "go"))
+        |> FSM.add_final_state(:done, label: "Done\nSafely")
+        |> FSM.add_transition(:quoted, :done, label: "accept|reject\nnext")
+
+      mermaid = FSM.to_mermaid(fsm, syntax: :state_diagram)
+      assert String.contains?(mermaid, ~s(state "He said \\"go\\"" as quoted))
+      assert String.contains?(mermaid, ~s(state "Done Safely" as done))
+      assert String.contains?(mermaid, ~s(quoted --> done : accept\\|reject next))
+    end
   end
 
   describe "to_simple_graph/2" do

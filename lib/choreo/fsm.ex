@@ -400,6 +400,10 @@ defmodule Choreo.FSM do
   Multiple transitions are allowed per `(from, to)` pair (parallel edges),
   as long as they have unique labels from the source state.
 
+  Guards are rendered as part of the transition label and therefore participate
+  in analysis as transition symbols. Choreo stores guard text for rendering and
+  inspection; it does not evaluate guard expressions.
+
   ## Options
 
   #{NimbleOptions.docs(@add_transition_schema)}
@@ -572,6 +576,10 @@ defmodule Choreo.FSM do
   was not previously final, it becomes both initial and final in the
   complement FSM (which is mathematically correct to accept the empty string).
 
+  This operation assumes a complete DFA for strict language-complement semantics.
+  If the FSM is incomplete, missing transitions still reject during simulation;
+  `complement/1` does not add an implicit sink state.
+
   ## Examples
 
       iex> fsm =
@@ -705,10 +713,14 @@ defmodule Choreo.FSM do
   end
 
   @doc """
-  Renders the FSM to Mermaid.js flowchart syntax.
+  Renders the FSM to Mermaid.js syntax.
+
+  The default output is flowchart syntax. Pass `syntax: :state_diagram` to render
+  native Mermaid `stateDiagram-v2` syntax.
 
   ## Options
 
+    * `:syntax` — `:flowchart` (default) or `:state_diagram`
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt`
 

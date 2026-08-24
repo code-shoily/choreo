@@ -29,7 +29,7 @@ defmodule Choreo.FSM.Analysis do
   alias Choreo.FSM
 
   @doc """
-    Returns all states reachable from any initial state.
+    Returns all states reachable from the initial state.
 
     ## Examples
 
