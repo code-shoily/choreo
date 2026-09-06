@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-06
+
 ### Added
 
 - **Universal Lab DSL Hardening**:

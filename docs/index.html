@@ -236,7 +236,7 @@
 
             /* Blueprint title block — top-right corner annotation */
             .hero::after {
-                content: "CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.12.0  ·  ELIXIR / BEAM";
+                content: "CHOREO — SYSTEM MODELING LIBRARY\A REV. 0.13.0  ·  ELIXIR / BEAM";
                 white-space: pre;
                 position: absolute;
                 top: 1.5rem;
@@ -1184,7 +1184,7 @@
         <section class="hero">
             <div class="container">
                 <div class="hero-badge">
-                    Now v0.12 — Lab DSLs, Compose/View &amp; Livebook-first modeling
+                    Now v0.13 — Lab DSLs, Compose/View &amp; Livebook-first modeling
                 </div>
                 <h1 class="hero-title">
                     Model Systems as Graphs.<br />Render Them as <span>Diagrams</span>.
@@ -1202,7 +1202,7 @@
                         title="Click to copy mix dependency snippet"
                     >
                         <span class="pill-prefix">mix.exs</span>
-                        <code>{:choreo, "~&gt; 0.12"}</code>
+                        <code>{:choreo, "~&gt; 0.13"}</code>
                         <span class="pill-action">
                             <svg
                                 width="13"
@@ -1874,7 +1874,7 @@ map =
                             ><code class="language-elixir">alias Choreo.Planner
 
 project =
-  Planner.new("Launch v0.12")
+  Planner.new("Launch v0.13")
   |> Planner.add_milestone(:design_complete, title: "Design Complete")
   |> Planner.add_milestone(:beta_release, title: "Beta Release")
   |> Planner.add_task(:wireframes, title: "Wireframes",   status: :done,        estimate_hours: 12)
@@ -2184,7 +2184,7 @@ Requirement.Analysis.coverage(reqs)</code></pre>
         <section id="labs" class="section">
             <div class="container">
                 <div class="section-header">
-                    <span class="section-label">Choreo.Lab in v0.12</span>
+                    <span class="section-label">Choreo.Lab in v0.13</span>
                                         <h2 class="section-title">
                                             Sketch syntax, composition, and Livebook views
                                         </h2>
@@ -3411,7 +3411,7 @@ MindMap.to_dot(overview)</code></pre>
                     >
 def deps do
   [
-    {:choreo, "~> 0.12"}
+    {:choreo, "~> 0.13"}
   ]
 end</pre>
                     <button class="btn-copy" onclick="copyInstall()">
@@ -3623,7 +3623,7 @@ elixir((Elixir))
     livebook[Livebook]`,
 
                 planner: `gantt
-  title Launch v0.12 — Project Timeline
+  title Launch v0.13 — Project Timeline
   dateFormat  YYYY-MM-DD
   axisFormat  %b %d
 
@@ -3862,7 +3862,7 @@ elixir((Elixir))
             }
 
             function copyHeroSnippet(pill) {
-                const text = '{:choreo, "~> 0.12"}';
+                const text = '{:choreo, "~> 0.13"}';
                 navigator.clipboard.writeText(text).then(() => {
                     const actionText = pill.querySelector(".pill-action-text");
                     if (actionText) {
@@ -4103,7 +4103,7 @@ map =
 
 project =
   PlannerDSL.planner do
-    launch = milestone("Launch v0.12")
+    launch = milestone("Launch v0.13")
     wireframes = task("Wireframes")
     ui = task("UI Design")
     api = task("API Implementation")
