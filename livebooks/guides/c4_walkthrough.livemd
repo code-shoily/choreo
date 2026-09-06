@@ -448,47 +448,48 @@ IO.puts(C4.to_mermaid(container_view))
 
 ### Lab DSL Syntax
 
-| Syntax | Description |
-| ------------------------------------------------- | --------------------------------------------------- |
-| `c4 do ... end` | Define a C4 architecture model |
-| `customer = person("Customer")` | Declare an end-user / actor |
+| Syntax                                             | Description                                  |
+| -------------------------------------------------- | -------------------------------------------- |
+| `c4 do ... end`                                    | Define a C4 architecture model               |
+| `customer = person("Customer")`                    | Declare an end-user / actor                  |
 | `banking = system("Internet Banking", scope: :in)` | Declare in-scope or external software system |
-| `api = container("API", parent: banking)` | Declare a container inside a software system |
-| `db = database("DB", parent: banking)` | Declare a database container |
-| `auth = component("Auth Service", parent: api)` | Declare a component inside a container |
-| `scope banking` or `in_scope banking` | Set the active scoped boundary for diagrams |
-| `boundary "Platform" do ... end` | Define an explicit boundary cluster |
-| `a ~> b \|> uses("Calls API", technology: "HTTPS")` | Piped relationship with label and technology |
-| `a ~> b \|> calls("Requests token")` | Piped calling relationship |
-| `a ~> b \|> reads("Queries data", technology: "SQL")` | Piped read relationship |
-| `a ~> b \|> writes("Saves record")` | Piped write relationship |
-| `a ~> b \|> sends("Emits event", technology: "Kafka")` | Piped event emission relationship |
-| `a ~> b \|> on("label")` | Piped relationship label modifier |
-| `a ~> b \|> technology("gRPC")` | Piped technology modifier |
-| `edge a ~> b, "label", technology: "HTTPS"` | Explicit edge declaration with options |
-| `system("App") do ... end` | Nested hierarchy block automatically setting parent |
+| `api = container("API", parent: banking)`          | Declare a container inside a software system |
+| `db = database("DB", parent: banking)`             | Declare a database container                 |
+| `auth = component("Auth Service", parent: api)`    | Declare a component inside a container       |
+| `scope banking` or `in_scope banking`              | Set the active scoped boundary for diagrams  |
+| `boundary "Platform" do ... end`                   | Define an explicit boundary cluster          |
+
+| `a ~> b |> uses("Calls API", technology: "HTTPS")`    | Piped relationship with label and technology        |
+| `a ~> b \|> calls("Requests token")`                   | Piped calling relationship                          |
+| `a ~> b \|> reads("Queries data", technology: "SQL")`  | Piped read relationship                             |
+| `a ~> b \|> writes("Saves record")`                    | Piped write relationship                            |
+| `a ~> b \|> sends("Emits event", technology: "Kafka")` | Piped event emission relationship                   |
+| `a ~> b \|> on("label")`                               | Piped relationship label modifier                   |
+| `a ~> b \|> technology("gRPC")`                        | Piped technology modifier                           |
+| `edge a ~> b, "label", technology: "HTTPS"`           | Explicit edge declaration with options              |
+| `system("App") do ... end`                            | Nested hierarchy block automatically setting parent |
 
 ### Programmatic Pipe API & Analysis
 
-| Task / Feature | Command |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| Create C4 Model | `C4.new/1` |
-| Add Person | `C4.add_person/3` (Opts: `:label`, `:description`) |
-| Add Software System | `C4.add_software_system/3` (Opts: `:label`, `:description`, `:scope`) |
-| Add Container | `C4.add_container/3` (Opts: `:label`, `:technology`, `:description`, `:parent`) |
-| Add Component | `C4.add_component/3` (Opts: `:label`, `:technology`, `:description`, `:parent`) |
-| Add Relationship | `C4.add_relationship/4` (Opts: `:label`, `:technology`) |
-| Set Active Scope | `C4.set_scope/2` |
-| Get Active Scope | `C4.scope/1` |
-| Query Model | `C4.nodes/1`, `C4.edges/1`, `C4.edges_with_meta/1` |
-| L1 System Context View | `Choreo.View.zoom(model, level: 0)` |
-| L2 Container View | `Choreo.View.zoom(model, level: 1)` |
-| L3 Component View | `Choreo.View.zoom(model, level: 2)` |
-| Focus Neighborhood View | `Choreo.View.focus(model, node_id, radius: N)` |
-| Focus Between (Path View) | `Choreo.View.focus_between(model, from_id, to_id)` |
-| Render Mermaid | `C4.to_mermaid/2` (Opts: `:theme`, `:direction`) |
-| Render DOT Graphviz | `C4.to_dot/2` (Opts: `:theme`, `:rankdir`) |
-| Validate Model Integrity | `Analysis.validate/1` (Checks orphan nodes, missing parents/tech/descriptions) |
-| Missing Technology | `Analysis.missing_technology/1` |
-| Missing Descriptions | `Analysis.missing_descriptions/1` |
-| Parents Without Relationships | `Analysis.parents_without_relationships/1` |
+| Task / Feature                | Command                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| Create C4 Model               | `C4.new/1`                                                                      |
+| Add Person                    | `C4.add_person/3` (Opts: `:label`, `:description`)                              |
+| Add Software System           | `C4.add_software_system/3` (Opts: `:label`, `:description`, `:scope`)           |
+| Add Container                 | `C4.add_container/3` (Opts: `:label`, `:technology`, `:description`, `:parent`) |
+| Add Component                 | `C4.add_component/3` (Opts: `:label`, `:technology`, `:description`, `:parent`) |
+| Add Relationship              | `C4.add_relationship/4` (Opts: `:label`, `:technology`)                         |
+| Set Active Scope              | `C4.set_scope/2`                                                                |
+| Get Active Scope              | `C4.scope/1`                                                                    |
+| Query Model                   | `C4.nodes/1`, `C4.edges/1`, `C4.edges_with_meta/1`                              |
+| L1 System Context View        | `Choreo.View.zoom(model, level: 0)`                                             |
+| L2 Container View             | `Choreo.View.zoom(model, level: 1)`                                             |
+| L3 Component View             | `Choreo.View.zoom(model, level: 2)`                                             |
+| Focus Neighborhood View       | `Choreo.View.focus(model, node_id, radius: N)`                                  |
+| Focus Between (Path View)     | `Choreo.View.focus_between(model, from_id, to_id)`                              |
+| Render Mermaid                | `C4.to_mermaid/2` (Opts: `:theme`, `:direction`)                                |
+| Render DOT Graphviz           | `C4.to_dot/2` (Opts: `:theme`, `:rankdir`)                                      |
+| Validate Model Integrity      | `Analysis.validate/1` (Checks orphan nodes, missing parents/tech/descriptions)  |
+| Missing Technology            | `Analysis.missing_technology/1`                                                 |
+| Missing Descriptions          | `Analysis.missing_descriptions/1`                                               |
+| Parents Without Relationships | `Analysis.parents_without_relationships/1`                                      |

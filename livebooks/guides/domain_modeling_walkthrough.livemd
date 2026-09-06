@@ -610,52 +610,52 @@ Kino.Layout.tabs(
 
 ### Lab DSL Syntax
 
-| Syntax | Description |
-| ------------------------------------------------- | ---------------------------------------------------- |
-| `domain do ... end` | Define a domain model |
-| `customer = actor("Customer")` | External actor initiating domain activity |
-| `place_order = command("Place Order")` | Command requesting state change |
-| `order = aggregate("Order", invariants: [...])` | Consistency boundary protecting invariants |
-| `placed = event("Order Placed")` | Business event emitted by aggregate/system |
-| `saga = policy("Payment Policy")` | Reactive policy / event handler |
-| `view = read_model("Order Status View")` | Read projection / query model |
-| `validate = workflow("Validate Order", ...)` | Functional workflow transformation |
-| `type "Order Info", fields: [...]` | Explicit domain type / value object schema |
-| `system = external_system("Payment Gateway")` | External third-party system |
-| `portal = ui("Web Portal")` | User interface component |
-| `gateway = acl("Legacy CRM ACL")` | Anti-corruption layer boundary |
-| `context_boundary "Checkout" do ... end` | Cluster boundary scoping enclosed nodes |
-| `customer ~> place_order \|> initiates()` | Semantic edge: trigger initiates command |
-| `place_order ~> order_agg \|> handles()` | Semantic edge: aggregate handles command |
-| `order_agg ~> order_placed \|> emits()` | Semantic edge: aggregate emits event |
-| `order_placed ~> payment_saga \|> triggers()` | Semantic edge: event triggers policy |
-| `order_placed ~> order_status \|> projects_to()` | Semantic edge: event projects to read model |
-| `goods_shipped ~> customer \|> notifies()` | Semantic edge: event notifies actor |
-| `cart ~> acl_node \|> translates_via()` | Semantic edge: translates through ACL |
-| `a ~> b \|> on("label")` | Piped edge label modifier |
-| `edge a ~> b, "label", opts` | Piped or explicit edge with options |
-| `scenario :happy_path, path: [...]` | Named scenario path for focus & timeline projection |
-| `theme :dark` | Visual theme preset |
+| Syntax                                          | Description                                         |
+| ----------------------------------------------- | --------------------------------------------------- |
+| `domain do ... end`                             | Define a domain model                               |
+| `customer = actor("Customer")`                  | External actor initiating domain activity           |
+| `place_order = command("Place Order")`          | Command requesting state change                     |
+| `order = aggregate("Order", invariants: [...])` | Consistency boundary protecting invariants          |
+| `placed = event("Order Placed")`                | Business event emitted by aggregate/system          |
+| `saga = policy("Payment Policy")`               | Reactive policy / event handler                     |
+| `view = read_model("Order Status View")`        | Read projection / query model                       |
+| `validate = workflow("Validate Order", ...)`    | Functional workflow transformation                  |
+| `type "Order Info", fields: [...]`              | Explicit domain type / value object schema          |
+| `system = external_system("Payment Gateway")`   | External third-party system                         |
+| `portal = ui("Web Portal")`                     | User interface component                            |
+| `gateway = acl("Legacy CRM ACL")`               | Anti-corruption layer boundary                      |
+| `context_boundary "Checkout" do ... end`        | Cluster boundary scoping enclosed nodes             |
+| `customer ~> place_order |> initiates()`        | Semantic edge: trigger initiates command            |
+| `place_order ~> order_agg |> handles()`         | Semantic edge: aggregate handles command            |
+| `order_agg ~> order_placed |> emits()`          | Semantic edge: aggregate emits event                |
+| `order_placed ~> payment_saga |> triggers()`    | Semantic edge: event triggers policy                |
+| `order_placed ~> order_status |> projects_to()` | Semantic edge: event projects to read model         |
+| `goods_shipped ~> customer |> notifies()`       | Semantic edge: event notifies actor                 |
+| `cart ~> acl_node |> translates_via()`          | Semantic edge: translates through ACL               |
+| `a ~> b |> on("label")`                         | Piped edge label modifier                           |
+| `edge a ~> b, "label", opts`                    | Piped or explicit edge with options                 |
+| `scenario :happy_path, path: [...]`             | Named scenario path for focus & timeline projection |
+| `theme :dark`                                   | Visual theme preset                                 |
 
 ### Programmatic Pipe API & Analysis
 
-| Task / Feature | Command |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| Create Domain Model | `Domain.new/1` |
-| Add Bounded Context | `Domain.add_context/3` (Opts: `:label`, `:subdomain`, `:owner`, `:description`) |
-| Connect Contexts | `Domain.connect_contexts/4` (Opts: `:relationship`, `:label`) |
-| Add Context Boundary | `Domain.add_context_boundary/3` (Opts: `:label`, `:parent`, `:style`) |
-| Add Domain Nodes | `Domain.add_actor/3`, `add_command/3`, `add_aggregate/3`, `add_event/3`, `add_policy/3`, `add_read_model/3`, `add_workflow/3`, `add_type/3`, `add_external_system/3`, `add_ui/3`, `add_acl/3` |
-| Add Scenario | `Domain.add_scenario/3` (Opts: `:label`, `:description`, `:path`) |
-| Connect Nodes | `Domain.connect/4` (Opts: `:label`, `:relationship`, `:type`, `:cost`) |
-| Semantic Connectors | `Domain.initiates/4`, `Domain.handles/4`, `Domain.emits/4`, `Domain.triggers/4`, `Domain.projects_to/4`, `Domain.notifies/4`, `Domain.translates_via/4` |
-| Query Model | `Domain.nodes/1`, `Domain.edges/1`, `Domain.scenarios/1` |
-| Scenario Focus | `Domain.focus_scenario/2` (Produces subgraph for selected scenario) |
-| Upstream Causes | `Domain.causes/2` (Traces upstream causes for a node) |
-| Downstream Effects | `Domain.downstream/2` (Traces downstream effects from a node) |
-| Render Mermaid Flowchart | `Domain.to_mermaid/2` (Default syntax: `:flowchart`) |
-| Render Class Diagram / ERD | `Domain.to_mermaid/2` (`syntax: :class_diagram`, `syntax: :erd`) |
-| Render Event Modeling Timeline | `Domain.to_mermaid/2` (`syntax: :event_modeling`, `scenario: name`) |
-| Render DOT Graphviz | `Domain.to_dot/2` (Opts: `:theme`, `:rankdir`) |
-| Ubiquitous Language | `Analysis.ubiquitous_language/1` (Generates Markdown glossary table) |
-| Semantic Validation | `Analysis.validate/1` (Runs 11 DDD / Event Storming integrity rules) |
+| Task / Feature                 | Command                                                                                                                                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create Domain Model            | `Domain.new/1`                                                                                                                                                                                |
+| Add Bounded Context            | `Domain.add_context/3` (Opts: `:label`, `:subdomain`, `:owner`, `:description`)                                                                                                               |
+| Connect Contexts               | `Domain.connect_contexts/4` (Opts: `:relationship`, `:label`)                                                                                                                                 |
+| Add Context Boundary           | `Domain.add_context_boundary/3` (Opts: `:label`, `:parent`, `:style`)                                                                                                                         |
+| Add Domain Nodes               | `Domain.add_actor/3`, `add_command/3`, `add_aggregate/3`, `add_event/3`, `add_policy/3`, `add_read_model/3`, `add_workflow/3`, `add_type/3`, `add_external_system/3`, `add_ui/3`, `add_acl/3` |
+| Add Scenario                   | `Domain.add_scenario/3` (Opts: `:label`, `:description`, `:path`)                                                                                                                             |
+| Connect Nodes                  | `Domain.connect/4` (Opts: `:label`, `:relationship`, `:type`, `:cost`)                                                                                                                        |
+| Semantic Connectors            | `Domain.initiates/4`, `Domain.handles/4`, `Domain.emits/4`, `Domain.triggers/4`, `Domain.projects_to/4`, `Domain.notifies/4`, `Domain.translates_via/4`                                       |
+| Query Model                    | `Domain.nodes/1`, `Domain.edges/1`, `Domain.scenarios/1`                                                                                                                                      |
+| Scenario Focus                 | `Domain.focus_scenario/2` (Produces subgraph for selected scenario)                                                                                                                           |
+| Upstream Causes                | `Domain.causes/2` (Traces upstream causes for a node)                                                                                                                                         |
+| Downstream Effects             | `Domain.downstream/2` (Traces downstream effects from a node)                                                                                                                                 |
+| Render Mermaid Flowchart       | `Domain.to_mermaid/2` (Default syntax: `:flowchart`)                                                                                                                                          |
+| Render Class Diagram / ERD     | `Domain.to_mermaid/2` (`syntax: :class_diagram`, `syntax: :erd`)                                                                                                                              |
+| Render Event Modeling Timeline | `Domain.to_mermaid/2` (`syntax: :event_modeling`, `scenario: name`)                                                                                                                           |
+| Render DOT Graphviz            | `Domain.to_dot/2` (Opts: `:theme`, `:rankdir`)                                                                                                                                                |
+| Ubiquitous Language            | `Analysis.ubiquitous_language/1` (Generates Markdown glossary table)                                                                                                                          |
+| Semantic Validation            | `Analysis.validate/1` (Runs 11 DDD / Event Storming integrity rules)                                                                                                                          |
