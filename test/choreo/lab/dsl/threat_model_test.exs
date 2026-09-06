@@ -119,6 +119,118 @@ defmodule Choreo.Lab.ThreatModelDSLTest do
            end)
   end
 
+  test "supports edge/3 with label and options" do
+    model =
+      threat_model do
+        api = service("API")
+        db = database("DB")
+
+        edge(api ~> db, "queries", encrypted: true, protocol: :sql)
+      end
+
+    assert [{:api, :db, "queries", meta}] = ThreatModel.edges_with_meta(model)
+    assert meta.label == "queries"
+    assert meta.encrypted == true
+    assert meta.protocol == :sql
+  end
+
+  test "supports standalone node and boundary declarations updating env" do
+    model =
+      threat_model do
+        boundary("internet", level: 0)
+        boundary("app", level: 2)
+
+        user("User", boundary: "internet")
+        process("API", boundary: "app")
+
+        user ~> api |> encrypted("HTTPS request", protocol: :https)
+      end
+
+    assert ThreatModel.boundary_of(model, :user) == "internet"
+    assert ThreatModel.boundary_of(model, :api) == "app"
+    assert [{:user, :api, "HTTPS request", meta}] = ThreatModel.edges_with_meta(model)
+    assert meta.encrypted == true
+    assert meta.protocol == :https
+  end
+
+  test "supports scoped boundary blocks with automatic boundary inheritance" do
+    model =
+      threat_model do
+        boundary "Internet", level: 0 do
+          browser = user("Browser")
+        end
+
+        trust_boundary "app_zone", label: "App Zone", level: 2 do
+          api = service("API Gateway", privilege: :user)
+          worker = worker("Worker")
+        end
+
+        zone "data_zone", label: "Data Zone", level: 3 do
+          db = db("Postgres", sensitivity: :confidential)
+        end
+
+        browser ~> api |> encrypted("HTTPS", protocol: :https)
+        api ~> worker |> on("Dispatches job", protocol: :grpc, encrypted: true)
+        worker ~> db |> edge("Writes record", protocol: :sql, encrypted: false)
+      end
+
+    assert ThreatModel.boundary_of(model, :browser) == "internet"
+    assert ThreatModel.boundary_of(model, :api) == "app_zone"
+    assert ThreatModel.boundary_of(model, :worker) == "app_zone"
+    assert ThreatModel.boundary_of(model, :db) == "data_zone"
+
+    assert ThreatModel.crosses_boundary?(model, :browser, :api)
+    refute ThreatModel.crosses_boundary?(model, :api, :worker)
+    assert ThreatModel.crosses_boundary?(model, :worker, :db)
+
+    edges = ThreatModel.edges_with_meta(model)
+    assert Enum.any?(edges, fn {f, t, _, m} -> f == :browser and t == :api and m.encrypted end)
+
+    assert Enum.any?(edges, fn {f, t, _, m} ->
+             f == :api and t == :worker and m.protocol == :grpc
+           end)
+
+    assert Enum.any?(edges, fn {f, t, _, m} ->
+             f == :worker and t == :db and m.protocol == :sql
+           end)
+  end
+
+  test "supports rich pipe modifiers and options" do
+    model =
+      threat_model do
+        u = user("User")
+        gw = api("Gateway")
+        db = database("DB")
+
+        u ~> gw |> on("login", protocol: :https, encrypted: true)
+        gw ~> db |> flow(protocol: :sql, encrypted: true)
+      end
+
+    edges = ThreatModel.edges_with_meta(model)
+
+    assert Enum.any?(edges, fn {f, t, l, m} ->
+             f == :u and t == :gw and l == "login" and m.encrypted
+           end)
+
+    assert Enum.any?(edges, fn {f, t, _, m} ->
+             f == :gw and t == :db and m.protocol == :sql and m.encrypted
+           end)
+  end
+
+  test "helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      process("test")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      database("test")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      boundary("test")
+    end
+  end
+
   test "raises on unknown boundary variables" do
     assert_raise ArgumentError, ~r/unknown threat-model boundary variable `missing`/, fn ->
       Code.eval_quoted(

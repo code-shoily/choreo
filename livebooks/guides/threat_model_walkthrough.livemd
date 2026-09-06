@@ -38,6 +38,15 @@ Threat modeling is a structured way to identify, quantify, and address security 
 
 Choreo.ThreatModel lets you describe your architecture as code, define trust boundaries, and automatically generate STRIDE threats with severity scoring.
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two complementary approaches to threat modeling:
+
+1. **Programmatic Pipe API (`Choreo.ThreatModel`)**: The canonical, explicit interface (`ThreatModel.new() |> ThreatModel.add_trust_boundary(...) |> ThreatModel.add_process(...) |> ThreatModel.data_flow(...)`). Ideal for automated security scans, static code ingestion, and CI/CD policy pipelines.
+2. **Lab DSL (`Choreo.Lab.DSL.ThreatModel`)**: An expressive sketch syntax using `threat_model do ... end`, semantic element constructors (`external_entity`, `process`, `data_store`, `service`, `db`), scoped boundary blocks (`boundary "Name", level: 0 do ... end`), direct flows (`~>`), and security modifiers (`|> encrypted("HTTPS", protocol: :https)`). Ideal for Livebooks, architectural risk reviews, and rapid STRIDE sketching.
+
+Example 1 demonstrates the canonical programmatic pipe API, while subsequent examples showcase the concise Lab DSL.
+
 ---
 
 ## Example 1: Classic Three-Tier Web Application
@@ -45,6 +54,7 @@ Choreo.ThreatModel lets you describe your architecture as code, define trust bou
 Let's start with the simplest useful model: a user, a web API, and a database. This mirrors the classic [pytm](https://github.com/OWASP/pytm) getting-started example.
 
 ```elixir
+import Choreo.Lab.DSL.ThreatModel
 alias Choreo.ThreatModel
 alias Choreo.ThreatModel.Analysis
 
@@ -126,52 +136,47 @@ A more realistic architecture: an API Gateway fronts multiple services. Some flo
 
 ```elixir
 microservices =
-  ThreatModel.new()
-  |> ThreatModel.add_trust_boundary("internet", level: 0)
-  |> ThreatModel.add_trust_boundary("dmz", level: 1)
-  |> ThreatModel.add_trust_boundary("vpc", level: 2)
-  |> ThreatModel.add_external_entity(:mobile_app, label: "Mobile App", boundary: "internet")
-  |> ThreatModel.add_external_entity(:spa, label: "Web SPA", boundary: "internet")
-  |> ThreatModel.add_process(:api_gateway,
-    label: "API Gateway",
-    boundary: "dmz",
-    privilege: :none,
-    description: "Rate limiting, routing, WAF"
-  )
-  |> ThreatModel.add_process(:auth_service,
-    label: "Auth Service",
-    boundary: "vpc",
-    privilege: :admin,
-    description: "Issues and validates JWTs"
-  )
-  |> ThreatModel.add_process(:order_service,
-    label: "Order Service",
-    boundary: "vpc",
-    privilege: :user
-  )
-  |> ThreatModel.add_process(:payment_webhook,
-    label: "Payment Webhook",
-    boundary: "vpc",
-    privilege: :none,
-    description: "Receives async callbacks from Stripe"
-  )
-  |> ThreatModel.add_data_store(:orders_db,
-    label: "Orders DB",
-    boundary: "vpc",
-    sensitivity: :confidential
-  )
-  |> ThreatModel.add_data_store(:redis_cache,
-    label: "Redis",
-    boundary: "vpc",
-    sensitivity: :internal
-  )
-  |> ThreatModel.data_flow(:mobile_app, :api_gateway, label: "REST + mTLS", encrypted: true)
-  |> ThreatModel.data_flow(:spa, :api_gateway, label: "HTTPS", encrypted: true)
-  |> ThreatModel.data_flow(:api_gateway, :auth_service, label: "gRPC", encrypted: true)
-  |> ThreatModel.data_flow(:api_gateway, :order_service, label: "gRPC", encrypted: true)
-  |> ThreatModel.data_flow(:order_service, :orders_db, label: "SQL/TLS", encrypted: true)
-  |> ThreatModel.data_flow(:order_service, :redis_cache, label: "Redis protocol")
-  |> ThreatModel.data_flow(:payment_webhook, :order_service, label: "Event bus")
+  threat_model do
+    boundary "internet", level: 0 do
+      mobile_app = external_entity("Mobile App")
+      spa = external_entity("Web SPA")
+    end
+
+    boundary "dmz", level: 1 do
+      api_gateway =
+        process("API Gateway",
+          privilege: :none,
+          description: "Rate limiting, routing, WAF"
+        )
+    end
+
+    boundary "vpc", level: 2 do
+      auth_service =
+        process("Auth Service",
+          privilege: :admin,
+          description: "Issues and validates JWTs"
+        )
+
+      order_service = process("Order Service", privilege: :user)
+
+      payment_webhook =
+        process("Payment Webhook",
+          privilege: :none,
+          description: "Receives async callbacks from Stripe"
+        )
+
+      orders_db = data_store("Orders DB", sensitivity: :confidential)
+      redis_cache = data_store("Redis", sensitivity: :internal)
+    end
+
+    mobile_app ~> api_gateway |> encrypted("REST + mTLS")
+    spa ~> api_gateway |> encrypted("HTTPS")
+    api_gateway ~> auth_service |> encrypted("gRPC")
+    api_gateway ~> order_service |> encrypted("gRPC")
+    order_service ~> orders_db |> encrypted("SQL/TLS")
+    order_service ~> redis_cache |> flow("Redis protocol")
+    payment_webhook ~> order_service |> flow("Event bus")
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(ThreatModel.to_mermaid(microservices)),
@@ -285,23 +290,19 @@ end
 
 ```elixir
 saas =
-  ThreatModel.new()
-  |> ThreatModel.add_trust_boundary("public", level: 0)
-  |> ThreatModel.add_trust_boundary("tenant_isolation", level: 2)
-  |> ThreatModel.add_external_entity(:tenant_admin, label: "Tenant Admin", boundary: "public")
-  |> ThreatModel.add_process(:app_server,
-    label: "App Server",
-    boundary: "tenant_isolation",
-    privilege: :user
-  )
-  |> ThreatModel.add_data_store(:tenant_db,
-    label: "Tenant DB",
-    boundary: "tenant_isolation",
-    sensitivity: :confidential,
-    retention: "90d"
-  )
-  |> ThreatModel.data_flow(:tenant_admin, :app_server, encrypted: true)
-  |> ThreatModel.data_flow(:app_server, :tenant_db, encrypted: true)
+  threat_model do
+    boundary "public", level: 0 do
+      tenant_admin = external_entity("Tenant Admin")
+    end
+
+    boundary "tenant_isolation", level: 2 do
+      app_server = process("App Server", privilege: :user)
+      tenant_db = data_store("Tenant DB", sensitivity: :confidential, retention: "90d")
+    end
+
+    tenant_admin ~> app_server |> encrypted()
+    app_server ~> tenant_db |> encrypted()
+  end
 
 # Base STRIDE only
 base_threats = Analysis.stride_threats(saas)
@@ -360,11 +361,14 @@ Choreo assigns severity based on element properties and flow context. You don't 
 ```elixir
 # Experiment: change sensitivity and watch severity shift
 restricted_model =
-  ThreatModel.new()
-  |> ThreatModel.add_trust_boundary("app", level: 2)
-  |> ThreatModel.add_process(:api, boundary: "app", privilege: :admin)
-  |> ThreatModel.add_data_store(:vault, boundary: "app", sensitivity: :restricted)
-  |> ThreatModel.data_flow(:api, :vault)
+  threat_model do
+    boundary "app", level: 2 do
+      api = process("API", id: :api, privilege: :admin)
+      vault = data_store("Vault", id: :vault, sensitivity: :restricted)
+    end
+
+    api ~> vault
+  end
 
 Analysis.stride_threats(restricted_model)
 |> Enum.filter(&(&1.target == :vault))
@@ -381,10 +385,12 @@ Start with a sloppy model, then use `validate/1` as a checklist to harden it.
 
 ```elixir
 sloppy =
-  ThreatModel.new()
-  |> ThreatModel.add_process(:api, label: "API")
-  |> ThreatModel.add_data_store(:db, label: "DB")
-  |> ThreatModel.data_flow(:api, :db)
+  threat_model do
+    api = process("API")
+    db = data_store("DB")
+
+    api ~> db
+  end
 
 IO.puts("Issues found:")
 
@@ -395,11 +401,14 @@ Now fix each issue step by step:
 
 ```elixir
 hardened =
-  ThreatModel.new()
-  |> ThreatModel.add_trust_boundary("app", level: 2)
-  |> ThreatModel.add_process(:api, label: "API", boundary: "app", privilege: :user)
-  |> ThreatModel.add_data_store(:db, label: "DB", boundary: "app", sensitivity: :confidential)
-  |> ThreatModel.data_flow(:api, :db, encrypted: true)
+  threat_model do
+    boundary "app", level: 2 do
+      api = process("API", privilege: :user)
+      db = data_store("DB", sensitivity: :confidential)
+    end
+
+    api ~> db |> encrypted()
+  end
 
 IO.puts("After hardening:")
 Analysis.validate(hardened) |> IO.inspect()
@@ -425,17 +434,58 @@ Sometimes multiple distinct data payloads cross boundaries between the same enti
 
 ```elixir
 parallel_flows =
-  ThreatModel.new()
-  |> ThreatModel.add_trust_boundary("internet", level: 0)
-  |> ThreatModel.add_trust_boundary("app", level: 2)
-  |> ThreatModel.add_external_entity(:user, boundary: "internet")
-  |> ThreatModel.add_process(:api, boundary: "app")
-  |> ThreatModel.data_flow(:user, :api, label: "Payload (HTTPS)", encrypted: true)
-  |> ThreatModel.data_flow(:user, :api, label: "Signal (WS)", encrypted: false)
+  threat_model do
+    boundary "internet", level: 0 do
+      user = external_entity("User")
+    end
+
+    boundary "app", level: 2 do
+      api = process("API")
+    end
+
+    user ~> api |> encrypted("Payload (HTTPS)")
+    user ~> api |> unencrypted("Signal (WS)")
+  end
 
 IO.puts("Number of data flows: #{length(ThreatModel.flows(parallel_flows))}")
 Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 ```
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax (`Choreo.Lab.DSL.ThreatModel`)
+
+| Syntax | Description |
+| ----------------------------------------------------------------- | ---------------------------------------------------- |
+| `threat_model do ... end`                                         | Define a threat model block                          |
+| `boundary "Name", level: 0 do ... end`                            | Scoped trust boundary block with boundary inheritance|
+| `b = boundary("Name", level: 0)` / `trust_boundary(...)` / `zone` | Standalone trust boundary definition                 |
+| `u = external_entity("User")` / `user(...)` / `client(...)`       | External entity node (browser, actor, third-party)   |
+| `p = process("API")` / `service(...)` / `worker(...)`             | Process node (service, function, application code)   |
+| `db = data_store("DB")` / `database(...)` / `cache(...)`          | Data store node (database, bucket, queue, cache)     |
+| `a ~> b`                                                          | Direct data flow edge                                |
+| `a ~> b \|> encrypted("HTTPS", protocol: :https)`                 | Encrypted flow with label and protocol options       |
+| `a ~> b \|> unencrypted("HTTP", protocol: :http)`                 | Explicit unencrypted data flow                       |
+| `a ~> b \|> flow("Query", protocol: :sql)`                        | Data flow with label and options                     |
+| `a ~> b \|> on("Label", encrypted: true, protocol: :https)`       | Data flow with label modifier and options            |
+| `edge a ~> b, "Label", encrypted: true, protocol: :https`         | Explicit edge statement with label and options       |
+| `edge a ~> b, encrypted: true`                                    | Explicit edge statement with options                 |
+
+### Programmatic Pipe API & Analysis (`Choreo.ThreatModel`)
+
+| Task / Feature          | Command                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Create Model            | `ThreatModel.new/1` (Opts: `:strict`)                                                                                                 |
+| Add Boundaries          | `ThreatModel.add_trust_boundary/3` (Opts: `:level`, `:label`, `:style`, `:color`, `:fillcolor`)                                      |
+| Add Elements            | `ThreatModel.add_external_entity/3`, `add_process/3` (Opts: `:privilege`), `add_data_store/3` (Opts: `:sensitivity`, `:retention`)   |
+| Connect Data Flows      | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`)                                                                |
+| Generate Threats        | `ThreatModel.Analysis.stride_threats/2` (Supports custom rules via `:rules`)                                                         |
+| Security Audits         | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`              |
+| Integrity Validation    | `ThreatModel.Analysis.validate/1`, `threat_summary/1`                                                                                 |
+| Render Formats          | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                    |
+| Themes                  | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                             |
 
 ---
 

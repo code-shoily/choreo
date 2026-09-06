@@ -112,7 +112,7 @@ defmodule Choreo.Lab.DSL.ThreatModel do
       boundaries: @boundary_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
-      modifiers: [:on, :label, :protocol | @edge_verbs],
+      modifiers: [:on, :label, :edge, :with, :protocol, :encrypted, :unencrypted | @edge_verbs],
       options: [
         :id,
         :label,
@@ -146,7 +146,7 @@ defmodule Choreo.Lab.DSL.ThreatModel do
       block
       |> statements()
       |> Enum.reduce({[], empty_env()}, fn statement, {steps, env} ->
-        {statement_steps, env} = statement_steps(statement, env)
+        {statement_steps, env} = process_statement(statement, env)
         {Enum.reverse(statement_steps, steps), env}
       end)
 
@@ -157,23 +157,80 @@ defmodule Choreo.Lab.DSL.ThreatModel do
     )
   end
 
+  defp process_statement(statement, env) do
+    case extract_do_block(statement) do
+      {block, stripped_statement} when not is_nil(block) ->
+        compile_nested_boundary(stripped_statement, block, env)
+
+      _ ->
+        statement_steps(statement, env)
+    end
+  end
+
+  defp compile_nested_boundary(statement, block, env) do
+    {boundary_steps, inner_env} = statement_steps(statement, env)
+    boundary_id = get_boundary_id(boundary_steps)
+
+    {block_steps, block_env} =
+      compile_block_statements(
+        block,
+        Map.put(inner_env, :boundary, boundary_id),
+        &process_statement/2
+      )
+
+    {boundary_steps ++ block_steps, restore_boundary_scope(env, block_env)}
+  end
+
+  defp get_boundary_id(steps) do
+    case List.last(steps) do
+      {:boundary, %{id: id}} -> id
+      _ -> nil
+    end
+  end
+
+  defp restore_boundary_scope(original_env, current_env) do
+    case Map.fetch(original_env, :boundary) do
+      {:ok, id} -> Map.put(current_env, :boundary, id)
+      :error -> Map.delete(current_env, :boundary)
+    end
+  end
+
   defp empty_env, do: %{nodes: %{}, boundaries: %{}}
+
+  defp record_boundary(env, var, boundary_id) do
+    atom_id = String.to_atom(boundary_id)
+
+    env
+    |> put_in([:boundaries, boundary_id], boundary_id)
+    |> put_in([:boundaries, atom_id], boundary_id)
+    |> then(fn env ->
+      if var, do: put_in(env, [:boundaries, var], boundary_id), else: env
+    end)
+  end
 
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
     cond do
       boundary_constructor?(constructor) ->
         boundary = boundary_from_constructor(constructor, var, meta)
-        {[{:boundary, boundary}], put_in(env.boundaries[var], boundary.id)}
+        {[{:boundary, boundary}], record_boundary(env, var, boundary.id)}
 
       node_constructor?(constructor) ->
         node = node_from_constructor(constructor, var, env, meta)
-        {[{:node, node}], put_in(env.nodes[var], node.id)}
+        env = env |> put_in([:nodes, var], node.id) |> put_in([:nodes, node.id], node.id)
+        {[{:node, node}], env}
 
       true ->
         raise ArgumentError,
               "expected threat-model constructor, got #{Macro.to_string(constructor)}#{line_suffix(meta)}"
     end
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -208,10 +265,12 @@ defmodule Choreo.Lab.DSL.ThreatModel do
 
       name in @boundary_verbs ->
         boundary = boundary_from_constructor(ast, nil, meta)
+        env = record_boundary(env, nil, boundary.id)
         {[{:boundary, boundary}], env}
 
       Map.has_key?(@node_builders, name) ->
         node = node_from_constructor(ast, nil, env, meta)
+        env = put_in(env.nodes[node.id], node.id)
         {[{:node, node}], env}
 
       true ->
@@ -255,33 +314,64 @@ defmodule Choreo.Lab.DSL.ThreatModel do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @edge_verbs and is_binary(label) and is_list(opts) do
+    opts
+    |> Keyword.merge(acc)
+    |> edge_semantic_opts(name)
+    |> Keyword.put(:label, label)
+    |> normalize_edge_opts()
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in @edge_verbs and is_list(opts) do
+    opts
+    |> Keyword.merge(acc)
+    |> edge_semantic_opts(name)
+    |> normalize_edge_opts()
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in [:on, :label, :edge] and is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in [:on, :label, :edge] and is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label, :edge] and is_binary(value) do
     Keyword.put(acc, :label, value)
   end
 
   defp modifier_opt({:protocol, _meta, [value]}, acc), do: Keyword.put(acc, :protocol, value)
 
+  defp modifier_opt({:encrypted, _meta, [value]}, acc) when is_boolean(value),
+    do: Keyword.put(acc, :encrypted, value)
+
   defp modifier_opt({:encrypted, _meta, []}, acc), do: Keyword.put(acc, :encrypted, true)
   defp modifier_opt({:unencrypted, _meta, []}, acc), do: Keyword.put(acc, :encrypted, false)
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs do
-    acc
-    |> edge_semantic_opts(name)
-    |> Keyword.put_new(:label, value)
+  defp modifier_opt({name, _meta, []}, acc) when name in @edge_verbs do
+    edge_semantic_opts(acc, name)
   end
 
-  defp modifier_opt({name, _meta, [value, opts]}, acc)
-       when name in @edge_verbs and is_list(opts) do
-    opts
-    |> Keyword.merge(acc)
+  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs and is_binary(value) do
+    acc
     |> edge_semantic_opts(name)
-    |> Keyword.put_new(:label, value)
+    |> Keyword.put(:label, value)
   end
+
+  defp modifier_opt({:with, _meta, [value]}, acc) when is_binary(value),
+    do: Keyword.put(acc, :label, value)
 
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported threat-model edge modifier: #{Macro.to_string(other)}; " <>
-            "use `flow(value)`, `encrypted(value)`, `unencrypted(value)`, or `protocol(value)`"
+            "use `flow(value)`, `encrypted(value)`, `unencrypted(value)`, `on(value)`, `protocol(value)`, or `label(value)`"
   end
 
   defp edge_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -344,9 +434,16 @@ defmodule Choreo.Lab.DSL.ThreatModel do
 
     {opts, positional} = pop_trailing_opts(args)
     opts = resolve_boundary_option(opts, :boundary, env, meta)
+    opts = maybe_inherit_boundary(opts, env)
     {id, opts} = node_id_and_opts(var, positional, opts, meta)
     %{id: id, builder: builder, opts: opts}
   end
+
+  defp maybe_inherit_boundary(opts, %{boundary: boundary}) when not is_nil(boundary) do
+    Keyword.put_new(opts, :boundary, boundary)
+  end
+
+  defp maybe_inherit_boundary(opts, _env), do: opts
 
   defp boundary_from_constructor({name, meta, args}, var, _statement_meta)
        when name in @boundary_verbs and is_list(args) do
@@ -446,6 +543,14 @@ defmodule Choreo.Lab.DSL.ThreatModel do
     end
   end
 
+  defp resolve_boundary_reference(value, env, _key, _meta) when is_atom(value) do
+    Map.get(env.boundaries, value, to_string(value))
+  end
+
+  defp resolve_boundary_reference(value, env, _key, _meta) when is_binary(value) do
+    Map.get(env.boundaries, value, value)
+  end
+
   defp resolve_boundary_reference(value, _env, _key, _meta), do: value
 
   defp normalize_edge_opts(opts) do
@@ -533,12 +638,16 @@ defmodule Choreo.Lab.DSL.ThreatModel do
         :data_store,
         :database,
         :db,
+        :edge,
         :encrypted,
         :external,
         :external_entity,
         :flow,
         :function,
+        :label,
+        :on,
         :process,
+        :protocol,
         :queue,
         :reads,
         :sends,
