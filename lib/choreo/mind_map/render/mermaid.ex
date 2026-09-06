@@ -27,10 +27,10 @@ defmodule Choreo.MindMap.Render.Mermaid do
   ## Options
 
     * `:syntax` — `:flowchart` (default), `:mindmap`, or `:ishikawa`
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
-    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
-    * `:highlighted_nodes` — list of node IDs to highlight
-    * `:highlighted_edges` — list of `{from, to}` tuples to highlight
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
+    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl` (for `:flowchart` syntax)
+    * `:highlighted_nodes` — list of node IDs to highlight (for `:flowchart` syntax)
+    * `:highlighted_edges` — list of `{from, to}` tuples to highlight (for `:flowchart` syntax)
     * Any other option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
 
   ## Native hierarchy syntax limitations

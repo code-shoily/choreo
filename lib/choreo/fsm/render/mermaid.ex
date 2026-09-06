@@ -14,6 +14,7 @@ defmodule Choreo.FSM.Render.Mermaid do
 
     * `:default` — light grey states, dark text, left-to-right
     * `:dark` — dark background, neon accents
+    * `:minimal`, `:warm`, `:forest`, `:ocean` — additional built-in palettes
     * `Choreo.Theme` struct — full custom control
 
   ## Examples
@@ -42,7 +43,7 @@ defmodule Choreo.FSM.Render.Mermaid do
   ## Options
 
     * `:syntax` — `:flowchart` (default) or `:state_diagram` (native `stateDiagram-v2` syntax)
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
     * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt` (for `:flowchart` syntax)
     * `:highlighted_nodes` — list of state IDs to highlight (for `:flowchart` syntax)
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight (for `:flowchart` syntax)

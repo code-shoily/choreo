@@ -14,6 +14,7 @@ defmodule Choreo.FSM.Render.DOT do
 
     * `:default` — light grey states, dark text, left-to-right
     * `:dark` — dark background, neon accents
+    * `:minimal`, `:warm`, `:forest`, `:ocean` — additional built-in palettes
     * `Choreo.Theme` struct — full custom control
   """
 
@@ -25,7 +26,10 @@ defmodule Choreo.FSM.Render.DOT do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:highlighted_nodes` — list of state IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
+    * Any other option accepted by `Yog.Multi.DOT.to_dot/2`, such as `:rankdir`
 
   ## Examples
 

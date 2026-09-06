@@ -499,7 +499,7 @@ Kino.Layout.tabs(
 | Validation & Health    | `MindMap.Analysis.cyclic?/1`, `validate/1`, `suggest_merges/2`                             |
 | Views & Graph Lenses   | `Choreo.View.zoom/2`, `View.focus/3`, `View.focus_between/4`, `View.filter/2`              |
 | Render Formats         | `MindMap.to_mermaid/2` (syntax: `:flowchart`, `:mindmap`, `:ishikawa`), `MindMap.to_dot/2` |
-| Themes                 | `MindMap.theme/2` (`:default`, `:dark`, `:forest`, `:ocean`, `:warm`)                      |
+| Themes                 | `MindMap.theme/2` (`:default`, `:dark`, `:minimal`, `:forest`, `:ocean`, `:warm`)          |
 
 ---
 

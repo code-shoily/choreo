@@ -38,8 +38,8 @@ fsm =
 
 # Render diagrams (Mermaid is preferred as primary tab)
 Kino.Layout.tabs([
-  "Mermaid (Flowchart)": Kino.Mermaid.new(FSM.to_mermaid(fsm)),
-  "Mermaid (State Diagram)": Kino.Mermaid.new(FSM.to_mermaid(fsm, syntax: :state_diagram)),
+  "Mermaid (Flowchart)": Choreo.Lab.Siren.new(FSM.to_mermaid(fsm)),
+  "Mermaid (State Diagram)": Choreo.Lab.Siren.new(FSM.to_mermaid(fsm, syntax: :state_diagram)),
   "Graphviz": Kino.VizJS.render(FSM.to_dot(fsm))
 ])
 ```
@@ -83,7 +83,7 @@ empty_match =
   end
 
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(empty_match)),
+  "Mermaid": Choreo.Lab.Siren.new(FSM.to_mermaid(empty_match)),
   "Graphviz": Kino.VizJS.render(FSM.to_dot(empty_match))
 ])
 ```
@@ -250,7 +250,7 @@ comp = FSM.complement(dfa)
 IO.inspect(FSM.final_states(comp), label: "Final states in complement")
 
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(comp)),
+  "Mermaid": Choreo.Lab.Siren.new(FSM.to_mermaid(comp)),
   "Graphviz": Kino.VizJS.render(FSM.to_dot(comp))
 ])
 ```
@@ -265,7 +265,7 @@ pruned = FSM.prune(incomplete_fsm)
 IO.inspect(FSM.states(pruned), label: "States after pruning")
 
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(pruned)),
+  "Mermaid": Choreo.Lab.Siren.new(FSM.to_mermaid(pruned)),
   "Graphviz": Kino.VizJS.render(FSM.to_dot(pruned))
 ])
 ```
@@ -276,7 +276,7 @@ Render with the built-in `:dark` theme or a custom `Choreo.Theme`.
 
 ```elixir
 Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(FSM.to_mermaid(order_flow, theme: :dark)),
+  "Mermaid": Choreo.Lab.Siren.new(FSM.to_mermaid(order_flow, theme: :dark)),
   "Graphviz": Kino.VizJS.render(FSM.to_dot(order_flow, theme: :dark))
 ])
 ```
@@ -311,7 +311,7 @@ Kino.Layout.tabs([
 | Machine Transforms     | `FSM.complement/1`, `FSM.prune/1`, `Analysis.minimize/1`                                                |
 | Language Analysis      | `Analysis.accepts?/2`, `reachable_states/1`, `dead_states/1`, `livelock_states/1`, `equivalent?/2`      |
 | Render Formats         | `FSM.to_dot/2`, `FSM.to_mermaid/2` (syntax: `:flowchart` or `:state_diagram`)                           |
-| Themes                 | `FSM.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                       |
+| Themes                 | `FSM.theme/2` (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`)                           |
 
 ---
 

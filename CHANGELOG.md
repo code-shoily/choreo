@@ -26,8 +26,8 @@
 - Fixed stale UML walkthrough connector references and ERD Mermaid `:many_to_many` cardinality rendering.
 - Fixed stale C4 walkthrough Mermaid rendering references and Domain Modeling cheat sheet API entries.
 - Fixed stale Requirement walkthrough API references and added validation for duplicate human requirement IDs.
-- Fixed stale FSM walkthrough API references and added defensive validation for duplicate outgoing transition labels.
-- Fixed stale MindMap walkthrough API references and added defensive validation for invalid root pointers.
+- Fixed stale FSM walkthrough API/rendering references and theme option documentation, and added defensive validation for duplicate outgoing transition labels.
+- Fixed stale MindMap walkthrough API references and rendering/theme option documentation, and added defensive validation for invalid root pointers.
 - Fixed sequence diagram flow label resolution in `Choreo.ThreatModel.Render.Mermaid.to_sequence/2` when flow labels are empty strings.
 - Fixed non-constructor node expression handling in `Choreo.Lab.DSL.Sequence`.
 

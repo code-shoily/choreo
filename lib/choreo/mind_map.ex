@@ -597,7 +597,10 @@ defmodule Choreo.MindMap do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of `{from, to}` tuples to highlight
+    * Any other option accepted by `Yog.Render.DOT.to_dot/2`, such as `:rankdir`
 
   ## Examples
 
@@ -630,8 +633,10 @@ defmodule Choreo.MindMap do
   ## Options
 
     * `:syntax` — `:flowchart` (default), `:mindmap`, or `:ishikawa`
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
-    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
+    * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl` (for `:flowchart` syntax)
+    * `:highlighted_nodes` — list of node IDs to highlight (for `:flowchart` syntax)
+    * `:highlighted_edges` — list of `{from, to}` tuples to highlight (for `:flowchart` syntax)
 
   ## Examples
 

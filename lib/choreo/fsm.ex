@@ -56,7 +56,7 @@ defmodule Choreo.FSM do
 
   ## Themes
 
-  Use `:default`, `:dark`, or a custom `Choreo.Theme` struct:
+  Use any built-in theme (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`) or a custom `Choreo.Theme` struct:
 
       dot = Choreo.FSM.to_dot(fsm, theme: :dark)
       mermaid = Choreo.FSM.to_mermaid(fsm, theme: :dark)
@@ -696,7 +696,10 @@ defmodule Choreo.FSM do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:highlighted_nodes` — list of state IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
+    * Any other option accepted by `Yog.Multi.DOT.to_dot/2`, such as `:rankdir`
 
   ## Examples
 
@@ -721,8 +724,10 @@ defmodule Choreo.FSM do
   ## Options
 
     * `:syntax` — `:flowchart` (default) or `:state_diagram`
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
-    * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt`
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
+    * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt` (for `:flowchart` syntax)
+    * `:highlighted_nodes` — list of state IDs to highlight (for `:flowchart` syntax)
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight (for `:flowchart` syntax)
 
   ## Examples
 
