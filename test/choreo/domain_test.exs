@@ -110,6 +110,24 @@ defmodule Choreo.DomainTest do
     assert :customer in ancestors
   end
 
+  test "traces downstream effects correctly" do
+    storm =
+      Domain.new()
+      |> Domain.add_actor(:customer)
+      |> Domain.add_command(:place_order)
+      |> Domain.add_aggregate(:order_agg)
+      |> Domain.add_event(:order_placed)
+      |> Domain.connect(:customer, :place_order)
+      |> Domain.connect(:place_order, :order_agg)
+      |> Domain.connect(:order_agg, :order_placed)
+
+    descendants = Domain.downstream(storm, :customer)
+    assert :customer in descendants
+    assert :place_order in descendants
+    assert :order_agg in descendants
+    assert :order_placed in descendants
+  end
+
   test "enforces semantic Event Storming validator rules" do
     storm =
       Domain.new()

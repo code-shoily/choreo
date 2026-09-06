@@ -634,6 +634,35 @@ defmodule Choreo.Domain do
   @deprecated "Use causes/2 instead"
   def trace_cause(domain, target), do: causes(domain, target)
 
+  @doc """
+  Returns all downstream effects reachable from a source node.
+
+  This is a **set**, not an ordered path — for branching graphs, all reachable
+  descendants are returned collapsed into one list with no path structure.
+
+  ## Examples
+
+      iex> domain = Choreo.Domain.new()
+      ...>   |> Choreo.Domain.add_actor(:customer)
+      ...>   |> Choreo.Domain.add_command(:place_order)
+      ...>   |> Choreo.Domain.add_aggregate(:order_agg)
+      ...>   |> Choreo.Domain.connect(:customer, :place_order)
+      ...>   |> Choreo.Domain.connect(:place_order, :order_agg)
+      iex> descendants = Choreo.Domain.downstream(domain, :customer)
+      iex> :place_order in descendants
+      true
+      iex> :order_agg in descendants
+      true
+  """
+  @spec downstream(t(), Yog.node_id()) :: [Yog.node_id()]
+  def downstream(%Domain{graph: graph}, source) do
+    if Map.has_key?(graph.nodes, source) do
+      traverse_forwards(graph, [source], MapSet.new([source]))
+    else
+      []
+    end
+  end
+
   # ============================================================================
   # Queries
   # ============================================================================
@@ -990,7 +1019,6 @@ defmodule Choreo.Domain do
         MapSet.to_list(visited)
 
       [current | rest] ->
-        # Find incoming nodes
         incoming =
           Enum.filter(graph.edges, fn {_eid, {_from, to, _w}} -> to == current end)
           |> Enum.map(fn {_eid, {from, _to, _w}} -> from end)
@@ -999,6 +1027,23 @@ defmodule Choreo.Domain do
         new_queue = rest ++ incoming
         new_visited = MapSet.union(visited, MapSet.new(incoming))
         traverse_backwards(graph, new_queue, new_visited)
+    end
+  end
+
+  defp traverse_forwards(graph, queue, visited) do
+    case queue do
+      [] ->
+        MapSet.to_list(visited)
+
+      [current | rest] ->
+        outgoing =
+          Enum.filter(graph.edges, fn {_eid, {from, _to, _w}} -> from == current end)
+          |> Enum.map(fn {_eid, {_from, to, _w}} -> to end)
+          |> Enum.reject(&MapSet.member?(visited, &1))
+
+        new_queue = rest ++ outgoing
+        new_visited = MapSet.union(visited, MapSet.new(outgoing))
+        traverse_forwards(graph, new_queue, new_visited)
     end
   end
 

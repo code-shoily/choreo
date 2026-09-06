@@ -644,7 +644,9 @@ defmodule Choreo.C4 do
   ## Options
 
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
-    * `:syntax` — `:default` (C4-style boxes) or `:nested` (clusters by parent)
+    * `:rankdir` — Graphviz layout direction, e.g. `:lr`, `:tb`, `:bt`, or `:rl`
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
 
   ## Examples
 
@@ -665,6 +667,8 @@ defmodule Choreo.C4 do
 
     * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:lr` (default), `:td`, `:rl`, `:bt`
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
 
   ## Examples
 
