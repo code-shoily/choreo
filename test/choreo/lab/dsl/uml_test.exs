@@ -1,12 +1,13 @@
 defmodule Choreo.Lab.UMLDSLTest do
   use ExUnit.Case, async: true
 
+  alias Choreo.Lab.DSL.UML, as: DSL
   import Choreo.Lab.DSL.UML
 
   doctest Choreo.Lab.DSL.UML
 
   test "taxonomy returns the Livebook discovery vocabulary" do
-    taxonomy = Choreo.Lab.DSL.UML.taxonomy()
+    taxonomy = DSL.taxonomy()
 
     assert :class in taxonomy.nodes
     assert :struct in taxonomy.nodes
@@ -15,8 +16,9 @@ defmodule Choreo.Lab.UMLDSLTest do
     assert :function in taxonomy.members
     assert :implements in taxonomy.edges
     assert :depends in taxonomy.modifiers
+    assert :type in taxonomy.modifiers
     assert :visibility in taxonomy.options
-    assert Choreo.Lab.DSL.UML.verbs() == taxonomy
+    assert DSL.verbs() == taxonomy
   end
 
   test "builds a UML diagram with block-based class declarations" do
@@ -175,5 +177,94 @@ defmodule Choreo.Lab.UMLDSLTest do
         end
       )
     end
+  end
+
+  test "supports edge/3 with label and options" do
+    diagram =
+      uml do
+        controller = class("Controller")
+        repo = class("Repo")
+
+        edge(controller ~> repo, "calls", type: :depends)
+      end
+
+    assert [meta] = Map.values(diagram.edge_meta)
+    assert meta.type == :depends
+    assert meta.label == "calls"
+  end
+
+  test "supports piped modifiers with options and type/1,2 modifiers" do
+    diagram =
+      uml do
+        controller = class("Controller")
+        repo = class("Repo")
+        behaviour = behavior("RepoBehaviour")
+        cache = interface("Cache")
+
+        controller ~> repo |> depends(label: "calls")
+        repo ~> behaviour |> type(:realizes, "implements")
+        controller ~> cache |> type(:associates)
+      end
+
+    metas = diagram.edge_meta |> Map.values() |> Enum.sort_by(&Map.get(&1, :label, ""))
+
+    assert Enum.map(metas, & &1.type) == [:associates, :depends, :realizes]
+    assert Enum.map(metas, &Map.get(&1, :label)) == [nil, "calls", "implements"]
+  end
+
+  test "supports standalone class declaration inside DSL" do
+    diagram =
+      uml do
+        interface "Cache" do
+          function :get, 1
+        end
+      end
+
+    assert Map.has_key?(diagram.graph.nodes, :cache)
+    assert diagram.graph.nodes[:cache].type == :interface
+
+    assert Enum.map(diagram.graph.nodes[:cache].functions, &Map.new/1) == [
+             %{name: "get", arity: 1, visibility: :public}
+           ]
+  end
+
+  test "forwards options like strict_contract_validation to UML diagram" do
+    assert_raise ArgumentError, ~r/contract violation/, fn ->
+      uml strict_contract_validation: true do
+        auth =
+          behavior("AuthProvider") do
+            function(:verify, 1)
+          end
+
+        user = struct("User")
+
+        realizes(user ~> auth)
+      end
+    end
+
+    diagram =
+      uml strict_contract_validation: true do
+        auth =
+          behavior("AuthProvider") do
+            function(:verify, 1)
+          end
+
+        user =
+          struct("User") do
+            function(:verify, 1)
+          end
+
+        realizes(user ~> auth)
+      end
+
+    assert [meta] = Map.values(diagram.edge_meta)
+    assert meta.type == :realizes
+  end
+
+  test "autocomplete stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.class() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.edge() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.type() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.on() end
   end
 end

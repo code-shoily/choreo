@@ -281,16 +281,40 @@ defmodule Choreo.UMLTest do
       |> UML.add_class(:service, type: :class)
       |> UML.add_class(:auth, type: :behavior)
       |> UML.add_class(:repo, type: :class)
+      |> UML.add_class(:user, type: :struct)
       |> UML.add_relationship(:service, :auth, type: :realizes)
+      |> UML.add_relationship(:service, :user, type: :depends)
 
     zoom_0 = Choreo.View.zoom(uml, level: 0)
     assert :auth in Map.keys(zoom_0.graph.nodes)
     refute :service in Map.keys(zoom_0.graph.nodes)
+    refute :user in Map.keys(zoom_0.graph.nodes)
+
+    zoom_1 = Choreo.View.zoom(uml, level: 1)
+    assert :auth in Map.keys(zoom_1.graph.nodes)
+    assert :service in Map.keys(zoom_1.graph.nodes)
+    refute :user in Map.keys(zoom_1.graph.nodes)
 
     zoom_2 = Choreo.View.zoom(uml, level: 2)
     assert :service in Map.keys(zoom_2.graph.nodes)
     assert :auth in Map.keys(zoom_2.graph.nodes)
     assert :repo in Map.keys(zoom_2.graph.nodes)
+    assert :user in Map.keys(zoom_2.graph.nodes)
+  end
+
+  test "to_dot supports directions and themes", %{uml: uml} do
+    assert UML.to_dot(uml, direction: :bt) =~ "rankdir=BT"
+    assert UML.to_dot(uml, direction: :rl) =~ "rankdir=RL"
+    assert UML.to_dot(uml, direction: "tb") =~ "rankdir=TB"
+    assert UML.to_dot(uml, theme: :minimal) =~ "digraph"
+    assert UML.to_dot(uml, theme: :dark) =~ "digraph"
+  end
+
+  test "theme functions return valid theme structs" do
+    assert %Choreo.Theme{name: :uml_default} = UML.theme(:default)
+    assert %Choreo.Theme{name: :uml_dark} = UML.theme(:dark)
+    assert %Choreo.Theme{name: :uml_minimal} = UML.theme(:minimal)
+    assert %Choreo.Theme{} = Choreo.UML.Render.Mermaid.theme(:ocean)
   end
 
   test "viewable protocol implementation", %{uml: uml} do

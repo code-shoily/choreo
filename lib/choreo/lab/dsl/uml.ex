@@ -123,7 +123,7 @@ defmodule Choreo.Lab.DSL.UML do
       nodes: @node_verbs,
       members: @member_verbs,
       edges: [:~>, :edge | @relationship_verbs],
-      modifiers: [:on, :label | @relationship_verbs],
+      modifiers: [:on, :label, :type | @relationship_verbs],
       options: [:label, :with, :id, :type, :arity, :return, :visibility | @relationship_verbs]
     }
   end
@@ -171,6 +171,13 @@ defmodule Choreo.Lab.DSL.UML do
        when is_atom(var) and is_atom(context) do
     class = class_from_constructor(constructor, var, meta)
     {[{:class, class}], Map.put(env, var, class.id)}
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = opts |> normalize_relationship_opts() |> Keyword.put(:label, label)
+    {relationship, classes} = relationship_from_ast(edge_ast, opts, env, meta)
+    {relationship_declaration_steps(classes, relationship), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -262,6 +269,20 @@ defmodule Choreo.Lab.DSL.UML do
     Keyword.put(acc, :label, value)
   end
 
+  defp modifier_opt({:type, _meta, [type]}, acc) do
+    if relationship_name?(type) do
+      Keyword.put(acc, :type, relationship_type!(type))
+    else
+      Keyword.put(acc, :type, type)
+    end
+  end
+
+  defp modifier_opt({:type, _meta, [type, label]}, acc) when is_binary(label) do
+    acc
+    |> then(&modifier_opt({:type, [], [type]}, &1))
+    |> Keyword.put(:label, label)
+  end
+
   defp modifier_opt({name, _meta, []}, acc) do
     if relationship_name?(name) do
       Keyword.put(acc, :type, relationship_type!(name))
@@ -280,10 +301,31 @@ defmodule Choreo.Lab.DSL.UML do
     end
   end
 
+  defp modifier_opt({name, _meta, [opts]}, acc) when is_list(opts) do
+    if relationship_name?(name) do
+      acc
+      |> Keyword.put(:type, relationship_type!(name))
+      |> Keyword.merge(opts)
+    else
+      unsupported_modifier!(name, [opts])
+    end
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc) when is_binary(label) and is_list(opts) do
+    if relationship_name?(name) do
+      acc
+      |> Keyword.put(:type, relationship_type!(name))
+      |> Keyword.put(:label, label)
+      |> Keyword.merge(opts)
+    else
+      unsupported_modifier!(name, [label, opts])
+    end
+  end
+
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported UML relationship modifier: #{Macro.to_string(other)}; " <>
-            "use `on(value)`, `label(value)`, `depends(value)`, or `implements(value)`"
+            "use `on(value)`, `label(value)`, `type(value)`, `depends(value)`, or `implements(value)`"
   end
 
   defp unsupported_modifier!(name, args) do
@@ -291,7 +333,7 @@ defmodule Choreo.Lab.DSL.UML do
 
     raise ArgumentError,
           "unsupported UML relationship modifier: #{rendered}; " <>
-            "use `on(value)`, `label(value)`, `depends(value)`, or `implements(value)`"
+            "use `on(value)`, `label(value)`, `type(value)`, `depends(value)`, or `implements(value)`"
   end
 
   defp relationship_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -537,6 +579,7 @@ defmodule Choreo.Lab.DSL.UML do
         :class,
         :dependency,
         :depends,
+        :edge,
         :extends,
         :field,
         :function,
@@ -545,6 +588,7 @@ defmodule Choreo.Lab.DSL.UML do
         :inherits,
         :interface,
         :method,
+        :on,
         :operation,
         :private,
         :protected,
@@ -552,6 +596,7 @@ defmodule Choreo.Lab.DSL.UML do
         :public,
         :realizes,
         :struct,
+        :type,
         :uses
       ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do

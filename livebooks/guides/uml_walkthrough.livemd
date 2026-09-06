@@ -21,10 +21,19 @@ Mix.install([
 
 `Choreo.UML` lets you model these components directly in code, declare exact fields/attributes (with optional types and visibilities), define functions/operations, specify standard structural relationships, and visually render them beautifully to **Graphviz/DOT** (using 3-compartment HTML record tables) or **Mermaid.js** (supporting both flowchart layouts and native `classDiagram` blocks).
 
+Choreo provides two ways to work with UML diagrams:
+
+1. **Programmatic Pipe API (`Choreo.UML`)** — A stable, pipe-first interface ideal for dynamic builders, code generation, and automated analysis.
+2. **Lab DSL (`Choreo.Lab.DSL.UML`)** — A concise, Livebook-friendly syntax for sketching class architectures and exploring type hierarchies.
+
+The introductory example below uses the explicit pipe-first syntax. All subsequent examples throughout this guide demonstrate the Lab DSL.
+
 ```elixir
 alias Choreo.UML
+alias Choreo.UML.Analysis
+import Choreo.Lab.DSL.UML
 
-# Initialize a standard user and authentication architecture
+# Initialize a standard user and authentication architecture using pipe syntax
 uml =
   UML.new()
   # Add a struct representing a user database entity
@@ -83,10 +92,11 @@ Every class, struct, behavior, or interface is rigorously validated via `NimbleO
 ```elixir
 # Validation will trigger a clean schema error if fields are invalid
 try do
-  UML.new()
-  |> UML.add_class(:bad_module, fields: [
-    %{visibility: :public} # Missing name!
-  ])
+  uml do
+    class "bad_module" do
+      field :id, :integer, visibility: :invalid_visibility
+    end
+  end
 rescue
   e -> e
 end
@@ -96,22 +106,22 @@ end
 
 Relationships between software blocks map exactly to standard UML connectors:
 
-| Relationship Type | Arrow Style | Connector Style | Intended Semantics |
-| ----------------- | ----------- | --------------- | ------------------ |
-
-| `:inherits` | Hollow | Solid (`--  | >`) | Class inheritance or adopting a behavior. |
-| `:realizes` | Hollow | Dashed (`.. | >`) | Adopting/implementing an Elixir protocol. |
-
-| `:associates` | Solid | Solid (`-->`)  | Composition (e.g. struct nesting/embedding).        |
-| `:depends`    | Open  | Dashed (`..>`) | Run-time dependency or function calling invocation. |
+| Relationship Type | Arrow Style | Connector Style | Intended Semantics                                  |
+| ----------------- | ----------- | --------------- | --------------------------------------------------- |
+| `:inherits`       | Hollow      | Solid (`--|>`)  | Class inheritance or adopting a behavior.           |
+| `:realizes`       | Hollow      | Dashed (`..|>`) | Adopting/implementing an Elixir protocol.           |
+| `:associates`     | Solid       | Solid (`-->`)   | Composition (e.g. struct nesting/embedding).        |
+| `:depends`        | Open        | Dashed (`..>`)  | Run-time dependency or function calling invocation. |
 
 ```elixir
-# Quick example of behavior inheritance
+# Quick example of behavior inheritance using Lab DSL
 inheritance_uml =
-  UML.new()
-  |> UML.add_class(:base_handler, type: :class)
-  |> UML.add_class(:http_handler, type: :class)
-  |> UML.add_relationship(:http_handler, :base_handler, type: :inherits, label: "inherits_from")
+  uml do
+    base = class("BaseHandler")
+    http = class("HttpHandler")
+
+    inherits http ~> base, "inherits_from"
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(UML.to_mermaid(inheritance_uml, syntax: :class_diagram)),
@@ -124,15 +134,18 @@ Kino.Layout.tabs(
 By default, Choreo validates behavior contracts during static analysis via `Analysis.broken_contracts/1`. However, if you want to actively prevent invalid relationships from being added during schema construction, you can enable the `:strict_contract_validation` flag upon initialization:
 
 ```elixir
-# This will fail because strict_contract_validation is active and user missing the verify/1 function
+# This will fail because strict_contract_validation is active and provider is missing the verify/1 function
 try do
-  UML.new(strict_contract_validation: true)
-  |> UML.add_class(:auth_provider,
-    type: :behavior,
-    functions: [%{name: "verify", arity: 1}]
-  )
-  |> UML.add_class(:provider, type: :struct)
-  |> UML.add_relationship(:provider, :auth_provider, type: :realizes)
+  uml strict_contract_validation: true do
+    auth =
+      behavior("AuthProvider") do
+        function :verify, 1
+      end
+
+    provider = struct("Provider")
+
+    realizes provider ~> auth
+  end
 rescue
   e -> e
 end
@@ -141,16 +154,19 @@ end
 ```elixir
 # This succeeds perfectly because the contract is fully satisfied
 uml_ok =
-  UML.new(strict_contract_validation: true)
-  |> UML.add_class(:auth_provider,
-    type: :behavior,
-    functions: [%{name: "verify", arity: 1}]
-  )
-  |> UML.add_class(:provider,
-    type: :struct,
-    functions: [%{name: "verify", arity: 1}]
-  )
-  |> UML.add_relationship(:provider, :auth_provider, type: :realizes)
+  uml strict_contract_validation: true do
+    auth =
+      behavior("AuthProvider") do
+        function :verify, 1
+      end
+
+    provider =
+      struct("Provider") do
+        function :verify, 1
+      end
+
+    realizes provider ~> auth
+  end
 ```
 
 ---
@@ -207,13 +223,31 @@ Kino.VizJS.render(UML.to_dot(zoomed))
 Circular references between Elixir modules slow down compilation because they trigger massive recompilation cascades. Detect them instantly:
 
 ```elixir
-# Introducing a circular dependency: user -> auth_provider -> cache -> user
-circular_uml = 
-  uml
-  |> UML.add_relationship(:cache, :user, type: :depends, label: "references")
+# Introducing a circular dependency using Lab DSL: user -> auth_provider -> cache -> user
+circular_uml =
+  uml do
+    user =
+      struct("User", id: :user) do
+        field :id, :integer
+      end
 
-Choreo.UML.Analysis.cycles(circular_uml)
-#=> [[:cache, :auth_provider, :user]]
+    auth =
+      behavior("AuthProvider", id: :auth_provider) do
+        function :verify, 1
+      end
+
+    cache =
+      interface("Cache", id: :cache) do
+        function :get, 1
+      end
+
+    realizes user ~> auth, "implements"
+    depends auth ~> cache, "uses"
+    depends cache ~> user, "references"
+  end
+
+Analysis.cycles(circular_uml)
+#=> [[:auth_provider, :cache, :user]]
 ```
 
 ### 2. Broken Behavior & Protocol Contracts
@@ -223,15 +257,18 @@ Flag if a struct/class claims to implement a behavior contract but forgets some 
 ```elixir
 # Struct 'broken_user' claims to implement 'auth_provider' but is missing the 'verify/1' function
 broken_uml =
-  UML.new()
-  |> UML.add_class(:auth_provider,
-    type: :behavior,
-    functions: [%{name: "verify", arity: 1}]
-  )
-  |> UML.add_class(:broken_user, type: :struct)
-  |> UML.add_relationship(:broken_user, :auth_provider, type: :realizes)
+  uml do
+    auth =
+      behavior("AuthProvider", id: :auth_provider) do
+        function :verify, 1
+      end
 
-Choreo.UML.Analysis.broken_contracts(broken_uml)
+    broken_user = struct("BrokenUser", id: :broken_user)
+
+    realizes broken_user ~> auth
+  end
+
+Analysis.broken_contracts(broken_uml)
 #=> [{:broken_user, :auth_provider, [%{name: "verify", arity: 1}]}]
 ```
 
@@ -242,26 +279,50 @@ Evaluate Afferent Coupling ($C_a$), Efferent Coupling ($C_e$), and Instability (
 > **Note on parallel edges**: Coupling metrics collapse parallel relationships into a single edge before counting degrees.
 
 ```elixir
-Choreo.UML.Analysis.coupling_metrics(uml)
+Analysis.coupling_metrics(uml)
 ```
 
 ---
 
 ## Cheat Sheet
 
+### Lab DSL Syntax
+
+| Syntax                                            | Description                               |
+| ------------------------------------------------- | ----------------------------------------- |
+| `uml do ... end`                                  | Define a UML diagram                      |
+| `uml strict_contract_validation: true do ... end` | Define UML with strict contract checking  |
+| `user = struct("User") do ... end`                | Declare a struct with fields/functions    |
+| `auth = behavior("AuthProvider") do ... end`      | Declare a behavior with callbacks         |
+| `cache = interface("Cache") do ... end`           | Declare an interface contract             |
+| `repo = protocol("RepoProtocol") do ... end`      | Declare a protocol contract               |
+| `field :id, :integer, visibility: :public`        | Declare a field with visibility           |
+| `function :verify, 1, return: :ok_error`          | Declare a function with arity/return type |
+| `private(field(:email, :string))`                 | Wrap field in visibility modifier         |
+| `realizes user ~> auth, "implements"`             | Adopting/implementing a behavior/protocol |
+| `inherits child ~> base, "extends"`               | Class inheritance or specialization       |
+| `depends service ~> cache, "calls"`               | Runtime dependency or invocation          |
+| `has order ~> item, "owns"`                       | Composition / association relationship    |
+
+| `service ~> repo  | > depends("calls")`  | Piped relationship modifier           |
+| `service ~> cache | > type(:associates)` | Piped relationship with type modifier |
+
+### Programmatic Pipe API & Analysis
+
 | Task / Feature               | Command                                                              |
 | ---------------------------- | -------------------------------------------------------------------- |
-| Create UML Diagram           | `UML.new/1`                                                          |
+| Create UML Diagram           | `UML.new/1` (Opts: `:strict`, `:strict_contract_validation`)         |
 | Add Struct/Behavior/Class    | `UML.add_class/3` (Opts: `:type`, `:fields`, `:functions`, `:label`) |
 | Add Connection Relationship  | `UML.add_relationship/4` (Opts: `:type`, `:label`)                   |
 | Render Styled DOT Graphviz   | `UML.to_dot/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`)  |
 | Render Native Mermaid Class  | `UML.to_mermaid/2` (Opts: `syntax: :class_diagram`, `:direction`)    |
 | Filter Graph via Lens focus  | `Choreo.View.focus/3`                                                |
-| Detect circular cycles       | `Choreo.UML.Analysis.cycles/1`                                       |
-| Verify behavior contracts    | `Choreo.UML.Analysis.broken_contracts/1`                             |
-| Compute coupling metrics     | `Choreo.UML.Analysis.coupling_metrics/1`                             |
-| Check Law of Demeter         | `Choreo.UML.Analysis.law_of_demeter_violations/1`                    |
-| Validate diagram             | `Choreo.UML.Analysis.validate/1`                                     |
-| Find affected classes        | `Choreo.UML.Analysis.affected_by/2`                                  |
-| Find class dependencies      | `Choreo.UML.Analysis.depends_on/2`                                   |
-| Find redundant relationships | `Choreo.UML.Analysis.transitive_reduction/1`                         |
+| Zoom Diagram by Tier         | `Choreo.View.zoom/2`                                                 |
+| Detect circular cycles       | `Analysis.cycles/1`                                                  |
+| Verify behavior contracts    | `Analysis.broken_contracts/1`                                        |
+| Compute coupling metrics     | `Analysis.coupling_metrics/1`                                        |
+| Check Law of Demeter         | `Analysis.law_of_demeter_violations/1`                               |
+| Validate diagram             | `Analysis.validate/1`                                                |
+| Find affected classes        | `Analysis.affected_by/2`                                             |
+| Find class dependencies      | `Analysis.depends_on/2`                                              |
+| Find redundant relationships | `Analysis.transitive_reduction/1`                                    |

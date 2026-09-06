@@ -4,16 +4,21 @@
 
 ### Added
 
+- Added support for keyword options and label tuples in `Choreo.Lab.DSL.UML` relationship pipe modifiers (`|> depends(label: "calls")`, `|> type(:realizes, "implements")`).
+- Added `:type` relationship modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.UML`.
+- Added support for `edge/3` with both label and keyword options (`edge controller ~> repo, "calls", type: :depends`) in `Choreo.Lab.DSL.UML`.
 - Added support for keyword options and label tuples in `Choreo.Lab.DSL.ERD` relationship pipe modifiers (`|> one_to_many("writes", from: :id, to: :user_id)`, `|> has_many(from: :id, to: :user_id)`).
 - Added `:from_column`, `:to_column`, and `:cardinality` relationship modifiers and expanded autocomplete helper stubs in `Choreo.Lab.DSL.ERD`.
 - Added support for `edge/3` with both label and keyword options (`edge users ~> posts, "writes", from: :id, to: :user_id`) in `Choreo.Lab.DSL.ERD`.
 
 ### Changed
 
+- Updated `livebooks/guides/uml_walkthrough.livemd` to showcase `Choreo.Lab.DSL.UML` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 - Updated `livebooks/guides/erd_walkthrough.livemd` to showcase `Choreo.Lab.DSL.ERD` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 
 ### Fixed
 
+- Fixed relationship pipe modifier argument order when delegating in `Choreo.Lab.DSL.UML`.
 - Fixed relationship pipe modifier parsing in `Choreo.Lab.DSL.ERD` to accept keyword option lists alongside cardinality verbs.
 
 ## [0.12.0] - 2026-07-26
