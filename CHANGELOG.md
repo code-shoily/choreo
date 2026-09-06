@@ -4,42 +4,18 @@
 
 ### Added
 
-- `Choreo.Planner.Analysis`: Added `workload_by_assignee/2` to summarize open task counts, estimates, and statuses by owner.
-- `Choreo.Domain`: Added `downstream/2` to trace downstream effects from a domain node.
-- `Choreo.DecisionTree.Analysis`: Added `cyclic?/1` to check for graph cycles, `dead_ends/1` to detect decision paths that cannot reach an outcome, and `outcome_distribution/1` to compute frequencies of reachable outcome classes.
-- `Choreo.DecisionTree.Analysis`: Enhanced `validate/1` with cycle detection and multiple parent checks to enforce tree invariants.
-- `Choreo.Dependency.Analysis`: Added `cyclic?/1` for circular dependency checks, `topological_sort/1` for execution ordering, `build_order/1` for bottom-up compilation/boot sequencing, `direct_dependencies/2` and `direct_dependents/2` for immediate neighbor queries, and `isolated_nodes/1` for disconnected component detection.
-- `Choreo.Infrastructure`: Added `add_cluster/3`, `clusters/1`, `edges_with_meta/1`, `to_simple_graph/2`, and `to_graph/1` for complete parity with top-level `Choreo`.
-- `Choreo.Infrastructure.Analysis`: Added programmatic violation and placement queries: `direct_internet_violations/1`, `misplaced_databases/1`, `misplaced_storage/1`, `misplaced_load_balancers/1`, `unassigned_compute/1`, and `isolated_nodes/1`.
-- **ThreatModel Hardening & Advanced Security Analysis**:
-  - `Choreo.ThreatModel`: Added support for `:role` (`:anonymous`, `:user`, `:partner`, `:admin`, `:third_party`), `:privilege`, and `:controls` in external entities; `:controls` in processes and data stores; and `:authenticated`, `:data`, `:sensitivity`, and `:controls` in data flows.
-  - `Choreo.ThreatModel`: Added `:highlighted_nodes` and `:highlighted_edges` fields to the struct, and forwarded them seamlessly through `to_dot/2` and `to_mermaid/2`. Added `clear_highlight/1`.
-  - `Choreo.ThreatModel.Analysis`: Added `entry_points/1` and `exit_points/1` to detect ingress vectors entering trusted domains and egress vectors leaving trusted boundaries.
-  - `Choreo.ThreatModel.Analysis`: Added `blast_radius/2` to compute downstream compromise reachability, affected sensitive data stores, exposed trust boundaries, and qualitative risk rating.
-  - `Choreo.ThreatModel.Analysis`: Added `highlight_attack_paths/2` to automatically highlight multi-hop attack paths across Graphviz and Mermaid visualizations.
-  - `Choreo.ThreatModel.Analysis`: Added mitigation and control tracking to STRIDE threat generation (`:mitigated?`, `:controls`, `:owasp`), plus `unmitigated_threats/2` and `threats_for/3`.
-  - `Choreo.ThreatModel.Analysis`: Added `to_markdown/2` for exporting structured, executive GitHub Flavored Markdown threat tables.
-  - `Choreo.ThreatModel.Analysis`: Enhanced `validate/2` to check for direct flows between external entities and data stores, sensitive stores in low-trust boundaries, and missing boundary levels (`require_levels: true`).
-  - `Choreo.ThreatModel.Analysis`: Added reviewer-layer analyses for residual risk scoring, control gap detection, exfiltration paths, boundary flow matrices, and prioritized findings.
-  - `Choreo.Lab.DSL.ThreatModel`: Added edge modifiers `authenticated`, `carries`, `controls`/`protects`, and `sensitivity`.
-  - Updated `livebooks/guides/threat_model_walkthrough.livemd` with ingress/egress analysis, blast radius, attack path highlighting, mitigations, reviewer-layer analysis, and Markdown matrices.
+- **Analysis & Query Capabilities**:
+  - Added topological sorting, cycle detection, and build sequencing across `Dependency` and `DecisionTree`.
+  - Added domain query helpers including `Dependency` neighbor lookups, `Domain.downstream/2`, `DecisionTree` dead-end / outcome distribution analysis, and `Planner.workload_by_assignee/2`.
+  - Added infrastructure audit placement queries (`direct_internet_violations/1`, `misplaced_databases/1`, etc.) and brought `Choreo.Infrastructure` to parity with core graph and cluster builders.
+- **ThreatModel Hardening**:
+  - Added security metadata (roles, privileges, sensitivity, mitigations), attack path analysis (blast radius, ingress/egress, automated highlighting), and reviewer-layer risk assessments with Markdown export.
 
 ### Fixed
 
-- Documented `:highlighted_nodes` and `:highlighted_edges` in `Choreo.to_dot/2` and `Choreo.to_mermaid/2`, and documented `:minimal` theme support in `Choreo.Infrastructure.to_dot/2` and `Choreo.Infrastructure.to_mermaid/2`.
-- Fixed outdated reference to deprecated `Analysis.warnings/1` in `infrastructure_topology_walkthrough.livemd`, updated Step 3 to detail all 5 security audit rules and programmatic queries, and updated Cheat Sheet and Summary tables.
-- Fixed trailing comma in `system_design_walkthrough.livemd`, added `:compute`, `:managed_db`, and `:internet` to node types table/legend, added Example 8 (Centrality & Heatmap Hotspot Analysis) and Example 9 (Transitive Reduction & Pathfinding), and expanded summary table.
-- Fixed stale Planner walkthrough `to_dot/2` option references and added an assignee workload analysis example.
-- Fixed stale Sequence walkthrough rendering wording and async Mermaid arrow reference.
-- Fixed stale UML walkthrough connector references and ERD Mermaid `:many_to_many` cardinality rendering.
-- Fixed stale C4 walkthrough Mermaid rendering references and Domain Modeling cheat sheet API entries.
-- Fixed stale Requirement walkthrough API references and added validation for duplicate human requirement IDs.
-- Fixed stale FSM walkthrough API/rendering references and theme option documentation, and added defensive validation for duplicate outgoing transition labels.
-- Fixed stale MindMap walkthrough API references and rendering/theme option documentation, and added defensive validation for invalid root pointers.
-- Fixed stale DecisionTree walkthrough rendering callout and cheat sheet references, corrected pipe syntax typo in DSL documentation, and documented `:minimal` theme, `:rankdir`, and element highlighting options across renderers.
-- Fixed missing intro rendering callout and incomplete Cheat Sheet/Summary tables in Dependency walkthrough, and documented supported options (`:syntax`, `:minimal`, `:rankdir`, `:engine`, `:highlighted_nodes`, `:highlighted_edges`) across `to_dot/2`, `to_mermaid/2`, and `theme/2`.
-- Fixed sequence diagram flow label resolution in `Choreo.ThreatModel.Render.Mermaid.to_sequence/2` when flow labels are empty strings.
-- Fixed non-constructor node expression handling in `Choreo.Lab.DSL.Sequence`.
+- Fixed sequence diagram flow label resolution for empty labels in `Choreo.ThreatModel` and non-constructor expressions in `Choreo.Lab.DSL.Sequence`.
+- Fixed defensive validations for duplicate requirement IDs, duplicate transition labels in FSM, and invalid root pointers in MindMap.
+- Improved documentation and walkthrough livebooks across all domains with updated rendering options, audit rules, cheat sheets, and dual syntax examples.
 
 ## [0.13.0] - 2026-09-06
 
