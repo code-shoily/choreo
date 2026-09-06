@@ -10,7 +10,7 @@ Mix.install([
 ])
 ```
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Kino.Mermaid` for Mermaid.js output. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Choreo.Lab.Siren` / `Choreo.Lab.Sketch` for Mermaid previews.
 
 ---
 
@@ -503,50 +503,50 @@ Kino.Layout.tabs(
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.Dataflow`)
 
-| Syntax                                            | Description                                  |
-| ------------------------------------------------- | -------------------------------------------- |
-| `dataflow do ... end`                             | Define a dataflow pipeline model             |
-| `s = source("Title", rate: 1000)` / `input(...)`  | Declare a data source / producer entry point |
-| `t = transform("Title", latency_ms: 25)`          | Declare a stateless transform stage          |
-| `b = buffer("Title", capacity: 50_000)` / `queue` | Declare a queue, buffer, or stream topic     |
-| `c = conditional("Title")` / `decision(...)`      | Declare a branching condition / filter       |
-| `m = merge("Title")` / `join(...)`                | Declare a stream merge / multiplexer         |
-| `snk = sink("Title")` / `output(...)`             | Declare a terminal consumer / data sink      |
-| `cluster "Name", label: "..." do ... end`         | Define a visual cluster / stage block        |
-| `a ~> b`                                          | Connect stages via normal dataflow stream    |
-| `a ~> b |> on("label")`                           | Set edge stream label                        |
-| `a ~> b |> emits("data_type")` / `writes(...)`    | Set stream data type and display label       |
-| `a ~> b |> retry("reason")`                       | Mark edge as retry path                      |
-| `a ~> b |> error("reason")`                       | Mark edge as error path                      |
-| `a ~> b |> dead_letter("reason")` / `dlq(...)`    | Mark edge as dead-letter queue path          |
-| `a ~> b |> data("type")`                          | Set stream data payload type                 |
-| `a ~> b |> rate("100/s")`                         | Set stream flow rate                         |
-
+| Syntax                                            | Description                                    |
+| ------------------------------------------------- | ---------------------------------------------- |
+| `dataflow do ... end`                             | Define a dataflow pipeline model               |
+| `s = source("Title", rate: 1000)` / `input(...)`  | Declare a data source / producer entry point   |
+| `t = transform("Title", latency_ms: 25)`          | Declare a stateless transform stage            |
+| `b = buffer("Title", capacity: 50_000)` / `queue` | Declare a queue, buffer, or stream topic       |
+| `c = conditional("Title")` / `decision(...)`      | Declare a branching condition / filter         |
+| `m = merge("Title")` / `join(...)`                | Declare a stream merge / multiplexer           |
+| `snk = sink("Title")` / `output(...)`             | Declare a terminal consumer / data sink        |
+| `cluster "Name", label: "..." do ... end`         | Define a visual cluster / stage block          |
+| `a ~> b`                                          | Connect stages via normal dataflow stream      |
+| `a ~> b |> on("label")`                           | Set edge stream label                          |
+| `a ~> b |> emits("data_type")` / `writes(...)`    | Set stream data type and display label         |
+| `a ~> b |> retry("reason")`                       | Mark edge as retry path                        |
+| `a ~> b |> error("reason")`                       | Mark edge as error path                        |
+| `a ~> b |> dead_letter("reason")` / `dlq(...)`    | Mark edge as dead-letter queue path            |
+| `a ~> b |> data("type")`                          | Set stream data payload type                   |
+| `a ~> b |> rate("100/s")`                         | Set stream flow rate                           |
 | `a ~> b |> type(:retry, "label", rate: 10)`       | Explicit type modifier with label and options  |
 | `edge a ~> b, "label", rate: 100`                 | Explicit edge statement with label and options |
 
 ### Programmatic Pipe API & Analysis (`Choreo.Dataflow`)
 
-| Task / Feature           | Command                                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------------------- |
-| Create Pipeline          | `Dataflow.new/1` (Opts: `:strict`)                                                          |
-| Add Source / Sink        | `Dataflow.add_source/3`, `Dataflow.add_sink/3` (Opts: `:label`, `:rate`, `:cluster`)        |
-| Add Transform            | `Dataflow.add_transform/3` (Opts: `:label`, `:latency_ms`, `:capacity`, `:cluster`)         |
-| Add Buffer               | `Dataflow.add_buffer/3` (Opts: `:label`, `:capacity`, `:latency_ms`, `:cluster`)            |
-| Add Conditional / Merge  | `Dataflow.add_conditional/3`, `Dataflow.add_merge/3` (Opts: `:label`, `:cluster`)           |
-| Add Cluster / Subgraph   | `Dataflow.add_cluster/3` (Opts: `:label`, `:fillcolor`, `:color`, `:parent`, `:style`)      |
-| Connect Stages           | `Dataflow.connect/4` (Opts: `:label`, `:data_type`, `:rate`, `:path_type`, `:weight`)       |
-| Specialized Path Helpers | `Dataflow.add_error_path/4`, `Dataflow.add_retry_path/4`, `Dataflow.add_dead_letter_path/4` |
-| Render Mermaid Flowchart | `Dataflow.to_mermaid/2` (Opts: `:theme`)                                                    |
-| Render DOT Graphviz      | `Dataflow.to_dot/2` (Opts: `:theme`, `:rankdir`)                                            |
-| Cycle Detection          | `Analysis.cyclic?/1` (Detects loops and cyclic feedback)                                    |
-| Execution Order          | `Analysis.topological_sort/1` (DAG topological order)                                       |
-| Orphan Stages            | `Analysis.orphan_nodes/1` (Stages missing upstream inputs)                                  |
-| Dead-End Stages          | `Analysis.dead_ends/1` (Stages missing downstream consumers)                                |
-| Bottleneck Detection     | `Analysis.bottlenecks/1` (Identifies stages with tightest throughput capacity)              |
-| Critical Path Latency    | `Analysis.longest_path/1` (Finds slowest end-to-end path and latency)                       |
-| Throughput Simulation    | `Analysis.simulate/1` (Simulates inbound/outbound rates and backpressure)                   |
-| Zoom Views               | `Choreo.View.zoom/2` (Level 0: sources/sinks, Level 1: + transforms, Level 2: all)          |
+| Task / Feature           | Command                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| Create Pipeline          | `Dataflow.new/1` (Opts: `:strict`)                                                                 |
+| Add Source / Sink        | `Dataflow.add_source/3`, `Dataflow.add_sink/3` (Opts: `:label`, `:rate`, `:cluster`)               |
+| Add Transform            | `Dataflow.add_transform/3` (Opts: `:label`, `:latency_ms`, `:capacity`, `:cluster`)                |
+| Add Buffer               | `Dataflow.add_buffer/3` (Opts: `:label`, `:capacity`, `:latency_ms`, `:cluster`)                   |
+| Add Conditional / Merge  | `Dataflow.add_conditional/3`, `Dataflow.add_merge/3` (Opts: `:label`, `:cluster`)                  |
+| Add Cluster / Subgraph   | `Dataflow.add_cluster/3` (Opts: `:label`, `:fillcolor`, `:color`, `:parent`, `:style`)             |
+| Connect Stages           | `Dataflow.connect/4` (Opts: `:label`, `:data_type`, `:rate`, `:path_type`, `:weight`)              |
+| Specialized Path Helpers | `Dataflow.add_error_path/4`, `Dataflow.add_retry_path/4`, `Dataflow.add_dead_letter_path/4`        |
+| Render Mermaid Flowchart | `Dataflow.to_mermaid/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`, `:highlighted_edges`) |
+| Render DOT Graphviz      | `Dataflow.to_dot/2` (Opts: `:theme`, `:rankdir`, `:highlighted_nodes`, `:highlighted_edges`)       |
+| Themes                   | `Dataflow.theme/2` (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`)                 |
+| Cycle Detection          | `Analysis.cyclic?/1` (Detects loops and cyclic feedback)                                           |
+| Execution Order          | `Analysis.topological_sort/1` (DAG topological order)                                              |
+| Orphan Stages            | `Analysis.orphan_nodes/1` (Stages missing upstream inputs)                                         |
+| Dead-End Stages          | `Analysis.dead_ends/1` (Stages missing downstream consumers)                                       |
+| Bottleneck Detection     | `Analysis.bottlenecks/1` (Identifies stages with tightest throughput capacity)                     |
+| Critical Path Latency    | `Analysis.longest_path/1` (Finds slowest end-to-end path and latency)                              |
+| Throughput Simulation    | `Analysis.simulate/1` (Simulates inbound/outbound rates and backpressure)                          |
+| Zoom Views               | `Choreo.View.zoom/2` (Level 0: sources/sinks, Level 1: + transforms, Level 2: all)                 |
 
 ---
 

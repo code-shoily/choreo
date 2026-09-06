@@ -641,7 +641,10 @@ defmodule Choreo.Workflow do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
+    * Any other option accepted by `Yog.Multi.DOT.to_dot/2`, such as `:rankdir`
 
   ## Examples
 
@@ -669,8 +672,10 @@ defmodule Choreo.Workflow do
   ## Options
 
     * `:syntax` — `:flowchart` (default) or `:swimlane` (Mermaid 11.16+ `swimlane-beta`)
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default for flowchart), `:lr` (default for swimlane), `:bt`, `:rl`
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
 
   ## Examples
 

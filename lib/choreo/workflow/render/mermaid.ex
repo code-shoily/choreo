@@ -41,7 +41,7 @@ defmodule Choreo.Workflow.Render.Mermaid do
   ## Options
 
     * `:syntax` — `:flowchart` (default) or `:swimlane`
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default for flowchart), `:lr` (default for swimlane), `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight

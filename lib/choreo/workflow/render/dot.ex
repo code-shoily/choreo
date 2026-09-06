@@ -35,7 +35,10 @@ defmodule Choreo.Workflow.Render.DOT do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
+    * Any other option accepted by `Yog.Multi.DOT.to_dot/2`, such as `:rankdir`
 
   ## Examples
 

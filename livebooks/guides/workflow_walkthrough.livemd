@@ -10,7 +10,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. You can also copy DOT output into [PlantText](https://www.planttext.com/) or run `dot -Tpng diagram.dot -o diagram.png` locally. Since version 0.8.0, Choreo also supports **Mermaid.js** output for GitHub, GitLab, Notion, and any Markdown-based documentation.
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Choreo.Lab.Siren` / `Choreo.Lab.Sketch` for Mermaid previews.
 
 ---
 
@@ -622,26 +622,27 @@ Kino.Layout.tabs(
 
 ### Programmatic Pipe API & Analysis
 
-| Task / Feature             | Command                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------- |
-| Create Workflow            | `Workflow.new/1` (Opts: `:strict`)                                                                |
-| Add Start / End            | `Workflow.add_start/3`, `Workflow.add_end/3`                                                      |
-| Add Task                   | `Workflow.add_task/3` (Opts: `:label`, `:timeout_ms`, `:retry`, `:retry_backoff_ms`, `:swimlane`) |
-| Add Decision / Fork / Join | `Workflow.add_decision/3`, `Workflow.add_fork/3`, `Workflow.add_join/3`                           |
-| Add Compensation           | `Workflow.add_compensation/3` (Opts: `:label`, `:for`, `:swimlane`)                               |
-| Add Event                  | `Workflow.add_event/3` (Opts: `:label`, `:swimlane`)                                              |
-| Add Swimlane               | `Workflow.add_swimlane/3` (Opts: `:label`, `:fillcolor`)                                          |
-| Connect Nodes              | `Workflow.connect/4` (Opts: `:label`, `:condition`, `:edge_type`, `:weight`)                      |
-| Render Mermaid Flowchart   | `Workflow.to_mermaid/2` (Opts: `:theme`, `:syntax`)                                               |
-| Render Mermaid Swimlane    | `Workflow.to_mermaid/2` (`syntax: :swimlane`)                                                     |
-| Render DOT Graphviz        | `Workflow.to_dot/2` (Opts: `:theme`, `:rankdir`)                                                  |
-| Critical Path Latency      | `Analysis.critical_path/1` (Finds longest latency execution path)                                 |
-| Parallelizable Tasks       | `Analysis.parallelizable_tasks/1` (Finds concurrency levels)                                      |
-| Missing Compensations      | `Analysis.missing_compensations/1` (Tasks with retry lacking rollback)                            |
-| Uncompensated Paths        | `Analysis.uncompensated_paths/1` (Error paths missing terminal rollback)                          |
-| Bottleneck Detection       | `Analysis.bottlenecks/2` (Thresholds on latency and retries)                                      |
-| Simulation                 | `Analysis.simulate/1` (Estimates cumulative latency across nodes)                                 |
-| Structural Integrity       | `Analysis.validate/1` (Verifies start/end reachability, orphans, dead ends)                       |
+| Task / Feature             | Command                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Create Workflow            | `Workflow.new/1` (Opts: `:strict`)                                                                            |
+| Add Start / End            | `Workflow.add_start/3`, `Workflow.add_end/3`                                                                  |
+| Add Task                   | `Workflow.add_task/3` (Opts: `:label`, `:timeout_ms`, `:retry`, `:retry_backoff_ms`, `:swimlane`)             |
+| Add Decision / Fork / Join | `Workflow.add_decision/3`, `Workflow.add_fork/3`, `Workflow.add_join/3`                                       |
+| Add Compensation           | `Workflow.add_compensation/3` (Opts: `:label`, `:for`, `:swimlane`)                                           |
+| Add Event                  | `Workflow.add_event/3` (Opts: `:label`, `:swimlane`)                                                          |
+| Add Swimlane               | `Workflow.add_swimlane/3` (Opts: `:label`, `:fillcolor`)                                                      |
+| Connect Nodes              | `Workflow.connect/4` (Opts: `:label`, `:condition`, `:edge_type`, `:weight`)                                  |
+| Render Mermaid Flowchart   | `Workflow.to_mermaid/2` (Opts: `:theme`, `:syntax`, `:direction`, `:highlighted_nodes`, `:highlighted_edges`) |
+| Render Mermaid Swimlane    | `Workflow.to_mermaid/2` (`syntax: :swimlane`)                                                                 |
+| Render DOT Graphviz        | `Workflow.to_dot/2` (Opts: `:theme`, `:rankdir`, `:highlighted_nodes`, `:highlighted_edges`)                  |
+| Themes                     | `Workflow.theme/2` (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`)                            |
+| Critical Path Latency      | `Analysis.critical_path/1` (Finds longest latency execution path)                                             |
+| Parallelizable Tasks       | `Analysis.parallelizable_tasks/1` (Finds concurrency levels)                                                  |
+| Missing Compensations      | `Analysis.missing_compensations/1` (Tasks with retry lacking rollback)                                        |
+| Uncompensated Paths        | `Analysis.uncompensated_paths/1` (Error paths missing terminal rollback)                                      |
+| Bottleneck Detection       | `Analysis.bottlenecks/2` (Thresholds on latency and retries)                                                  |
+| Simulation                 | `Analysis.simulate/1` (Estimates cumulative latency across nodes)                                             |
+| Structural Integrity       | `Analysis.validate/1` (Verifies start/end reachability, orphans, dead ends)                                   |
 
 ---
 

@@ -33,7 +33,7 @@ defmodule Choreo.Dataflow.Render.Mermaid do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of `{from, to}` tuples to highlight
@@ -101,10 +101,6 @@ defmodule Choreo.Dataflow.Render.Mermaid do
   def theme(name \\ :default, overrides \\ []) do
     resolve_theme(name) |> Choreo.Theme.override(overrides)
   end
-
-  # ============================================================================
-  # Subgraphs (clusters)
-  # ============================================================================
 
   # ============================================================================
   # Subgraphs (clusters)
