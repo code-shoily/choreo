@@ -11,7 +11,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.Mermaid` to render Mermaid sequence diagrams inline. Sequence diagrams are Mermaid's native strength; Choreo also provides a best-effort DOT renderer for static image or PDF pipelines.
+> **Rendering diagrams:** This livebook uses `Choreo.Lab.Siren` to render Mermaid sequence diagrams inline. Sequence diagrams are Mermaid's native strength; Choreo also provides a best-effort DOT renderer for static image or PDF pipelines.
 
 ---
 
@@ -76,7 +76,7 @@ Choreo.Sequence supports several message styles:
 | Type      | Mermaid Arrow | Use case                        |
 | --------- | ------------- | ------------------------------- |
 | `:sync`   | `->>`         | Synchronous call (default)      |
-| `:async`  | `-->>`        | Asynchronous / fire-and-forget  |
+| `:async`  | `-)`          | Asynchronous / fire-and-forget  |
 | `:return` | `-->>`        | Response message                |
 | `:self`   | `->>`         | Message to self (auto-detected) |
 
