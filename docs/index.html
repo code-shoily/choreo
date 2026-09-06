@@ -128,7 +128,9 @@
 
             /* ── Header ───────────────────────────────── */
             header {
-                background: rgba(12, 26, 46, 0.92);
+                background: rgba(12, 26, 46, 0.88);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
                 border-bottom: 1px solid var(--border);
                 padding: 1rem 0;
                 position: sticky;
@@ -334,6 +336,98 @@
                 border-color: var(--primary);
             }
 
+            .hero-install-wrapper {
+                display: flex;
+                justify-content: center;
+                margin-bottom: 1.5rem;
+            }
+
+            .hero-install-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.75rem;
+                background: var(--surface);
+                border: 1px solid var(--border-bright);
+                border-radius: var(--radius);
+                padding: 0.45rem 1rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-family: var(--font-mono);
+                font-size: 0.82rem;
+                color: var(--text);
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+                user-select: none;
+            }
+
+            .hero-install-pill:hover {
+                background: var(--surface-2);
+                border-color: var(--primary);
+                transform: translateY(-1px);
+            }
+
+            .hero-install-pill .pill-prefix {
+                color: var(--text-3);
+                font-size: 0.72rem;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }
+
+            .hero-install-pill code {
+                color: var(--primary);
+                font-family: inherit;
+                font-weight: 600;
+            }
+
+            .hero-install-pill .pill-action {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                color: var(--text-2);
+                font-size: 0.72rem;
+                padding-left: 0.5rem;
+                border-left: 1px solid var(--border);
+            }
+
+            .hero-install-pill:hover .pill-action {
+                color: var(--primary);
+            }
+
+            .showcase-category-filters {
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 0.4rem;
+                margin: 0 auto 0.75rem;
+                max-width: 900px;
+            }
+
+            .category-filter {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                color: var(--text-2);
+                padding: 0.35rem 0.85rem;
+                border-radius: var(--radius);
+                font-family: var(--font-mono);
+                font-size: 0.74rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                letter-spacing: 0.02em;
+            }
+
+            .category-filter:hover {
+                border-color: var(--primary);
+                color: var(--text);
+                background: var(--primary-lt);
+            }
+
+            .category-filter.active {
+                background: var(--primary-lt);
+                border-color: var(--primary);
+                color: var(--primary);
+                font-weight: 600;
+            }
+
             /* ── Teaser ───────────────────────────────── */
             .teaser-wrapper {
                 background: var(--surface);
@@ -440,6 +534,7 @@
                 padding: 5rem 0;
                 border-bottom: 1px solid var(--border);
                 position: relative;
+                scroll-margin-top: 5rem;
             }
             .section:last-of-type {
                 border-bottom: none;
@@ -1100,12 +1195,63 @@
                     domain designs as graph-backed system models — then composing,
                     analyzing, and rendering them with Mermaid, Graphviz, and Livebook.
                 </p>
+                <div class="hero-install-wrapper">
+                    <div
+                        class="hero-install-pill"
+                        onclick="copyHeroSnippet(this)"
+                        title="Click to copy mix dependency snippet"
+                    >
+                        <span class="pill-prefix">mix.exs</span>
+                        <code>{:choreo, "~&gt; 0.12"}</code>
+                        <span class="pill-action">
+                            <svg
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <rect
+                                    x="9"
+                                    y="9"
+                                    width="13"
+                                    height="13"
+                                    rx="2"
+                                    ry="2"
+                                ></rect>
+                                <path
+                                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                                ></path>
+                            </svg>
+                            <span class="pill-action-text">Copy</span>
+                        </span>
+                    </div>
+                </div>
                 <div class="hero-actions">
-                    <a href="#workflow" class="btn-primary">How It Works</a>
-                    <a href="https://hexdocs.pm/choreo/lab_cheatsheet.html" class="btn-secondary">
+                    <a href="#showcase" class="btn-primary">Explore Diagrams</a>
+                    <a
+                        href="https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2Fcode-shoily%2Fchoreo%2Fblob%2Fmain%2Flivebooks%2Fguides%2Fc4_walkthrough.livemd"
+                        target="_blank"
+                        class="btn-secondary"
+                        style="display: inline-flex; align-items: center; gap: 0.45rem"
+                        title="Run interactive C4 guide in Livebook"
+                    >
+                        <img
+                            src="https://livebook.dev/badge/v1/blue.svg"
+                            alt="Run in Livebook"
+                            height="18"
+                        />
+                        Run in Livebook
+                    </a>
+                    <a
+                        href="https://hexdocs.pm/choreo/lab_cheatsheet.html"
+                        target="_blank"
+                        class="btn-secondary"
+                    >
                         DSL Cheatsheet
                     </a>
-                    <a href="#choose" class="btn-secondary">Choose a Diagram</a>
+                    <a href="#workflow" class="btn-secondary">How It Works</a>
                 </div>
 
                 <!-- Teaser Preview -->
@@ -1310,72 +1456,119 @@ style db fill:#8b5cf6,stroke:#6d28d9,color:#fff;
                     </div>
                 </div>
 
+                <div class="showcase-category-filters" aria-label="Filter diagrams by category">
+                    <button type="button" class="category-filter active" onclick="filterShowcaseCategory('all', this)">All (15)</button>
+                    <button type="button" class="category-filter" onclick="filterShowcaseCategory('architecture', this)">Architecture</button>
+                    <button type="button" class="category-filter" onclick="filterShowcaseCategory('processes', this)">Processes &amp; Behavior</button>
+                    <button type="button" class="category-filter" onclick="filterShowcaseCategory('data', this)">Data &amp; Domain</button>
+                    <button type="button" class="category-filter" onclick="filterShowcaseCategory('quality', this)">Quality &amp; Strategy</button>
+                </div>
+
                 <div class="showcase-tabs" style="margin-bottom: 2rem">
                     <button
                         class="tab-btn active"
+                        data-category="architecture"
                         onclick="switchTab('c4', this)"
                     >
                         C4 Model
                     </button>
                     <button
                         class="tab-btn"
+                        data-category="architecture"
+                        onclick="switchTab('infra', this)"
+                    >
+                        Infrastructure
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="architecture"
+                        onclick="switchTab('dependency', this)"
+                    >
+                        Dependencies
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="processes"
+                        onclick="switchTab('workflow', this)"
+                    >
+                        Workflow
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="processes"
                         onclick="switchTab('dataflow', this)"
                     >
                         Dataflow
                     </button>
                     <button
                         class="tab-btn"
+                        data-category="processes"
+                        onclick="switchTab('seq', this)"
+                    >
+                        Sequence
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="processes"
+                        onclick="switchTab('fsm', this)"
+                    >
+                        FSM
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="processes"
                         onclick="switchTab('decision', this)"
                     >
                         Decision Tree
                     </button>
                     <button
                         class="tab-btn"
-                        onclick="switchTab('dependency', this)"
+                        data-category="data"
+                        onclick="switchTab('erd', this)"
                     >
-                        Dependencies
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('domain', this)">
-                        Domain
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('erd', this)">
                         ERD
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('infra', this)">
-                        Infrastructure
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('fsm', this)">
-                        FSM
                     </button>
                     <button
                         class="tab-btn"
+                        data-category="data"
+                        onclick="switchTab('domain', this)"
+                    >
+                        Domain
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="data"
+                        onclick="switchTab('uml', this)"
+                    >
+                        UML Class
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="quality"
+                        onclick="switchTab('threat', this)"
+                    >
+                        Threat Model
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="quality"
+                        onclick="switchTab('requirement', this)"
+                    >
+                        Requirement
+                    </button>
+                    <button
+                        class="tab-btn"
+                        data-category="quality"
                         onclick="switchTab('mind_map', this)"
                     >
                         Mind Map
                     </button>
                     <button
                         class="tab-btn"
+                        data-category="quality"
                         onclick="switchTab('planner', this)"
                     >
                         Planner
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('requirement', this)">
-                        Requirement
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('seq', this)">
-                        Sequence
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('threat', this)">
-                        Threat Model
-                    </button>
-                    <button class="tab-btn" onclick="switchTab('uml', this)">
-                        UML Class
-                    </button>
-                    <button
-                        class="tab-btn"
-                        onclick="switchTab('workflow', this)"
-                    >
-                        Workflow
                     </button>
                 </div>
 
@@ -3084,7 +3277,9 @@ MindMap.to_dot(overview)</code></pre>
                             <span class="card-tag">Choreo.MindMap</span>
                             <span class="card-tag">Trees</span>
                         </div>
-                                    <a
+                    </a>
+
+                    <a
                         href="https://hexdocs.pm/choreo/Choreo.Planner.html"
                         target="_blank"
                         class="card-type"
@@ -3249,7 +3444,7 @@ end</pre>
   processing --> awaiting_payment : invoice_generated
   awaiting_payment --> completed : payment_received
   awaiting_payment --> cancelled : payment_timeout
-  processing --> cancelled : cancel
+  processing --> cancelled : cancel [can_cancel?]
   completed --> [*]`,
 
                 seq: `sequenceDiagram
@@ -3666,6 +3861,44 @@ elixir((Elixir))
                 });
             }
 
+            function copyHeroSnippet(pill) {
+                const text = '{:choreo, "~> 0.12"}';
+                navigator.clipboard.writeText(text).then(() => {
+                    const actionText = pill.querySelector(".pill-action-text");
+                    if (actionText) {
+                        actionText.textContent = "Copied!";
+                        setTimeout(() => {
+                            actionText.textContent = "Copy";
+                        }, 2000);
+                    }
+                });
+            }
+
+            function filterShowcaseCategory(category, btn) {
+                document
+                    .querySelectorAll(".category-filter")
+                    .forEach((b) => b.classList.remove("active"));
+                btn.classList.add("active");
+
+                const tabs = document.querySelectorAll(".showcase-tabs .tab-btn");
+                let firstVisibleTab = null;
+                let currentActiveVisible = false;
+
+                tabs.forEach((tab) => {
+                    const match =
+                        category === "all" || tab.dataset.category === category;
+                    tab.style.display = match ? "inline-flex" : "none";
+                    if (match) {
+                        if (!firstVisibleTab) firstVisibleTab = tab;
+                        if (tab.classList.contains("active")) currentActiveVisible = true;
+                    }
+                });
+
+                if (!currentActiveVisible && firstVisibleTab) {
+                    firstVisibleTab.click();
+                }
+            }
+
 
 
             const pipeCodePresets = {};
@@ -3741,12 +3974,20 @@ tree =
 
 deps =
   DependencyDSL.dependency do
-    core = library("Core Business")
-    accounts = library("Accounts")
-    orders = library("Orders")
-    auth = application("Auth")
-    repo = package("Repo")
-    mailer = package("Mailer")
+    cluster "Domain" do
+      core = library("Core Business")
+      accounts = library("Accounts")
+      orders = library("Orders")
+    end
+
+    cluster "Application" do
+      auth = application("Auth")
+    end
+
+    cluster "Infrastructure" do
+      repo = package("Repo")
+      mailer = package("Mailer")
+    end
 
     accounts ~> core |> depends_on("domain logic")
     orders ~> core |> depends_on("domain logic")
@@ -3813,7 +4054,7 @@ fsm =
     processing ~> awaiting_payment |> on("invoice_generated")
     awaiting_payment ~> completed |> on("payment_received")
     awaiting_payment ~> cancelled |> on("payment_timeout")
-    processing ~> cancelled |> on("cancel")
+    processing ~> cancelled |> on("cancel", guard: "can_cancel?")
   end`,
 
                 infra: `alias Choreo.Lab.DSL.Infrastructure, as: InfraDSL
@@ -3821,12 +4062,17 @@ fsm =
 infra =
   InfraDSL.infrastructure do
     internet = internet("Internet")
-    prod = vpc("Production VPC")
-    public = public_subnet("Public Subnet", parent: prod)
-    private = private_subnet("Private Subnet", parent: prod)
-    alb = load_balancer("ALB", cluster: public)
-    api = service("API Service", cluster: private)
-    db = database("Postgres", cluster: private)
+
+    vpc "Production VPC" do
+      public_subnet "Public Subnet" do
+        alb = load_balancer("ALB")
+      end
+
+      private_subnet "Private Subnet" do
+        api = service("API Service")
+        db = database("Postgres")
+      end
+    end
 
     internet ~> alb |> on("HTTPS")
     alb ~> api |> on("HTTP")
@@ -3913,11 +4159,17 @@ seq =
 
 model =
   ThreatDSL.threat_model do
-    user = external_entity("End User")
-    attacker = external_entity("Attacker")
-    web = process("Web Server")
-    auth = process("Auth Service")
-    db = data_store("User DB", sensitivity: :high)
+    boundary "Internet Boundary", level: 0 do
+      user = external_entity("End User")
+      attacker = external_entity("Attacker")
+    end
+
+    boundary "DMZ", level: 1 do
+      web = process("Web Server")
+      auth = process("Auth Service")
+    end
+
+    db = data_store("User DB", sensitivity: :confidential)
     cache = data_store("Redis Cache")
 
     user ~> web |> encrypted("HTTPS/443")
