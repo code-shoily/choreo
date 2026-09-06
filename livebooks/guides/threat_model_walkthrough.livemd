@@ -457,35 +457,35 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.ThreatModel`)
 
-| Syntax | Description |
-| ----------------------------------------------------------------- | ---------------------------------------------------- |
-| `threat_model do ... end`                                         | Define a threat model block                          |
-| `boundary "Name", level: 0 do ... end`                            | Scoped trust boundary block with boundary inheritance|
-| `b = boundary("Name", level: 0)` / `trust_boundary(...)` / `zone` | Standalone trust boundary definition                 |
-| `u = external_entity("User")` / `user(...)` / `client(...)`       | External entity node (browser, actor, third-party)   |
-| `p = process("API")` / `service(...)` / `worker(...)`             | Process node (service, function, application code)   |
-| `db = data_store("DB")` / `database(...)` / `cache(...)`          | Data store node (database, bucket, queue, cache)     |
-| `a ~> b`                                                          | Direct data flow edge                                |
-| `a ~> b \|> encrypted("HTTPS", protocol: :https)`                 | Encrypted flow with label and protocol options       |
-| `a ~> b \|> unencrypted("HTTP", protocol: :http)`                 | Explicit unencrypted data flow                       |
-| `a ~> b \|> flow("Query", protocol: :sql)`                        | Data flow with label and options                     |
-| `a ~> b \|> on("Label", encrypted: true, protocol: :https)`       | Data flow with label modifier and options            |
-| `edge a ~> b, "Label", encrypted: true, protocol: :https`         | Explicit edge statement with label and options       |
-| `edge a ~> b, encrypted: true`                                    | Explicit edge statement with options                 |
+| Syntax                                                            | Description                                           |
+| ----------------------------------------------------------------- | ----------------------------------------------------- |
+| `threat_model do ... end`                                         | Define a threat model block                           |
+| `boundary "Name", level: 0 do ... end`                            | Scoped trust boundary block with boundary inheritance |
+| `b = boundary("Name", level: 0)` / `trust_boundary(...)` / `zone` | Standalone trust boundary definition                  |
+| `u = external_entity("User")` / `user(...)` / `client(...)`       | External entity node (browser, actor, third-party)    |
+| `p = process("API")` / `service(...)` / `worker(...)`             | Process node (service, function, application code)    |
+| `db = data_store("DB")` / `database(...)` / `cache(...)`          | Data store node (database, bucket, queue, cache)      |
+| `a ~> b`                                                          | Direct data flow edge                                 |
+| `a ~> b |> encrypted("HTTPS", protocol: :https)`                  | Encrypted flow with label and protocol options        |
+| `a ~> b |> unencrypted("HTTP", protocol: :http)`                  | Explicit unencrypted data flow                        |
+| `a ~> b |> flow("Query", protocol: :sql)`                         | Data flow with label and options                      |
+| `a ~> b |> on("Label", encrypted: true, protocol: :https)`        | Data flow with label modifier and options             |
+| `edge a ~> b, "Label", encrypted: true, protocol: :https`         | Explicit edge statement with label and options        |
+| `edge a ~> b, encrypted: true`                                    | Explicit edge statement with options                  |
 
 ### Programmatic Pipe API & Analysis (`Choreo.ThreatModel`)
 
-| Task / Feature          | Command                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Create Model            | `ThreatModel.new/1` (Opts: `:strict`)                                                                                                 |
-| Add Boundaries          | `ThreatModel.add_trust_boundary/3` (Opts: `:level`, `:label`, `:style`, `:color`, `:fillcolor`)                                      |
-| Add Elements            | `ThreatModel.add_external_entity/3`, `add_process/3` (Opts: `:privilege`), `add_data_store/3` (Opts: `:sensitivity`, `:retention`)   |
-| Connect Data Flows      | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`)                                                                |
-| Generate Threats        | `ThreatModel.Analysis.stride_threats/2` (Supports custom rules via `:rules`)                                                         |
-| Security Audits         | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`              |
-| Integrity Validation    | `ThreatModel.Analysis.validate/1`, `threat_summary/1`                                                                                 |
-| Render Formats          | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                    |
-| Themes                  | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                             |
+| Task / Feature       | Command                                                                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Create Model         | `ThreatModel.new/1` (Opts: `:strict`)                                                                                              |
+| Add Boundaries       | `ThreatModel.add_trust_boundary/3` (Opts: `:level`, `:label`, `:style`, `:color`, `:fillcolor`)                                    |
+| Add Elements         | `ThreatModel.add_external_entity/3`, `add_process/3` (Opts: `:privilege`), `add_data_store/3` (Opts: `:sensitivity`, `:retention`) |
+| Connect Data Flows   | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`)                                                              |
+| Generate Threats     | `ThreatModel.Analysis.stride_threats/2` (Supports custom rules via `:rules`)                                                       |
+| Security Audits      | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`            |
+| Integrity Validation | `ThreatModel.Analysis.validate/1`, `threat_summary/1`                                                                              |
+| Render Formats       | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                |
+| Themes               | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                          |
 
 ---
 
