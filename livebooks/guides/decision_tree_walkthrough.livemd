@@ -626,45 +626,45 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.DecisionTree`)
 
-| Syntax                                            | Description                                                  |
-| ------------------------------------------------- | ------------------------------------------------------------ |
-| `decision_tree do ... end`                        | Define a decision tree model                                 |
-| `r = root("Feature", feature: "...")`             | Set root decision node (exactly one per tree)                |
-| `d = decision("Feature", feature: "...")`         | Declare an internal decision node                            |
-| `d = question("Feature")`                         | Alias for decision constructor                               |
-| `o = outcome("Label", class: "...")`              | Declare a terminal leaf outcome node                         |
-| `o = result("Label")` / `leaf("Label")`           | Aliases for outcome constructor                              |
-| `a ~> b`                                          | Connect parent to child (requires branch condition)          |
-| `a ~> b \|> when_("condition")`                   | Branch condition modifier                                    |
-| `a ~> b \|> condition("condition")` / `on(...)`   | Condition aliases                                            |
-| `a ~> b \|> when_("condition", probability: 0.9)` | Branch condition with metadata options                       |
-| `edge a ~> b, "condition"`                        | Explicit branch declaration with condition                   |
-| `branch a ~> b, "condition", opts`                | Explicit branch declaration with condition and options       |
+| Syntax                                           | Description                                            |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| `decision_tree do ... end`                       | Define a decision tree model                           |
+| `r = root("Feature", feature: "...")`            | Set root decision node (exactly one per tree)          |
+| `d = decision("Feature", feature: "...")`        | Declare an internal decision node                      |
+| `d = question("Feature")`                        | Alias for decision constructor                         |
+| `o = outcome("Label", class: "...")`             | Declare a terminal leaf outcome node                   |
+| `o = result("Label")` / `leaf("Label")`          | Aliases for outcome constructor                        |
+| `a ~> b`                                         | Connect parent to child (requires branch condition)    |
+| `a ~> b |> when_("condition")`                   | Branch condition modifier                              |
+| `a ~> b |> condition("condition")` / `on(...)`   | Condition aliases                                      |
+| `a ~> b \> when_("condition", probability: 0.9)` | Branch condition with metadata options                 |
+| `edge a ~> b, "condition"`                       | Explicit branch declaration with condition             |
+| `branch a ~> b, "condition", opts`               | Explicit branch declaration with condition and options |
 
 ### Programmatic Pipe API & Analysis (`Choreo.DecisionTree`)
 
-| Task / Feature                 | Command                                                                                 |
-| ------------------------------ | --------------------------------------------------------------------------------------- |
-| Create Tree                    | `DecisionTree.new/1` (Opts: `:strict`)                                                  |
-| Set Root Node                  | `DecisionTree.set_root/3` (Opts: `:feature`, `:label`, `:shape`, `:fillcolor`)          |
-| Add Decision Node              | `DecisionTree.add_decision/3` (Opts: `:feature`, `:label`, `:fillcolor`)                 |
-| Add Outcome Node               | `DecisionTree.add_outcome/3` (Opts: `:label`, `:class`, `:probability`, `:fillcolor`)    |
-| Add Branch                     | `DecisionTree.branch/5` (`tree, parent, child, condition, opts \\ []`)                  |
-| Query Branches / Outcomes      | `DecisionTree.branches/1`, `DecisionTree.outcomes/1`, `DecisionTree.decisions/1`         |
-| Query Condition                | `DecisionTree.condition/3` (`tree, parent, child`)                                      |
-| Render Mermaid Flowchart       | `DecisionTree.to_mermaid/2` (Opts: `:theme`, `:direction`)                              |
-| Render DOT Graphviz            | `DecisionTree.to_dot/2` (Opts: `:theme`)                                                |
-| Evaluate Inputs                | `Analysis.decide/2` (Walks tree given feature values and returns outcome)               |
-| Enumerate Paths                | `Analysis.paths/1`, `Analysis.paths_with_conditions/1`                                  |
-| Depth & Breadth Metrics        | `Analysis.depth/1`, `Analysis.breadth/1`                                                |
-| Feature Importance             | `Analysis.feature_importance/1` (Ranks features by split count)                         |
-| Extract IF-THEN Rules          | `Analysis.rules/1` (Converts paths into executable IF-THEN rules)                       |
-| Test Case Generation           | `Analysis.generate_test_cases/1` (Generates minimal feature set covering all outcomes)  |
-| Inconsistent Path Detection    | `Analysis.inconsistent_paths/1` (Finds logically contradictory branches)                |
-| Detect Missing Branches        | `Analysis.missing_branches/2` (Finds missing feature values against domain schema)      |
-| Redundant Branch Pruning       | `Analysis.prune_redundant/1` (Collapses decisions that produce identical outcomes)     |
-| Tree Invariant Validation      | `Analysis.validate/1` (Validates root, single parent, no cycles, orphan nodes)          |
-| Semantic Zoom Views            | `Choreo.View.zoom/2` (Level 0: root, Level 1: root + decisions, Level 2+: all)         |
+| Task / Feature              | Command                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| Create Tree                 | `DecisionTree.new/1` (Opts: `:strict`)                                                 |
+| Set Root Node               | `DecisionTree.set_root/3` (Opts: `:feature`, `:label`, `:shape`, `:fillcolor`)         |
+| Add Decision Node           | `DecisionTree.add_decision/3` (Opts: `:feature`, `:label`, `:fillcolor`)               |
+| Add Outcome Node            | `DecisionTree.add_outcome/3` (Opts: `:label`, `:class`, `:probability`, `:fillcolor`)  |
+| Add Branch                  | `DecisionTree.branch/5` (`tree, parent, child, condition, opts \\ []`)                 |
+| Query Branches / Outcomes   | `DecisionTree.branches/1`, `DecisionTree.outcomes/1`, `DecisionTree.decisions/1`       |
+| Query Condition             | `DecisionTree.condition/3` (`tree, parent, child`)                                     |
+| Render Mermaid Flowchart    | `DecisionTree.to_mermaid/2` (Opts: `:theme`, `:direction`)                             |
+| Render DOT Graphviz         | `DecisionTree.to_dot/2` (Opts: `:theme`)                                               |
+| Evaluate Inputs             | `Analysis.decide/2` (Walks tree given feature values and returns outcome)              |
+| Enumerate Paths             | `Analysis.paths/1`, `Analysis.paths_with_conditions/1`                                 |
+| Depth & Breadth Metrics     | `Analysis.depth/1`, `Analysis.breadth/1`                                               |
+| Feature Importance          | `Analysis.feature_importance/1` (Ranks features by split count)                        |
+| Extract IF-THEN Rules       | `Analysis.rules/1` (Converts paths into executable IF-THEN rules)                      |
+| Test Case Generation        | `Analysis.generate_test_cases/1` (Generates minimal feature set covering all outcomes) |
+| Inconsistent Path Detection | `Analysis.inconsistent_paths/1` (Finds logically contradictory branches)               |
+| Detect Missing Branches     | `Analysis.missing_branches/2` (Finds missing feature values against domain schema)     |
+| Redundant Branch Pruning    | `Analysis.prune_redundant/1` (Collapses decisions that produce identical outcomes)     |
+| Tree Invariant Validation   | `Analysis.validate/1` (Validates root, single parent, no cycles, orphan nodes)         |
+| Semantic Zoom Views         | `Choreo.View.zoom/2` (Level 0: root, Level 1: root + decisions, Level 2+: all)         |
 
 ---
 
