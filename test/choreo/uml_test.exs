@@ -310,6 +310,31 @@ defmodule Choreo.UMLTest do
     assert UML.to_dot(uml, theme: :dark) =~ "digraph"
   end
 
+  test "native classDiagram normalizes class IDs, members, and relationship labels" do
+    uml =
+      UML.new()
+      |> UML.add_class("order service",
+        label: "Order Service",
+        fields: [%{name: "total amount", type: "decimal money"}],
+        functions: [%{name: "charge card", arity: 2, return: "ok | error"}]
+      )
+      |> UML.add_class("repo!", label: "Repo")
+      |> UML.add_relationship("order service", "repo!",
+        type: :depends,
+        label: "calls \"db\"\nnow"
+      )
+
+    mermaid = UML.to_mermaid(uml, syntax: :class_diagram)
+    assert mermaid =~ "class order_service {"
+    assert mermaid =~ "class repo {"
+    assert mermaid =~ "+total_amount decimal_money"
+    assert mermaid =~ "+charge_card(2) ok_/_error"
+    assert mermaid =~ "order_service ..> repo : calls 'db' now"
+    refute mermaid =~ "class order service"
+    refute mermaid =~ "repo!"
+    refute mermaid =~ "\nnow"
+  end
+
   test "theme functions return valid theme structs" do
     assert %Choreo.Theme{name: :uml_default} = UML.theme(:default)
     assert %Choreo.Theme{name: :uml_dark} = UML.theme(:dark)

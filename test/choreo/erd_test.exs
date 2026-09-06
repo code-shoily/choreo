@@ -328,16 +328,26 @@ defmodule Choreo.ERDTest do
       assert String.contains?(dot, "\"another-table!\"")
     end
 
-    test "to_mermaid/2 handles table names with spaces and special characters" do
+    test "to_mermaid/2 normalizes table names and labels with special characters" do
       erd =
         ERD.new()
-        |> ERD.add_table("my table", columns: [])
+        |> ERD.add_table("my table",
+          columns: [%{name: "tenant id", type: "big int", comment: "quoted \"id\"\ncolumn"}]
+        )
         |> ERD.add_table("another-table!", columns: [])
-        |> ERD.add_relationship("my table", "another-table!", cardinality: :one_to_many)
+        |> ERD.add_relationship("my table", "another-table!",
+          cardinality: :one_to_many,
+          label: "owns \"records\"\nnow"
+        )
 
       mermaid = ERD.to_mermaid(erd)
-      assert String.contains?(mermaid, "my table")
-      assert String.contains?(mermaid, "another-table!")
+      assert mermaid =~ "my_table {"
+      assert mermaid =~ "another_table {"
+      assert mermaid =~ "big_int tenant_id \"quoted 'id' column\""
+      assert mermaid =~ "my_table ||--o{ another_table : \"owns 'records' now\""
+      refute mermaid =~ "my table ||"
+      refute mermaid =~ "another-table!"
+      refute mermaid =~ "\nnow\""
     end
   end
 

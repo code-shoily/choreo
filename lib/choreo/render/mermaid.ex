@@ -138,6 +138,61 @@ defmodule Choreo.Render.Mermaid do
     resolve_theme(name) |> Choreo.Theme.override(overrides)
   end
 
+  @doc false
+  def native_id_map(ids, prefix \\ "node") do
+    ids
+    |> Enum.sort_by(&to_string/1)
+    |> Enum.reduce({%{}, %{}}, fn id, {mapping, counts} ->
+      base = native_identifier(id, prefix)
+      count = Map.get(counts, base, 0)
+      safe_id = if count == 0, do: base, else: "#{base}_#{count + 1}"
+      {Map.put(mapping, id, safe_id), Map.put(counts, base, count + 1)}
+    end)
+    |> elem(0)
+  end
+
+  @doc false
+  def native_identifier(value, prefix \\ "node") do
+    value
+    |> to_string()
+    |> String.replace(~r/[^a-zA-Z0-9_]+/, "_")
+    |> String.trim("_")
+    |> case do
+      "" ->
+        prefix
+
+      <<first::binary-size(1), _rest::binary>> = id when first in ~w(0 1 2 3 4 5 6 7 8 9) ->
+        "#{prefix}_#{id}"
+
+      id ->
+        id
+    end
+  end
+
+  @doc false
+  def native_token(value, fallback \\ "value") do
+    value
+    |> to_string()
+    |> String.replace(~r/[^a-zA-Z0-9_]+/, "_")
+    |> String.trim("_")
+    |> case do
+      "" -> fallback
+      token -> token
+    end
+  end
+
+  @doc false
+  def native_label(value) do
+    value
+    |> to_string()
+    |> String.replace("\\", "/")
+    |> String.replace("\"", "'")
+    |> String.replace("|", "/")
+    |> String.replace(~r/[\r\n\t]+/, " ")
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+  end
+
   # ============================================================================
   # Theme resolution
   # ============================================================================

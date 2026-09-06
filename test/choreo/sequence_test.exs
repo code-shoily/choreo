@@ -158,9 +158,9 @@ defmodule Choreo.SequenceTest do
         |> Sequence.to_mermaid()
 
       assert String.starts_with?(out, "sequenceDiagram")
-      assert out =~ "actor User"
-      assert out =~ "participant API"
-      assert out =~ "User->>API: GET"
+      assert out =~ "actor user as User"
+      assert out =~ "participant api as API"
+      assert out =~ "user->>api: GET"
     end
 
     test "renders activations" do
@@ -173,8 +173,8 @@ defmodule Choreo.SequenceTest do
         |> Sequence.deactivate(:api)
         |> Sequence.to_mermaid()
 
-      assert out =~ "activate API"
-      assert out =~ "deactivate API"
+      assert out =~ "activate api"
+      assert out =~ "deactivate api"
     end
 
     test "renders notes" do
@@ -186,8 +186,8 @@ defmodule Choreo.SequenceTest do
         |> Sequence.note({:between, :user, :api}, "shared")
         |> Sequence.to_mermaid()
 
-      assert out =~ "Note over User: hi"
-      assert out =~ "Note over User, Api: shared"
+      assert out =~ "Note over user: hi"
+      assert out =~ "Note over user, api: shared"
     end
 
     test "sanitizes note text with newlines" do
@@ -197,7 +197,7 @@ defmodule Choreo.SequenceTest do
         |> Sequence.note({:over, :user}, "line1\nline2")
         |> Sequence.to_mermaid()
 
-      assert out =~ "Note over User: line1 line2"
+      assert out =~ "Note over user: line1 line2"
     end
 
     test "renders async arrows" do
@@ -208,7 +208,7 @@ defmodule Choreo.SequenceTest do
         |> Sequence.async(:a, :b, label: "fire")
         |> Sequence.to_mermaid()
 
-      assert out =~ "A-)B: fire"
+      assert out =~ "a-)b: fire"
     end
 
     test "renders fragments" do
@@ -274,6 +274,27 @@ defmodule Choreo.SequenceTest do
       assert Sequence.theme(:warm).name == :sequence_warm
       assert Sequence.theme(:forest).name == :sequence_forest
       assert Sequence.theme(:ocean).name == :sequence_ocean
+    end
+
+    test "to_mermaid/2 aliases participants and normalizes labels with special characters" do
+      seq =
+        Sequence.new()
+        |> Sequence.add_actor(:user, label: "End User")
+        |> Sequence.add_participant(:api_gateway, label: "API: Gateway \"North\"")
+        |> Sequence.message(:user, :api_gateway, label: "POST /login\nwith | token")
+        |> Sequence.note({:between, :user, :api_gateway}, "JWT \"claim\"\nchecked")
+        |> Sequence.fragment(:loop, "retry \"twice\"\nonly")
+        |> Sequence.message(:api_gateway, :api_gateway, label: "verify")
+        |> Sequence.end_fragment()
+
+      mermaid = Sequence.to_mermaid(seq)
+      assert mermaid =~ "actor user as End User"
+      assert mermaid =~ "participant api_gateway as API: Gateway 'North'"
+      assert mermaid =~ "user->>api_gateway: POST /login with / token"
+      assert mermaid =~ "Note over user, api_gateway: JWT 'claim' checked"
+      assert mermaid =~ "loop retry 'twice' only"
+      refute mermaid =~ "End User->>"
+      refute mermaid =~ "\nwith | token"
     end
   end
 

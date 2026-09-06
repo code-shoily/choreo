@@ -32,7 +32,7 @@ defmodule Choreo.Sequence do
       ...> |> Sequence.to_mermaid()
       ...> |> String.split("\\n")
       ...> |> Enum.take(4)
-      ["sequenceDiagram", "    actor User", "    participant API", "    participant Database"]
+      ["sequenceDiagram", "    actor user as User", "    participant api as API", "    participant db as Database"]
 
   """
 

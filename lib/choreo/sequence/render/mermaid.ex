@@ -6,6 +6,7 @@ defmodule Choreo.Sequence.Render.Mermaid do
   native sequence-diagram syntax rather than flowchart syntax.
   """
 
+  alias Choreo.Render.Mermaid, as: MermaidRender
   alias Choreo.Sequence
   alias Choreo.Theme
 
@@ -26,24 +27,26 @@ defmodule Choreo.Sequence.Render.Mermaid do
     header = "sequenceDiagram"
 
     labels = Sequence.participant_labels(seq)
+    id_map = MermaidRender.native_id_map(Sequence.participants(seq), "participant")
 
     participants =
       seq
       |> Sequence.participants()
-      |> Enum.map(&render_participant(&1, labels, seq))
+      |> Enum.map(&render_participant(&1, labels, id_map, seq))
 
     body =
       seq
       |> Sequence.events()
-      |> Enum.map(&render_event(&1, seq.edge_meta, labels))
+      |> Enum.map(&render_event(&1, seq.edge_meta, labels, id_map))
 
     (theme_directives ++ [header] ++ participants ++ body)
     |> Enum.join("\n")
     |> String.trim_trailing()
   end
 
-  defp render_participant(id, labels, seq) do
-    label = labels[id] || Macro.camelize(Atom.to_string(id))
+  defp render_participant(id, labels, id_map, seq) do
+    label = MermaidRender.native_label(labels[id] || Macro.camelize(Atom.to_string(id)))
+    safe_id = Map.fetch!(id_map, id)
     meta = Sequence.participant(seq, id) || %{}
     kind = meta[:node_type] || :participant
 
@@ -53,16 +56,16 @@ defmodule Choreo.Sequence.Render.Mermaid do
         :participant -> "    participant "
       end
 
-    prefix <> label
+    "#{prefix}#{safe_id} as #{label}"
   end
 
-  defp render_event(%{type: :message, edge_id: eid}, edge_meta, labels) do
+  defp render_event(%{type: :message, edge_id: eid}, edge_meta, _labels, id_map) do
     meta = Map.get(edge_meta, eid, %{})
     from = meta[:from]
     to = meta[:to]
 
-    from_label = labels[from] || to_string(from)
-    to_label = labels[to] || to_string(to)
+    from_label = Map.fetch!(id_map, from)
+    to_label = Map.fetch!(id_map, to)
 
     arrow =
       case meta[:type] do
@@ -72,47 +75,53 @@ defmodule Choreo.Sequence.Render.Mermaid do
         _ -> "->>"
       end
 
-    label = if meta[:label], do: ": #{meta[:label]}", else: ""
+    label = if meta[:label], do: ": #{MermaidRender.native_label(meta[:label])}", else: ""
     "    #{from_label}#{arrow}#{to_label}#{label}"
   end
 
-  defp render_event(%{type: :activation, participant: p, action: action}, _edge_meta, labels) do
-    label = labels[p] || to_string(p)
+  defp render_event(
+         %{type: :activation, participant: p, action: action},
+         _edge_meta,
+         _labels,
+         id_map
+       ) do
+    label = Map.fetch!(id_map, p)
     "    #{action} #{label}"
   end
 
-  defp render_event(%{type: :note, position: pos, text: text}, _edge_meta, labels) do
+  defp render_event(%{type: :note, position: pos, text: text}, _edge_meta, _labels, id_map) do
     {position_word, target} =
       case pos do
         {:over, id} ->
-          {"over", labels[id] || to_string(id)}
+          {"over", Map.fetch!(id_map, id)}
 
         {:left, id} ->
-          {"left of", labels[id] || to_string(id)}
+          {"left of", Map.fetch!(id_map, id)}
 
         {:right, id} ->
-          {"right of", labels[id] || to_string(id)}
+          {"right of", Map.fetch!(id_map, id)}
 
         {:between, a, b} ->
-          {"over", (labels[a] || to_string(a)) <> ", " <> (labels[b] || to_string(b))}
+          {"over", Map.fetch!(id_map, a) <> ", " <> Map.fetch!(id_map, b)}
       end
 
-    sanitized = text |> String.replace("\r\n", " ") |> String.replace("\n", " ")
+    sanitized = MermaidRender.native_label(text)
     "    Note #{position_word} #{target}: #{sanitized}"
   end
 
   defp render_event(
          %{type: :fragment, action: action, kind: kind, label: label},
          _edge_meta,
-         _labels
+         _labels,
+         _id_map
        )
        when action in [:start, :arm] do
     prefix = "    " <> Atom.to_string(kind)
-    suffix = if label, do: " " <> label, else: ""
+    suffix = if label, do: " " <> MermaidRender.native_label(label), else: ""
     prefix <> suffix
   end
 
-  defp render_event(%{type: :fragment, action: :end}, _edge_meta, _labels) do
+  defp render_event(%{type: :fragment, action: :end}, _edge_meta, _labels, _id_map) do
     "    end"
   end
 

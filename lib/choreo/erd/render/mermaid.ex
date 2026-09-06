@@ -3,6 +3,8 @@ defmodule Choreo.ERD.Render.Mermaid do
   Mermaid.js native `erDiagram` renderer for `Choreo.ERD`.
   """
 
+  alias Choreo.Render.Mermaid, as: MermaidRender
+
   @doc false
   def theme(name \\ :default, overrides \\ []) do
     Choreo.ERD.Render.DOT.theme(name, overrides)
@@ -13,11 +15,13 @@ defmodule Choreo.ERD.Render.Mermaid do
   """
   @spec to_mermaid(Choreo.ERD.t(), keyword()) :: String.t()
   def to_mermaid(%Choreo.ERD{} = erd, _opts \\ []) do
+    id_map = MermaidRender.native_id_map(Map.keys(erd.graph.nodes), "entity")
+
     tables_part =
       erd.graph.nodes
-      |> Enum.sort_by(fn {id, _data} -> id end)
+      |> Enum.sort_by(fn {id, _data} -> to_string(id) end)
       |> Enum.map_join("\n", fn {id, data} ->
-        render_table(id, data)
+        render_table(Map.fetch!(id_map, id), data)
       end)
 
     relations_part =
@@ -27,7 +31,7 @@ defmodule Choreo.ERD.Render.Mermaid do
       |> Enum.map_join("\n", fn edge_id ->
         {from, to, _weight} = Map.get(erd.graph.edges, edge_id)
         meta = Map.get(erd.edge_meta, edge_id, %{})
-        render_relationship(from, to, meta)
+        render_relationship(Map.fetch!(id_map, from), Map.fetch!(id_map, to), meta)
       end)
 
     "erDiagram\n" <> tables_part <> "\n" <> relations_part <> "\n"
@@ -38,8 +42,8 @@ defmodule Choreo.ERD.Render.Mermaid do
 
     column_lines =
       Enum.map_join(columns, "\n", fn col ->
-        type_str = to_string(col[:type])
-        name_str = to_string(col[:name])
+        type_str = MermaidRender.native_token(col[:type])
+        name_str = MermaidRender.native_token(col[:name])
 
         key_str =
           case col[:key] do
@@ -49,7 +53,9 @@ defmodule Choreo.ERD.Render.Mermaid do
           end
 
         comment_str =
-          if col[:comment], do: " \"#{col[:comment]}\"", else: ""
+          if col[:comment],
+            do: " \"#{MermaidRender.native_label(col[:comment])}\"",
+            else: ""
 
         "    #{type_str} #{name_str}#{key_str}#{comment_str}"
       end)
@@ -69,6 +75,6 @@ defmodule Choreo.ERD.Render.Mermaid do
       end
 
     label = meta[:label] || "references"
-    "  #{from} #{symbol} #{to} : \"#{label}\""
+    "  #{from} #{symbol} #{to} : \"#{MermaidRender.native_label(label)}\""
   end
 end

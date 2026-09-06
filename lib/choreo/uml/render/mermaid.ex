@@ -3,6 +3,7 @@ defmodule Choreo.UML.Render.Mermaid do
   Mermaid.js rendering for `Choreo.UML` diagrams, supporting flowchart & classDiagram syntaxes.
   """
 
+  alias Choreo.Render.Mermaid, as: MermaidRender
   alias Choreo.Theme
 
   @doc false
@@ -51,10 +52,14 @@ defmodule Choreo.UML.Render.Mermaid do
     direction = Keyword.get(opts, :direction, :td)
     direction_part = "  direction #{String.upcase(to_string(direction))}\n"
 
+    id_map = MermaidRender.native_id_map(Map.keys(uml.graph.nodes), "class")
+
     class_defs =
       uml.graph.nodes
-      |> Enum.sort_by(fn {id, _data} -> id end)
+      |> Enum.sort_by(fn {id, _data} -> to_string(id) end)
       |> Enum.map_join("\n", fn {id, data} ->
+        safe_id = Map.fetch!(id_map, id)
+
         stereotype =
           if data[:type] != :class do
             "    <<#{data[:type]}>>"
@@ -66,8 +71,8 @@ defmodule Choreo.UML.Render.Mermaid do
           data[:fields]
           |> Enum.map_join("\n", fn f ->
             vis = visibility_symbol(f[:visibility])
-            type = if f[:type], do: " #{f[:type]}", else: ""
-            "    #{vis}#{f[:name]}#{type}"
+            type = if f[:type], do: " #{native_member(f[:type])}", else: ""
+            "    #{vis}#{native_member(f[:name])}#{type}"
           end)
 
         functions =
@@ -75,8 +80,8 @@ defmodule Choreo.UML.Render.Mermaid do
           |> Enum.map_join("\n", fn func ->
             vis = visibility_symbol(func[:visibility])
             arity = if func[:arity], do: "(#{func[:arity]})", else: "()"
-            ret = if func[:return], do: " #{func[:return]}", else: ""
-            "    #{vis}#{func[:name]}#{arity}#{ret}"
+            ret = if func[:return], do: " #{native_member(func[:return])}", else: ""
+            "    #{vis}#{native_member(func[:name])}#{arity}#{ret}"
           end)
 
         body =
@@ -84,7 +89,7 @@ defmodule Choreo.UML.Render.Mermaid do
           |> Enum.filter(&(&1 != ""))
           |> Enum.join("\n")
 
-        "  class #{id} {\n#{body}\n  }"
+        "  class #{safe_id} {\n#{body}\n  }"
       end)
 
     relations =
@@ -105,11 +110,27 @@ defmodule Choreo.UML.Render.Mermaid do
             _ -> "-->"
           end
 
-        label = if l = meta[:label], do: " : #{l}", else: " : #{type}"
-        "  #{from} #{arrow} #{to}#{label}"
+        label =
+          if l = meta[:label],
+            do: " : #{MermaidRender.native_label(l)}",
+            else: " : #{type}"
+
+        "  #{Map.fetch!(id_map, from)} #{arrow} #{Map.fetch!(id_map, to)}#{label}"
       end)
 
     "classDiagram\n" <> direction_part <> class_defs <> "\n" <> relations <> "\n"
+  end
+
+  defp native_member(value) do
+    value
+    |> MermaidRender.native_label()
+    |> String.replace(~r/[{}<>\[\]]+/, " ")
+    |> String.replace(~r/\s+/, "_")
+    |> String.trim("_")
+    |> case do
+      "" -> "value"
+      text -> text
+    end
   end
 
   # ============================================================================
