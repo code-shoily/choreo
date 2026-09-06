@@ -15,6 +15,7 @@ defmodule Choreo.DecisionTree.Render.Mermaid do
 
     * `:default` — purple root, blue decisions, green outcomes
     * `:dark` — dark background, neon accents
+    * `:minimal`, `:warm`, `:forest`, `:ocean` — additional built-in palettes
     * `Choreo.Theme` struct — full custom control
   """
 
@@ -25,7 +26,7 @@ defmodule Choreo.DecisionTree.Render.Mermaid do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of `{from, to}` tuples to highlight

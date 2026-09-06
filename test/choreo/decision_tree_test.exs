@@ -218,6 +218,33 @@ defmodule Choreo.DecisionTreeTest do
       dot = DecisionTree.to_dot(tree, theme: :dark)
       assert String.contains?(dot, "digraph")
     end
+
+    test "renders with all standard themes including minimal, and supports rankdir and highlighted elements" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_decision(:b, feature: "b")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :b, "yes")
+        |> DecisionTree.branch(:b, :x, "no")
+
+      for theme <- [:default, :dark, :minimal, :warm, :forest, :ocean] do
+        dot = DecisionTree.to_dot(tree, theme: theme)
+        assert String.contains?(dot, "digraph")
+        assert String.contains?(dot, "yes")
+      end
+
+      dot_custom =
+        DecisionTree.to_dot(tree,
+          rankdir: :lr,
+          highlighted_nodes: [:a],
+          highlighted_edges: [{:a, :b}]
+        )
+
+      assert String.contains?(dot_custom, "rankdir=LR") or
+               String.contains?(dot_custom, "rankdir=\"LR\"") or
+               String.contains?(dot_custom, "rankdir=lr")
+    end
   end
 
   describe "to_mermaid/2" do

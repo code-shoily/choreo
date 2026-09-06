@@ -406,5 +406,102 @@ defmodule Choreo.DecisionTree.AnalysisTest do
       issues = Analysis.validate(tree)
       assert {:warning, "Orphan nodes: [:y]"} in issues
     end
+
+    test "flags multiple parents" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_decision(:b, feature: "b")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :x, "1")
+
+      # Manually inject an extra parent edge to :x to test invariant validator
+      tree_with_merged = %{tree | graph: Yog.add_edge_ensure(tree.graph, :b, :x, "2")}
+      issues = Analysis.validate(tree_with_merged)
+      assert {:error, "Node :x has multiple parents: [:a, :b]"} in issues
+    end
+
+    test "flags cycle in graph" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_decision(:b, feature: "b")
+        |> DecisionTree.branch(:a, :b, "1")
+
+      # Manually inject a back-edge to create a cycle
+      tree_with_cycle = %{tree | graph: Yog.add_edge_ensure(tree.graph, :b, :a, "loop")}
+      issues = Analysis.validate(tree_with_cycle)
+      assert {:error, "Cycle detected in decision tree"} in issues
+    end
+  end
+
+  describe "cyclic?/1" do
+    test "returns false for acyclic trees" do
+      refute Analysis.cyclic?(traffic_light_tree())
+      refute Analysis.cyclic?(nested_tree())
+    end
+
+    test "returns true when a cycle is present in underlying graph" do
+      tree = traffic_light_tree()
+      tree_with_cycle = %{tree | graph: Yog.add_edge_ensure(tree.graph, :stop, :color, "back")}
+      assert Analysis.cyclic?(tree_with_cycle)
+    end
+  end
+
+  describe "dead_ends/1" do
+    test "returns empty list when all paths reach outcomes" do
+      assert Analysis.dead_ends(traffic_light_tree()) == []
+      assert Analysis.dead_ends(nested_tree()) == []
+    end
+
+    test "returns decision nodes that cannot reach any outcome" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_decision(:b, feature: "b")
+        |> DecisionTree.add_decision(:c, feature: "c")
+        |> DecisionTree.add_outcome(:x)
+        |> DecisionTree.branch(:a, :x, "1")
+        |> DecisionTree.branch(:a, :b, "2")
+        |> DecisionTree.branch(:b, :c, "3")
+
+      assert Analysis.dead_ends(tree) == [:b, :c]
+    end
+
+    test "returns empty for tree with no root" do
+      assert Analysis.dead_ends(DecisionTree.new()) == []
+    end
+  end
+
+  describe "outcome_distribution/1" do
+    test "returns frequencies of outcome classes" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:color, feature: "color")
+        |> DecisionTree.add_outcome(:stop1, class: "stop")
+        |> DecisionTree.add_outcome(:stop2, class: "stop")
+        |> DecisionTree.add_outcome(:go, class: "go")
+        |> DecisionTree.branch(:color, :stop1, "red")
+        |> DecisionTree.branch(:color, :stop2, "dark_red")
+        |> DecisionTree.branch(:color, :go, "green")
+
+      assert Analysis.outcome_distribution(tree) == %{"go" => 1, "stop" => 2}
+    end
+
+    test "falls back to label or node_id if class is missing" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:a, feature: "a")
+        |> DecisionTree.add_outcome(:x, label: "Result X")
+        |> DecisionTree.add_outcome(:y)
+        |> DecisionTree.branch(:a, :x, "1")
+        |> DecisionTree.branch(:a, :y, "2")
+
+      assert Analysis.outcome_distribution(tree) == %{"Result X" => 1, "y" => 1}
+    end
+
+    test "returns empty map for tree with no root" do
+      assert Analysis.outcome_distribution(DecisionTree.new()) == %{}
+    end
   end
 end

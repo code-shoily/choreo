@@ -545,7 +545,10 @@ defmodule Choreo.DecisionTree do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:rankdir` — `:tb` (default), `:lr`, etc.
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of `{from, to}` tuples to highlight
 
   ## Examples
 
@@ -574,8 +577,10 @@ defmodule Choreo.DecisionTree do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of `{from, to}` tuples to highlight
 
   ## Examples
 
@@ -601,6 +606,8 @@ defmodule Choreo.DecisionTree do
 
   @doc """
   Returns a theme for `Choreo.DecisionTree`.
+
+  Supported theme names: `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`.
 
   ## Examples
 

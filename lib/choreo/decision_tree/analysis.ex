@@ -219,8 +219,52 @@ defmodule Choreo.DecisionTree.Analysis do
     |> Enum.filter(fn {id, data} ->
       data[:node_type] == :outcome and MapSet.member?(reachable, id)
     end)
-    |> Enum.map(fn {_id, data} -> to_string(data[:class] || data[:label]) end)
+    |> Enum.map(fn {id, data} -> outcome_name(id, data) end)
     |> Enum.uniq()
+  end
+
+  @doc """
+  Returns the distribution of reachable outcome classes across all paths.
+
+  Counts how many reachable leaf outcomes correspond to each class (or label
+  if no class is set).
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:color, feature: "color")
+      ...>   |> Choreo.DecisionTree.add_outcome(:stop, class: "stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:slow, class: "stop")
+      ...>   |> Choreo.DecisionTree.add_outcome(:go, class: "go")
+      ...>   |> Choreo.DecisionTree.branch(:color, :stop, "red")
+      ...>   |> Choreo.DecisionTree.branch(:color, :slow, "yellow")
+      ...>   |> Choreo.DecisionTree.branch(:color, :go, "green")
+      iex> Choreo.DecisionTree.Analysis.outcome_distribution(tree)
+      %{"go" => 1, "stop" => 2}
+
+  This analysis answers the question: "How are reachable outcomes distributed across classes?"
+  """
+  @spec outcome_distribution(DecisionTree.t()) :: %{String.t() => non_neg_integer()}
+  def outcome_distribution(%DecisionTree{root: nil}), do: %{}
+
+  def outcome_distribution(%DecisionTree{} = tree) do
+    reachable = Choreo.Internal.bfs_reachable(tree.graph, [tree.root])
+
+    tree.graph.nodes
+    |> Enum.filter(fn {id, data} ->
+      data[:node_type] == :outcome and MapSet.member?(reachable, id)
+    end)
+    |> Enum.map(fn {id, data} -> outcome_name(id, data) end)
+    |> Enum.frequencies()
+  end
+
+  defp outcome_name(id, data) do
+    cond do
+      data[:class] && data[:class] != "" -> to_string(data[:class])
+      data[:label] && data[:label] != "" -> to_string(data[:label])
+      true -> to_string(id)
+    end
   end
 
   @doc """
@@ -252,6 +296,42 @@ defmodule Choreo.DecisionTree.Analysis do
     MapSet.difference(all, reachable)
     |> MapSet.to_list()
     |> Enum.sort()
+  end
+
+  @doc """
+  Returns nodes that cannot reach any outcome (terminal leaf) node.
+
+  In a well-formed tree, every decision node should eventually lead to an
+  outcome. Nodes with no path to an outcome represent dead-end logic.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_decision(:b, feature: "b")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "1")
+      ...>   |> Choreo.DecisionTree.branch(:a, :b, "2")
+      iex> Choreo.DecisionTree.Analysis.dead_ends(tree)
+      [:b]
+
+  This analysis answers the question: "Which decision paths lead nowhere?"
+  """
+  @spec dead_ends(DecisionTree.t()) :: [Yog.node_id()]
+  def dead_ends(%DecisionTree{root: nil}), do: []
+
+  def dead_ends(%DecisionTree{} = tree) do
+    outcome_ids = DecisionTree.outcomes(tree)
+
+    if outcome_ids == [] do
+      DecisionTree.nodes(tree) |> Enum.sort()
+    else
+      transposed = Yog.transpose(tree.graph)
+      can_reach_outcome = Choreo.Internal.bfs_reachable(transposed, outcome_ids)
+      all = DecisionTree.nodes(tree) |> MapSet.new()
+      MapSet.difference(all, can_reach_outcome) |> MapSet.to_list() |> Enum.sort()
+    end
   end
 
   @doc """
@@ -504,13 +584,38 @@ defmodule Choreo.DecisionTree.Analysis do
   end
 
   @doc """
-  Validates tree completeness.
+  Checks whether the decision tree contains a directed cycle.
+
+  In a well-formed tree, cycles are prohibited.
+
+  ## Examples
+
+      iex> tree = Choreo.DecisionTree.new()
+      iex> tree = tree
+      ...>   |> Choreo.DecisionTree.set_root(:a, feature: "a")
+      ...>   |> Choreo.DecisionTree.add_outcome(:x)
+      ...>   |> Choreo.DecisionTree.branch(:a, :x, "1")
+      iex> Choreo.DecisionTree.Analysis.cyclic?(tree)
+      false
+
+  This analysis answers the question: "Does the decision tree contain any cycles?"
+  """
+  @spec cyclic?(DecisionTree.t()) :: boolean()
+  def cyclic?(%DecisionTree{graph: graph}) do
+    Yog.cyclic?(graph)
+  end
+
+  @doc """
+  Validates tree completeness and structural invariants.
 
   Checks for:
     * missing root
+    * cycles in the hierarchy
+    * multiple parents (converging branches)
     * decision nodes with no branches
     * outcome nodes with branches (should be leaves)
     * duplicate conditions from the same parent
+    * orphan nodes (not reachable from root)
 
   Returns a list of `{severity, message}` tuples.
 
@@ -536,6 +641,8 @@ defmodule Choreo.DecisionTree.Analysis do
   def validate(%DecisionTree{} = tree) do
     []
     |> check_root(tree)
+    |> check_cycles(tree)
+    |> check_multiple_parents(tree)
     |> check_leaf_branches(tree)
     |> check_empty_decisions(tree)
     |> check_duplicate_conditions(tree)
@@ -735,6 +842,31 @@ defmodule Choreo.DecisionTree.Analysis do
     else
       acc
     end
+  end
+
+  defp check_cycles(acc, tree) do
+    if cyclic?(tree) do
+      [{:error, "Cycle detected in decision tree"} | acc]
+    else
+      acc
+    end
+  end
+
+  defp check_multiple_parents(acc, tree) do
+    violations =
+      tree.graph.nodes
+      |> Enum.flat_map(fn {id, _data} ->
+        preds = Yog.predecessors(tree.graph, id)
+
+        if length(preds) > 1 do
+          parent_ids = Enum.map(preds, fn {p, _w} -> p end) |> Enum.sort()
+          [{:error, "Node #{inspect(id)} has multiple parents: #{inspect(parent_ids)}"}]
+        else
+          []
+        end
+      end)
+
+    violations ++ acc
   end
 
   defp check_leaf_branches(acc, tree) do

@@ -6,6 +6,8 @@
 
 - `Choreo.Planner.Analysis`: Added `workload_by_assignee/2` to summarize open task counts, estimates, and statuses by owner.
 - `Choreo.Domain`: Added `downstream/2` to trace downstream effects from a domain node.
+- `Choreo.DecisionTree.Analysis`: Added `cyclic?/1` to check for graph cycles, `dead_ends/1` to detect decision paths that cannot reach an outcome, and `outcome_distribution/1` to compute frequencies of reachable outcome classes.
+- `Choreo.DecisionTree.Analysis`: Enhanced `validate/1` with cycle detection and multiple parent checks to enforce tree invariants.
 - **ThreatModel Hardening & Advanced Security Analysis**:
   - `Choreo.ThreatModel`: Added support for `:role` (`:anonymous`, `:user`, `:partner`, `:admin`, `:third_party`), `:privilege`, and `:controls` in external entities; `:controls` in processes and data stores; and `:authenticated`, `:data`, `:sensitivity`, and `:controls` in data flows.
   - `Choreo.ThreatModel`: Added `:highlighted_nodes` and `:highlighted_edges` fields to the struct, and forwarded them seamlessly through `to_dot/2` and `to_mermaid/2`. Added `clear_highlight/1`.
@@ -28,6 +30,7 @@
 - Fixed stale Requirement walkthrough API references and added validation for duplicate human requirement IDs.
 - Fixed stale FSM walkthrough API/rendering references and theme option documentation, and added defensive validation for duplicate outgoing transition labels.
 - Fixed stale MindMap walkthrough API references and rendering/theme option documentation, and added defensive validation for invalid root pointers.
+- Fixed stale DecisionTree walkthrough rendering callout and cheat sheet references, corrected pipe syntax typo in DSL documentation, and documented `:minimal` theme, `:rankdir`, and element highlighting options across renderers.
 - Fixed sequence diagram flow label resolution in `Choreo.ThreatModel.Render.Mermaid.to_sequence/2` when flow labels are empty strings.
 - Fixed non-constructor node expression handling in `Choreo.Lab.DSL.Sequence`.
 
