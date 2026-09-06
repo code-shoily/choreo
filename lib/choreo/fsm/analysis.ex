@@ -371,6 +371,7 @@ defmodule Choreo.FSM.Analysis do
       * no final states defined
       * unreachable states
       * dead (trap) states
+      * duplicate outgoing transition labels
       * incomplete alphabet coverage
 
     Returns a list of `{severity, message}` tuples.
@@ -400,6 +401,7 @@ defmodule Choreo.FSM.Analysis do
     |> check_unreachable(fsm, reachable)
     |> check_dead(fsm, reachable, dead)
     |> check_livelock(fsm, livelock)
+    |> check_duplicate_transition_labels(fsm)
     |> check_completeness(fsm)
     # Each check prepends, so reverse to restore declaration order.
     |> Enum.reverse()
@@ -818,6 +820,22 @@ defmodule Choreo.FSM.Analysis do
     case livelock do
       [] -> acc
       states -> [{:warning, "Livelock states: #{inspect(states)}"} | acc]
+    end
+  end
+
+  defp check_duplicate_transition_labels(acc, fsm) do
+    duplicates =
+      fsm.graph.edges
+      |> Enum.map(fn {_edge_id, {from, _to, label}} -> {from, label} end)
+      |> Enum.reject(fn {_from, label} -> label in [nil, ""] end)
+      |> Enum.group_by(& &1)
+      |> Enum.filter(fn {_transition, entries} -> length(entries) > 1 end)
+      |> Enum.map(fn {{from, label}, _entries} -> {from, label} end)
+      |> Enum.sort()
+
+    case duplicates do
+      [] -> acc
+      labels -> [{:error, "Duplicate outgoing transition labels: #{inspect(labels)}"} | acc]
     end
   end
 

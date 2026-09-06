@@ -293,7 +293,7 @@ Kino.Layout.tabs([
 | `s = initial("Label")` / `init(...)` / `start(...)`         | Initial entry-point state                          |
 | `s = state("Label")`                                        | Normal state                                       |
 | `s = final("Label")` / `done(...)`                          | Final accepting state                              |
-| `a ~> b \> on("event")`                                     | Transition with event label modifier               |
+| `a ~> b |> on("event")`                                     | Transition with event label modifier               |
 | `a ~> b |> on("event", guard: "cond")`                      | Transition with event label and guard condition    |
 | `a ~> b |> guard("cond")` / `guard("cond", label: "event")` | Transition with guard condition                    |
 | `edge a ~> b, "event", guard: "cond"`                       | Explicit transition statement with label and guard |
@@ -301,17 +301,17 @@ Kino.Layout.tabs([
 
 ### Programmatic Pipe API & Analysis (`Choreo.FSM`)
 
-| Task / Feature         | Command                                                                                            |
-| ---------------------- | -------------------------------------------------------------------------------------------------- |
-| Create Machine         | `FSM.new/1` (Opts: `:strict`)                                                                      |
-| Add States             | `FSM.add_state/3`, `add_initial_state/3`, `add_final_state/3`                                      |
-| Remove States / Status | `FSM.remove_state/2`, `remove_initial_state/2`, `remove_final_state/2`                             |
-| Add Transitions        | `FSM.add_transition/4` (Opts: `:label`, `:guard`)                                                  |
-| Inspect Machine        | `FSM.states/1`, `FSM.initial_state/1`, `FSM.final_states/1`, `FSM.transitions/1`, `FSM.alphabet/1` |
-| Machine Transforms     | `FSM.complement/1`, `FSM.minimize/1`, `FSM.product/2`                                              |
-| Language Analysis      | `FSM.Analysis.accepts?/2`, `step/3`, `unreachable_states/1`, `dead_end_states/1`, `equivalent?/2`  |
-| Render Formats         | `FSM.to_dot/2`, `FSM.to_mermaid/2` (syntax: `:flowchart` or `:state_diagram`)                      |
-| Themes                 | `FSM.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                  |
+| Task / Feature         | Command                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| Create Machine         | `FSM.new/1` (Opts: `:strict`)                                                                           |
+| Add States             | `FSM.add_state/3`, `add_initial_state/3`, `add_final_state/3`                                           |
+| Remove States / Status | `FSM.remove_state/2`, `remove_initial_state/2`, `remove_final_state/2`                                  |
+| Add Transitions        | `FSM.add_transition/4` (Opts: `:label`, `:guard`)                                                       |
+| Inspect Machine        | `FSM.states/1`, `FSM.initial_state/1`, `FSM.final_states/1`, `FSM.transitions/1`, `Analysis.alphabet/1` |
+| Machine Transforms     | `FSM.complement/1`, `FSM.prune/1`, `Analysis.minimize/1`                                                |
+| Language Analysis      | `Analysis.accepts?/2`, `reachable_states/1`, `dead_states/1`, `livelock_states/1`, `equivalent?/2`      |
+| Render Formats         | `FSM.to_dot/2`, `FSM.to_mermaid/2` (syntax: `:flowchart` or `:state_diagram`)                           |
+| Themes                 | `FSM.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                       |
 
 ---
 

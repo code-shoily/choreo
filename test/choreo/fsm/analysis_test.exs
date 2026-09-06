@@ -378,6 +378,22 @@ defmodule Choreo.FSM.AnalysisTest do
              end)
     end
 
+    test "errors on duplicate outgoing transition labels in externally constructed graphs" do
+      fsm =
+        FSM.new()
+        |> FSM.add_initial_state(:a)
+        |> FSM.add_state(:b)
+        |> FSM.add_final_state(:c)
+        |> FSM.add_transition(:a, :b, label: "go")
+
+      {graph, _edge_id} = Yog.Multi.add_edge(fsm.graph, :a, :c, "go")
+      fsm = %{fsm | graph: graph}
+
+      issues = Analysis.validate(fsm)
+
+      assert {:error, ~s(Duplicate outgoing transition labels: [a: "go"])} in issues
+    end
+
     test "warns on livelock states" do
       fsm =
         FSM.new()
