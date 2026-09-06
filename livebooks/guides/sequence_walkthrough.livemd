@@ -27,13 +27,23 @@ A **sequence diagram** shows how participants (actors, systems, components) inte
 
 Unlike other Choreo modules, `Choreo.Sequence` leans heavily into **Mermaid's native `sequenceDiagram` syntax**. GraphViz has no native sequence-diagram concept, so the DOT renderer produces a readable, timeline-style approximation rather than a formal UML sequence layout.
 
+Choreo provides two ways to work with sequence diagrams:
+
+1. **Programmatic Pipe API (`Choreo.Sequence`)** — A stable, pipe-first interface ideal for dynamic builders, tracing middleware, and automated log conversion.
+2. **Lab DSL (`Choreo.Lab.DSL.Sequence`)** — A concise, Livebook-friendly syntax for sketching event choreography, API handshakes, and failure modes.
+
+The introductory example below uses the explicit pipe-first syntax. All subsequent examples throughout this guide demonstrate the Lab DSL.
+
 ---
 
 ## Building a Basic Sequence
 
 ```elixir
 alias Choreo.Sequence
+alias Choreo.Sequence.Analysis
+import Choreo.Lab.DSL.Sequence
 
+# Initialize a basic login sequence using pipe syntax
 login =
   Sequence.new()
   |> Sequence.add_actor(:user, label: "User")
@@ -72,14 +82,16 @@ Choreo.Sequence supports several message styles:
 
 ```elixir
 messages =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:api, label: "API")
-  |> Sequence.add_participant(:queue, label: "Queue")
-  |> Sequence.message(:user, :api, label: "Submit order")
-  |> Sequence.async(:api, :queue, label: "Enqueue job")
-  |> Sequence.return(:api, :user, label: "Order accepted")
-  |> Sequence.self_message(:queue, label: "Retry on failure")
+  sequence do
+    user = actor("User")
+    api = participant("API")
+    queue = participant("Queue")
+
+    user ~> api |> call("Submit order")
+    async api ~> queue, "Enqueue job"
+    reply api ~> user, "Order accepted"
+    queue ~> queue |> call("Retry on failure")
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(messages)),
@@ -92,20 +104,22 @@ Kino.Layout.tabs(
 
 ## Activation Boxes
 
-Use `activate/2` and `deactivate/2` to show when a participant is actively processing.
+Use `activate/1` and `deactivate/1` in the DSL to show when a participant lifeline is actively processing.
 
 ```elixir
 activation =
-  Sequence.new()
-  |> Sequence.add_actor(:client, label: "Client")
-  |> Sequence.add_participant(:server, label: "Server")
-  |> Sequence.add_participant(:cache, label: "Cache")
-  |> Sequence.message(:client, :server, label: "GET /items/42")
-  |> Sequence.activate(:server)
-  |> Sequence.message(:server, :cache, label: "GET items:42")
-  |> Sequence.return(:cache, :server, label: "cached JSON")
-  |> Sequence.return(:server, :client, label: "200 OK")
-  |> Sequence.deactivate(:server)
+  sequence do
+    client = actor("Client")
+    server = participant("Server")
+    cache = participant("Cache")
+
+    client ~> server |> call("GET /items/42")
+    activate server
+    server ~> cache |> call("GET items:42")
+    reply cache ~> server, "cached JSON"
+    reply server ~> client, "200 OK"
+    deactivate server
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(activation)),
@@ -122,13 +136,15 @@ Add explanatory notes anywhere in the diagram.
 
 ```elixir
 notes =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:api, label: "API")
-  |> Sequence.message(:user, :api, label: "Sign up")
-  |> Sequence.note({:over, :api}, "Rate limit: 5 req/min")
-  |> Sequence.return(:api, :user, label: "201 Created")
-  |> Sequence.note({:right, :user}, "User receives welcome email")
+  sequence do
+    user = actor("User")
+    api = participant("API")
+
+    user ~> api |> call("Sign up")
+    over api, "Rate limit: 5 req/min"
+    reply api ~> user, "201 Created"
+    right user, "User receives welcome email"
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(notes)),
@@ -137,12 +153,12 @@ Kino.Layout.tabs(
 )
 ```
 
-Note positions:
+Note positions in Lab DSL:
 
-* `{:over, :participant}`
-* `{:left, :participant}`
-* `{:right, :participant}`
-* `{:between, :a, :b}`
+* `over participant, "text"`
+* `left participant, "text"`
+* `right participant, "text"`
+* `between a, b, "text"`
 
 ---
 
@@ -154,13 +170,16 @@ Use fragments to model control flow.
 
 ```elixir
 loop_example =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:api, label: "API")
-  |> Sequence.fragment(:loop, "until page empty")
-  |> Sequence.message(:api, :api, label: "Fetch next page")
-  |> Sequence.end_fragment()
-  |> Sequence.return(:api, :user, label: "All pages")
+  sequence do
+    user = actor("User")
+    api = participant("API")
+
+    loop "until page empty" do
+      api ~> api |> call("Fetch next page")
+    end
+
+    reply api ~> user, "All pages"
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(loop_example)),
@@ -173,15 +192,18 @@ Kino.Layout.tabs(
 
 ```elixir
 alt_example =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:api, label: "API")
-  |> Sequence.message(:user, :api, label: "GET /account")
-  |> Sequence.fragment(:alt, "account exists")
-  |> Sequence.return(:api, :user, label: "200 OK")
-  |> Sequence.fragment(:else, "account not found")
-  |> Sequence.return(:api, :user, label: "404 Not Found")
-  |> Sequence.end_fragment()
+  sequence do
+    user = actor("User")
+    api = participant("API")
+
+    user ~> api |> call("GET /account")
+
+    alt "account exists" do
+      reply api ~> user, "200 OK"
+      otherwise "account not found"
+      reply api ~> user, "404 Not Found"
+    end
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(alt_example)),
@@ -194,14 +216,18 @@ Kino.Layout.tabs(
 
 ```elixir
 opt_example =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:api, label: "API")
-  |> Sequence.message(:user, :api, label: "Place order")
-  |> Sequence.fragment(:opt, "promo code provided")
-  |> Sequence.message(:api, :api, label: "Apply discount")
-  |> Sequence.end_fragment()
-  |> Sequence.return(:api, :user, label: "Order confirmed")
+  sequence do
+    user = actor("User")
+    api = participant("API")
+
+    user ~> api |> call("Place order")
+
+    opt "promo code provided" do
+      api ~> api |> call("Apply discount")
+    end
+
+    reply api ~> user, "Order confirmed"
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(opt_example)),
@@ -216,42 +242,43 @@ Kino.Layout.tabs(
 
 ```elixir
 oauth =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:browser, label: "Browser")
-  |> Sequence.add_participant(:client, label: "Client App")
-  |> Sequence.add_participant(:auth, label: "Auth Server")
-  |> Sequence.add_participant(:resource, label: "Resource Server")
+  sequence do
+    user = actor("User")
+    browser = participant("Browser")
+    client = participant("Client App")
+    auth = participant("Auth Server")
+    resource = participant("Resource Server")
 
-  # Step 1: User initiates login
-  |> Sequence.message(:user, :browser, label: "Click 'Sign in with OAuth'")
-  |> Sequence.message(:browser, :client, label: "Request authorization")
-  |> Sequence.message(:client, :browser, label: "Redirect to /authorize")
-  |> Sequence.message(:browser, :auth, label: "GET /authorize?client_id=...")
+    # Step 1: User initiates login
+    user ~> browser |> call("Click 'Sign in with OAuth'")
+    browser ~> client |> call("Request authorization")
+    client ~> browser |> call("Redirect to /authorize")
+    browser ~> auth |> call("GET /authorize?client_id=...")
 
-  # Step 2: User authenticates and consents
-  |> Sequence.activate(:auth)
-  |> Sequence.message(:auth, :browser, label: "Render login + consent")
-  |> Sequence.message(:browser, :user, label: "Prompt credentials")
-  |> Sequence.message(:user, :browser, label: "Submit credentials")
-  |> Sequence.message(:browser, :auth, label: "POST consent")
-  |> Sequence.return(:auth, :browser, label: "Redirect with code")
-  |> Sequence.deactivate(:auth)
+    # Step 2: User authenticates and consents
+    activate auth
+    auth ~> browser |> call("Render login + consent")
+    browser ~> user |> call("Prompt credentials")
+    user ~> browser |> call("Submit credentials")
+    browser ~> auth |> call("POST consent")
+    reply auth ~> browser, "Redirect with code"
+    deactivate auth
 
-  # Step 3: Exchange code for tokens
-  |> Sequence.message(:browser, :client, label: "Callback with code")
-  |> Sequence.activate(:client)
-  |> Sequence.message(:client, :auth, label: "POST /token (code + secret)")
-  |> Sequence.return(:auth, :client, label: "access_token + refresh_token")
-  |> Sequence.deactivate(:client)
+    # Step 3: Exchange code for tokens
+    browser ~> client |> call("Callback with code")
+    activate client
+    client ~> auth |> call("POST /token (code + secret)")
+    reply auth ~> client, "access_token + refresh_token"
+    deactivate client
 
-  # Step 4: Use access token
-  |> Sequence.activate(:client)
-  |> Sequence.message(:client, :resource, label: "GET /profile (Bearer)")
-  |> Sequence.return(:resource, :client, label: "User profile")
-  |> Sequence.deactivate(:client)
-  |> Sequence.return(:client, :browser, label: "Render dashboard")
-  |> Sequence.message(:browser, :user, label: "Show dashboard")
+    # Step 4: Use access token
+    activate client
+    client ~> resource |> call("GET /profile (Bearer)")
+    reply resource ~> client, "User profile"
+    deactivate client
+    reply client ~> browser, "Render dashboard"
+    browser ~> user |> call("Show dashboard")
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Sequence.to_mermaid(oauth)),
@@ -267,15 +294,15 @@ Kino.Layout.tabs(
 Choreo.Sequence includes analysis helpers to catch common diagram problems.
 
 ```elixir
-alias Choreo.Sequence.Analysis
-
 problematic =
-  Sequence.new()
-  |> Sequence.add_actor(:user, label: "User")
-  |> Sequence.add_participant(:api, label: "API")
-  |> Sequence.add_participant(:ghost, label: "Ghost Service")
-  |> Sequence.message(:user, :api)
-  |> Sequence.activate(:api)
+  sequence do
+    user = actor("User")
+    api = participant("API")
+    _ghost = participant("Ghost Service", id: :ghost)
+
+    user ~> api
+    activate api
+  end
 
 Analysis.validate(problematic)
 ```
@@ -301,12 +328,55 @@ Sequence.to_dot(login) |> IO.puts()
 
 ---
 
-## When to Use What
+## Cheat Sheet
 
-| Goal                              | Use                        |
-| --------------------------------- | -------------------------- |
-| Native Markdown / GitHub / Notion | `Sequence.to_mermaid/2`    |
-| Static PDF / image pipeline       | `Sequence.to_dot/2`        |
-| Validate diagram quality          | `Choreo.Sequence.Analysis` |
+### Lab DSL Syntax
 
-Sequence diagrams shine when you need to communicate **order and responsibility**. Pair them with `Choreo.C4` container diagrams for a complete architectural story.
+| Syntax                       | Description                           |
+| ---------------------------- | ------------------------------------- |
+| `sequence do ... end`        | Define a sequence diagram             |
+| `user = actor("User")`       | Declare an external actor participant |
+| `api = participant("API")`   | Declare a system/service participant  |
+| `service("Auth", id: :auth)` | Declare participant with custom id    |
+
+| `user ~> api   | > call("GET /items")` | Piped synchronous call                       |
+| `api ~> worker | > async("process")`   | Piped asynchronous / fire-and-forget message |
+
+| `reply db ~> api, "rows"`                         | Return / response message                    |
+| `api ~> api |> call("verify")`                    | Self-message (internal processing)           |
+| `edge api ~> db, "query", type: :sync`            | Explicit edge with type option               |
+| `activate api` / `deactivate api`                 | Activation lifeline boxes                    |
+| `over api, "Validates token"`                     | Note centered over a participant             |
+| `left user, "External caller"`                    | Note to the left of a participant            |
+| `right api, "Logs request"`                       | Note to the right of a participant           |
+| `between api, db, "mTLS connection"`              | Note spanning between two participants       |
+| `loop "label" do ... end`                         | Repeated loop fragment                       |
+| `opt "condition" do ... end`                      | Optional fragment                            |
+| `alt "condition" do ... otherwise "else" ... end` | Alternative branching fragment               |
+| `par "parallel tasks" do ... end`                 | Concurrent / parallel fragment               |
+| `critical "atomic step" do ... end`               | Critical region fragment                     |
+
+### Programmatic Pipe API & Analysis
+
+| Task / Feature               | Command                                                                |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| Create Sequence Diagram      | `Sequence.new/1`                                                       |
+| Add Actor                    | `Sequence.add_actor/3` (Opts: `:label`, `:description`)                |
+| Add Participant              | `Sequence.add_participant/3` (Opts: `:label`, `:description`)          |
+| Synchronous Message          | `Sequence.message/4` (Opts: `:label`, `type: :sync`)                   |
+| Asynchronous Message         | `Sequence.async/4` (Opts: `:label`)                                    |
+| Return Message               | `Sequence.return/4` (Opts: `:label`)                                   |
+| Self Message                 | `Sequence.self_message/3` (Opts: `:label`)                             |
+| Lifeline Activation          | `Sequence.activate/2`, `Sequence.deactivate/2`                         |
+| Add Note                     | `Sequence.note/3` (`{:over, id}`, `{:left, id}`, `{:between, a, b}`)   |
+| Start Fragment               | `Sequence.fragment/3` (`:loop`, `:opt`, `:alt`, `:else`, `:par`, etc.) |
+| End Fragment                 | `Sequence.end_fragment/1`                                              |
+| Render Native Mermaid        | `Sequence.to_mermaid/2`                                                |
+| Render Timeline DOT Graphviz | `Sequence.to_dot/2` (Opts: `:theme`)                                   |
+| Theme Helper                 | `Sequence.theme/2` (`:default`, `:dark`, `:ocean`, `:warm`, `:forest`) |
+| Full Integrity Validation    | `Analysis.validate/1`                                                  |
+| Find Missing Labels          | `Analysis.missing_labels/1`                                            |
+| Find Unknown Participants    | `Analysis.unknown_participants/1`                                      |
+| Find Isolated Participants   | `Analysis.isolated_participants/1`                                     |
+| Find Unbalanced Activations  | `Analysis.unbalanced_activations/1`                                    |
+| Find Unclosed Fragments      | `Analysis.unclosed_fragments/1`                                        |

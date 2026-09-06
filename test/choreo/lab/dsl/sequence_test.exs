@@ -1,12 +1,13 @@
 defmodule Choreo.Lab.SequenceDSLTest do
   use ExUnit.Case, async: true
 
+  alias Choreo.Lab.DSL.Sequence, as: DSL
   import Choreo.Lab.DSL.Sequence
 
   doctest Choreo.Lab.DSL.Sequence
 
   test "taxonomy returns the Livebook discovery vocabulary" do
-    taxonomy = Choreo.Lab.DSL.Sequence.taxonomy()
+    taxonomy = DSL.taxonomy()
 
     assert :actor in taxonomy.participants
     assert :participant in taxonomy.participants
@@ -15,7 +16,8 @@ defmodule Choreo.Lab.SequenceDSLTest do
     assert :between in taxonomy.notes
     assert :loop in taxonomy.fragments
     assert :call in taxonomy.modifiers
-    assert Choreo.Lab.DSL.Sequence.verbs() == taxonomy
+    assert :type in taxonomy.modifiers
+    assert DSL.verbs() == taxonomy
   end
 
   test "builds ordered participant, message, and activation events" do
@@ -165,5 +167,57 @@ defmodule Choreo.Lab.SequenceDSLTest do
         end
       )
     end
+  end
+
+  test "supports edge/3 with label and keyword options" do
+    diagram =
+      sequence do
+        api = participant("API")
+        worker = participant("Worker")
+
+        edge(api ~> worker, "enqueue", async: true)
+      end
+
+    [message] = Choreo.Sequence.messages(diagram)
+    assert message.from == :api
+    assert message.to == :worker
+    assert message.label == "enqueue"
+    assert message.type == :async
+  end
+
+  test "supports piped modifiers with options and type/1,2 modifiers" do
+    diagram =
+      sequence do
+        api = participant("API")
+        worker = participant("Worker")
+        db = participant("Database")
+        user = actor("User")
+
+        api ~> worker |> async(label: "enqueue")
+        worker ~> db |> type(:sync, "save")
+        db ~> worker |> type(:return)
+        api ~> user |> reply("done")
+      end
+
+    messages = Choreo.Sequence.messages(diagram)
+    assert Enum.map(messages, & &1.label) == ["enqueue", "save", nil, "done"]
+    assert Enum.map(messages, & &1.type) == [:async, :sync, :return, :return]
+  end
+
+  test "supports standalone participant declarations inside DSL" do
+    diagram =
+      sequence do
+        actor "User"
+        participant "API"
+      end
+
+    assert Choreo.Sequence.participants(diagram) == [:user, :api]
+  end
+
+  test "autocomplete stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.actor() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.edge() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.type() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.on() end
   end
 end

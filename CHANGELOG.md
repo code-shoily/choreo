@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Sequence` message pipe modifiers (`|> async(label: "enqueue")`, `|> type(:sync, "save")`, `|> type(:return)`).
+- Added `:type` message modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.Sequence`.
+- Added support for `edge/3` with both label and keyword options (`edge api ~> worker, "enqueue", async: true`) in `Choreo.Lab.DSL.Sequence`.
 - Added support for keyword options and label tuples in `Choreo.Lab.DSL.UML` relationship pipe modifiers (`|> depends(label: "calls")`, `|> type(:realizes, "implements")`).
 - Added `:type` relationship modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.UML`.
 - Added support for `edge/3` with both label and keyword options (`edge controller ~> repo, "calls", type: :depends`) in `Choreo.Lab.DSL.UML`.
@@ -13,6 +16,7 @@
 
 ### Changed
 
+- Updated `livebooks/guides/sequence_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Sequence` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 - Updated `livebooks/guides/uml_walkthrough.livemd` to showcase `Choreo.Lab.DSL.UML` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 - Updated `livebooks/guides/erd_walkthrough.livemd` to showcase `Choreo.Lab.DSL.ERD` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 

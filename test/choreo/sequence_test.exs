@@ -258,12 +258,22 @@ defmodule Choreo.SequenceTest do
         |> Sequence.to_dot(theme: :dark)
 
       assert out =~ "bgcolor=\"#0f172a\""
+
+      out_ocean =
+        Sequence.new()
+        |> Sequence.add_actor(:user)
+        |> Sequence.to_dot(theme: :ocean)
+
+      assert out_ocean =~ "bgcolor=\"#f0f9ff\""
     end
 
     test "supports theme/2 helper" do
       t = Sequence.theme(:dark, graph_rankdir: :lr)
       assert t.name == :sequence_dark
       assert t.graph_rankdir == :lr
+      assert Sequence.theme(:warm).name == :sequence_warm
+      assert Sequence.theme(:forest).name == :sequence_forest
+      assert Sequence.theme(:ocean).name == :sequence_ocean
     end
   end
 

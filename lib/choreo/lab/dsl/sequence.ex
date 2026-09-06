@@ -129,7 +129,7 @@ defmodule Choreo.Lab.DSL.Sequence do
       events: [:activate, :deactivate],
       notes: [:note, :over, :left, :right, :between],
       fragments: @fragment_verbs,
-      modifiers: [:on, :label | @message_verbs],
+      modifiers: [:on, :label, :type | @message_verbs],
       options: [:label, :with, :id, :description, :type, :sync, :async, :reply, :return]
     }
   end
@@ -165,6 +165,13 @@ defmodule Choreo.Lab.DSL.Sequence do
        when is_atom(var) and is_atom(context) do
     participant = participant_from_constructor(constructor, var, meta)
     {[{:participant, participant}], Map.put(env, var, participant.id)}
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_message_opts(opts)
+    {message, participants} = message_from_ast(edge_ast, opts, env, meta)
+    {message_declaration_steps(participants, message), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -280,6 +287,19 @@ defmodule Choreo.Lab.DSL.Sequence do
     Keyword.put(acc, :label, value)
   end
 
+  defp modifier_opt({:type, _meta, [type]}, acc) do
+    if Map.has_key?(@message_types, type) do
+      Keyword.put(acc, :type, message_type!(type))
+    else
+      Keyword.put(acc, :type, type)
+    end
+  end
+
+  defp modifier_opt({:type, _meta, [type, label]}, acc) when is_binary(label) do
+    acc = modifier_opt({:type, [], [type]}, acc)
+    Keyword.put(acc, :label, label)
+  end
+
   defp modifier_opt({name, _meta, []}, acc) when name in @message_verbs do
     Keyword.put(acc, :type, message_type!(name))
   end
@@ -289,6 +309,20 @@ defmodule Choreo.Lab.DSL.Sequence do
     acc
     |> Keyword.put(:type, message_type!(name))
     |> Keyword.put(:label, label)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in @message_verbs and is_list(opts) do
+    acc
+    |> Keyword.put(:type, message_type!(name))
+    |> Keyword.merge(normalize_message_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @message_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> Keyword.put(:type, message_type!(name))
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_message_opts(opts))
   end
 
   defp modifier_opt(other, _acc) do
@@ -578,11 +612,13 @@ defmodule Choreo.Lab.DSL.Sequence do
         :call,
         :critical,
         :deactivate,
+        :edge,
         :else,
         :left,
         :loop,
         :message,
         :note,
+        :on,
         :opt,
         :otherwise,
         :over,
@@ -598,6 +634,7 @@ defmodule Choreo.Lab.DSL.Sequence do
         :signal,
         :sync,
         :system,
+        :type,
         :user
       ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
