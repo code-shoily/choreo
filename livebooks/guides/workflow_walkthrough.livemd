@@ -48,9 +48,19 @@ Common use cases:
 | `:failure`      | dotted red    | Error handler   |
 | `:timeout`      | dotted orange | Timeout handler |
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two ways to author workflows:
+
+1. **Programmatic Pipe API (`Choreo.Workflow`)**: Explicit, pipe-first builder functions (`add_start/3`, `add_task/3`, `add_decision/3`, `add_fork/3`, `add_join/3`, `add_compensation/3`, `add_end/3`, `connect/4`). Best for production services, dynamic DAG generation, and pipeline compilers.
+2. **Lab DSL (`Choreo.Lab.DSL.Workflow`)**: Concise, sketch-oriented syntax (`workflow do ... end`, variable binding, `~>`, and pipe modifiers like `|> condition("yes")`, `|> failure()`). Best for Livebooks, process reviews, Saga sketches, and rapid orchestration modeling.
+
+In this guide, the introductory legend demonstrates the programmatic pipe API, while subsequent examples showcase the expressive Lab DSL.
+
 ```elixir
 alias Choreo.Workflow
 alias Choreo.Workflow.Analysis
+import Choreo.Lab.DSL.Workflow
 ```
 
 ```elixir
@@ -80,49 +90,54 @@ A customer places an order. We charge their card, reserve inventory, pack, and s
 
 ```elixir
 order_saga =
-  Workflow.new()
-  |> Workflow.add_start(:order_received)
-  |> Workflow.add_task(:charge_card,
-    label: "Charge Card",
-    timeout_ms: 5000,
-    retry: 3,
-    retry_backoff_ms: 1000
-  )
-  |> Workflow.add_task(:reserve_inventory,
-    label: "Reserve Inventory",
-    timeout_ms: 3000
-  )
-  |> Workflow.add_decision(:sufficient_stock,
-    label: "Stock OK?"
-  )
-  |> Workflow.add_task(:pack_items,
-    label: "Pack Items",
-    timeout_ms: 10_000
-  )
-  |> Workflow.add_task(:ship_order,
-    label: "Ship Order",
-    timeout_ms: 5000
-  )
-  |> Workflow.add_compensation(:refund_payment,
-    label: "Refund Payment",
-    for: :charge_card
-  )
-  |> Workflow.add_compensation(:release_inventory,
-    label: "Release Inventory",
-    for: :reserve_inventory
-  )
-  |> Workflow.add_end(:done)
-  # Happy path
-  |> Workflow.connect(:order_received, :charge_card)
-  |> Workflow.connect(:charge_card, :reserve_inventory)
-  |> Workflow.connect(:reserve_inventory, :sufficient_stock)
-  |> Workflow.connect(:sufficient_stock, :pack_items, condition: "yes")
-  |> Workflow.connect(:pack_items, :ship_order)
-  |> Workflow.connect(:ship_order, :done)
-  # Compensation paths
-  |> Workflow.connect(:sufficient_stock, :refund_payment, condition: "no", edge_type: :compensation)
-  |> Workflow.connect(:sufficient_stock, :release_inventory, condition: "no", edge_type: :compensation)
-  |> Workflow.connect(:refund_payment, :done, edge_type: :compensation)
+  workflow do
+    order_received = start("order_received")
+
+    charge_card =
+      task("Charge Card",
+        id: :charge_card,
+        timeout_ms: 5000,
+        retry: 3,
+        retry_backoff_ms: 1000
+      )
+
+    reserve_inventory =
+      task("Reserve Inventory",
+        id: :reserve_inventory,
+        timeout_ms: 3000
+      )
+
+    sufficient_stock = decision("Stock OK?", id: :sufficient_stock)
+    pack_items = task("Pack Items", id: :pack_items, timeout_ms: 10_000)
+    ship_order = task("Ship Order", id: :ship_order, timeout_ms: 5000)
+
+    refund_payment =
+      compensation("Refund Payment",
+        id: :refund_payment,
+        for: charge_card
+      )
+
+    release_inventory =
+      compensation("Release Inventory",
+        id: :release_inventory,
+        for: reserve_inventory
+      )
+
+    done = finish("done")
+
+    # Happy path
+    order_received ~> charge_card
+    charge_card ~> reserve_inventory
+    reserve_inventory ~> sufficient_stock
+    sufficient_stock ~> pack_items |> condition("yes")
+    pack_items ~> ship_order
+    ship_order ~> done
+
+    # Compensation paths
+    sufficient_stock ~> refund_payment |> condition("no") |> compensation()
+    sufficient_stock ~> release_inventory |> condition("no") |> compensation()
+    refund_payment ~> done |> compensation()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(order_saga)),
@@ -176,54 +191,44 @@ Real systems do independent work in parallel. Charging the card and checking fra
 
 ```elixir
 parallel_order =
-  Workflow.new()
-  |> Workflow.add_start(:order_received)
-  |> Workflow.add_fork(:fork_checks, label: "Parallel Checks")
-  |> Workflow.add_task(:charge_card,
-    label: "Charge Card\n5s",
-    timeout_ms: 5000
-  )
-  |> Workflow.add_task(:fraud_check,
-    label: "Fraud Check\n2s",
-    timeout_ms: 2000
-  )
-  |> Workflow.add_join(:join_checks, label: "Checks Complete")
-  |> Workflow.add_decision(:checks_passed, label: "Passed?")
-  |> Workflow.add_fork(:fork_fulfillment, label: "Fulfillment")
-  |> Workflow.add_task(:pack_items,
-    label: "Pack Items\n8s",
-    timeout_ms: 8000
-  )
-  |> Workflow.add_task(:send_confirmation,
-    label: "Send Email\n1s",
-    timeout_ms: 1000
-  )
-  |> Workflow.add_join(:join_fulfillment, label: "Fulfillment Done")
-  |> Workflow.add_task(:ship_order,
-    label: "Ship\n3s",
-    timeout_ms: 3000
-  )
-  |> Workflow.add_end(:done)
-  |> Workflow.add_compensation(:refund_payment, label: "Refund", for: :charge_card)
-  |> Workflow.add_compensation(:cancel_fraud_flag, label: "Clear Flag", for: :fraud_check)
-  # Start → parallel checks
-  |> Workflow.connect(:order_received, :fork_checks)
-  |> Workflow.connect(:fork_checks, :charge_card)
-  |> Workflow.connect(:fork_checks, :fraud_check)
-  |> Workflow.connect(:charge_card, :join_checks)
-  |> Workflow.connect(:fraud_check, :join_checks)
-  |> Workflow.connect(:join_checks, :checks_passed)
-  # Decision branches
-  |> Workflow.connect(:checks_passed, :fork_fulfillment, condition: "yes")
-  |> Workflow.connect(:checks_passed, :refund_payment, condition: "no", edge_type: :compensation)
-  |> Workflow.connect(:checks_passed, :cancel_fraud_flag, condition: "no", edge_type: :compensation)
-  # Parallel fulfillment
-  |> Workflow.connect(:fork_fulfillment, :pack_items)
-  |> Workflow.connect(:fork_fulfillment, :send_confirmation)
-  |> Workflow.connect(:pack_items, :join_fulfillment)
-  |> Workflow.connect(:send_confirmation, :join_fulfillment)
-  |> Workflow.connect(:join_fulfillment, :ship_order)
-  |> Workflow.connect(:ship_order, :done)
+  workflow do
+    order_received = start("order_received")
+    fork_checks = fork("Parallel Checks", id: :fork_checks)
+    charge_card = task("Charge Card\n5s", id: :charge_card, timeout_ms: 5000)
+    fraud_check = task("Fraud Check\n2s", id: :fraud_check, timeout_ms: 2000)
+    join_checks = join("Checks Complete", id: :join_checks)
+    checks_passed = decision("Passed?", id: :checks_passed)
+    fork_fulfillment = fork("Fulfillment", id: :fork_fulfillment)
+    pack_items = task("Pack Items\n8s", id: :pack_items, timeout_ms: 8000)
+    send_confirmation = task("Send Email\n1s", id: :send_confirmation, timeout_ms: 1000)
+    join_fulfillment = join("Fulfillment Done", id: :join_fulfillment)
+    ship_order = task("Ship\n3s", id: :ship_order, timeout_ms: 3000)
+    done = finish("done")
+
+    refund_payment = compensation("Refund", id: :refund_payment, for: charge_card)
+    cancel_fraud_flag = compensation("Clear Flag", id: :cancel_fraud_flag, for: fraud_check)
+
+    # Start → parallel checks
+    order_received ~> fork_checks
+    fork_checks ~> charge_card
+    fork_checks ~> fraud_check
+    charge_card ~> join_checks
+    fraud_check ~> join_checks
+    join_checks ~> checks_passed
+
+    # Decision branches
+    checks_passed ~> fork_fulfillment |> condition("yes")
+    checks_passed ~> refund_payment |> condition("no") |> compensation()
+    checks_passed ~> cancel_fraud_flag |> condition("no") |> compensation()
+
+    # Parallel fulfillment
+    fork_fulfillment ~> pack_items
+    fork_fulfillment ~> send_confirmation
+    pack_items ~> join_fulfillment
+    send_confirmation ~> join_fulfillment
+    join_fulfillment ~> ship_order
+    ship_order ~> done
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(parallel_order)),
@@ -271,63 +276,73 @@ Choreo supports two distinct ways to render swimlanes to Mermaid:
 
 ```elixir
 cicd =
-  Workflow.new()
-  # Dev swimlane
-  |> Workflow.add_swimlane(:dev, label: "Dev Team", fillcolor: "#dbeafe")
-  |> Workflow.add_event(:git_push, label: "Git Push", swimlane: :dev)
-  |> Workflow.add_task(:run_tests,
-    label: "Unit Tests\n3m",
-    timeout_ms: 180_000,
-    swimlane: :dev
-  )
-  |> Workflow.add_task(:build_image,
-    label: "Build Docker Image\n5m",
-    timeout_ms: 300_000,
-    swimlane: :dev
-  )
-  # QA swimlane
-  |> Workflow.add_swimlane(:qa, label: "QA Team", fillcolor: "#dcfce7")
-  |> Workflow.add_task(:deploy_staging,
-    label: "Deploy to Staging\n2m",
-    timeout_ms: 120_000,
-    swimlane: :qa
-  )
-  |> Workflow.add_task(:run_integration_tests,
-    label: "Integration Tests\n10m",
-    timeout_ms: 600_000,
-    retry: 1,
-    swimlane: :qa
-  )
-  |> Workflow.add_decision(:tests_passed, label: "Tests Pass?", swimlane: :qa)
-  # Platform swimlane
-  |> Workflow.add_swimlane(:platform, label: "Platform Team", fillcolor: "#fef3c7")
-  |> Workflow.add_task(:deploy_production,
-    label: "Deploy to Prod\n3m",
-    timeout_ms: 180_000,
-    swimlane: :platform
-  )
-  |> Workflow.add_task(:run_smoke_tests,
-    label: "Smoke Tests\n2m",
-    timeout_ms: 120_000,
-    swimlane: :platform
-  )
-  |> Workflow.add_end(:live)
-  # Rollback
-  |> Workflow.add_compensation(:rollback_production,
-    label: "Rollback Prod",
-    for: :deploy_production,
-    swimlane: :platform
-  )
-  # Flow
-  |> Workflow.connect(:git_push, :run_tests)
-  |> Workflow.connect(:run_tests, :build_image)
-  |> Workflow.connect(:build_image, :deploy_staging)
-  |> Workflow.connect(:deploy_staging, :run_integration_tests)
-  |> Workflow.connect(:run_integration_tests, :tests_passed)
-  |> Workflow.connect(:tests_passed, :deploy_production, condition: "yes")
-  |> Workflow.connect(:tests_passed, :rollback_production, condition: "no", edge_type: :compensation)
-  |> Workflow.connect(:deploy_production, :run_smoke_tests)
-  |> Workflow.connect(:run_smoke_tests, :live)
+  workflow do
+    swimlane "Dev Team", id: :dev, fillcolor: "#dbeafe" do
+      git_push = event("Git Push", id: :git_push)
+
+      run_tests =
+        task("Unit Tests\n3m",
+          id: :run_tests,
+          timeout_ms: 180_000
+        )
+
+      build_image =
+        task("Build Docker Image\n5m",
+          id: :build_image,
+          timeout_ms: 300_000
+        )
+    end
+
+    swimlane "QA Team", id: :qa, fillcolor: "#dcfce7" do
+      deploy_staging =
+        task("Deploy to Staging\n2m",
+          id: :deploy_staging,
+          timeout_ms: 120_000
+        )
+
+      run_integration_tests =
+        task("Integration Tests\n10m",
+          id: :run_integration_tests,
+          timeout_ms: 600_000,
+          retry: 1
+        )
+
+      tests_passed = decision("Tests Pass?", id: :tests_passed)
+    end
+
+    swimlane "Platform Team", id: :platform, fillcolor: "#fef3c7" do
+      deploy_production =
+        task("Deploy to Prod\n3m",
+          id: :deploy_production,
+          timeout_ms: 180_000
+        )
+
+      run_smoke_tests =
+        task("Smoke Tests\n2m",
+          id: :run_smoke_tests,
+          timeout_ms: 120_000
+        )
+
+      rollback_production =
+        compensation("Rollback Prod",
+          id: :rollback_production,
+          for: deploy_production
+        )
+    end
+
+    live = finish("live")
+
+    # Flow
+    git_push ~> run_tests
+    run_tests ~> build_image
+    build_image ~> deploy_staging
+    deploy_staging ~> run_integration_tests
+    run_integration_tests ~> tests_passed
+    tests_passed ~> deploy_production |> condition("yes")
+    tests_passed ~> rollback_production |> condition("no") |> compensation()
+    deploy_production ~> run_smoke_tests
+    run_smoke_tests ~> live
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(cicd, syntax: :swimlane), height: "900px"),
@@ -366,46 +381,63 @@ Human-in-the-loop processes need timeout handling. If a manager doesn't approve 
 
 ```elixir
 approval =
-  Workflow.new()
-  |> Workflow.add_start(:request_submitted)
-  |> Workflow.add_task(:validate_request,
-    label: "Auto-Validate\n500ms",
-    timeout_ms: 500
-  )
-  |> Workflow.add_decision(:valid, label: "Valid?")
-  |> Workflow.add_task(:manager_review,
-    label: "Manager Review\n24h",
-    timeout_ms: 86_400_000
-  )
-  |> Workflow.add_decision(:approved, label: "Approved?")
-  |> Workflow.add_task(:process_request,
-    label: "Process\n2s",
-    timeout_ms: 2000
-  )
-  |> Workflow.add_end(:completed)
-  |> Workflow.add_task(:auto_escalate,
-    label: "Escalate to VP\n48h",
-    timeout_ms: 172_800_000
-  )
-  |> Workflow.add_task(:notify_rejection,
-    label: "Notify Rejection\n1s",
-    timeout_ms: 1000
-  )
-  |> Workflow.add_end(:rejected)
-  |> Workflow.add_end(:escalated)
-  # Happy / sad paths
-  |> Workflow.connect(:request_submitted, :validate_request)
-  |> Workflow.connect(:validate_request, :valid)
-  |> Workflow.connect(:valid, :manager_review, condition: "yes")
-  |> Workflow.connect(:valid, :notify_rejection, condition: "no")
-  |> Workflow.connect(:notify_rejection, :rejected)
-  |> Workflow.connect(:manager_review, :approved)
-  |> Workflow.connect(:approved, :process_request, condition: "yes")
-  |> Workflow.connect(:approved, :notify_rejection, condition: "no")
-  |> Workflow.connect(:process_request, :completed)
-  # Timeout path
-  |> Workflow.connect(:manager_review, :auto_escalate, edge_type: :timeout)
-  |> Workflow.connect(:auto_escalate, :escalated)
+  workflow do
+    request_submitted = start("request_submitted")
+
+    validate_request =
+      task("Auto-Validate\n500ms",
+        id: :validate_request,
+        timeout_ms: 500
+      )
+
+    valid = decision("Valid?", id: :valid)
+
+    manager_review =
+      task("Manager Review\n24h",
+        id: :manager_review,
+        timeout_ms: 86_400_000
+      )
+
+    approved = decision("Approved?", id: :approved)
+
+    process_request =
+      task("Process\n2s",
+        id: :process_request,
+        timeout_ms: 2000
+      )
+
+    completed = finish("completed")
+
+    auto_escalate =
+      task("Escalate to VP\n48h",
+        id: :auto_escalate,
+        timeout_ms: 172_800_000
+      )
+
+    notify_rejection =
+      task("Notify Rejection\n1s",
+        id: :notify_rejection,
+        timeout_ms: 1000
+      )
+
+    rejected = finish("rejected")
+    escalated = finish("escalated")
+
+    # Happy / sad paths
+    request_submitted ~> validate_request
+    validate_request ~> valid
+    valid ~> manager_review |> condition("yes")
+    valid ~> notify_rejection |> condition("no")
+    notify_rejection ~> rejected
+    manager_review ~> approved
+    approved ~> process_request |> condition("yes")
+    approved ~> notify_rejection |> condition("no")
+    process_request ~> completed
+
+    # Timeout path
+    manager_review ~> auto_escalate |> timeout()
+    auto_escalate ~> escalated
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(approval)),
@@ -439,18 +471,20 @@ Start with a workflow that has structural problems and use `validate/1` as a che
 
 ```elixir
 broken =
-  Workflow.new()
-  |> Workflow.add_task(:step_a, label: "Step A")
-  |> Workflow.add_task(:step_b, label: "Step B")
-  |> Workflow.add_task(:orphan_step, label: "Orphan")
-  |> Workflow.add_task(:dead_end, label: "Dead End")
-  |> Workflow.add_end(:finish)
-  |> Workflow.add_compensation(:rollback, label: "Rollback", for: :step_a)
-  |> Workflow.connect(:step_a, :step_b)
-  |> Workflow.connect(:step_b, :finish)
-  # orphan_step has no inputs
-  # dead_end has no outputs
-  # rollback has no incoming edge
+  workflow do
+    step_a = task("Step A", id: :step_a)
+    step_b = task("Step B", id: :step_b)
+    orphan_step = task("Orphan", id: :orphan_step)
+    dead_end = task("Dead End", id: :dead_end)
+    finish = finish("finish")
+    rollback = compensation("Rollback", id: :rollback, for: step_a)
+
+    step_a ~> step_b
+    step_b ~> finish
+    # orphan_step has no inputs
+    # dead_end has no outputs
+    # rollback has no incoming edge
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Workflow.to_mermaid(broken, syntax: :swimlane)),
@@ -481,16 +515,18 @@ The validator catches:
 
 ```elixir
 fixed =
-  Workflow.new()
-  |> Workflow.add_start(:start)
-  |> Workflow.add_task(:step_a, label: "Step A")
-  |> Workflow.add_task(:step_b, label: "Step B")
-  |> Workflow.add_end(:finish)
-  |> Workflow.add_compensation(:rollback, label: "Rollback", for: :step_a)
-  |> Workflow.connect(:start, :step_a)
-  |> Workflow.connect(:step_a, :step_b)
-  |> Workflow.connect(:step_b, :finish)
-  |> Workflow.connect(:step_a, :rollback, edge_type: :compensation)
+  workflow do
+    start = start("start")
+    step_a = task("Step A", id: :step_a)
+    step_b = task("Step B", id: :step_b)
+    finish = finish("finish")
+    rollback = compensation("Rollback", id: :rollback, for: step_a)
+
+    start ~> step_a
+    step_a ~> step_b
+    step_b ~> finish
+    step_a ~> rollback |> compensation()
+  end
 
 IO.puts("After fix:")
 Analysis.validate(fixed) |> IO.inspect()
@@ -537,13 +573,15 @@ Sometimes tasks transition between states along multiple paths (e.g., synchronou
 
 ```elixir
 multi_flow =
-  Workflow.new()
-  |> Workflow.add_start(:start)
-  |> Workflow.add_task(:process)
-  |> Workflow.add_end(:done)
-  |> Workflow.connect(:start, :process)
-  |> Workflow.connect(:process, :done, label: "Payload", weight: 1000)
-  |> Workflow.connect(:process, :done, label: "Event", weight: 200)
+  workflow do
+    start = start("start")
+    process = task("process")
+    done = finish("done")
+
+    start ~> process
+    process ~> done |> on("Payload") |> weight(1000)
+    process ~> done |> on("Event") |> weight(200)
+  end
 
 IO.puts("Number of edges: #{length(Workflow.edges(multi_flow))}")
 
@@ -553,6 +591,57 @@ Kino.Layout.tabs(
   Sketch: Choreo.Lab.Sketch.new(Workflow.to_mermaid(multi_flow))
 )
 ```
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax
+
+| Syntax                                          | Description                                     |
+| ----------------------------------------------- | ----------------------------------------------- |
+| `workflow do ... end`                           | Define a workflow orchestration model           |
+| `s = start("Title")` / `begin("Title")`         | Declare an entry point / start event            |
+| `t = task("Title", timeout_ms: 5000, retry: 3)` | Declare an automated task step                  |
+| `d = decision("Condition?")` / `gateway(...)`   | Declare a conditional decision gateway          |
+| `f = fork("Parallel Forks")` / `split(...)`     | Declare an execution fork / split               |
+| `j = join("Join Forks")` / `merge(...)`         | Declare an execution join / merge               |
+| `c = compensation("Rollback", for: task)`       | Declare a Saga compensation rollback handler    |
+| `e = event("Signal")` / `timer(...)`            | Declare an external event, timer, or signal     |
+| `term = finish("Done")` / `done(...)`           | Declare a terminal / successful completion node |
+| `swimlane "Team Name" do ... end`               | Define a scoped swimlane block                  |
+| `a ~> b`                                        | Connect nodes via normal sequence flow          |
+| `a ~> b |> condition("yes")`                    | Piped conditional branch modifier               |
+| `a ~> b |> compensation()` / `compensates()`    | Piped Saga rollback edge modifier               |
+| `a ~> b |> retry()`                             | Piped retry loop edge modifier                  |
+| `a ~> b |> failure()` / `error()`               | Piped error handler edge modifier               |
+| `a ~> b |> timeout()`                           | Piped timeout handler edge modifier             |
+| `a ~> b |> weight(100)`                         | Set edge weight / traversal cost                |
+| `a ~> b |> on("label")`                         | Set edge display label                          |
+| `edge a ~> b, "label", edge_type: :failure`     | Explicit edge statement with options            |
+
+### Programmatic Pipe API & Analysis
+
+| Task / Feature             | Command                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| Create Workflow            | `Workflow.new/1` (Opts: `:strict`)                                                                |
+| Add Start / End            | `Workflow.add_start/3`, `Workflow.add_end/3`                                                      |
+| Add Task                   | `Workflow.add_task/3` (Opts: `:label`, `:timeout_ms`, `:retry`, `:retry_backoff_ms`, `:swimlane`) |
+| Add Decision / Fork / Join | `Workflow.add_decision/3`, `Workflow.add_fork/3`, `Workflow.add_join/3`                           |
+| Add Compensation           | `Workflow.add_compensation/3` (Opts: `:label`, `:for`, `:swimlane`)                               |
+| Add Event                  | `Workflow.add_event/3` (Opts: `:label`, `:swimlane`)                                              |
+| Add Swimlane               | `Workflow.add_swimlane/3` (Opts: `:label`, `:fillcolor`)                                          |
+| Connect Nodes              | `Workflow.connect/4` (Opts: `:label`, `:condition`, `:edge_type`, `:weight`)                      |
+| Render Mermaid Flowchart   | `Workflow.to_mermaid/2` (Opts: `:theme`, `:syntax`)                                               |
+| Render Mermaid Swimlane    | `Workflow.to_mermaid/2` (`syntax: :swimlane`)                                                     |
+| Render DOT Graphviz        | `Workflow.to_dot/2` (Opts: `:theme`, `:rankdir`)                                                  |
+| Critical Path Latency      | `Analysis.critical_path/1` (Finds longest latency execution path)                                 |
+| Parallelizable Tasks       | `Analysis.parallelizable_tasks/1` (Finds concurrency levels)                                      |
+| Missing Compensations      | `Analysis.missing_compensations/1` (Tasks with retry lacking rollback)                            |
+| Uncompensated Paths        | `Analysis.uncompensated_paths/1` (Error paths missing terminal rollback)                          |
+| Bottleneck Detection       | `Analysis.bottlenecks/2` (Thresholds on latency and retries)                                      |
+| Simulation                 | `Analysis.simulate/1` (Estimates cumulative latency across nodes)                                 |
+| Structural Integrity       | `Analysis.validate/1` (Verifies start/end reachability, orphans, dead ends)                       |
 
 ---
 

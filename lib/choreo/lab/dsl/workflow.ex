@@ -124,7 +124,7 @@ defmodule Choreo.Lab.DSL.Workflow do
       swimlanes: @swimlane_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
-      modifiers: [:on, :label, :condition, :when_, :weight | @edge_verbs],
+      modifiers: [:on, :label, :condition, :when_, :weight, :type, :edge_type | @edge_verbs],
       options: [
         :label,
         :with,
@@ -184,8 +184,13 @@ defmodule Choreo.Lab.DSL.Workflow do
             &process_statement/2
           )
 
-        {parent_steps ++ inner_steps,
-         Map.put(final_inner_env, :swimlane, Map.get(env, :swimlane))}
+        swimlane_env =
+          case Map.fetch(env, :swimlane) do
+            {:ok, s} -> Map.put(final_inner_env, :swimlane, s)
+            :error -> Map.delete(final_inner_env, :swimlane)
+          end
+
+        {parent_steps ++ inner_steps, swimlane_env}
 
       _ ->
         statement_steps(statement, env)
@@ -216,6 +221,13 @@ defmodule Choreo.Lab.DSL.Workflow do
         raise ArgumentError,
               "expected workflow constructor, got #{Macro.to_string(constructor)}#{line_suffix(meta)}"
     end
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -309,14 +321,56 @@ defmodule Choreo.Lab.DSL.Workflow do
 
   defp modifier_opt({:weight, _meta, [value]}, acc), do: Keyword.put(acc, :weight, value)
 
+  defp modifier_opt({type_verb, _meta, [type]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs do
+    edge_type_opts(acc, type)
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, label]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs and is_binary(label) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.put(:label, label)
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, opts]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs and is_list(opts) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, label, opts]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs and is_binary(label) and
+              is_list(opts) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
   defp modifier_opt({name, _meta, []}, acc) when name in @edge_verbs do
     edge_type_opts(acc, name)
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs do
+  defp modifier_opt({name, _meta, [label]}, acc) when name in @edge_verbs and is_binary(label) do
     acc
     |> edge_type_opts(name)
-    |> Keyword.put_new(:label, value)
+    |> Keyword.put(:label, label)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in @edge_verbs and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @edge_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
   end
 
   defp modifier_opt(other, _acc) do
@@ -466,8 +520,8 @@ defmodule Choreo.Lab.DSL.Workflow do
 
       :error ->
         case Map.fetch(env, :swimlane) do
-          {:ok, swimlane_id} -> Keyword.put(opts, key, swimlane_id)
-          :error -> opts
+          {:ok, swimlane_id} when not is_nil(swimlane_id) -> Keyword.put(opts, key, swimlane_id)
+          _ -> opts
         end
     end
   end
@@ -589,8 +643,11 @@ defmodule Choreo.Lab.DSL.Workflow do
         :begin,
         :compensates,
         :compensation,
+        :condition,
         :decision,
         :done,
+        :edge,
+        :edge_type,
         :end_event,
         :error,
         :event,
@@ -601,6 +658,7 @@ defmodule Choreo.Lab.DSL.Workflow do
         :join,
         :lane,
         :merge,
+        :on,
         :retry,
         :rollback,
         :sequence,
@@ -613,7 +671,10 @@ defmodule Choreo.Lab.DSL.Workflow do
         :terminal,
         :then,
         :timeout,
-        :timer
+        :timer,
+        :type,
+        :when_,
+        :weight
       ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
       raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"

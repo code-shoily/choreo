@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Workflow` edge pipe modifiers (`|> condition("yes")`, `|> type(:sequence, "init")`, `|> failure("err", weight: 10)`).
+- Added `:type` and `:edge_type` modifiers and expanded autocomplete helper stubs (`:condition`, `:edge`, `:edge_type`, `:on`, `:type`, `:when_`, `:weight`) in `Choreo.Lab.DSL.Workflow`.
+- Added support for `edge/3` with both label and keyword options (`edge step1 ~> step2, "rollback", edge_type: :compensation, weight: 5`) in `Choreo.Lab.DSL.Workflow`.
 - Added support for keyword options and label tuples in `Choreo.Lab.DSL.Planner` edge pipe modifiers (`|> contains(label: "includes")`, `|> type(:depends_on, "prereq")`).
 - Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.Planner`.
 - Added support for `edge/3` with both label and keyword options (`edge kickoff ~> delivery, "prereq", type: :depends_on`) in `Choreo.Lab.DSL.Planner`.
@@ -26,6 +29,7 @@
 
 ### Changed
 
+- Updated `livebooks/guides/workflow_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Workflow` syntax across all orchestration examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/planner_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Planner` syntax across all planning examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/c4_walkthrough.livemd` to showcase `Choreo.Lab.DSL.C4` syntax across all architecture examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/domain_modeling_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Domain` syntax across all examples, retaining programmatic pipe syntax in the introductory example, and added a comprehensive Cheat Sheet.
@@ -35,6 +39,7 @@
 
 ### Fixed
 
+- Fixed swimlane environment state restoration after nested `swimlane` blocks and guarded nil `:swimlane` resolution in `Choreo.Lab.DSL.Workflow`.
 - Ensured user constructors in `Choreo.Lab.DSL.Planner` populate default `:name` attribute matching title/id for query and render compatibility.
 
 - Fixed parent environment state restoration after nested hierarchy blocks and guarded nil `:parent` resolution in `Choreo.Lab.DSL.C4`.

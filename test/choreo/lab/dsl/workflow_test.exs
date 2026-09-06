@@ -16,6 +16,8 @@ defmodule Choreo.Lab.WorkflowDSLTest do
     assert :~> in taxonomy.edges
     assert :failure in taxonomy.edges
     assert :condition in taxonomy.modifiers
+    assert :type in taxonomy.modifiers
+    assert :edge_type in taxonomy.modifiers
     assert :with in taxonomy.options
     assert Choreo.Lab.DSL.Workflow.verbs() == taxonomy
   end
@@ -174,6 +176,105 @@ defmodule Choreo.Lab.WorkflowDSLTest do
           end
         end
       )
+    end
+  end
+
+  test "supports edge/3 with label and keyword options" do
+    flow =
+      workflow do
+        step1 = task("Step 1")
+        step2 = task("Step 2")
+
+        edge(step1 ~> step2, "rollback", edge_type: :compensation, weight: 5)
+      end
+
+    assert [{:step1, :step2, 5, meta}] = Workflow.edges_with_meta(flow)
+    assert meta.label == "rollback"
+    assert meta.edge_type == :compensation
+  end
+
+  test "supports piped modifiers with options and type/1,2,3 modifiers" do
+    flow =
+      workflow do
+        entry = start("Start")
+        check = decision("Check")
+        ok = task("OK")
+        fail = rollback("Rollback")
+
+        entry ~> check |> type(:sequence, "init")
+        check ~> ok |> type(:sequence, condition: "yes")
+        check ~> fail |> failure("on error", weight: 10)
+      end
+
+    edges = Workflow.edges_with_meta(flow)
+
+    assert Enum.any?(edges, fn
+             {:entry, :check, _w, meta} -> meta.label == "init"
+             _ -> false
+           end)
+
+    assert Enum.any?(edges, fn
+             {:check, :ok, _w, meta} -> meta.condition == "yes"
+             _ -> false
+           end)
+
+    assert Enum.any?(edges, fn
+             {:check, :fail, 10, meta} -> meta.edge_type == :failure and meta.label == "on error"
+             _ -> false
+           end)
+  end
+
+  test "supports standalone node declarations inside DSL" do
+    flow =
+      workflow do
+        start("Start Flow")
+        task("Do Work")
+        finish "All Done"
+      end
+
+    assert :start_flow in Workflow.starts(flow)
+    assert :do_work in Workflow.tasks(flow)
+    assert :all_done in Workflow.ends(flow)
+  end
+
+  test "supports multiple swimlane blocks with scoping and environment restoration" do
+    flow =
+      workflow do
+        swimlane "Frontend" do
+          click = task("Click Button")
+        end
+
+        swimlane "Backend" do
+          process = task("Process Action")
+        end
+
+        independent = task("Independent Step")
+
+        click ~> process
+        process ~> independent
+      end
+
+    nodes = flow.graph.nodes
+    assert nodes[:click].cluster == "cluster_frontend"
+    assert nodes[:process].cluster == "cluster_backend"
+    assert Map.get(nodes[:independent], :cluster) == nil
+  end
+
+  test "autocomplete stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.Workflow.task()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.Workflow.edge()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.Workflow.condition()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.Workflow.type()
     end
   end
 
