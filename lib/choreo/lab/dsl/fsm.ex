@@ -76,7 +76,7 @@ defmodule Choreo.Lab.DSL.FSM do
     %{
       states: @state_verbs,
       edges: [:~>, :edge],
-      modifiers: [:on, :label, :guard],
+      modifiers: [:on, :label, :edge, :guard],
       options: [:label, :with, :guard, :id]
     }
   end
@@ -122,7 +122,15 @@ defmodule Choreo.Lab.DSL.FSM do
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
     state = state_from_constructor(constructor, var, meta)
-    {[{:state, state}], Map.put(env, var, state.id)}
+    env = env |> Map.put(var, state.id) |> Map.put(state.id, state.id)
+    {[{:state, state}], env}
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_transition_opts(opts)
+    {transition, states} = transition_from_ast(edge_ast, opts, env, meta)
+    {transition_declaration_steps(states, transition), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -155,6 +163,7 @@ defmodule Choreo.Lab.DSL.FSM do
   defp statement_steps({name, meta, args} = ast, env) when is_atom(name) and is_list(args) do
     if Map.has_key?(@state_builders, name) do
       state = state_from_constructor(ast, nil, meta)
+      env = Map.put(env, state.id, state.id)
       {[{:state, state}], env}
     else
       unsupported_statement!(ast, meta)
@@ -175,16 +184,37 @@ defmodule Choreo.Lab.DSL.FSM do
     transition_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in [:on, :label, :edge] and is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_transition_opts(opts)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in [:on, :label, :edge] and is_list(opts) do
+    Keyword.merge(acc, normalize_transition_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label, :edge] and is_binary(value) do
     Keyword.put(acc, :label, value)
+  end
+
+  defp modifier_opt({:guard, _meta, [value, opts]}, acc)
+       when is_binary(value) and is_list(opts) do
+    opts = [guard: value] ++ normalize_transition_opts(opts)
+    Keyword.merge(acc, opts)
   end
 
   defp modifier_opt({:guard, _meta, [value]}, acc), do: Keyword.put(acc, :guard, value)
 
+  defp modifier_opt({:with, _meta, [value]}, acc) when is_binary(value),
+    do: Keyword.put(acc, :label, value)
+
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported FSM transition modifier: #{Macro.to_string(other)}; " <>
-            "use `on(value)`, `label(value)`, or `guard(value)`"
+            "use `on(value)`, `label(value)`, `guard(value)`, or `edge(value)`"
   end
 
   defp transition_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -329,7 +359,7 @@ defmodule Choreo.Lab.DSL.FSM do
   end
 
   # Autocomplete helper stubs
-  for verb <- [:done, :final, :init, :initial, :start, :state] do
+  for verb <- [:done, :edge, :final, :guard, :init, :initial, :label, :on, :start, :state] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
       raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end

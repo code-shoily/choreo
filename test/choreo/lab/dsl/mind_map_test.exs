@@ -111,6 +111,96 @@ defmodule Choreo.Lab.MindMapDSLTest do
     assert map.edge_meta[{:api, :auth}].label == "cross-cutting"
   end
 
+  test "supports edge/3 with label and options" do
+    map =
+      mind_map do
+        sys = root("System")
+        req = topic("Requirements")
+        edge(sys ~> req, "details", [])
+      end
+
+    assert map.edge_meta[{:sys, :req}].label == "details"
+    assert map.edge_meta[{:sys, :req}].edge_type == :branch
+  end
+
+  test "supports typed edge forms with label and options" do
+    map =
+      mind_map do
+        sys = root("System")
+        req = topic("Requirements")
+        risk = note("Risk")
+
+        branch(sys ~> req, "expands", [])
+        associate(req ~> risk, "relates", [])
+      end
+
+    assert map.edge_meta[{:sys, :req}].label == "expands"
+    assert map.edge_meta[{:sys, :req}].edge_type == :branch
+    assert map.edge_meta[{:req, :risk}].label == "relates"
+    assert map.edge_meta[{:req, :risk}].edge_type == :associates
+  end
+
+  test "standalone node declarations register IDs in scope for subsequent edges" do
+    map =
+      mind_map do
+        root("Core System", id: :core)
+        topic("Auth", id: :auth)
+
+        edge core ~> auth, "secures"
+      end
+
+    assert Choreo.MindMap.root(map) == :core
+    assert map.graph.nodes[:auth].label == "Auth"
+    assert map.edge_meta[{:core, :auth}].label == "secures"
+  end
+
+  test "supports rich pipe modifiers on edges" do
+    map =
+      mind_map do
+        sys = root("System")
+        req = topic("Requirements")
+        arch = topic("Architecture")
+        risk = note("Risk")
+
+        sys ~> req |> on("includes", [])
+        sys ~> arch |> branch("structures", [])
+        req ~> risk |> associate("flags", [])
+      end
+
+    assert map.edge_meta[{:sys, :req}].label == "includes"
+    assert map.edge_meta[{:sys, :req}].edge_type == :branch
+    assert map.edge_meta[{:sys, :arch}].label == "structures"
+    assert map.edge_meta[{:sys, :arch}].edge_type == :branch
+    assert map.edge_meta[{:req, :risk}].label == "flags"
+    assert map.edge_meta[{:req, :risk}].edge_type == :associates
+  end
+
+  test "autocomplete helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      root("Root")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      topic("Topic")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      subtopic("Subtopic")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      note("Note")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      branch()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      associate()
+    end
+  end
+
   test "raises on unknown node variables" do
     assert_raise ArgumentError, ~r/unknown mind-map node variable `risk`/, fn ->
       Code.eval_quoted(

@@ -86,7 +86,7 @@ defmodule Choreo.Lab.DSL.MindMap do
     %{
       nodes: @node_verbs,
       edges: [:~>, :edge, :branch, :associate, :association],
-      modifiers: [:on, :label, :associate, :association],
+      modifiers: [:on, :label, :edge, :branch, :associate, :association, :type],
       options: [:label, :with, :id, :branch, :associate, :association, :type]
     }
   end
@@ -132,7 +132,15 @@ defmodule Choreo.Lab.DSL.MindMap do
   defp statement_steps({:=, meta, [{var, _, context}, constructor]}, env)
        when is_atom(var) and is_atom(context) do
     node = node_from_constructor(constructor, var, meta)
-    {[{:node, node}], Map.put(env, var, node.id)}
+    env = env |> Map.put(var, node.id) |> Map.put(node.id, node.id)
+    {[{:node, node}], env}
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -147,6 +155,13 @@ defmodule Choreo.Lab.DSL.MindMap do
 
   defp statement_steps({:edge, meta, [edge_ast]}, env) do
     {edge, nodes} = edge_from_ast(edge_ast, [], env, meta)
+    {edge_declaration_steps(nodes, edge), env}
+  end
+
+  defp statement_steps({name, meta, [edge_ast, label, opts]}, env)
+       when name in [:branch, :associate, :association] and is_binary(label) and is_list(opts) do
+    opts = [type: edge_type(name), label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
     {edge_declaration_steps(nodes, edge), env}
   end
 
@@ -182,6 +197,7 @@ defmodule Choreo.Lab.DSL.MindMap do
   defp statement_steps({name, meta, args} = ast, env) when is_atom(name) and is_list(args) do
     if Map.has_key?(@node_builders, name) do
       node = node_from_constructor(ast, nil, meta)
+      env = Map.put(env, node.id, node.id)
       {[{:node, node}], env}
     else
       unsupported_statement!(ast, meta)
@@ -202,20 +218,53 @@ defmodule Choreo.Lab.DSL.MindMap do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in [:on, :label, :edge, :branch] and is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in [:on, :label, :edge, :branch] and is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label, :edge, :branch] and is_binary(value) do
     Keyword.put(acc, :label, value)
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:associate, :association] do
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in [:associate, :association] and is_binary(label) and is_list(opts) do
+    opts = [label: label, type: :associate] ++ normalize_edge_opts(opts)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in [:associate, :association] and is_list(opts) do
+    opts = opts |> normalize_edge_opts() |> Keyword.put(:type, :associate)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:associate, :association] and is_binary(value) do
     acc
     |> Keyword.put(:type, :associate)
     |> Keyword.put(:label, value)
   end
 
+  defp modifier_opt({:type, _meta, [type]}, acc) do
+    Keyword.put(acc, :type, type)
+  end
+
+  defp modifier_opt({:with, _meta, [label]}, acc) when is_binary(label) do
+    Keyword.put(acc, :label, label)
+  end
+
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported mind-map edge modifier: #{Macro.to_string(other)}; " <>
-            "use `on(value)`, `label(value)`, or `associate(value)`"
+            "use `on(value)`, `label(value)`, `branch(value)`, `associate(value)`, or `edge(opts)`"
   end
 
   defp edge_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -401,7 +450,19 @@ defmodule Choreo.Lab.DSL.MindMap do
   end
 
   # Autocomplete helper stubs
-  for verb <- [:associate, :association, :branch, :note, :root, :subtopic, :topic] do
+  for verb <- [
+        :associate,
+        :association,
+        :branch,
+        :edge,
+        :label,
+        :note,
+        :on,
+        :root,
+        :subtopic,
+        :topic,
+        :type
+      ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
       raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end

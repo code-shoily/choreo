@@ -68,6 +68,68 @@ defmodule Choreo.Lab.FSMDSLTest do
     assert Choreo.FSM.transitions(machine) == [{:idle_state, :b, "finish"}]
   end
 
+  test "supports edge/3 with label and options" do
+    machine =
+      fsm do
+        idle = initial("Idle")
+        running = state("Running")
+
+        edge(idle ~> running, "start", guard: "ready?")
+      end
+
+    assert [{:idle, :running, "start [ready?]"}] = Choreo.FSM.transitions(machine)
+    assert [{_eid, meta}] = Map.to_list(machine.edge_meta)
+    assert meta.label == "start [ready?]"
+    assert meta.guard == "ready?"
+  end
+
+  test "supports standalone state declarations updating env" do
+    machine =
+      fsm do
+        initial("Idle")
+        final("Done")
+
+        idle ~> done |> on("finish")
+      end
+
+    assert Choreo.FSM.initial_state(machine) == :idle
+    assert Choreo.FSM.final_states(machine) == [:done]
+    assert Choreo.FSM.transitions(machine) == [{:idle, :done, "finish"}]
+  end
+
+  test "supports rich pipe modifiers with label and guard options" do
+    machine =
+      fsm do
+        a = initial("A")
+        b = state("B")
+        c = final("C")
+
+        a ~> b |> on("step", guard: "x > 0")
+        b ~> c |> guard("x == 0", label: "done")
+      end
+
+    assert {:a, :b, "step [x > 0]"} in Choreo.FSM.transitions(machine)
+    assert {:b, :c, "done [x == 0]"} in Choreo.FSM.transitions(machine)
+  end
+
+  test "helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      state("Idle")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      initial("Start")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      final("End")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      guard("ready?")
+    end
+  end
+
   test "raises on unknown state variables" do
     assert_raise ArgumentError, ~r/unknown FSM state variable `done`/, fn ->
       Code.eval_quoted(

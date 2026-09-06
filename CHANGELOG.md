@@ -4,12 +4,14 @@
 
 ### Added
 
-- **Lab DSL Hardening across Diagram Vocabularies (`ThreatModel`, `Requirement`, `Infrastructure`, `DecisionTree`, `Dependency`, `Dataflow`, `Workflow`, `Planner`, `C4`, `Domain`, `Sequence`, `UML`, `ERD`)**:
+- **Lab DSL Hardening across Diagram Vocabularies (`FSM`, `MindMap`, `ThreatModel`, `Requirement`, `Infrastructure`, `DecisionTree`, `Dependency`, `Dataflow`, `Workflow`, `Planner`, `C4`, `Domain`, `Sequence`, `UML`, `ERD`)**:
   - Added support for `edge/3` with both label and keyword options (`edge from ~> to, "label", opts`).
-  - Added support for keyword options and label tuples in edge and relationship pipe modifiers (e.g. `|> on("HTTPS", protocol: :https)`, `|> encrypted("HTTPS", protocol: :https)`, `|> satisfies("implements", docref: "...")`, `|> emits("data", rate: 100)`, `|> failure("err", weight: 10)`, `|> uses(technology: "HTTPS")`, `|> one_to_many(from: :id, to: :user_id)`).
+  - Added support for keyword options and label tuples in edge and relationship pipe modifiers (e.g. `|> on("HTTPS", protocol: :https)`, `|> guard("valid", label: "event")`, `|> associate("relates", type: :associate)`, `|> encrypted("HTTPS", protocol: :https)`, `|> satisfies("implements", docref: "...")`, `|> emits("data", rate: 100)`, `|> failure("err", weight: 10)`, `|> uses(technology: "HTTPS")`, `|> one_to_many(from: :id, to: :user_id)`).
   - Added `:type` (and `:edge_type`) modifiers across DSLs, allowing explicit edge/relationship types with labels and options.
   - Expanded autocomplete helper stubs and `taxonomy/0` discovery across all diagram DSL modules.
 - **Domain-Specific Additions**:
+  - `Choreo.Lab.DSL.FSM`: Added rich modifier support for `guard/1`, `guard/2`, `on/2` with guards, `edge/3` with label and options, and registered standalone state IDs into scope.
+  - `Choreo.Lab.DSL.MindMap`: Added support for typed edge statements with options (`branch a ~> b, "label", opts`, `associate a ~> b, "label", opts`), `edge/3`, and registered standalone node IDs into scope.
   - `Choreo.Lab.DSL.ThreatModel`: Added scoped trust boundary blocks (`boundary "name", level: 0 do ... end`, `trust_boundary`, `zone`) with automatic boundary inheritance for nested elements.
   - `Choreo.Requirement`: Added support for `:docref` in relationship schemas and persisted relationship options into `edge_meta`.
   - `Choreo.Lab.DSL.Infrastructure`: Added nested cluster and subnet blocks (`vpc "Name" do ... end`, `public_subnet "Name" do ... end`, `private_subnet "Name" do ... end`, `cluster "Name" do ... end`) with automatic parent and cluster boundary inheritance.
@@ -23,14 +25,14 @@
 ### Changed
 
 - **Walkthrough Livebooks**:
-  - Updated guides (`threat_model_walkthrough.livemd`, `requirement_walkthrough.livemd`, `infrastructure_topology_walkthrough.livemd`, `decision_tree_walkthrough.livemd`, `dependency_walkthrough.livemd`, `dataflow_walkthrough.livemd`, `workflow_walkthrough.livemd`, `planner_walkthrough.livemd`, `c4_walkthrough.livemd`, `domain_modeling_walkthrough.livemd`, `sequence_walkthrough.livemd`, `uml_walkthrough.livemd`, `erd_walkthrough.livemd`) to showcase Lab DSL syntax across all diagrams while preserving canonical programmatic pipe API in introductory legend sections.
+  - Updated guides (`fsm_walkthrough.livemd`, `mind_map_walkthrough.livemd`, `threat_model_walkthrough.livemd`, `requirement_walkthrough.livemd`, `infrastructure_topology_walkthrough.livemd`, `decision_tree_walkthrough.livemd`, `dependency_walkthrough.livemd`, `dataflow_walkthrough.livemd`, `workflow_walkthrough.livemd`, `planner_walkthrough.livemd`, `c4_walkthrough.livemd`, `domain_modeling_walkthrough.livemd`, `sequence_walkthrough.livemd`, `uml_walkthrough.livemd`, `erd_walkthrough.livemd`) to showcase Lab DSL syntax across all diagrams while preserving canonical programmatic pipe API in introductory legend sections.
   - Added comprehensive Cheat Sheet reference tables for both Lab DSL syntax and Programmatic Pipe/Analysis APIs to walkthrough notebooks.
 
 ### Fixed
 
 - **Block Scoping & Environment State**:
   - Fixed parent/cluster environment state restoration after exiting nested blocks and guarded nil reference resolution in `Choreo.Lab.DSL.ThreatModel` (trust boundaries), `Choreo.Lab.DSL.Infrastructure` (VPC/subnets), `Choreo.Lab.DSL.Workflow` (swimlanes), `Choreo.Lab.DSL.C4` (boundaries/systems), and `Choreo.Lab.DSL.Domain` (context boundaries).
-  - Ensured standalone node, boundary, and cluster declarations in `Choreo.Lab.DSL.ThreatModel`, `Choreo.Lab.DSL.Requirement`, `Choreo.Lab.DSL.Infrastructure`, `Choreo.Lab.DSL.DecisionTree`, `Choreo.Lab.DSL.Dependency`, and `Choreo.Lab.DSL.Dataflow` update variable scope so subsequent edge statements can reference their IDs.
+  - Ensured standalone node, boundary, and cluster declarations in `Choreo.Lab.DSL.FSM`, `Choreo.Lab.DSL.MindMap`, `Choreo.Lab.DSL.ThreatModel`, `Choreo.Lab.DSL.Requirement`, `Choreo.Lab.DSL.Infrastructure`, `Choreo.Lab.DSL.DecisionTree`, `Choreo.Lab.DSL.Dependency`, and `Choreo.Lab.DSL.Dataflow` update variable scope so subsequent edge statements can reference their IDs.
   - Fixed `pop_do_block/1` in `Choreo.Lab.DSL.Compiler` to recognize `do` blocks with preceding keyword options (e.g. `cluster "Name", id: "id" do ... end`).
 - **Rendering & Diagram Normalization**:
   - Hardened native Mermaid rendering for `Choreo.ERD`, `Choreo.Sequence`, and `Choreo.UML` with sanitized identifiers and normalized label/member formatting.
