@@ -492,40 +492,41 @@ Kino.Layout.tabs(
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.Requirement`)
 
-| Syntax                                                   | Description                                    |
-| -------------------------------------------------------- | ---------------------------------------------- |
-| `requirements "Title" do ... end`                        | Define a requirements model block              |
-| `req = requirement("Text", id: "REQ-001", risk: :high)`  | Generic requirement node                       |
-| `f = functional("Text", id: "F-001")`                    | Functional requirement node                    |
-| `i = interface_requirement("Text", id: "I-001")`         | Interface requirement node                     |
-| `p = performance("Text", id: "P-001")`                   | Performance requirement node                   |
-| `ph = physical("Text", id: "PH-001")`                    | Physical requirement node                      |
-| `dc = design_constraint("Text", id: "DC-001")`           | Design constraint requirement node             |
-| `svc = component("Label")`                               | System component node                          |
-| `tc = test_case("Label")`                                | Test case verification node                    |
-| `sh = stakeholder("Label")`                              | Stakeholder node                               |
-| `svc ~> req |> satisfies()` / `satisfies("implements")`  | Component satisfies requirement                |
-| `test ~> req |> verifies()` / `verifies("e2e test")`     | Test case verifies requirement                 |
-| `child ~> parent |> refines()` / `refines("decomposes")` | Child refines/decomposes parent requirement    |
-| `a ~> b |> depends()` / `depends("blocks")`              | Dependency relationship between requirements   |
-| `a ~> b |> contains()` / `contains("subpart")`           | Containment relationship                       |
-| `a ~> b |> derives()` / `derives("derived from")`        | Derivation relationship                        |
-| `a ~> b |> traces()` / `traces("traced to")`             | General traceability link                      |
-| `a ~> b |> on("label", type: :satisfies)`                | Relationship with label and explicit type      |
-| `a ~> b |> docref("SPEC-12")`                            | Relationship with documentation reference      |
-| `edge a ~> b, "label", type: :satisfies, docref: "..."`  | Explicit edge statement with label and options |
-| `edge a ~> b, type: :verifies`                           | Explicit edge statement with options           |
+| Syntax                                                       | Description                                    |
+| ------------------------------------------------------------ | ---------------------------------------------- |
+| `requirements "Title" do ... end`                            | Define a requirements model block              |
+| `req = requirement("Text", id: "REQ-001", risk: :high)`      | Generic requirement node                       |
+| `f = functional("Text", id: "F-001")`                        | Functional requirement node                    |
+| `i = interface_requirement("Text", id: "I-001")`             | Interface requirement node                     |
+| `p = performance("Text", id: "P-001")`                       | Performance requirement node                   |
+| `ph = physical("Text", id: "PH-001")`                        | Physical requirement node                      |
+| `dc = design_constraint("Text", id: "DC-001")`               | Design constraint requirement node             |
+| `svc = component("Label")`                                   | System component node                          |
+| `tc = test_case("Label")`                                    | Test case verification node                    |
+| `sh = stakeholder("Label")`                                  | Stakeholder node                               |
+| `svc ~> req      |> satisfies()` / `satisfies("implements")` | Component satisfies requirement                |
+| `test ~> req     |> verifies()` / `verifies("e2e test")`     | Test case verifies requirement                 |
+| `child ~> parent |> refines()` / `refines("decomposes")`     | Child refines/decomposes parent requirement    |
+| `a ~> b          |> depends()` / `depends("blocks")`         | Dependency relationship between requirements   |
+| `a ~> b          |> contains()` / `contains("subpart")`      | Containment relationship                       |
+| `a ~> b          |> derives()` / `derives("derived from")`   | Derivation relationship                        |
+| `a ~> b          |> traces()` / `traces("traced to")`        | General traceability link                      |
+| `a ~> b          |> on("label", type: :satisfies)`           | Relationship with label and explicit type      |
+| `a ~> b          |> docref("SPEC-12")`                       | Relationship with documentation reference      |
+| `edge a ~> b, "label", type: :satisfies, docref: "..."`      | Explicit edge statement with label and options |
+| `edge a ~> b, type: :verifies`                               | Explicit edge statement with options           |
 
 ### Programmatic Pipe API & Analysis (`Choreo.Requirement`)
 
-| Task / Feature          | Command                                                                                                                                  |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Create Model            | `Requirement.new/1`                                                                                                                      |
-| Add Requirements        | `Requirement.add_requirement/3`, `add_functional/3`, `add_interface/3`, `add_performance/3`, `add_physical/3`, `add_design_constraint/3` |
+| Task / Feature | Command             |
+| -------------- | ------------------- |
+| Create Model   | `Requirement.new/1` |
+
+| Add Requirements        | `Requirement.add_requirement/3` with `kind: :requirement | :functional | :interface | :performance | :physical | :design_constraint`     |
 | Add Structural Nodes    | `Requirement.add_component/3`, `add_test/3`, `add_stakeholder/3`                                                                         |
-| Connect Relationships   | `Requirement.satisfies/3`, `verifies/3`, `refines/3`, `depends/3`, `contains/3`, `derives/3`, `traces/3`, `connect/4`                    |
+| Connect Relationships   | `Requirement.satisfies/4`, `verifies/4`, `refines/4`, `depends/4`, `contains/4`, `derives/4`, `traces/4`, `relate/4`                     |
 | Traceability & Coverage | `Requirement.Analysis.coverage/1`, `traceability_matrix/1`, `unsatisfied/1`, `unverified/1`, `orphan_requirements/1`                     |
-| Impact & Tracing        | `Requirement.Analysis.impact_of/2`, `components_for/2`, `requirements_for/2`, `tests_for/2`                                              |
+| Impact & Tracing        | `Requirement.Analysis.impact_of/2`, `components_for/2`, `requirements_for/2`                                                             |
 | Risk Analysis           | `Requirement.Analysis.high_risk_gaps/1`, `unmitigated_risks/1`, `risk_propagation/1`                                                     |
 | Integrity Checks        | `Requirement.Analysis.circular_dependencies/1`, `validate/1`, `validate_messages/1`                                                      |
 | Render Mermaid          | `Requirement.to_mermaid/2` (Supports `requirementDiagram`)                                                                               |
@@ -544,7 +545,7 @@ Kino.Layout.tabs(
 | "Which requirements are completely isolated?" | `Analysis.orphan_requirements/1`                  |
 | "Show me the full coverage picture"           | `Analysis.coverage/1`                             |
 | "What does requirement X link to?"            | `Analysis.traceability_matrix/1`                  |
-| "Which components/tests relate to X?"         | `Analysis.components_for/1`, `requirements_for/1` |
+| "Which components/tests relate to X?"         | `Analysis.components_for/2`, `requirements_for/2` |
 | "If I change component Y, what breaks?"       | `Analysis.impact_of/2`                            |
 | "Which high-risk reqs are unaddressed?"       | `Analysis.high_risk_gaps/1`                       |
 | "What risk do child requirements inherit?"    | `Analysis.risk_propagation/1`                     |

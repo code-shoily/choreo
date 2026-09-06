@@ -202,6 +202,21 @@ defmodule Choreo.Requirement.AnalysisTest do
              end)
     end
 
+    test "reports duplicate human requirement IDs" do
+      req =
+        Requirement.new()
+        |> Requirement.add_requirement(:login, id: "REQ-001", text: "Login")
+        |> Requirement.add_requirement(:mfa, id: "REQ-001", text: "MFA")
+
+      errors = Analysis.validate(req)
+
+      assert Enum.any?(errors, fn {sev, msg} ->
+               sev == :error and
+                 msg =~ ~s(Requirement ID "REQ-001" is used by multiple requirement nodes) and
+                 msg =~ ":login" and msg =~ ":mfa"
+             end)
+    end
+
     test "reports circular dependencies" do
       req =
         Requirement.new()

@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- Fixed stale Requirement walkthrough API references and added validation for duplicate human requirement IDs.
 - Fixed sequence diagram flow label resolution in `Choreo.ThreatModel.Render.Mermaid.to_sequence/2` when flow labels are empty strings.
 - Fixed non-constructor node expression handling in `Choreo.Lab.DSL.Sequence`.
 

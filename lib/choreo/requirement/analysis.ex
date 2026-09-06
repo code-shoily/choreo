@@ -528,6 +528,7 @@ defmodule Choreo.Requirement.Analysis do
   defp validate_raw(%Requirement{} = req) do
     []
     |> validate_requirement_fields(req)
+    |> validate_duplicate_requirement_ids(req)
     |> validate_allowed_values(req)
     |> validate_components(req)
     |> validate_circular_dependencies(req)
@@ -559,6 +560,21 @@ defmodule Choreo.Requirement.Analysis do
       else
         acc
       end
+    end)
+  end
+
+  defp validate_duplicate_requirement_ids(acc, req) do
+    req.graph.nodes
+    |> Enum.filter(fn {_node_id, data} ->
+      data[:node_type] == :requirement and not blank?(data[:id])
+    end)
+    |> Enum.group_by(fn {_node_id, data} -> data[:id] end, fn {node_id, _data} -> node_id end)
+    |> Enum.reduce(acc, fn
+      {_requirement_id, [_single]}, acc ->
+        acc
+
+      {requirement_id, node_ids}, acc ->
+        [{:error, :duplicate_requirement_id, requirement_id, Enum.sort(node_ids)} | acc]
     end)
   end
 
@@ -615,6 +631,11 @@ defmodule Choreo.Requirement.Analysis do
 
   defp format_message({severity, :missing_requirement_text, id}) do
     {severity, "Requirement #{inspect(id)} is missing required :text"}
+  end
+
+  defp format_message({severity, :duplicate_requirement_id, requirement_id, node_ids}) do
+    {severity,
+     "Requirement ID #{inspect(requirement_id)} is used by multiple requirement nodes: #{inspect(node_ids)}"}
   end
 
   defp format_message({severity, :invalid_risk, id}) do
