@@ -13,8 +13,9 @@
   - `Choreo.ThreatModel.Analysis`: Added mitigation and control tracking to STRIDE threat generation (`:mitigated?`, `:controls`, `:owasp`), plus `unmitigated_threats/2` and `threats_for/3`.
   - `Choreo.ThreatModel.Analysis`: Added `to_markdown/2` for exporting structured, executive GitHub Flavored Markdown threat tables.
   - `Choreo.ThreatModel.Analysis`: Enhanced `validate/2` to check for direct flows between external entities and data stores, sensitive stores in low-trust boundaries, and missing boundary levels (`require_levels: true`).
+  - `Choreo.ThreatModel.Analysis`: Added reviewer-layer analyses for residual risk scoring, control gap detection, exfiltration paths, boundary flow matrices, and prioritized findings.
   - `Choreo.Lab.DSL.ThreatModel`: Added edge modifiers `authenticated`, `carries`, `controls`/`protects`, and `sensitivity`.
-  - Updated `livebooks/guides/threat_model_walkthrough.livemd` and `doc/threat_model_walkthrough.livemd` with ingress/egress analysis, blast radius, attack path highlighting, mitigations, and Markdown matrices.
+  - Updated `livebooks/guides/threat_model_walkthrough.livemd` with ingress/egress analysis, blast radius, attack path highlighting, mitigations, reviewer-layer analysis, and Markdown matrices.
 
 ### Fixed
 

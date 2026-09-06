@@ -575,6 +575,7 @@ defmodule Choreo.ThreatModel.Analysis do
   ## Options
 
     * `:weights` — keyword list of custom severity weights (e.g., `[low: 2, medium: 4, ...]`)
+    * `:only_unmitigated`, `:category`, `:severity`, and `:rules` — forwarded to `stride_threats/2`
 
   ## Examples
 
@@ -592,38 +593,129 @@ defmodule Choreo.ThreatModel.Analysis do
   @spec risk_score(ThreatModel.t(), keyword()) :: %{score: number(), rating: atom()}
   def risk_score(%ThreatModel{} = model, opts \\ []) do
     defaults = [low: 1, medium: 3, high: 6, critical: 10]
-    weights = Keyword.merge(defaults, Keyword.get(opts, :weights, []))
-    low_w = weights[:low]
-    medium_w = weights[:medium]
-    high_w = weights[:high]
-    critical_w = weights[:critical]
+    {weights_opt, threat_opts} = Keyword.pop(opts, :weights, [])
+    weights = Keyword.merge(defaults, weights_opt)
 
-    threats = stride_threats(model)
+    threats = stride_threats(model, threat_opts)
 
     score =
       Enum.reduce(threats, 0, fn threat, acc ->
-        weight =
-          case threat.severity do
-            :low -> low_w
-            :medium -> medium_w
-            :high -> high_w
-            :critical -> critical_w
-            _ -> 0
-          end
-
-        acc + weight
+        acc + Keyword.get(weights, threat.severity, 0)
       end)
 
-    rating =
-      cond do
-        score == 0 -> :none
-        score <= 10 -> :low
-        score <= 30 -> :medium
-        score <= 70 -> :high
-        true -> :critical
-      end
+    %{score: score, rating: risk_rating(score)}
+  end
 
-    %{score: score, rating: rating}
+  @doc """
+  Calculates residual risk after declared controls have mitigated threats.
+
+  This is equivalent to `risk_score(model, only_unmitigated: true)` and accepts
+  the same options as `risk_score/2`, including custom severity `:weights`.
+  """
+  @spec residual_risk_score(ThreatModel.t(), keyword()) :: %{score: number(), rating: atom()}
+  def residual_risk_score(%ThreatModel{} = model, opts \\ []) do
+    risk_score(model, Keyword.put(opts, :only_unmitigated, true))
+  end
+
+  @doc """
+  Returns control gaps inferred from trust boundaries, data sensitivity, and privileges.
+
+  This acts as a lightweight security-review checklist for missing controls on
+  elements and data flows. Each gap includes `:target`, `:missing`, `:severity`,
+  and a human-readable `:reason`.
+  """
+  @spec control_gaps(ThreatModel.t()) :: [map()]
+  def control_gaps(%ThreatModel{} = model) do
+    flow_control_gaps(model) ++ element_control_gaps(model)
+  end
+
+  @doc """
+  Returns sensitive-data exfiltration paths from data stores to external entities.
+
+  ## Options
+
+    * `:sensitivity` - sensitivity level or list of levels to consider
+      (default: `[:confidential, :restricted]`)
+    * `:max_paths` - maximum paths to return
+  """
+  @spec exfiltration_paths(ThreatModel.t(), keyword()) :: [[Yog.node_id()]]
+  def exfiltration_paths(%ThreatModel{} = model, opts \\ []) do
+    sensitivity = opts |> Keyword.get(:sensitivity, [:confidential, :restricted]) |> List.wrap()
+    max_paths = Keyword.get(opts, :max_paths, nil)
+
+    sources =
+      model
+      |> ThreatModel.elements_of_type(:data_store)
+      |> Enum.filter(fn id -> get_in(model.graph.nodes, [id, :sensitivity]) in sensitivity end)
+
+    targets = ThreatModel.elements_of_type(model, :external_entity) |> MapSet.new()
+    simple_graph = ThreatModel.to_simple_graph(model)
+
+    paths =
+      sources
+      |> Enum.flat_map(fn source ->
+        dfs_all_paths(simple_graph, source, targets, [source], MapSet.new([source]))
+      end)
+
+    if max_paths, do: Enum.take(paths, max_paths), else: paths
+  end
+
+  @doc """
+  Summarises data flows between trust boundaries.
+
+  Returns a map keyed by `{from_boundary, to_boundary}` with flow counts,
+  encrypted/authenticated counts, unencrypted counts, max observed sensitivity,
+  and the concrete flows in each boundary pair.
+  """
+  @spec boundary_matrix(ThreatModel.t()) :: %{
+          optional({String.t() | nil, String.t() | nil}) => map()
+        }
+  def boundary_matrix(%ThreatModel{} = model) do
+    model
+    |> ThreatModel.edges_with_meta()
+    |> Enum.group_by(fn {from, to, _label, _meta} ->
+      {ThreatModel.boundary_of(model, from), ThreatModel.boundary_of(model, to)}
+    end)
+    |> Enum.into(%{}, fn {boundary_pair, flows} ->
+      summaries = Enum.map(flows, &boundary_flow_summary(model, &1))
+      encrypted = Enum.count(summaries, & &1.encrypted)
+      authenticated = Enum.count(summaries, & &1.authenticated)
+
+      {boundary_pair,
+       %{
+         flows: summaries,
+         count: length(summaries),
+         encrypted: encrypted,
+         unencrypted: length(summaries) - encrypted,
+         authenticated: authenticated,
+         unauthenticated: length(summaries) - authenticated,
+         max_sensitivity: summaries |> Enum.map(& &1.sensitivity) |> max_sensitivity()
+       }}
+    end)
+  end
+
+  @doc """
+  Produces a prioritized security-review finding list.
+
+  Findings compose validation issues, exposed stores, unencrypted boundary flows,
+  high-risk processes, exfiltration paths, and control gaps into a concise list
+  sorted by severity. Use `:max_findings` to cap report length.
+  """
+  @spec prioritized_findings(ThreatModel.t(), keyword()) :: [map()]
+  def prioritized_findings(%ThreatModel{} = model, opts \\ []) do
+    findings =
+      validation_findings(model, opts) ++
+        exposed_store_findings(model) ++
+        unencrypted_flow_findings(model) ++
+        high_risk_process_findings(model) ++
+        exfiltration_findings(model, opts) ++
+        control_gap_findings(model)
+
+    findings
+    |> Enum.sort_by(&{-severity_rank(&1.severity), to_string(&1.kind), inspect(&1.target)})
+    |> Enum.with_index(1)
+    |> Enum.map(fn {finding, idx} -> Map.put_new(finding, :id, "F#{idx}") end)
+    |> maybe_take_findings(opts)
   end
 
   @doc """
@@ -1099,6 +1191,314 @@ defmodule Choreo.ThreatModel.Analysis do
           )
         end
       end)
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — reviewer analyses
+  # ============================================================================
+
+  defp risk_rating(score) do
+    cond do
+      score == 0 -> :none
+      score <= 10 -> :low
+      score <= 30 -> :medium
+      score <= 70 -> :high
+      true -> :critical
+    end
+  end
+
+  defp flow_control_gaps(model) do
+    model
+    |> ThreatModel.edges_with_meta()
+    |> Enum.flat_map(fn {from, to, _label, meta} ->
+      sensitivity = flow_sensitivity(model, to, meta)
+
+      [
+        encryption_gap(model, from, to, meta, sensitivity),
+        authentication_gap(model, from, to, meta),
+        sensitive_flow_integrity_gap(from, to, meta, sensitivity)
+      ]
+      |> Enum.reject(&is_nil/1)
+    end)
+  end
+
+  defp element_control_gaps(model) do
+    model.graph.nodes
+    |> Enum.flat_map(fn {id, data} ->
+      case data[:element_type] do
+        :data_store -> data_store_control_gaps(model, id, data)
+        :process -> process_control_gaps(model, id, data)
+        _other -> []
+      end
+    end)
+  end
+
+  defp encryption_gap(model, from, to, meta, sensitivity) do
+    if ThreatModel.crosses_boundary?(model, from, to) and meta[:encrypted] != true do
+      %{
+        target: {from, to},
+        missing: [:encryption_in_transit],
+        severity: if(sensitivity in [:confidential, :restricted], do: :high, else: :medium),
+        reason: "Data crosses a trust boundary without encrypted transport"
+      }
+    end
+  end
+
+  defp authentication_gap(model, from, to, meta) do
+    from_data = Map.get(model.graph.nodes, from, %{})
+    to_data = Map.get(model.graph.nodes, to, %{})
+
+    entry? =
+      from_data[:element_type] == :external_entity and to_data[:element_type] != :external_entity
+
+    if entry? and meta[:authenticated] != true do
+      %{
+        target: {from, to},
+        missing: [:authentication],
+        severity: :high,
+        reason: "External entry point reaches a trusted element without authentication metadata"
+      }
+    end
+  end
+
+  defp sensitive_flow_integrity_gap(from, to, meta, sensitivity) do
+    controls = meta[:controls] || []
+
+    if sensitivity in [:confidential, :restricted] and
+         not has_control?(controls, [:integrity, :signing, :hmac, :mtls]) do
+      %{
+        target: {from, to},
+        missing: [:integrity_protection],
+        severity: if(sensitivity == :restricted, do: :high, else: :medium),
+        reason: "Sensitive data flow has no explicit integrity/signing control"
+      }
+    end
+  end
+
+  defp data_store_control_gaps(model, id, data) do
+    sensitivity = data[:sensitivity]
+    controls = data[:controls] || []
+    boundary = ThreatModel.boundary_of(model, id)
+    level = ThreatModel.trust_level(model, id)
+
+    [
+      if sensitivity in [:confidential, :restricted] and
+           not has_control?(controls, [
+             :encryption_at_rest,
+             :field_level_encryption,
+             :kms,
+             :tokenization
+           ]) do
+        %{
+          target: id,
+          missing: [:encryption_at_rest],
+          severity: if(sensitivity == :restricted, do: :critical, else: :high),
+          reason: "Sensitive data store lacks an explicit encryption-at-rest control"
+        }
+      end,
+      if sensitivity in [:confidential, :restricted] and
+           (level in [0, 1] or boundary in ["internet", "dmz", "public", "untrusted"]) do
+        %{
+          target: id,
+          missing: [:trusted_boundary],
+          severity: :high,
+          reason: "Sensitive data store is located in a low-trust boundary"
+        }
+      end
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp process_control_gaps(model, id, data) do
+    controls = data[:controls] || []
+    privilege = data[:privilege]
+    boundary = ThreatModel.boundary_of(model, id)
+    level = ThreatModel.trust_level(model, id)
+
+    [
+      if privilege in [:admin, :system] and
+           not has_control?(controls, [:least_privilege, :rbac, :abac]) do
+        %{
+          target: id,
+          missing: [:least_privilege],
+          severity: :high,
+          reason: "Admin/system process lacks explicit least-privilege access control"
+        }
+      end,
+      if privilege in [:admin, :system] and
+           not has_control?(controls, [:audit_logging, :logging, :siem, :audit_trail]) do
+        %{
+          target: id,
+          missing: [:audit_logging],
+          severity: :medium,
+          reason: "Privileged process lacks explicit audit logging control"
+        }
+      end,
+      if (level in [0, 1] or boundary in ["internet", "dmz", "public", "untrusted"]) and
+           not has_control?(controls, [:rate_limiting, :waf, :ddos_protection, :throttling]) do
+        %{
+          target: id,
+          missing: [:edge_abuse_protection],
+          severity: :medium,
+          reason: "Low-trust process lacks explicit abuse-protection controls"
+        }
+      end
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp boundary_flow_summary(model, {from, to, label, meta}) do
+    %{
+      from: from,
+      to: to,
+      label: meta[:label] || label || "",
+      encrypted: meta[:encrypted] == true,
+      authenticated: meta[:authenticated] == true,
+      protocol: meta[:protocol],
+      sensitivity: flow_sensitivity(model, to, meta),
+      controls: meta[:controls] || []
+    }
+  end
+
+  defp flow_sensitivity(model, to, meta) do
+    meta[:sensitivity] || get_in(model.graph.nodes, [to, :sensitivity])
+  end
+
+  defp max_sensitivity(values) do
+    values
+    |> Enum.reject(&is_nil/1)
+    |> Enum.max_by(&sensitivity_rank/1, fn -> nil end)
+  end
+
+  defp sensitivity_rank(:restricted), do: 4
+  defp sensitivity_rank(:confidential), do: 3
+  defp sensitivity_rank(:internal), do: 2
+  defp sensitivity_rank(:public), do: 1
+  defp sensitivity_rank(_), do: 0
+
+  defp validation_findings(model, opts) do
+    model
+    |> validate(opts)
+    |> Enum.map(fn {severity, message} ->
+      %{
+        kind: :validation_issue,
+        severity: if(severity == :error, do: :high, else: :medium),
+        target: :model,
+        title: "Threat model validation issue",
+        evidence: %{message: message},
+        recommendation:
+          "Resolve the validation issue before using this model for review decisions."
+      }
+    end)
+  end
+
+  defp exposed_store_findings(model) do
+    model
+    |> exposed_data_stores()
+    |> Enum.map(fn store ->
+      sensitivity = get_in(model.graph.nodes, [store, :sensitivity])
+
+      %{
+        kind: :exposed_data_store,
+        severity: severity_for_sensitivity(sensitivity, :high),
+        target: store,
+        title: "Data store reachable from external entity",
+        evidence: %{sensitivity: sensitivity, attack_paths: attack_paths_to(model, store)},
+        recommendation:
+          "Review every external-to-store path for authentication, authorization, encryption, and least privilege."
+      }
+    end)
+  end
+
+  defp unencrypted_flow_findings(model) do
+    model
+    |> unencrypted_boundary_flows()
+    |> Enum.map(fn {from, to} ->
+      %{
+        kind: :unencrypted_boundary_flow,
+        severity: :high,
+        target: {from, to},
+        title: "Unencrypted cross-boundary data flow",
+        evidence: %{
+          from_boundary: ThreatModel.boundary_of(model, from),
+          to_boundary: ThreatModel.boundary_of(model, to)
+        },
+        recommendation:
+          "Use TLS/mTLS or another authenticated encryption mechanism across the boundary."
+      }
+    end)
+  end
+
+  defp high_risk_process_findings(model) do
+    model
+    |> high_risk_processes()
+    |> Enum.map(fn process ->
+      %{
+        kind: :high_risk_process,
+        severity: :high,
+        target: process,
+        title: "Low-trust process can reach sensitive data",
+        evidence: blast_radius(model, process),
+        recommendation:
+          "Reduce privilege, add authorization checks, and isolate sensitive downstream access."
+      }
+    end)
+  end
+
+  defp exfiltration_findings(model, opts) do
+    model
+    |> exfiltration_paths(opts)
+    |> Enum.map(fn path ->
+      %{
+        kind: :exfiltration_path,
+        severity: :high,
+        target: List.first(path),
+        title: "Sensitive data can flow to an external entity",
+        evidence: %{path: path},
+        recommendation:
+          "Validate outbound data minimization, consent, logging, and third-party contracts on this path."
+      }
+    end)
+  end
+
+  defp control_gap_findings(model) do
+    model
+    |> control_gaps()
+    |> Enum.map(fn gap ->
+      %{
+        kind: :control_gap,
+        severity: gap.severity,
+        target: gap.target,
+        title: "Missing security control",
+        evidence: gap,
+        recommendation:
+          "Add or document the missing controls: #{Enum.map_join(gap.missing, ", ", &to_string/1)}."
+      }
+    end)
+  end
+
+  defp attack_paths_to(model, store) do
+    model
+    |> attack_paths()
+    |> Enum.filter(&(List.last(&1) == store))
+  end
+
+  defp severity_for_sensitivity(:restricted, _default), do: :critical
+  defp severity_for_sensitivity(:confidential, _default), do: :high
+  defp severity_for_sensitivity(:internal, _default), do: :medium
+  defp severity_for_sensitivity(_other, default), do: default
+
+  defp severity_rank(:critical), do: 4
+  defp severity_rank(:high), do: 3
+  defp severity_rank(:medium), do: 2
+  defp severity_rank(:low), do: 1
+  defp severity_rank(_), do: 0
+
+  defp maybe_take_findings(findings, opts) do
+    case Keyword.get(opts, :max_findings) do
+      count when is_integer(count) and count >= 0 -> Enum.take(findings, count)
+      _other -> findings
     end
   end
 

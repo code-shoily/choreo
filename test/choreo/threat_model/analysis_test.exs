@@ -645,6 +645,135 @@ defmodule Choreo.ThreatModel.AnalysisTest do
     end
   end
 
+  describe "residual_risk_score/2" do
+    test "scores only unmitigated threats" do
+      mitigated_model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_process(:api,
+          boundary: "app",
+          controls: [:auth, :input_validation, :rate_limiting]
+        )
+        |> ThreatModel.add_data_store(:db,
+          boundary: "app",
+          sensitivity: :confidential,
+          controls: [:encryption_at_rest, :rbac]
+        )
+        |> ThreatModel.data_flow(:api, :db, encrypted: true, controls: [:integrity])
+
+      inherent = Analysis.risk_score(mitigated_model)
+      residual = Analysis.residual_risk_score(mitigated_model)
+
+      assert residual.score < inherent.score
+      assert residual == Analysis.risk_score(mitigated_model, only_unmitigated: true)
+      assert ThreatModel.residual_risk_score(mitigated_model) == residual
+    end
+  end
+
+  describe "control_gaps/1" do
+    test "reports missing controls on risky flows and elements" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet", level: 0)
+        |> ThreatModel.add_trust_boundary("app", level: 1)
+        |> ThreatModel.add_trust_boundary("data", level: 3)
+        |> ThreatModel.add_external_entity(:user, boundary: "internet")
+        |> ThreatModel.add_process(:api, boundary: "app", privilege: :admin)
+        |> ThreatModel.add_data_store(:db, boundary: "data", sensitivity: :restricted)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db, data: :customer_record, sensitivity: :restricted)
+
+      gaps = Analysis.control_gaps(model)
+
+      assert Enum.any?(gaps, &(&1.target == {:user, :api} and :authentication in &1.missing))
+      assert Enum.any?(gaps, &(&1.target == {:api, :db} and :encryption_in_transit in &1.missing))
+      assert Enum.any?(gaps, &(&1.target == :db and :encryption_at_rest in &1.missing))
+      assert Enum.any?(gaps, &(&1.target == :api and :least_privilege in &1.missing))
+      assert ThreatModel.control_gaps(model) == gaps
+    end
+  end
+
+  describe "exfiltration_paths/2" do
+    test "finds sensitive data paths to external entities" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_process(:exporter)
+        |> ThreatModel.add_data_store(:db, sensitivity: :restricted)
+        |> ThreatModel.add_external_entity(:partner)
+        |> ThreatModel.data_flow(:db, :api)
+        |> ThreatModel.data_flow(:api, :exporter)
+        |> ThreatModel.data_flow(:exporter, :partner)
+
+      assert [:db, :api, :exporter, :partner] in Analysis.exfiltration_paths(model)
+      assert Analysis.exfiltration_paths(model, max_paths: 1) |> length() == 1
+      assert ThreatModel.exfiltration_paths(model) == Analysis.exfiltration_paths(model)
+    end
+
+    test "ignores public stores by default" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_data_store(:logs, sensitivity: :public)
+        |> ThreatModel.add_external_entity(:partner)
+        |> ThreatModel.data_flow(:logs, :partner)
+
+      assert Analysis.exfiltration_paths(model) == []
+      assert Analysis.exfiltration_paths(model, sensitivity: :public) == [[:logs, :partner]]
+    end
+  end
+
+  describe "boundary_matrix/1" do
+    test "summarises flows between trust boundaries" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet", level: 0)
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_trust_boundary("data", level: 3)
+        |> ThreatModel.add_external_entity(:user, boundary: "internet")
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.add_data_store(:db, boundary: "data", sensitivity: :confidential)
+        |> ThreatModel.data_flow(:user, :api, encrypted: true, authenticated: true)
+        |> ThreatModel.data_flow(:api, :db, sensitivity: :confidential)
+
+      matrix = Analysis.boundary_matrix(model)
+
+      assert matrix[{"internet", "app"}].count == 1
+      assert matrix[{"internet", "app"}].encrypted == 1
+      assert matrix[{"internet", "app"}].authenticated == 1
+      assert matrix[{"app", "data"}].unencrypted == 1
+      assert matrix[{"app", "data"}].max_sensitivity == :confidential
+      assert ThreatModel.boundary_matrix(model) == matrix
+    end
+  end
+
+  describe "prioritized_findings/2" do
+    test "combines and sorts review findings" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet", level: 0)
+        |> ThreatModel.add_trust_boundary("app", level: 1)
+        |> ThreatModel.add_trust_boundary("data", level: 3)
+        |> ThreatModel.add_external_entity(:user, boundary: "internet")
+        |> ThreatModel.add_process(:api, boundary: "app", privilege: :admin)
+        |> ThreatModel.add_data_store(:db, boundary: "data", sensitivity: :restricted)
+        |> ThreatModel.data_flow(:user, :api)
+        |> ThreatModel.data_flow(:api, :db, sensitivity: :restricted)
+        |> ThreatModel.data_flow(:db, :user, sensitivity: :restricted)
+
+      findings = Analysis.prioritized_findings(model)
+
+      assert [%{id: "F1"} | _] = findings
+      assert Enum.any?(findings, &(&1.kind == :exposed_data_store and &1.target == :db))
+      assert Enum.any?(findings, &(&1.kind == :exfiltration_path and &1.target == :db))
+      assert Enum.any?(findings, &(&1.kind == :control_gap))
+      assert Enum.all?(findings, &Map.has_key?(&1, :recommendation))
+      assert length(Analysis.prioritized_findings(model, max_findings: 2)) == 2
+
+      assert ThreatModel.prioritized_findings(model, max_findings: 2) ==
+               Analysis.prioritized_findings(model, max_findings: 2)
+    end
+  end
+
   describe "extended validate/2 checks" do
     test "flags direct data flow between external entity and data store" do
       model =

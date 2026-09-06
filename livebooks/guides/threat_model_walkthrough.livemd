@@ -17,7 +17,7 @@ Mix.install([
 
 ## Section
 
-> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline. It also supports rendering to native **Mermaid.js** syntax using `to_mermaid/2` via `Kino.Mermaid`, which is supported natively in Livebook!
+> **Rendering diagrams:** This livebook uses `Choreo.Lab.Siren` and `Choreo.Lab.Sketch` for Mermaid diagrams, plus `Kino.VizJS` for DOT/Graphviz views. Some sequence examples also use Livebook's native `Kino.Mermaid` support.
 
 ---
 
@@ -529,6 +529,77 @@ Kino.Markdown.new(table_markdown)
 
 ---
 
+## Example 8: Reviewer Layer — Residual Risk, Control Gaps, and Findings
+
+After the architecture is modeled, reviewers often need a concise checklist: what risk remains, where controls are missing, where sensitive data can leave the system, and which findings should be handled first.
+
+````elixir
+risk_snapshot = %{
+  inherent: ThreatModel.Analysis.risk_score(review_model),
+  residual: ThreatModel.residual_risk_score(review_model)
+}
+
+Kino.Markdown.new("```elixir\n#{inspect(risk_snapshot, pretty: true)}\n```")
+````
+
+Boundary matrices summarize flows between trust zones, including encryption/authentication coverage and maximum observed sensitivity.
+
+````elixir
+review_model
+|> ThreatModel.boundary_matrix()
+|> inspect(pretty: true)
+|> then(fn code ->
+  Kino.Markdown.new("```elixir\n#{code}\n```")
+end)
+````
+
+Control gaps turn common review heuristics into an actionable checklist.
+
+```elixir
+control_gaps_md =
+  review_model
+  |> ThreatModel.control_gaps()
+  |> Enum.map(fn gap ->
+    "* `#{inspect(gap.target)}` — missing #{Enum.map_join(gap.missing, ", ", &to_string/1)}: #{gap.reason}"
+  end)
+  |> Enum.join("\n")
+
+Kino.Markdown.new(control_gaps_md)
+```
+
+Exfiltration paths reverse the usual attack-path question: "Can confidential or restricted data flow outward to an external party?"
+
+```elixir
+review_model
+|> ThreatModel.exfiltration_paths()
+|> Enum.map(&Enum.join(&1, " → "))
+|> inspect(pretty: true)
+|> Kino.Text.new()
+```
+
+For a release review, `prioritized_findings/2` combines validation issues, exposed stores, unencrypted boundary flows, high-risk processes, exfiltration paths, and control gaps into a ranked finding list.
+
+```elixir
+findings_md =
+  review_model
+  |> ThreatModel.prioritized_findings(max_findings: 8)
+  |> Enum.map(fn finding ->
+    """
+    ### #{finding.id}: #{finding.title}
+
+    - Severity: `#{finding.severity}`
+    - Kind: `#{finding.kind}`
+    - Target: `#{inspect(finding.target)}`
+    - Recommendation: #{finding.recommendation}
+    """
+  end)
+  |> Enum.join("\n")
+
+Kino.Markdown.new(findings_md)
+```
+
+---
+
 ## Cheat Sheet
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.ThreatModel`)
@@ -567,6 +638,7 @@ Kino.Markdown.new(table_markdown)
 | Filter Threats       | `ThreatModel.unmitigated_threats/2`, `ThreatModel.threats_for/3`                                                                                             |
 | Markdown Reporting   | `ThreatModel.to_markdown/2` (Opts: `:summary`)                                                                                                               |
 | Security Audits      | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`                                      |
+| Reviewer Layer       | `ThreatModel.residual_risk_score/2`, `control_gaps/1`, `exfiltration_paths/2`, `boundary_matrix/1`, `prioritized_findings/2`                                 |
 | Integrity Validation | `ThreatModel.Analysis.validate/2` (Opts: `:require_levels`), `threat_summary/1`                                                                              |
 | Render Formats       | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                                          |
 | Themes               | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                                                    |
@@ -589,6 +661,11 @@ Kino.Markdown.new(table_markdown)
 | Find exposed databases   | `Analysis.exposed_data_stores/1`                                                                                         |
 | Find risky processes     | `Analysis.high_risk_processes/1`                                                                                         |
 | Attack paths             | `Analysis.attack_paths/2`                                                                                                |
+| Residual risk            | `Analysis.residual_risk_score/2`, `ThreatModel.residual_risk_score/2`                                                    |
+| Control gaps             | `Analysis.control_gaps/1`, `ThreatModel.control_gaps/1`                                                                  |
+| Exfiltration paths       | `Analysis.exfiltration_paths/2`, `ThreatModel.exfiltration_paths/2`                                                      |
+| Boundary flow matrix     | `Analysis.boundary_matrix/1`, `ThreatModel.boundary_matrix/1`                                                            |
+| Prioritized findings     | `Analysis.prioritized_findings/2`, `ThreatModel.prioritized_findings/2`                                                  |
 | Validate model           | `Analysis.validate/2`                                                                                                    |
 | Summarise threats        | `Analysis.threat_summary/1`                                                                                              |
 | Render DFD               | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                       |

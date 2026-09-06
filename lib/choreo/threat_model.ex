@@ -714,6 +714,44 @@ defmodule Choreo.ThreatModel do
     do: Analysis.blast_radius(model, element_id)
 
   @doc """
+  Calculates residual risk after applied controls.
+  Delegates to `Choreo.ThreatModel.Analysis.residual_risk_score/2`.
+  """
+  @spec residual_risk_score(t(), keyword()) :: map()
+  def residual_risk_score(%__MODULE__{} = model, opts \\ []),
+    do: Analysis.residual_risk_score(model, opts)
+
+  @doc """
+  Returns inferred security control gaps.
+  Delegates to `Choreo.ThreatModel.Analysis.control_gaps/1`.
+  """
+  @spec control_gaps(t()) :: [map()]
+  def control_gaps(%__MODULE__{} = model), do: Analysis.control_gaps(model)
+
+  @doc """
+  Returns sensitive-data paths that can leave the system toward external entities.
+  Delegates to `Choreo.ThreatModel.Analysis.exfiltration_paths/2`.
+  """
+  @spec exfiltration_paths(t(), keyword()) :: [[Yog.node_id()]]
+  def exfiltration_paths(%__MODULE__{} = model, opts \\ []),
+    do: Analysis.exfiltration_paths(model, opts)
+
+  @doc """
+  Summarises data flows between trust boundaries.
+  Delegates to `Choreo.ThreatModel.Analysis.boundary_matrix/1`.
+  """
+  @spec boundary_matrix(t()) :: map()
+  def boundary_matrix(%__MODULE__{} = model), do: Analysis.boundary_matrix(model)
+
+  @doc """
+  Returns prioritized security-review findings.
+  Delegates to `Choreo.ThreatModel.Analysis.prioritized_findings/2`.
+  """
+  @spec prioritized_findings(t(), keyword()) :: [map()]
+  def prioritized_findings(%__MODULE__{} = model, opts \\ []),
+    do: Analysis.prioritized_findings(model, opts)
+
+  @doc """
   Highlights attack paths in the model by setting `:highlighted_nodes` and `:highlighted_edges`.
   Delegates to `Choreo.ThreatModel.Analysis.highlight_attack_paths/2`.
   """
