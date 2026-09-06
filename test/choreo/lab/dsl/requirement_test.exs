@@ -206,4 +206,92 @@ defmodule Choreo.Lab.RequirementDSLTest do
       )
     end
   end
+
+  test "supports typed edge macros with label and options" do
+    model =
+      requirements do
+        svc = component("Svc")
+        req1 = requirement("R1", id: "R1")
+        req2 = requirement("R2", id: "R2")
+
+        satisfies svc ~> req1, "implements", docref: "REF-1"
+        refines req2 ~> req1, docref: "REF-2"
+      end
+
+    metas = Enum.map(Requirement.edges_with_meta(model), fn {_f, _t, _w, m} -> m end)
+    assert Enum.any?(metas, &(&1.type == :satisfies and &1.docref == "REF-1"))
+    assert Enum.any?(metas, &(&1.type == :refines and &1.docref == "REF-2"))
+  end
+
+  test "raises on unsupported statement" do
+    assert_raise ArgumentError, ~r/unsupported statement in requirement DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Requirement
+
+          requirements do
+            123 + 456
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported assignment constructor" do
+    assert_raise ArgumentError, ~r/unknown requirement node constructor/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Requirement
+
+          requirements do
+            x = 1 + 2
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid edge AST" do
+    assert_raise ArgumentError, ~r/expected `from ~> to` in requirement DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Requirement
+
+          requirements do
+            edge :invalid_arrow
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported typed edge args" do
+    assert_raise ArgumentError, ~r/unsupported requirement edge form `satisfies\/3`/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Requirement
+
+          requirements do
+            satisfies 1, 2, 3
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported modifier" do
+    assert_raise ArgumentError, ~r/unsupported requirement edge modifier/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Requirement
+
+          requirements do
+            svc = component("Svc")
+            req = requirement("R1", id: "R1")
+            svc ~> req |> invalid_modifier()
+          end
+        end
+      )
+    end
+  end
 end

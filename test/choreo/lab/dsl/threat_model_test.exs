@@ -259,4 +259,46 @@ defmodule Choreo.Lab.ThreatModelDSLTest do
       )
     end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    model =
+      threat_model do
+        u = user("User")
+        api = process("API")
+        db = database("DB")
+
+        edge u ~> api
+        edge u ~> api, "calls"
+        edge u ~> api, protocol: :https
+        edge(u ~> api, "calls", protocol: :https)
+
+        flow api ~> db
+        flow api ~> db, "queries"
+        flow api ~> db, protocol: :sql
+        flow api ~> db, "queries", protocol: :sql
+
+        encrypted(u ~> api)
+        encrypted(u ~> api, "secure call")
+      end
+
+    assert %Choreo.ThreatModel{} = model
+
+    assert_raise ArgumentError, ~r/expected threat-model constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.ThreatModel
+      threat_model do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in threat-model DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.ThreatModel
+      threat_model do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

@@ -215,4 +215,41 @@ defmodule Choreo.Lab.MindMapDSLTest do
       )
     end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    map =
+      mind_map do
+        r = root("Root")
+        t1 = topic("Topic 1")
+        t2 = topic("Topic 2")
+        n = note("Note")
+
+        edge r ~> t1
+        edge r ~> t1, "branches"
+        branch r ~> t2
+        branch r ~> t2, "sub"
+        associate(t1 ~> n)
+        associate(t1 ~> n, "linked")
+      end
+
+    assert %Choreo.MindMap{} = map
+
+    assert_raise ArgumentError, ~r/expected mind-map node constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.MindMap
+      mind_map do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in mind-map DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.MindMap
+      mind_map do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

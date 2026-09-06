@@ -226,14 +226,57 @@ defmodule Choreo.SequenceTest do
     end
 
     test "renders themes when requested" do
+      for theme <- [:dark, :warm, :forest, :ocean, :minimal] do
+        out =
+          Sequence.new()
+          |> Sequence.add_actor(:user)
+          |> Sequence.to_mermaid(theme: theme)
+
+        assert String.starts_with?(out, "%%{init:")
+        assert out =~ "sequenceDiagram"
+        assert out =~ "actorBkg"
+      end
+
+      # Custom struct theme and helper
+      theme_struct =
+        Choreo.Sequence.Render.Mermaid.theme(:ocean,
+          node_fontcolor: "#001122",
+          edge_color: "#334455"
+        )
+
       out =
         Sequence.new()
         |> Sequence.add_actor(:user)
-        |> Sequence.to_mermaid(theme: :dark)
+        |> Sequence.to_mermaid(theme: theme_struct)
 
-      assert String.starts_with?(out, "%%{init:")
-      assert out =~ "sequenceDiagram"
       assert out =~ "actorBkg"
+    end
+
+    test "renders left and right notes, return and self messages, and fragment arms" do
+      out =
+        Sequence.new()
+        |> Sequence.add_actor(:user)
+        |> Sequence.add_participant(:api)
+        |> Sequence.note({:left, :user}, "left note")
+        |> Sequence.note({:right, :api}, "right note")
+        |> Sequence.return(:api, :user, label: "200 OK")
+        |> Sequence.message(:api, :api, label: "self call")
+        |> Sequence.fragment(:alt, "condition A")
+        |> Sequence.message(:user, :api, label: "try A")
+        |> Sequence.fragment(:else, "condition B")
+        |> Sequence.message(:user, :api, label: "try B")
+        |> Sequence.end_fragment()
+        |> Sequence.fragment(:opt)
+        |> Sequence.end_fragment()
+        |> Sequence.to_mermaid()
+
+      assert out =~ "Note left of user: left note"
+      assert out =~ "Note right of api: right note"
+      assert out =~ "api-->>user: 200 OK"
+      assert out =~ "api->>api: self call"
+      assert out =~ "alt condition A"
+      assert out =~ "else condition B"
+      assert out =~ "opt"
     end
   end
 

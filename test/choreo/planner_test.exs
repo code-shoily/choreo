@@ -303,9 +303,17 @@ defmodule Choreo.PlannerTest do
     test "to_dot/2 supports themes and highlights" do
       planner =
         Planner.new()
-        |> Planner.add_task(:a, title: "Task A")
-        |> Planner.add_task(:b, title: "Task B")
+        |> Planner.add_task(:a, title: "Task A", fillcolor: "#ffaaaa", penwidth: 2.5)
+        |> Planner.add_task(:b, title: "Task B", status: :in_progress)
+        |> Planner.add_milestone(:m1, title: "v1.0 Milestone")
+        |> Planner.add_user(:alice, name: "Alice")
+        |> Planner.add_task(:c, title: "Task C")
+        |> Planner.add_task("task with spaces", title: "Spaced Task")
         |> Planner.depends_on(:b, :a)
+        |> Planner.blocks(:a, :c)
+        |> Planner.assign(:a, :alice)
+        |> Planner.tag(:a, :frontend)
+        |> Planner.relates(:b, "task with spaces")
 
       for theme <- [:dark, :warm, :forest, :ocean, :default, :custom, :invalid] do
         theme_opt =
@@ -316,11 +324,15 @@ defmodule Choreo.PlannerTest do
         dot =
           Planner.to_dot(planner,
             theme: theme_opt,
+            direction: :td,
             highlighted_nodes: [:a],
             highlighted_edges: [{:a, :b}]
           )
 
         assert dot =~ "digraph"
+        assert dot =~ "Task A"
+        assert dot =~ "v1.0 Milestone"
+        assert dot =~ "\"task with spaces\""
       end
 
       assert %Choreo.Theme{name: :planner_warm} = Choreo.Planner.Render.DOT.theme(:warm)
@@ -484,6 +496,63 @@ defmodule Choreo.PlannerTest do
       mermaid = Planner.to_mermaid(planner, syntax: :flowchart)
       assert String.contains?(mermaid, "my milestone")
       assert String.contains?(mermaid, "another-task!")
+    end
+
+    test "to_mermaid/2 kanban with ticket_base_url, priorities, and assignee filtering" do
+      planner =
+        Planner.new("Launch")
+        |> Planner.add_user(:alice, name: "Alice Developer")
+        |> Planner.add_task(:t1, title: "Critical Task", priority: :critical, ticket: "PROJ-1")
+        |> Planner.add_task(:t2, title: "Low Task", priority: :low, status: :todo)
+        |> Planner.add_task(:t3, title: "Review Task", priority: :high, status: :in_review)
+        |> Planner.assign(:t1, :alice)
+
+      kanban =
+        Planner.to_mermaid(planner, syntax: :kanban, ticket_base_url: "https://jira.example.com")
+
+      assert kanban =~ "ticketBaseUrl: 'https://jira.example.com'"
+      assert kanban =~ "priority: Very High"
+      assert kanban =~ "assigned: Alice Developer"
+      assert kanban =~ "ticket: PROJ-1"
+
+      filtered = Planner.to_mermaid(planner, syntax: :kanban, assignee: :alice)
+      assert filtered =~ "t1"
+      refute filtered =~ "t2"
+    end
+
+    test "to_mermaid/2 kanban_compat renders flowchart-based kanban board" do
+      planner =
+        Planner.new("Kanban Compat")
+        |> Planner.add_task(:t1, title: "Backlog Item", status: :backlog)
+        |> Planner.add_task(:t2, title: "In Progress Item", status: :in_progress)
+        |> Planner.add_task(:t3, title: "Done Item", status: :done)
+
+      compat = Planner.to_mermaid(planner, syntax: :kanban_compat)
+      assert compat =~ "flowchart LR"
+      assert compat =~ "subgraph col_backlog"
+      assert compat =~ "subgraph col_in_progress"
+      assert compat =~ "subgraph col_done"
+      assert compat =~ "Backlog Item"
+    end
+
+    test "to_mermaid/2 gantt supports section_by :assignee and empty task list" do
+      empty_planner = Planner.new("Empty Project")
+      assert Planner.to_mermaid(empty_planner, syntax: :gantt) =~ "gantt"
+
+      planner =
+        Planner.new("Gantt Sections")
+        |> Planner.add_milestone(:m1, title: "Milestone 1")
+        |> Planner.add_user(:alice, name: "Alice")
+        |> Planner.add_task(:t1, title: "Alice's Task", duration: 3)
+        |> Planner.contains(:m1, :t1)
+        |> Planner.assign(:t1, :alice)
+
+      gantt_assignee = Planner.to_mermaid(planner, syntax: :gantt, section_by: :assignee)
+      assert gantt_assignee =~ "section Alice"
+      assert gantt_assignee =~ "Alice's Task"
+
+      gantt_milestone = Planner.to_mermaid(planner, syntax: :gantt, milestone: :m1)
+      assert gantt_milestone =~ "Milestone 1"
     end
   end
 end

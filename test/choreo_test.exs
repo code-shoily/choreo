@@ -392,6 +392,64 @@ defmodule ChoreoTest do
       # Inherits from dark theme
       assert theme.graph_bgcolor == "#0f172a"
     end
+
+    test "Choreo.Theme color scales and resolution" do
+      # color_from_scale
+      assert String.starts_with?(Choreo.Theme.color_from_scale(0.0, :heat), "#")
+      assert String.starts_with?(Choreo.Theme.color_from_scale(0.5, :cool), "#")
+      assert String.starts_with?(Choreo.Theme.color_from_scale(1.0, :spectral), "#")
+      # Unknown atom falls back to heat
+      assert Choreo.Theme.color_from_scale(0.5, :unknown_scale) ==
+               Choreo.Theme.color_from_scale(0.5, :heat)
+
+      # Clamping
+      assert Choreo.Theme.color_from_scale(-0.5, :heat) ==
+               Choreo.Theme.color_from_scale(0.0, :heat)
+
+      assert Choreo.Theme.color_from_scale(1.5, :heat) ==
+               Choreo.Theme.color_from_scale(1.0, :heat)
+
+      # Custom list scale
+      assert Choreo.Theme.color_from_scale(0.0, ["#000000", "#ffffff"]) == "#000000"
+      assert Choreo.Theme.color_from_scale(1.0, ["#000000", "#ffffff"]) == "#ffffff"
+
+      # resolve
+      assert Choreo.Theme.resolve(:warm) == Choreo.Theme.warm()
+      assert Choreo.Theme.resolve(:forest) == Choreo.Theme.forest()
+      assert Choreo.Theme.resolve(:ocean) == Choreo.Theme.ocean()
+      assert Choreo.Theme.resolve(:something_else) == Choreo.Theme.default()
+    end
+
+    test "Choreo.Theme dark?, graph overrides, and fallbacks" do
+      # dark?
+      assert Choreo.Theme.dark?(Choreo.Theme.dark())
+      assert Choreo.Theme.dark?(%Choreo.Theme{name: :my_dark_theme, graph_bgcolor: nil})
+      assert Choreo.Theme.dark?(%Choreo.Theme{name: :custom, graph_bgcolor: "#0f172a"})
+      refute Choreo.Theme.dark?(Choreo.Theme.default())
+      refute Choreo.Theme.dark?(%Choreo.Theme{name: :light, graph_bgcolor: "#ffffff"})
+
+      # graph_overrides
+      overrides =
+        Choreo.Theme.graph_overrides(%Choreo.Theme{
+          name: :test,
+          graph_rankdir: :lr,
+          graph_bgcolor: "#ffffff",
+          graph_splines: :ortho,
+          graph_nodesep: 0.8,
+          graph_ranksep: 1.2
+        })
+
+      assert overrides[:rankdir] == :lr
+      assert overrides[:bgcolor] == "#ffffff"
+      assert overrides[:splines] == :ortho
+      assert overrides[:nodesep] == 0.8
+      assert overrides[:ranksep] == 1.2
+
+      # Fallback for unknown node types
+      default_t = Choreo.Theme.default()
+      assert Choreo.Theme.color(default_t, :non_existent_type) == "#9ca3af"
+      assert Choreo.Theme.shape(default_t, :non_existent_type) == :box
+    end
   end
 
   describe "mermaid rendering" do

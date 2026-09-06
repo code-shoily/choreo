@@ -377,8 +377,8 @@ defmodule Choreo.ThreatModel.Render.Mermaid do
       |> Enum.map_join("\n", fn {from, to, _weight, meta} ->
         label =
           cond do
-            l = meta[:label] -> to_string(l)
-            p = meta[:protocol] -> to_string(p)
+            is_binary(meta[:label]) and meta[:label] != "" -> meta[:label]
+            meta[:protocol] -> to_string(meta[:protocol])
             true -> "flow"
           end
 

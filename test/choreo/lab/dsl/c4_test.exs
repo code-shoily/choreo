@@ -276,4 +276,56 @@ defmodule Choreo.Lab.C4DSLTest do
       Choreo.Lab.DSL.C4.type()
     end
   end
+
+  test "supports all edge declaration forms and modifiers" do
+    model =
+      c4 do
+        u = person("User")
+        api = container("API")
+        db = database("DB")
+
+        edge u ~> api
+        edge u ~> api, "calls API"
+        edge u ~> api, technology: "JSON"
+        edge(u ~> api, "calls API", technology: "JSON")
+
+        uses u ~> api
+        uses u ~> api, "uses"
+        uses u ~> api, technology: "HTTPS"
+        uses u ~> api, "uses", technology: "HTTPS"
+
+        u ~> db |> on("direct access") |> technology("TCP")
+        in_scope api
+      end
+
+    assert Choreo.C4.scope(model) == :api
+    assert length(Choreo.C4.edges(model)) == 9
+  end
+
+  test "c4/2 accepts options and raises on invalid statements or constructors" do
+    model =
+      c4(strict: true) do
+        container("Auth")
+      end
+
+    assert model.strict == true
+
+    assert_raise ArgumentError, ~r/expected C4 constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.C4
+      c4 do
+        x = 123
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in C4 DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.C4
+      c4 do
+        unsupported_verb("test")
+      end
+      """)
+    end
+  end
 end

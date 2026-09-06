@@ -177,15 +177,87 @@ defmodule Choreo.Lab.DecisionTreeDSLTest do
     end
   end
 
-  test "raises on unknown node variables" do
-    assert_raise ArgumentError, ~r/unknown decision-tree node variable `b`/, fn ->
+  test "raises on unsupported statement" do
+    assert_raise ArgumentError, ~r/unsupported statement in decision-tree DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.DecisionTree
+
+          decision_tree do
+            123 + 456
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on too many positional arguments" do
+    assert_raise ArgumentError,
+                 ~r/decision-tree node constructors take at most one positional label\/id/,
+                 fn ->
+                   Code.eval_quoted(
+                     quote do
+                       import Choreo.Lab.DSL.DecisionTree
+
+                       decision_tree do
+                         root("A", "B")
+                       end
+                     end
+                   )
+                 end
+  end
+
+  test "raises on inline constructor without label or id" do
+    assert_raise ArgumentError, ~r/inline decision-tree node constructors need a label\/id/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.DecisionTree
+
+          decision_tree do
+            root()
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unknown node constructor in edge" do
+    assert_raise ArgumentError, ~r/unknown decision-tree node constructor `unknown`/, fn ->
       Code.eval_quoted(
         quote do
           import Choreo.Lab.DSL.DecisionTree
 
           decision_tree do
             a = root("A")
-            a ~> b |> when_("yes")
+            edge a ~> unknown("Test"), "cond"
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid branch endpoint" do
+    assert_raise ArgumentError, ~r/unsupported decision-tree branch endpoint 123/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.DecisionTree
+
+          decision_tree do
+            edge 123 ~> 456, "cond"
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid branch target in edge statement" do
+    assert_raise ArgumentError, ~r/expected `parent ~> child` in decision-tree DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.DecisionTree
+
+          decision_tree do
+            edge(:not_an_arrow, "cond")
           end
         end
       )

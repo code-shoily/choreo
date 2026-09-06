@@ -302,4 +302,208 @@ defmodule Choreo.DomainTest do
     assert erd =~ "uuid id"
     assert erd =~ "order_agg }|..|{ order_line : \"has\""
   end
+
+  test "supports all strategic DDD relationship types in connect_contexts/4" do
+    base =
+      Domain.new()
+      |> Domain.add_context(:ctx_a, label: "Context A")
+      |> Domain.add_context(:ctx_b, label: "Context B")
+
+    rels = [
+      {:shared_kernel, "[Shared Kernel]"},
+      {:customer_supplier, "[U: Supplier] -> [D: Customer]"},
+      {:conformist, "[U: Supplier] -> [D: Conformist]"},
+      {:open_host_service, "[U: OHS] -> [D]"},
+      {:published_language, "[U: PL] -> [D]"},
+      {:acl, "[U] -> [ACL] -> [D]"}
+    ]
+
+    for {rel, expected_label} <- rels do
+      connected = Domain.connect_contexts(base, :ctx_a, :ctx_b, relationship: rel)
+      assert [{:ctx_a, :ctx_b, 1}] = Domain.edges(connected)
+      dot = Domain.to_dot(connected)
+      assert dot =~ expected_label
+    end
+  end
+
+  test "connect_contexts/4 raises ArgumentError on invalid endpoints" do
+    d =
+      Domain.new()
+      |> Domain.add_context(:ctx_a)
+      |> Domain.add_actor(:actor_b)
+
+    assert_raise ArgumentError, ~r/requires both endpoints to exist/, fn ->
+      Domain.connect_contexts(d, :ctx_a, :missing, relationship: :shared_kernel)
+    end
+
+    assert_raise ArgumentError, ~r/requires both endpoints to be :context nodes/, fn ->
+      Domain.connect_contexts(d, :ctx_a, :actor_b, relationship: :shared_kernel)
+    end
+  end
+
+  test "connect/4 raises ArgumentError when endpoints do not exist" do
+    d = Domain.new() |> Domain.add_command(:cmd_a)
+
+    assert_raise ArgumentError, ~r/Node :missing_b does not exist/, fn ->
+      Domain.connect(d, :cmd_a, :missing_b)
+    end
+
+    assert_raise ArgumentError, ~r/Node :missing_a does not exist/, fn ->
+      Domain.connect(d, :missing_a, :cmd_a)
+    end
+  end
+
+  test "supports notifies and translates_via semantic connections" do
+    d =
+      Domain.new()
+      |> Domain.add_actor(:user, label: "User")
+      |> Domain.add_event(:order_shipped, label: "Order Shipped")
+      |> Domain.add_external_system(:stripe, label: "Stripe")
+      |> Domain.add_acl(:stripe_acl, label: "Stripe Gateway")
+      |> Domain.add_workflow(:shipping_flow, label: "Shipping Flow")
+      |> Domain.notifies(:order_shipped, :user)
+      |> Domain.translates_via(:stripe, :stripe_acl)
+
+    mermaid = Domain.to_mermaid(d)
+    assert mermaid =~ "notifies"
+    assert mermaid =~ "translates via"
+  end
+
+  test "focus_scenario/2 raises on non-existent scenario and clear_focus/1 resets focus" do
+    d =
+      Domain.new()
+      |> Domain.add_actor(:user)
+      |> Domain.add_command(:cmd)
+      |> Domain.connect(:user, :cmd)
+
+    assert_raise ArgumentError, ~r/Scenario :unknown does not exist/, fn ->
+      Domain.focus_scenario(d, :unknown)
+    end
+
+    focused = Domain.focus_path(d, [:user, :cmd])
+    assert focused.highlighted_nodes == [:user, :cmd]
+    cleared = Domain.clear_focus(focused)
+    assert cleared.highlighted_nodes == []
+    assert cleared.highlighted_edges == []
+  end
+
+  test "causes/2 returns empty list for non-existent target" do
+    d = Domain.new() |> Domain.add_actor(:user)
+    assert Domain.causes(d, :missing) == []
+  end
+
+  test "infers single linear event modeling path automatically" do
+    d =
+      Domain.new()
+      |> Domain.add_actor(:customer, label: "Customer")
+      |> Domain.add_command(:submit, label: "Submit")
+      |> Domain.add_event(:submitted, label: "Submitted")
+      |> Domain.connect(:customer, :submit)
+      |> Domain.connect(:submit, :submitted)
+
+    em = Domain.to_mermaid(d, syntax: :event_modeling)
+    assert em =~ "eventmodeling"
+    assert em =~ "tf 01 ui Customer"
+    assert em =~ "tf 02 cmd Submit"
+    assert em =~ "tf 03 evt Submitted"
+  end
+
+  test "raises ArgumentError when inferring event modeling path on branching graph" do
+    d =
+      Domain.new()
+      |> Domain.add_actor(:customer)
+      |> Domain.add_command(:cmd1)
+      |> Domain.add_command(:cmd2)
+      |> Domain.connect(:customer, :cmd1)
+      |> Domain.connect(:customer, :cmd2)
+
+    assert_raise ArgumentError, ~r/Cannot infer Event Modeling timeline/, fn ->
+      Domain.to_mermaid(d, syntax: :event_modeling)
+    end
+  end
+
+  test "supports namespaced cluster entity IDs in event modeling" do
+    d =
+      Domain.new()
+      |> Domain.add_context_boundary("orders", label: "Orders Boundary")
+      |> Domain.add_command(:place, label: "Place", cluster: "orders")
+      |> Domain.add_read_model(:summary, label: "Summary", cluster: "orders")
+      |> Domain.add_workflow(:process, label: "Process", cluster: "orders")
+      |> Domain.add_acl(:payment_gateway, label: "Gateway", cluster: "orders")
+      |> Domain.add_external_system(:bank, label: "Bank")
+
+    em =
+      Domain.to_mermaid(d,
+        syntax: :event_modeling,
+        path: [:place, :summary, :process, :payment_gateway, :bank]
+      )
+
+    assert em =~ "tf 01 cmd OrdersBoundary.Place"
+    assert em =~ "tf 02 rmo OrdersBoundary.Summary"
+    assert em =~ "tf 03 pcr OrdersBoundary.Process"
+    assert em =~ "tf 04 pcr OrdersBoundary.Gateway"
+    assert em =~ "tf 05 pcr Bank"
+  end
+
+  test "supports union types in class_diagram and erd rendering, plus empty entity in erd" do
+    d =
+      Domain.new()
+      |> Domain.add_type(:order_state,
+        fields: [
+          {:status, [:draft, :submitted, :cancelled]}
+        ]
+      )
+      |> Domain.add_type(:empty_state)
+
+    classes = Domain.to_mermaid(d, syntax: :class_diagram)
+    assert classes =~ "+status draft | submitted | cancelled"
+
+    erd = Domain.to_mermaid(d, syntax: :erd)
+    assert erd =~ "draft_or_submitted_or_cancelled status"
+    assert erd =~ "empty_state"
+  end
+
+  test "implements Choreo.Viewable zoom levels and Choreo.theme/2" do
+    d =
+      Domain.new()
+      |> Domain.add_context(:orders, label: "Orders")
+      |> Domain.add_actor(:buyer, label: "Buyer")
+      |> Domain.add_command(:pay, label: "Pay")
+      |> Domain.add_aggregate(:order_agg, label: "Order Agg")
+      |> Domain.add_event(:paid, label: "Paid")
+      |> Domain.add_read_model(:dashboard, label: "Dashboard")
+      |> Domain.connect(:buyer, :pay)
+      |> Domain.connect(:pay, :order_agg)
+      |> Domain.connect(:order_agg, :paid)
+      |> Domain.connect(:paid, :dashboard)
+
+    # Zoom 0 keeps only :context and :actor
+    z0 = Choreo.View.zoom(d, level: 0)
+    z0_nodes = Map.keys(Domain.nodes(z0))
+    assert :orders in z0_nodes
+    assert :buyer in z0_nodes
+    refute :pay in z0_nodes
+
+    # Zoom 1 keeps :context, :actor, :command, :aggregate, :event
+    z1 = Choreo.View.zoom(d, level: 1)
+    z1_nodes = Map.keys(Domain.nodes(z1))
+    assert :pay in z1_nodes
+    refute :dashboard in z1_nodes
+
+    # Zoom 2 keeps everything
+    z2 = Choreo.View.zoom(d, level: 2)
+    assert Map.has_key?(Domain.nodes(z2), :dashboard)
+
+    # Theme helper
+    t = Domain.theme(:sketch)
+    assert %Choreo.Theme{} = t
+
+    # Deprecated trace_cause alias
+    assert Domain.trace_cause(d, :paid) == Domain.causes(d, :paid)
+
+    # Viewable rebuild with filtered highlights
+    focused_d = Domain.focus_path(d, [:buyer, :pay])
+    focused_z0 = Choreo.View.zoom(focused_d, level: 0)
+    assert focused_z0.highlighted_nodes == [:buyer]
+  end
 end

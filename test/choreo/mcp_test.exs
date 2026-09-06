@@ -277,6 +277,274 @@ defmodule Choreo.MCPTest do
     assert resp["error"]["code"] == -32_600
   end
 
+  test "initialize supports full template", %{tmp_dir: tmp_dir} do
+    notebook_path = Path.join(tmp_dir, "full_design.livemd")
+
+    req_init = %{
+      "jsonrpc" => "2.0",
+      "id" => 12,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_initialize_design_notebook",
+        "arguments" => %{
+          "path" => notebook_path,
+          "system_name" => "Full Distributed System",
+          "template" => "full"
+        }
+      }
+    }
+
+    resp = send_request(req_init)
+    assert resp["result"]["isError"] == false
+    content = File.read!(notebook_path)
+    assert content =~ "## 6. Core Dataflow"
+    assert content =~ "## 8. Threat Model"
+  end
+
+  test "tools return error when target file does not exist" do
+    missing_path = "/nonexistent/dir/missing.livemd"
+
+    # read
+    req_read = %{
+      "jsonrpc" => "2.0",
+      "id" => 13,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_read_design_notebook",
+        "arguments" => %{"path" => missing_path}
+      }
+    }
+
+    resp = send_request(req_read)
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "Failed to read"
+
+    # update
+    req_update = %{
+      "jsonrpc" => "2.0",
+      "id" => 14,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_update_design_section",
+        "arguments" => %{
+          "path" => missing_path,
+          "section_name" => "Requirements",
+          "content" => "new"
+        }
+      }
+    }
+
+    resp = send_request(req_update)
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "Failed to read"
+
+    # verify
+    req_verify = %{
+      "jsonrpc" => "2.0",
+      "id" => 15,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_verify_design",
+        "arguments" => %{"path" => missing_path}
+      }
+    }
+
+    resp = send_request(req_verify)
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "Failed to read"
+  end
+
+  test "handle_request ignores notifications/initialized" do
+    req = %{"jsonrpc" => "2.0", "method" => "notifications/initialized"}
+    assert MCP.handle_request(req) == nil
+  end
+
+  test "mix choreo.mcp module attributes" do
+    assert Mix.Task.shortdoc(Mix.Tasks.Choreo.Mcp) =~ "MCP stdio server"
+  end
+
+  test "verify returns error when code evaluation raises", %{tmp_dir: tmp_dir} do
+    failing_nb = Path.join(tmp_dir, "failing.livemd")
+
+    File.write!(failing_nb, """
+    # Failing Design
+
+    ```elixir
+    raise "boom"
+    ```
+    """)
+
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 99,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_verify_design",
+        "arguments" => %{"path" => failing_nb}
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["result"]["isError"] == true
+    assert hd(resp["result"]["content"])["text"] =~ "Evaluation failed"
+  end
+
+  test "update section when target section is the last section in the file", %{tmp_dir: tmp_dir} do
+    last_sec_nb = Path.join(tmp_dir, "last_sec.livemd")
+
+    File.write!(last_sec_nb, """
+    # Design
+
+    ## 1. Problem
+    Intro text
+
+    ## 2. Last Section
+    Old text
+    """)
+
+    req = %{
+      "jsonrpc" => "2.0",
+      "id" => 100,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_update_design_section",
+        "arguments" => %{
+          "path" => last_sec_nb,
+          "section_name" => "Last Section",
+          "content" => "Replaced final content"
+        }
+      }
+    }
+
+    resp = send_request(req)
+    assert resp["result"]["isError"] == false
+    assert File.read!(last_sec_nb) =~ "Replaced final content"
+  end
+
+  test "handles template: full, notifications, and error scenarios", %{tmp_dir: tmp_dir} do
+    # 1. Full template initialization
+    full_nb = Path.join(tmp_dir, "full_design.livemd")
+
+    req_full = %{
+      "jsonrpc" => "2.0",
+      "id" => 201,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_initialize_design_notebook",
+        "arguments" => %{
+          "path" => full_nb,
+          "system_name" => "Complete System",
+          "template" => "full"
+        }
+      }
+    }
+
+    resp_full = send_request(req_full)
+    assert resp_full["result"]["isError"] == false
+    assert File.read!(full_nb) =~ "## 6. Core Dataflow"
+
+    # 2. notifications/initialized returns nil
+    notif = %{"jsonrpc" => "2.0", "method" => "notifications/initialized"}
+    assert MCP.handle_request(notif) == nil
+
+    # 3. Method not found
+    req_unknown = %{"jsonrpc" => "2.0", "id" => 202, "method" => "unknown/method"}
+    resp_unknown = send_request(req_unknown)
+    assert resp_unknown["error"]["code"] == -32_601
+
+    # 4. Invalid request format
+    resp_invalid =
+      %{"invalid" => "format"}
+      |> MCP.handle_request()
+
+    assert resp_invalid["error"]["code"] == -32_600
+
+    # 5. Unknown tool call
+    req_bad_tool = %{
+      "jsonrpc" => "2.0",
+      "id" => 203,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "non_existent_tool",
+        "arguments" => %{}
+      }
+    }
+
+    resp_bad_tool = send_request(req_bad_tool)
+    assert resp_bad_tool["result"]["isError"] == true
+    assert hd(resp_bad_tool["result"]["content"])["text"] =~ "not implemented"
+
+    # 6. Read non-existent file
+    req_missing_read = %{
+      "jsonrpc" => "2.0",
+      "id" => 204,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_read_design_notebook",
+        "arguments" => %{"path" => "/path/does/not/exist.livemd"}
+      }
+    }
+
+    resp_missing_read = send_request(req_missing_read)
+    assert resp_missing_read["result"]["isError"] == true
+
+    # 7. Update non-existent section
+    req_missing_sec = %{
+      "jsonrpc" => "2.0",
+      "id" => 205,
+      "method" => "tools/call",
+      "params" => %{
+        "name" => "choreo_update_design_section",
+        "arguments" => %{
+          "path" => full_nb,
+          "section_name" => "Non Existent Section",
+          "content" => "something"
+        }
+      }
+    }
+
+    resp_missing_sec = send_request(req_missing_sec)
+    assert resp_missing_sec["result"]["isError"] == true
+
+    assert hd(resp_missing_sec["result"]["content"])["text"] =~
+             "Section 'Non Existent Section' not found"
+  end
+
+  test "MCP.start/0 processes stdio input, notifications, errors, and exits on EOF" do
+    input = """
+    {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+    {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    not valid json
+    {"jsonrpc": "2.0", "id": 99, "invalid": json}
+    """
+
+    {:ok, io} = StringIO.open(input)
+    original_gl = Process.group_leader()
+    Process.group_leader(self(), io)
+
+    try do
+      assert MCP.start() == :ok
+    after
+      Process.group_leader(self(), original_gl)
+    end
+
+    {_, output} = StringIO.contents(io)
+    assert output =~ "choreo_initialize_design_notebook"
+    assert output =~ "Parse error"
+  end
+
+  test "Mix.Tasks.Choreo.Mcp runs and starts MCP server" do
+    {:ok, io} = StringIO.open("")
+    original_gl = Process.group_leader()
+    Process.group_leader(self(), io)
+
+    try do
+      assert Mix.Tasks.Choreo.Mcp.run([]) == :ok
+    after
+      Process.group_leader(self(), original_gl)
+    end
+  end
+
   defp send_request(req) do
     # Simulates JSON-RPC handling with full serialization boundary
     req

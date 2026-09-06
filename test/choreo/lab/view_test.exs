@@ -60,9 +60,26 @@ defmodule Choreo.Lab.ViewTest do
 
     service_view = View.only_type(system, :service)
     no_policy = View.without_nodes(system, :policy)
+    only_nds = View.only_nodes(system, [:api, :router])
+    no_services = View.without_type(system, :service)
 
     assert Enum.sort(Map.keys(Choreo.nodes(service_view))) == [:policy, :router]
     refute Map.has_key?(Choreo.nodes(no_policy), :policy)
+    assert Enum.sort(Map.keys(Choreo.nodes(only_nds))) == [:api, :router]
+    refute Map.has_key?(Choreo.nodes(no_services), :policy)
+    refute Map.has_key?(Choreo.nodes(no_services), :router)
+
+    # neighborhood alias
+    neigh = View.neighborhood(system, :router, depth: 1)
+    assert Enum.sort(Map.keys(Choreo.nodes(neigh))) == [:api, :db, :policy, :router]
+
+    # trace
+    traced_sys =
+      system
+      |> Choreo.trace(:api, :db, type: :executes)
+
+    traced_view = View.trace(traced_sys, :api, :db)
+    assert Enum.sort(Map.keys(Choreo.nodes(traced_view))) == [:api, :db]
   end
 
   test "collapse helpers aggregate nodes" do

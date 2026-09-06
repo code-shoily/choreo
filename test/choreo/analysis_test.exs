@@ -145,4 +145,80 @@ defmodule Choreo.AnalysisTest do
       assert Enum.any?(issues, fn {sev, msg} -> sev == :warning and msg =~ "Bridge edges" end)
     end
   end
+
+  defmodule UnsupportedStruct do
+    defstruct [:foo]
+  end
+
+  describe "path/4 and highlight/1" do
+    test "finds paths by different measures" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.add_service(:c)
+        |> Choreo.connect(:a, :b, cost: 5)
+        |> Choreo.connect(:b, :c, cost: 2)
+        |> Choreo.connect(:a, :c, cost: 20)
+
+      system =
+        system
+        |> put_in([Access.key(:graph), Access.key(:nodes), :b, :latency_ms], 50)
+        |> put_in([Access.key(:graph), Access.key(:nodes), :b, :risk_score], 2)
+        |> put_in([Access.key(:graph), Access.key(:nodes), :b, :rate], 100)
+        |> put_in([Access.key(:graph), Access.key(:nodes), :c, :latency_ms], 10)
+        |> put_in([Access.key(:graph), Access.key(:nodes), :c, :risk_score], 1)
+        |> put_in([Access.key(:graph), Access.key(:nodes), :c, :rate], 500)
+
+      assert {:ok, path_lat} = Analysis.path(system, :a, :c, measure: :latency)
+      assert path_lat.nodes == [:a, :c]
+
+      assert {:ok, path_tp} = Analysis.path(system, :a, :c, measure: :throughput)
+      assert path_tp.nodes in [[:a, :c], [:a, :b, :c]]
+
+      assert {:ok, path_risk} = Analysis.path(system, :a, :c, measure: :risk)
+      assert path_risk.nodes == [:a, :c]
+
+      assert {:ok, path_custom} = Analysis.path(system, :a, :c, measure: :cost)
+      assert path_custom.nodes in [[:a, :c], [:a, :b, :c]]
+
+      assert {:ok, path_fn} =
+               Analysis.path(system, :a, :c, weight_fn: fn _d, _s, _t, _eid -> 1 end)
+
+      assert path_fn.nodes in [[:a, :c], [:a, :b, :c]]
+
+      assert {:ok, path_widest} =
+               Analysis.path(system, :a, :c, measure: :weighted, algorithm: :widest)
+
+      assert length(path_widest.nodes) >= 2
+
+      # highlight/1
+      assert Analysis.highlight(path_lat) == [
+               highlighted_nodes: [:a, :c],
+               highlighted_edges: [{:a, :c}]
+             ]
+
+      assert Analysis.highlight(nil) == []
+    end
+
+    test "reduce_transitive/1 simplifies multi-hop shortcuts" do
+      system =
+        Choreo.new()
+        |> Choreo.add_service(:a)
+        |> Choreo.add_service(:b)
+        |> Choreo.add_service(:c)
+        |> Choreo.connect(:a, :b)
+        |> Choreo.connect(:b, :c)
+        |> Choreo.connect(:a, :c)
+
+      assert {:ok, reduced} = Analysis.reduce_transitive(system)
+      assert length(Choreo.edges(reduced)) == 2
+    end
+
+    test "raises on unsupported diagram type" do
+      assert_raise ArgumentError, ~r/is not analysis-ready/, fn ->
+        Analysis.path(%UnsupportedStruct{}, :a, :b)
+      end
+    end
+  end
 end

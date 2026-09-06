@@ -150,4 +150,45 @@ defmodule Choreo.Lab.PlannerDSLTest do
       )
     end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    plan =
+      planner "Q3 Plan" do
+        m = milestone("Launch")
+        t1 = task("Task 1")
+        t2 = task("Task 2")
+        t3 = task("Task 3")
+        u = user("Alice")
+        lbl = label("urgent")
+
+        contains m ~> t1
+        edge t2 ~> t1
+        edge t2 ~> t1, "depends"
+        contains m ~> t2
+        depends_on t2 ~> t1
+        blocks(t2 ~> t3)
+        assigned_to(t1 ~> u)
+        tagged_with(t1 ~> lbl)
+      end
+
+    assert plan.name == "Q3 Plan"
+
+    assert_raise ArgumentError, ~r/expected planner constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Planner
+      planner do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in planner DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Planner
+      planner do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

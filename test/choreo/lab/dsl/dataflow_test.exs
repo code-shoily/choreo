@@ -227,4 +227,49 @@ defmodule Choreo.Lab.DataflowDSLTest do
       )
     end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    pipeline =
+      dataflow do
+        a = source("A")
+        b = transform("B")
+        c = transform("C")
+        d = transform("D")
+        e = transform("E")
+        f = sink("F")
+        g = sink("G")
+        h = sink("H")
+        i = sink("I")
+
+        edge a ~> b
+        edge b ~> c, "processes"
+        edge c ~> d, rate: "50/s"
+        edge(d ~> e, "processes", rate: "50/s")
+
+        writes e ~> f
+        writes f ~> g, "stored"
+        writes g ~> h, rate: "20/s"
+        writes h ~> i, "stored", rate: "20/s"
+      end
+
+    assert %Choreo.Dataflow{} = pipeline
+
+    assert_raise ArgumentError, ~r/expected dataflow constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Dataflow
+      dataflow do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in dataflow DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Dataflow
+      dataflow do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

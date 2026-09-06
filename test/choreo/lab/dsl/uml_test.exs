@@ -267,4 +267,91 @@ defmodule Choreo.Lab.UMLDSLTest do
     assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.type() end
     assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.on() end
   end
+
+  test "supports typed relationship statement with label and options" do
+    diagram =
+      uml do
+        c = class("Client")
+        s = class("Server")
+
+        depends c ~> s, "requests"
+      end
+
+    assert [meta] = Map.values(diagram.edge_meta)
+    assert meta.type == :depends
+    assert meta.label == "requests"
+  end
+
+  test "raises on unsupported statement" do
+    assert_raise ArgumentError, ~r/unsupported statement in UML DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.UML
+
+          uml do
+            unknown_func()
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported assignment constructor" do
+    assert_raise ArgumentError, ~r/expected UML class constructor/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.UML
+
+          uml do
+            x = 1 + 2
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid relationship AST" do
+    assert_raise ArgumentError, ~r/expected `from ~> to` in UML DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.UML
+
+          uml do
+            edge :invalid_arrow
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unknown class variable" do
+    assert_raise ArgumentError, ~r/unknown UML class variable `missing`/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.UML
+
+          uml do
+            c = class("Client")
+            c ~> missing
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported relationship modifier" do
+    assert_raise ArgumentError, ~r/unsupported UML relationship modifier/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.UML
+
+          uml do
+            c = class("Client")
+            s = class("Server")
+            c ~> s |> bad_modifier()
+          end
+        end
+      )
+    end
+  end
 end

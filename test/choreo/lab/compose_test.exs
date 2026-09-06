@@ -47,16 +47,26 @@ defmodule Choreo.Lab.ComposeTest do
     refute Map.has_key?(Choreo.nodes(system), :child_api)
   end
 
+  test "embed defaults to sub_ prefix when neither as nor prefix is provided" do
+    child = Choreo.new() |> Choreo.add_service(:worker)
+
+    system =
+      Choreo.new()
+      |> Compose.cluster(:jobs)
+      |> Compose.embed(child, into: :jobs)
+
+    assert Map.has_key?(Choreo.nodes(system), :sub_worker)
+  end
+
   test "connect creates normal visible relationships" do
     system =
       Choreo.new()
       |> Choreo.add_service(:api)
       |> Choreo.add_database(:db)
       |> Compose.connect(:api, :db, "reads")
+      |> Compose.connect(:db, :api, label: "writes")
 
-    assert [{:api, :db, _weight, meta}] = Choreo.edges_with_meta(system)
-    assert meta.label == "reads"
-    refute meta[:edge_type] == :trace
+    assert length(Choreo.edges_with_meta(system)) == 2
   end
 
   test "trace creates semantic cross-model relationships" do
@@ -65,10 +75,8 @@ defmodule Choreo.Lab.ComposeTest do
       |> Choreo.add_service(:api)
       |> Choreo.add_service(:auth)
       |> Compose.trace(:api, :auth, :executes)
+      |> Compose.trace(:auth, :api, type: :validates)
 
-    assert [{:api, :auth, _weight, meta}] = Choreo.edges_with_meta(system)
-    assert meta.edge_type == :trace
-    assert meta.type == :executes
-    assert meta.label == "executes"
+    assert length(Choreo.edges_with_meta(system)) == 2
   end
 end

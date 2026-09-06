@@ -240,4 +240,44 @@ defmodule Choreo.Lab.DependencyDSLTest do
       )
     end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    deps =
+      dependency do
+        a = app("API")
+        m = module("Auth")
+        l = library("Guardian")
+        t = test("Spec")
+
+        edge a ~> m
+        edge a ~> m, "calls"
+        edge a ~> l, uses: "token"
+        edge(a ~> l, "auth", type: :uses)
+
+        calls a ~> m
+        calls a ~> m, "invokes"
+        imports m ~> l
+        dev(t ~> a)
+      end
+
+    assert %Choreo.Dependency{} = deps
+
+    assert_raise ArgumentError, ~r/expected dependency constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Dependency
+      dependency do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in dependency DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Dependency
+      dependency do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

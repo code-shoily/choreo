@@ -388,6 +388,11 @@ defmodule Choreo.Lab.DSL.Sequence do
     %{id: id, builder: builder, opts: opts}
   end
 
+  defp participant_from_constructor(other, _var, meta) do
+    raise ArgumentError,
+          "expected sequence constructor, got #{Macro.to_string(other)}#{line_suffix(meta)}"
+  end
+
   defp participant_constructor?({name, _meta, args}) when is_atom(name) and is_list(args),
     do: Map.has_key?(@participant_builders, name)
 

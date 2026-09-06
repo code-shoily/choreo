@@ -60,5 +60,79 @@ defmodule Choreo.RenderScriptTest do
     assert_raise ArgumentError, ~r/artifact names must be atoms or strings/, fn ->
       RenderScript.normalize(%{123 => model}, default_name: "diagram")
     end
+
+    assert_raise ArgumentError, ~r/artifact names cannot be empty/, fn ->
+      RenderScript.normalize(%{"   " => model}, default_name: "diagram")
+    end
+  end
+
+  test "render_artifact renders to mermaid and dot" do
+    model = Choreo.new() |> Choreo.add_service(:api)
+    artifact = %{name: "test", model: model, opts: []}
+
+    mermaid = RenderScript.render_artifact(artifact, :mermaid)
+    assert mermaid =~ "graph" or mermaid =~ "flowchart"
+
+    dot = RenderScript.render_artifact(artifact, :dot)
+    assert dot =~ "digraph"
+  end
+
+  test "extension and parse_target helpers" do
+    assert RenderScript.extension(:mermaid) == ".mmd"
+    assert RenderScript.extension(:dot) == ".dot"
+
+    assert RenderScript.parse_target(nil) == :mermaid
+    assert RenderScript.parse_target("mermaid") == :mermaid
+    assert RenderScript.parse_target("mmd") == :mermaid
+    assert RenderScript.parse_target("dot") == :dot
+
+    assert_raise ArgumentError, ~r/unsupported render target/, fn ->
+      RenderScript.parse_target("svg")
+    end
+  end
+
+  test "default_name extracts clean name from path" do
+    assert RenderScript.default_name("path/to/my_arch.choreo.exs") == "my_arch"
+    assert RenderScript.default_name("path/to/diagram.exs") == "diagram"
+    assert RenderScript.default_name("diagram.ex") == "diagram"
+  end
+
+  test "output_path resolves correctly and enforces directory for multiple artifacts" do
+    artifact = %{name: "arch", model: %{}, opts: []}
+
+    # Directory
+    assert RenderScript.output_path(artifact, :mermaid, "/tmp/out/", single?: true) ==
+             "/tmp/out/arch.mmd"
+
+    assert RenderScript.output_path(artifact, :dot, "/tmp/out/", single?: false) ==
+             "/tmp/out/arch.dot"
+
+    # Single file
+    assert RenderScript.output_path(artifact, :mermaid, "/tmp/out/custom.mmd", single?: true) ==
+             "/tmp/out/custom.mmd"
+
+    # Multiple artifacts to a non-directory path raises
+    assert_raise ArgumentError, ~r/multiple artifacts require --out to be a directory/, fn ->
+      RenderScript.output_path(artifact, :mermaid, "/tmp/single_file.mmd", single?: false)
+    end
+  end
+
+  test "filters artifacts by only raises on unknown name" do
+    model = Choreo.new() |> Choreo.add_service(:api)
+
+    assert_raise ArgumentError, ~r/artifact "missing" was not found/, fn ->
+      RenderScript.normalize(%{present: model}, default_name: "ignored", only: "missing")
+    end
+  end
+
+  test "eval_file evaluates an Elixir script file" do
+    tmp_path = Path.expand("../../tmp/render_script_test.exs", __DIR__)
+    File.mkdir_p!(Path.dirname(tmp_path))
+    File.write!(tmp_path, "Choreo.new() |> Choreo.add_service(:worker)")
+
+    on_exit(fn -> File.rm(tmp_path) end)
+
+    evaluated = RenderScript.eval_file(tmp_path)
+    assert %Choreo{} = evaluated
   end
 end

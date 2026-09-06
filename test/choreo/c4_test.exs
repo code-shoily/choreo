@@ -289,6 +289,26 @@ defmodule Choreo.C4Test do
       assert :banking in Analysis.parents_without_relationships(c4)
       assert :api in Analysis.isolated_nodes(c4)
     end
+
+    test "validates multiple in-scope systems, unknown parents, and parent type mismatches" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:user)
+        |> C4.add_software_system(:sys1, scope: :in)
+        |> C4.add_software_system(:sys2, scope: :in)
+        |> C4.add_container(:c1, parent: :user)
+        |> C4.add_component(:comp1, parent: :sys1)
+        |> C4.add_container(:c_unknown, parent: :ghost_system)
+        |> C4.add_relationship(:user, :sys1, label: "")
+
+      issues = Analysis.validate(c4)
+      messages = Enum.map(issues, fn {_sev, msg} -> msg end)
+
+      assert Enum.any?(messages, &String.contains?(&1, "Multiple in-scope systems"))
+      assert Enum.any?(messages, &String.contains?(&1, "Nodes with unknown parents"))
+      assert Enum.any?(messages, &String.contains?(&1, "Parent type mismatches"))
+      assert Enum.any?(messages, &String.contains?(&1, "Relationships missing labels"))
+    end
   end
 
   describe "zoom_predicate via Choreo.View" do
@@ -441,6 +461,38 @@ defmodule Choreo.C4Test do
       assert Map.has_key?(zoomed.clusters, "cluster_banking")
       assert zoomed.clusters["cluster_api"].label == "api"
       assert zoomed.clusters["cluster_api"].parent == "cluster_banking"
+    end
+
+    test "zoom level 0 shows only people and software systems" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:user)
+        |> C4.add_software_system(:app)
+        |> C4.add_container(:api, parent: :app)
+        |> C4.add_component(:comp, parent: :api)
+
+      zoomed = Choreo.View.zoom(c4, level: 0)
+      assert Enum.sort(C4.nodes(zoomed)) == [:app, :user]
+    end
+
+    test "unscoped level 1 and level 2 zoom" do
+      c4 =
+        C4.new()
+        |> C4.add_person(:user)
+        |> C4.add_software_system(:app)
+        |> C4.add_container(:api, parent: :app)
+        |> C4.add_component(:comp, parent: :api)
+
+      zoomed1 = Choreo.View.zoom(c4, level: 1)
+      assert Enum.sort(C4.nodes(zoomed1)) == [:api, :app, :user]
+
+      zoomed2 = Choreo.View.zoom(c4, level: 2)
+      assert Enum.sort(C4.nodes(zoomed2)) == [:api, :app, :comp, :user]
+
+      zoomed3 = Choreo.View.zoom(c4, level: 3)
+      assert Enum.sort(C4.nodes(zoomed3)) == [:api, :app, :comp, :user]
+
+      assert Choreo.Viewable.virtual_edge_meta(c4) == %{edge_type: :virtual, label: nil}
     end
   end
 end

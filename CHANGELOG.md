@@ -2,7 +2,18 @@
 
 ## [Unreleased]
 
-## [0.13.0] - 2026-09-06
+### Added
+
+- **Comprehensive Test Coverage**:
+  - Added comprehensive test suites for `Choreo.Domain`, `Choreo.MCP`, `Choreo.Analysis.Tracing`, `Choreo.Theme`, `Choreo.Lab.Compose`, `Choreo.Lab.View`, and all 15 Lab DSL modules (`Choreo.Lab.DSL.*`).
+  - Added extensive rendering and theme tests for DOT and Mermaid renderers across C4, Dataflow, DecisionTree, Dependency, MindMap, Planner, Requirement, Sequence, and ThreatModel.
+  - Overall test suite expanded to 1,753 passing tests (444 doctests, 1,309 tests), lifting global coverage to 88.6%+.
+
+### Fixed
+
+- Fixed sequence diagram flow label resolution in `Choreo.ThreatModel.Render.Mermaid.to_sequence/2` when flow labels are empty strings.
+- Fixed non-constructor node expression handling in `Choreo.Lab.DSL.Sequence`.
+
 
 ### Added
 

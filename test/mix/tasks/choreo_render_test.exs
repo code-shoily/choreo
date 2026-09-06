@@ -120,4 +120,32 @@ defmodule Mix.Tasks.Choreo.RenderTest do
     assert File.read!(out) =~ "db"
     refute File.read!(out) =~ "api"
   end
+
+  test "raises Mix.Error on missing arguments or invalid options" do
+    assert_raise Mix.Error, ~r/requires a FILE argument/, fn ->
+      Render.run([])
+    end
+
+    assert_raise Mix.Error, ~r/accepts exactly one FILE argument/, fn ->
+      Render.run(["file1.exs", "file2.exs"])
+    end
+
+    assert_raise Mix.Error, ~r/invalid option/, fn ->
+      Render.run(["file1.exs", "--bogus-flag"])
+    end
+  end
+
+  test "raises Mix.Error when multiple artifacts rendered to stdout without --out", %{
+    tmp_dir: tmp_dir
+  } do
+    script = Path.join(tmp_dir, "multi_stdout.choreo.exs")
+
+    File.write!(script, """
+    [a: Choreo.new(), b: Choreo.new()]
+    """)
+
+    assert_raise Mix.Error, ~r/multiple artifacts require --out/, fn ->
+      Render.run([script])
+    end
+  end
 end

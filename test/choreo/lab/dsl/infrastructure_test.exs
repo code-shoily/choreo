@@ -279,4 +279,97 @@ defmodule Choreo.Lab.InfrastructureDSLTest do
       on("test")
     end
   end
+
+  test "supports edge keyword statement forms" do
+    system =
+      infrastructure do
+        api = service("API")
+        db = database("DB")
+        cache = cache("Cache")
+        queue = queue("Queue")
+
+        edge(api ~> db, "reads", protocol: :tcp)
+        edge api ~> cache, "gets"
+        edge api ~> queue, protocol: :amqp
+        edge db ~> queue
+      end
+
+    metas = Map.values(system.edge_meta)
+    assert Enum.any?(metas, &(&1.label == "reads" and Map.get(&1, :protocol) == :tcp))
+    assert Enum.any?(metas, &(&1.label == "gets"))
+    assert Enum.any?(metas, &(Map.get(&1, :protocol) == :amqp))
+  end
+
+  test "raises on unsupported statement" do
+    assert_raise ArgumentError, ~r/unsupported statement in infrastructure DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Infrastructure
+
+          infrastructure do
+            unknown_func()
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported assignment constructor" do
+    assert_raise ArgumentError, ~r/expected infrastructure constructor/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Infrastructure
+
+          infrastructure do
+            x = 1 + 2
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid edge AST" do
+    assert_raise ArgumentError, ~r/expected `from ~> to` in infrastructure DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Infrastructure
+
+          infrastructure do
+            edge :invalid_arrow
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unknown node variable in edge" do
+    assert_raise ArgumentError, ~r/unknown infrastructure node variable `unknown`/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Infrastructure
+
+          infrastructure do
+            api = service("API")
+            api ~> unknown
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported edge modifier" do
+    assert_raise ArgumentError, ~r/unsupported infrastructure edge modifier/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Infrastructure
+
+          infrastructure do
+            api = service("API")
+            db = database("DB")
+            api ~> db |> invalid_modifier()
+          end
+        end
+      )
+    end
+  end
 end

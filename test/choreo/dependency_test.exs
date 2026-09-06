@@ -416,5 +416,104 @@ defmodule Choreo.DependencyTest do
       dot = Dependency.to_dot(filtered)
       assert String.contains?(dot, "#cbd5e1")
     end
+
+    test "Mermaid renderer supports themes, class_diagram syntax, cycles, and highlights" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api, penwidth: 2, fillcolor: "#123456")
+        |> Dependency.add_library(:lib)
+        |> Dependency.add_module(:mod)
+        |> Dependency.add_interface(:iface)
+        |> Dependency.add_test(:spec)
+        |> Dependency.add_cluster("core", label: "Core Cluster")
+        |> Dependency.add_module(:core_mod, cluster: "core")
+        |> Dependency.depends_on(:api, :lib, type: :uses)
+        |> Dependency.depends_on(:lib, :mod, type: :imports)
+        |> Dependency.depends_on(:mod, :iface, type: :calls)
+        |> Dependency.depends_on(:iface, :mod, type: :inherits)
+        |> Dependency.depends_on(:spec, :api, type: :dev)
+
+      # Themes
+      for theme <- [:dark, :warm, :forest, :ocean, :minimal] do
+        mermaid = Dependency.to_mermaid(deps, theme: theme)
+        assert mermaid =~ "graph TD"
+      end
+
+      # Highlighting
+      hl =
+        Dependency.to_mermaid(deps, highlighted_nodes: [:api], highlighted_edges: [{:api, :lib}])
+
+      assert hl =~ "graph TD"
+
+      # Native classDiagram syntax
+      classes = Dependency.to_mermaid(deps, syntax: :class_diagram)
+      assert classes =~ "classDiagram"
+      assert classes =~ "<<application>>"
+      assert classes =~ "<<library>>"
+      assert classes =~ "<<module>>"
+      assert classes =~ "<<interface>>"
+      assert classes =~ "<<test>>"
+      assert classes =~ "--|>"
+      assert classes =~ "..>"
+      assert classes =~ "-->"
+    end
+
+    test "DOT renderer supports themes, custom attributes, cycle edges, and highlights" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api,
+          shape: :box3d,
+          fillcolor: "#ff0000",
+          fontcolor: "#ffffff",
+          style: "bold",
+          penwidth: 2.5,
+          image: "api.png",
+          description: "Core API Service"
+        )
+        |> Dependency.add_library(:lib)
+        |> Dependency.add_module(:mod)
+        |> Dependency.add_interface(:iface)
+        |> Dependency.add_test(:spec)
+        |> Dependency.add_cluster("core", label: "Core Cluster")
+        |> Dependency.add_module(:core_mod, cluster: "core")
+        |> Dependency.depends_on(:api, :lib, type: :uses, label: "uses_lib")
+        |> Dependency.depends_on(:lib, :mod, type: :imports)
+        |> Dependency.depends_on(:mod, :iface, type: :calls)
+        |> Dependency.depends_on(:iface, :mod, type: :inherits)
+        |> Dependency.depends_on(:spec, :api, type: :dev)
+        # Add cycle :api -> :lib -> :api
+        |> Dependency.depends_on(:lib, :api, type: :uses)
+
+      # Themes
+      for theme <- [:dark, :warm, :forest, :ocean, :minimal] do
+        dot = Dependency.to_dot(deps, theme: theme)
+        assert dot =~ "digraph"
+        assert dot =~ "api"
+      end
+
+      # Custom struct theme with graph overrides
+      theme_struct =
+        Choreo.Dependency.Render.DOT.theme(:ocean,
+          node_fontsize: 14,
+          graph_rankdir: :lr,
+          graph_bgcolor: "#fafafa"
+        )
+
+      dot_struct = Dependency.to_dot(deps, theme: theme_struct)
+      assert dot_struct =~ "rankdir=LR"
+      assert dot_struct =~ "bgcolor=\"#fafafa\""
+
+      # Highlighting
+      hl =
+        Dependency.to_dot(deps,
+          highlighted_nodes: [:api],
+          highlighted_edges: [{:api, :lib}]
+        )
+
+      assert hl =~ "digraph"
+      # Cycle edge is highlighted in red (#ef4444)
+      assert hl =~ "#ef4444"
+      assert hl =~ "tooltip=\"Core API Service\""
+    end
   end
 end

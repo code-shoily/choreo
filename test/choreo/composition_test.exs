@@ -183,4 +183,58 @@ defmodule Choreo.CompositionTest do
     mermaid_with_traces = Choreo.to_mermaid(system, show_traces: true)
     assert String.contains?(mermaid_with_traces, "executes")
   end
+
+  test "Tracing handles disconnected paths, unknown nodes, bottlenecks, and domain types" do
+    # 1. Unknown node impact_analysis
+    system = Choreo.new() |> Choreo.add_service(:svc)
+    assert Tracing.impact_analysis(system, :unknown_node) == []
+
+    # 2. Disconnected path
+    system =
+      system
+      |> Choreo.add_service(:other)
+
+    assert Tracing.trace_path(system, :svc, :other) == :error
+    assert Tracing.analyze(system, :svc, :other) == :error
+
+    # 3. Path threading across workflow bottleneck, threat model risk, ERD sensitive col,
+    #    dataflow node, dependency node, and generic node.
+    system =
+      Choreo.new()
+      |> Choreo.add_service(:wf_task, label: "Slow Task")
+      |> Choreo.add_service(:tm_proc, label: "Secure Proc")
+      |> Choreo.add_service(:erd_tab, label: "Accounts")
+      |> Choreo.add_service(:df_node, label: "Stream")
+      |> Choreo.add_service(:dep_node, label: "Lib")
+      |> Choreo.add_service(:gen_node, label: "Generic Box")
+      |> Choreo.trace(:wf_task, :tm_proc, type: :calls)
+      |> Choreo.trace(:tm_proc, :erd_tab, type: :stores)
+      |> Choreo.trace(:erd_tab, :df_node, type: :streams)
+      |> Choreo.trace(:df_node, :dep_node, type: :uses)
+      |> Choreo.trace(:dep_node, :gen_node, type: :links)
+
+    system =
+      system
+      |> put_in([Access.key(:graph), Access.key(:nodes), :wf_task, :node_type], :task)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :wf_task, :timeout_ms], 6000)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :tm_proc, :element_type], :process)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :tm_proc, :sensitivity], :confidential)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :erd_tab, :type], :table)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :erd_tab, :columns], [
+        %{name: :ssn, sensitivity: :restricted}
+      ])
+      |> put_in([Access.key(:graph), Access.key(:nodes), :df_node, :type], :dataflow_node)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :df_node, :node_type], :transform)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :dep_node, :type], :dependency_node)
+      |> put_in([Access.key(:graph), Access.key(:nodes), :dep_node, :node_type], :library)
+
+    {:ok, analysis} = Tracing.analyze(system, :wf_task, :gen_node)
+
+    assert analysis.has_bottleneck? == true
+    assert analysis.has_high_risk? == true
+    assert length(analysis.findings) == 6
+
+    domains = Enum.map(analysis.findings, & &1.domain)
+    assert domains == [:workflow, :threat_model, :erd, :dataflow, :dependency, :generic]
+  end
 end

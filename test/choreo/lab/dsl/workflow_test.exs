@@ -291,4 +291,45 @@ defmodule Choreo.Lab.WorkflowDSLTest do
       )
     end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    flow =
+      workflow do
+        s = start("Start")
+        t1 = task("Task 1")
+        t2 = task("Task 2")
+        t3 = task("Task 3")
+        f = finish("Finish")
+
+        edge s ~> t1
+        edge t1 ~> t2, "next"
+        edge t2 ~> t3, edge_type: :failure
+        edge(t2 ~> f, "done", edge_type: :sequence)
+
+        failure(t1 ~> f)
+        failure(t1 ~> f, "aborted")
+        retry t2 ~> t1
+        compensation t3 ~> t1
+      end
+
+    assert %Choreo.Workflow{} = flow
+
+    assert_raise ArgumentError, ~r/expected workflow constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Workflow
+      workflow do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in workflow DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Workflow
+      workflow do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

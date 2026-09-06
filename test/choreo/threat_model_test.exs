@@ -426,5 +426,72 @@ defmodule Choreo.ThreatModelTest do
       puml = Choreo.ThreatModel.Render.PlantUML.to_sequence(model)
       assert String.contains?(puml, "\"my user\" -> \"my-api!\" : HTTPS")
     end
+
+    test "Mermaid renderer supports themes, directions, boundary styling, and sequence generation" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("dmz")
+        |> ThreatModel.add_trust_boundary("internal")
+        |> ThreatModel.add_external_entity(:user,
+          boundary: "dmz",
+          fillcolor: "#ffaaaa",
+          penwidth: 2
+        )
+        |> ThreatModel.add_process(:api, boundary: "internal")
+        |> ThreatModel.add_data_store(:db, boundary: "internal")
+        |> ThreatModel.add_process("123-cache", boundary: "internal")
+        # Unencrypted cross-boundary
+        |> ThreatModel.data_flow(:user, :api, encrypted: false, label: "raw HTTP")
+        # Encrypted cross-boundary
+        |> ThreatModel.data_flow(:api, :user, encrypted: true, protocol: :https)
+        # Internal flow
+        |> ThreatModel.data_flow(:api, :db, encrypted: true)
+        # Flow with digit-prefixed node
+        |> ThreatModel.data_flow(:api, "123-cache")
+
+      model =
+        model
+        |> put_in([Access.key(:graph), Access.key(:nodes), :user, :privilege], "guest")
+        |> put_in([Access.key(:graph), Access.key(:nodes), :user, :sensitivity], "public")
+
+      # Themes
+      for theme <- [:dark, :warm, :forest, :ocean, :minimal] do
+        mermaid = ThreatModel.to_mermaid(model, theme: theme)
+        assert mermaid =~ "graph LR"
+      end
+
+      # Directions & custom struct theme
+      theme_struct =
+        Choreo.ThreatModel.Render.Mermaid.theme(:ocean,
+          node_fontsize: 14,
+          edge_color: "#123456"
+        )
+
+      td_out = ThreatModel.to_mermaid(model, theme: theme_struct, direction: :td)
+      assert td_out =~ "graph TD"
+
+      # Highlighting
+      hl =
+        ThreatModel.to_mermaid(model,
+          highlighted_nodes: [:user],
+          highlighted_edges: [{:user, :api}]
+        )
+
+      assert hl =~ "graph LR"
+      assert hl =~ "guest"
+      assert hl =~ "public"
+
+      # Sequence diagram generation
+      seq = ThreatModel.to_sequence(model)
+      assert seq =~ "sequenceDiagram"
+      assert seq =~ "actor user as user"
+      assert seq =~ "participant s_123_cache as 123-cache"
+      # Cross-boundary unencrypted uses -->
+      assert seq =~ "user-->api: raw HTTP"
+      # Cross-boundary encrypted uses ->>
+      assert seq =~ "api->>user: https"
+      # Internal flow without label or proto uses fallback "flow"
+      assert seq =~ "api->>db: flow"
+    end
   end
 end

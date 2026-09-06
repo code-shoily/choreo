@@ -436,5 +436,98 @@ defmodule Choreo.DataflowTest do
       assert String.contains?(mermaid, "my source")
       assert String.contains?(mermaid, "another-sink!")
     end
+
+    test "to_mermaid/2 handles all themes, node types, path types, and clusters" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_cluster("ingest", label: "Ingestion Cluster")
+        |> Dataflow.add_source(:src, label: "Event Stream", rate: 500, cluster: "ingest")
+        |> Dataflow.add_buffer(:q, label: "Kafka Queue", capacity: 10_000, cluster: "ingest")
+        |> Dataflow.add_conditional(:filter,
+          label: "Filter Valid?",
+          fillcolor: "#abcdef",
+          penwidth: 2
+        )
+        |> Dataflow.add_merge(:merge_point, label: "Stream Join")
+        |> Dataflow.add_sink(:dead_sink, label: "DLQ Sink")
+        |> Dataflow.connect(:src, :q, path_type: :normal, rate: 500)
+        |> Dataflow.connect(:q, :filter, path_type: :retry, label: "poll")
+        |> Dataflow.connect(:filter, :merge_point, path_type: :normal, label: "ok", rate: 450)
+        |> Dataflow.connect(:filter, :dead_sink, path_type: :error, label: "err")
+        |> Dataflow.connect(:merge_point, :dead_sink, path_type: :dead_letter, label: "failed")
+
+      for theme <- [:default, :dark, :warm, :forest, :ocean, :minimal] do
+        mermaid =
+          Dataflow.to_mermaid(flow,
+            theme: theme,
+            direction: :lr,
+            highlighted_nodes: [:src, :q],
+            highlighted_edges: [{:src, :q}]
+          )
+
+        assert String.contains?(mermaid, "subgraph")
+        assert String.contains?(mermaid, "Ingestion Cluster")
+        assert String.contains?(mermaid, "Kafka Queue")
+        assert String.contains?(mermaid, "(cap: 10000)")
+        assert String.contains?(mermaid, "500 evt/s")
+        assert String.contains?(mermaid, "stroke-dasharray")
+      end
+
+      # Custom Theme struct and theme/2
+      custom_theme = Choreo.Dataflow.Render.Mermaid.theme(:forest, edge_color: "#123456")
+      mermaid = Dataflow.to_mermaid(flow, theme: custom_theme)
+      assert String.contains?(mermaid, "#123456")
+    end
+
+    test "to_dot/2 handles all themes, node attributes, edge types, and highlighting" do
+      flow =
+        Dataflow.new()
+        |> Dataflow.add_cluster("proc", label: "Processing Cluster")
+        |> Dataflow.add_source(:src,
+          shape: :invhouse,
+          fillcolor: "#ff0000",
+          fontcolor: "#ffffff",
+          style: "bold",
+          penwidth: 2.0,
+          image: "source.png",
+          description: "Incoming Event Source",
+          cluster: "proc"
+        )
+        |> Dataflow.add_buffer(:buf, capacity: 500, cluster: "proc")
+        |> Dataflow.add_transform(:xform, label: "Mapper")
+        |> Dataflow.add_conditional(:cond, label: "Check")
+        |> Dataflow.add_merge(:join, label: "Joiner")
+        |> Dataflow.add_sink(:sink, label: "Final Sink")
+        |> Dataflow.connect(:src, :buf, path_type: :normal, label: "feed", rate: 200)
+        |> Dataflow.connect(:buf, :xform, path_type: :retry, label: "retry_feed")
+        |> Dataflow.connect(:xform, :cond, path_type: :error, label: "on_err")
+        |> Dataflow.connect(:cond, :join, path_type: :dead_letter, label: "dlq")
+        |> Dataflow.connect(:join, :sink)
+
+      for theme <- [:default, :dark, :warm, :forest, :ocean, :minimal] do
+        dot =
+          Dataflow.to_dot(flow,
+            theme: theme,
+            highlighted_nodes: [:src],
+            highlighted_edges: [{:src, :buf}]
+          )
+
+        assert dot =~ "digraph"
+        assert dot =~ "Processing Cluster"
+        assert dot =~ "tooltip=\"Incoming Event Source\""
+      end
+
+      # Custom Theme struct with graph overrides
+      theme_struct =
+        Choreo.Dataflow.Render.DOT.theme(:ocean,
+          node_fontsize: 14,
+          graph_rankdir: :lr,
+          graph_bgcolor: "#fdfdfd"
+        )
+
+      dot_struct = Dataflow.to_dot(flow, theme: theme_struct)
+      assert dot_struct =~ "rankdir=LR"
+      assert dot_struct =~ "bgcolor=\"#fdfdfd\""
+    end
   end
 end

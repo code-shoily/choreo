@@ -160,4 +160,104 @@ defmodule Choreo.Lab.FSMDSLTest do
       )
     end
   end
+
+  test "supports guard with options" do
+    machine =
+      fsm do
+        idle = initial("Idle")
+        running = state("Running")
+
+        idle ~> running |> guard("valid?", label: "check")
+      end
+
+    assert [{:idle, :running, "check [valid?]"}] = Choreo.FSM.transitions(machine)
+  end
+
+  test "raises on unsupported FSM statement" do
+    assert_raise ArgumentError, ~r/unsupported statement in FSM DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.FSM
+
+          fsm do
+            123 + 456
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported transition endpoint" do
+    assert_raise ArgumentError, ~r/unsupported FSM transition endpoint 123/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.FSM
+
+          fsm do
+            edge 123 ~> 456, "go"
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid transition AST" do
+    assert_raise ArgumentError, ~r/expected `from ~> to` in FSM DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.FSM
+
+          fsm do
+            edge :not_an_arrow, "go"
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported modifier" do
+    assert_raise ArgumentError, ~r/unsupported FSM transition modifier/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.FSM
+
+          fsm do
+            idle = initial("Idle")
+            done = final("Done")
+            idle ~> done |> bad_modifier()
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on invalid state constructor positional count" do
+    assert_raise ArgumentError,
+                 ~r/state constructors take at most one positional label\/id/,
+                 fn ->
+                   Code.eval_quoted(
+                     quote do
+                       import Choreo.Lab.DSL.FSM
+
+                       fsm do
+                         state("A", "B")
+                       end
+                     end
+                   )
+                 end
+  end
+
+  test "raises on inline state constructor without label or id" do
+    assert_raise ArgumentError, ~r/inline FSM state constructors need a label\/id/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.FSM
+
+          fsm do
+            state()
+          end
+        end
+      )
+    end
+  end
 end

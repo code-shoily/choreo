@@ -297,6 +297,43 @@ defmodule Choreo.MindMapTest do
       refute mindmap =~ "\nMap"
       refute ishikawa =~ "\t"
     end
+
+    test "flowchart Mermaid renderer supports themes, note types, and highlighting" do
+      map =
+        MindMap.new()
+        |> MindMap.set_root(:root, label: "Core Concept", fillcolor: "#ff0000", penwidth: 3)
+        |> MindMap.add_topic(:topic, label: "Main Branch")
+        |> MindMap.add_subtopic(:sub, label: "Leaf Detail")
+        |> MindMap.add_note(:note_node, label: "Important Note")
+        |> MindMap.branch(:root, :topic)
+        |> MindMap.branch(:topic, :sub)
+        |> MindMap.branch(:topic, :note_node)
+        |> MindMap.associate(:sub, :note_node, label: "relates")
+
+      for theme <- [:default, :dark, :warm, :forest, :ocean, :minimal] do
+        mermaid =
+          MindMap.to_mermaid(map,
+            theme: theme,
+            direction: :lr,
+            highlighted_nodes: [:root],
+            highlighted_edges: [{:root, :topic}]
+          )
+
+        assert mermaid =~ "graph LR"
+        assert mermaid =~ "Core Concept"
+        assert mermaid =~ "Important Note"
+        assert mermaid =~ "relates"
+      end
+
+      # Custom struct theme and helper
+      theme_struct =
+        Choreo.MindMap.Render.Mermaid.theme(:ocean,
+          node_fontcolor: "#ffffff"
+        )
+
+      out = MindMap.to_mermaid(map, theme: theme_struct)
+      assert out =~ "graph TD"
+    end
   end
 
   describe "to_dot/2" do

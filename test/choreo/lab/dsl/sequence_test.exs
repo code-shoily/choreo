@@ -220,4 +220,39 @@ defmodule Choreo.Lab.SequenceDSLTest do
     assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.type() end
     assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.on() end
   end
+
+  test "supports edge keywords, typed edges, and raises on unsupported statements" do
+    diagram =
+      sequence do
+        u = actor("User")
+        api = participant("API")
+
+        edge u ~> api
+        edge u ~> api, "sync message"
+        call u ~> api
+        call u ~> api, "fetch"
+        call u ~> api, type: :sync
+        call u ~> api, "fetch", type: :sync
+      end
+
+    assert %Choreo.Sequence{} = diagram
+
+    assert_raise ArgumentError, ~r/expected sequence constructor/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Sequence
+      sequence do
+        x = 999
+      end
+      """)
+    end
+
+    assert_raise ArgumentError, ~r/unsupported statement in sequence DSL/, fn ->
+      Code.eval_string("""
+      import Choreo.Lab.DSL.Sequence
+      sequence do
+        bad_statement("test")
+      end
+      """)
+    end
+  end
 end

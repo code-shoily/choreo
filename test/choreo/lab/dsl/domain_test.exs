@@ -277,4 +277,88 @@ defmodule Choreo.Lab.DomainDSLTest do
     assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.on() end
     assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.aggregate() end
   end
+
+  test "supports typed edge macro forms with label and options" do
+    model =
+      domain do
+        cust = actor("Customer")
+        cmd = command("Order")
+        agg = aggregate("Order Agg")
+
+        initiates cust ~> cmd, "starts", cost: 3
+        handles cmd ~> agg, cost: 2
+      end
+
+    assert [{:cust, :cmd, 3}, {:cmd, :agg, 2}] = Domain.edges(model)
+  end
+
+  test "supports piped modifiers with label and options" do
+    model =
+      domain do
+        cust = actor("Customer")
+        cmd = command("Order")
+
+        cust ~> cmd |> initiates("starts", cost: 5)
+      end
+
+    assert [{:cust, :cmd, 5}] = Domain.edges(model)
+  end
+
+  test "raises on unsupported modifier" do
+    assert_raise ArgumentError, ~r/unsupported domain edge modifier/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Domain
+
+          domain do
+            cust = actor("Customer")
+            cmd = command("Order")
+            cust ~> cmd |> invalid_modifier()
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported assignment constructor" do
+    assert_raise ArgumentError, ~r/expected domain constructor/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Domain
+
+          domain do
+            cust = 1 + 2
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported typed edge args" do
+    assert_raise ArgumentError, ~r/unsupported domain edge form `initiates\/3`/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Domain
+
+          domain do
+            initiates 1, 2, 3
+          end
+        end
+      )
+    end
+  end
+
+  test "raises on unsupported statement" do
+    assert_raise ArgumentError, ~r/unsupported statement in domain DSL/, fn ->
+      Code.eval_quoted(
+        quote do
+          import Choreo.Lab.DSL.Domain
+
+          domain do
+            unknown_statement()
+          end
+        end
+      )
+    end
+  end
 end

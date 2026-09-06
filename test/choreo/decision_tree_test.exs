@@ -288,5 +288,35 @@ defmodule Choreo.DecisionTreeTest do
       mermaid = Choreo.Mermaid.to_mermaid(tree, [])
       assert String.contains?(mermaid, "graph TD")
     end
+
+    test "renders with minimal theme, overrides, highlighted elements, and custom node styling" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:root, feature: "feature1", fillcolor: "#123456", penwidth: 3)
+        |> DecisionTree.add_decision(:dec, feature: "feature2")
+        |> DecisionTree.add_outcome(:leaf, label: "Result")
+        |> DecisionTree.branch(:root, :dec, "yes")
+        |> DecisionTree.branch(:dec, :leaf, "final")
+
+      tree = put_in(tree.graph.nodes[:dec][:probability], 0.75)
+      tree = put_in(tree.edge_meta[{:root, :dec}][:edge_type], :virtual)
+
+      mermaid =
+        DecisionTree.to_mermaid(tree,
+          theme: :minimal,
+          direction: :rl,
+          highlighted_nodes: [:root],
+          highlighted_edges: [{:root, :dec}]
+        )
+
+      assert String.contains?(mermaid, "graph RL")
+      assert String.contains?(mermaid, "Result")
+      assert String.contains?(mermaid, "0.75")
+
+      # Custom theme and fallback
+      custom = DecisionTree.Render.Mermaid.theme(:warm, edge_color: "#abcdef")
+      assert String.contains?(DecisionTree.to_mermaid(tree, theme: custom), "#abcdef")
+      assert String.contains?(DecisionTree.to_mermaid(tree, theme: :unknown_theme), "graph TD")
+    end
   end
 end
