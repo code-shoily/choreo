@@ -164,8 +164,19 @@ defmodule Choreo.Lab.DSL.Infrastructure do
       clusters: @cluster_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge],
-      modifiers: [:on, :label],
-      options: [:label, :with, :id, :kind, :cluster, :parent, :description]
+      modifiers: [:on, :label, :edge, :protocol, :cost, :type],
+      options: [
+        :label,
+        :with,
+        :id,
+        :kind,
+        :cluster,
+        :parent,
+        :description,
+        :protocol,
+        :cost,
+        :type
+      ]
     }
   end
 
@@ -197,7 +208,7 @@ defmodule Choreo.Lab.DSL.Infrastructure do
       block
       |> statements()
       |> Enum.reduce({[], empty_env()}, fn statement, {steps, env} ->
-        {statement_steps, env} = statement_steps(statement, env)
+        {statement_steps, env} = process_statement(statement, env)
         {Enum.reverse(statement_steps, steps), env}
       end)
 
@@ -208,6 +219,44 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     )
   end
 
+  defp process_statement(statement, env) do
+    case extract_do_block(statement) do
+      {block, stripped_statement} when not is_nil(block) ->
+        compile_nested_cluster(stripped_statement, block, env)
+
+      _ ->
+        statement_steps(statement, env)
+    end
+  end
+
+  defp compile_nested_cluster(statement, block, env) do
+    {cluster_steps, inner_env} = statement_steps(statement, env)
+    cluster_id = get_cluster_id(cluster_steps)
+
+    {block_steps, block_env} =
+      compile_block_statements(
+        block,
+        Map.put(inner_env, :cluster, cluster_id),
+        &process_statement/2
+      )
+
+    {cluster_steps ++ block_steps, restore_cluster_scope(env, block_env)}
+  end
+
+  defp get_cluster_id(steps) do
+    case List.last(steps) do
+      {:cluster, %{id: id}} -> id
+      _ -> nil
+    end
+  end
+
+  defp restore_cluster_scope(original_env, current_env) do
+    case Map.fetch(original_env, :cluster) do
+      {:ok, id} -> Map.put(current_env, :cluster, id)
+      :error -> Map.delete(current_env, :cluster)
+    end
+  end
+
   defp empty_env, do: %{nodes: %{}, clusters: %{}}
 
   # variable = constructor("Label", opts)
@@ -216,7 +265,9 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     cond do
       cluster_constructor?(constructor) ->
         cluster = cluster_from_constructor(constructor, var, env, meta)
-        {[{:cluster, cluster}], put_in(env.clusters[var], cluster.id)}
+        env = put_in(env.clusters[var], cluster.id)
+        env = put_in(env.clusters[String.to_atom(cluster.id)], cluster.id)
+        {[{:cluster, cluster}], env}
 
       node_constructor?(constructor) ->
         node = node_from_constructor(constructor, var, env, meta)
@@ -226,6 +277,14 @@ defmodule Choreo.Lab.DSL.Infrastructure do
         raise ArgumentError,
               "expected infrastructure constructor, got #{Macro.to_string(constructor)}#{line_suffix(meta)}"
     end
+  end
+
+  # edge api ~> db, "reads", protocol: :tcp
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   # edge api ~> db, "reads"
@@ -262,10 +321,12 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     cond do
       Map.has_key?(@cluster_builders, name) ->
         cluster = cluster_from_constructor(ast, nil, env, meta)
+        env = put_in(env.clusters[String.to_atom(cluster.id)], cluster.id)
         {[{:cluster, cluster}], env}
 
       Map.has_key?(@node_builders, name) ->
         node = node_from_constructor(ast, nil, env, meta)
+        env = put_in(env.nodes[node.id], node.id)
         {[{:node, node}], env}
 
       true ->
@@ -289,14 +350,42 @@ defmodule Choreo.Lab.DSL.Infrastructure do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in [:on, :label, :edge] and is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in [:on, :label, :edge] and is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label, :edge] and is_binary(value) do
     Keyword.put(acc, :label, value)
+  end
+
+  defp modifier_opt({:protocol, _meta, [proto]}, acc) do
+    Keyword.put(acc, :protocol, proto)
+  end
+
+  defp modifier_opt({:cost, _meta, [cost]}, acc) do
+    Keyword.put(acc, :cost, cost)
+  end
+
+  defp modifier_opt({:type, _meta, [type]}, acc) do
+    Keyword.put(acc, :type, type)
+  end
+
+  defp modifier_opt({:with, _meta, [label]}, acc) when is_binary(label) do
+    Keyword.put(acc, :label, label)
   end
 
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported infrastructure edge modifier: #{Macro.to_string(other)}; " <>
-            "use `on(value)` or `label(value)`"
+            "use `on(value)`, `label(value)`, `edge(opts)`, `protocol(proto)`, or `cost(value)`"
   end
 
   defp edge_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -453,8 +542,22 @@ defmodule Choreo.Lab.DSL.Infrastructure do
   end
 
   defp resolve_cluster_option(opts, key, env, meta) do
-    Keyword.update(opts, key, nil, &resolve_cluster_reference(&1, env, key, meta))
-    |> Keyword.reject(fn {_key, value} -> is_nil(value) end)
+    case Keyword.fetch(opts, key) do
+      {:ok, nil} ->
+        Keyword.delete(opts, key)
+
+      {:ok, val} ->
+        Keyword.put(opts, key, resolve_cluster_reference(val, env, key, meta))
+
+      :error ->
+        case Map.fetch(env, :cluster) do
+          {:ok, cluster_id} when not is_nil(cluster_id) ->
+            Keyword.put(opts, key, cluster_id)
+
+          _ ->
+            opts
+        end
+    end
   end
 
   defp resolve_cluster_reference({var, _meta, context}, env, key, meta)
@@ -467,6 +570,10 @@ defmodule Choreo.Lab.DSL.Infrastructure do
         raise ArgumentError,
               "unknown infrastructure cluster variable `#{var}` in `#{key}:`#{line_suffix(meta)}"
     end
+  end
+
+  defp resolve_cluster_reference(value, env, _key, _meta) when is_atom(value) do
+    Map.get(env.clusters, value, to_string(value))
   end
 
   defp resolve_cluster_reference(value, _env, _key, _meta), do: value
@@ -533,25 +640,31 @@ defmodule Choreo.Lab.DSL.Infrastructure do
         :client,
         :cluster,
         :compute,
+        :cost,
         :custom,
         :database,
         :db,
+        :edge,
         :external,
         :gateway,
         :internet,
+        :label,
         :lb,
         :load_balancer,
         :managed_db,
         :network,
         :node,
         :object_store,
+        :on,
         :private_subnet,
+        :protocol,
         :public_subnet,
         :queue,
         :service,
         :storage,
         :subnet_private,
         :subnet_public,
+        :type,
         :user,
         :vpc
       ] do

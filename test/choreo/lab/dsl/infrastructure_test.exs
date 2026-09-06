@@ -178,4 +178,105 @@ defmodule Choreo.Lab.InfrastructureDSLTest do
              severity == :error and String.contains?(msg, "connected directly to public internet")
            end)
   end
+
+  test "supports nested cluster blocks with automatic cluster and parent inheritance" do
+    system =
+      infrastructure do
+        internet = internet("Internet")
+
+        vpc "vpc_prod", label: "Production VPC" do
+          public_subnet "subnet_dmz", label: "Public Subnet (DMZ)" do
+            alb = load_balancer("Application LB")
+          end
+
+          private_subnet "subnet_app", label: "Private Subnet (App)" do
+            api = service("API Service")
+            worker = compute("Background Worker")
+            rds = managed_db("Postgres RDS")
+          end
+        end
+
+        s3 = storage("Object Store (S3)")
+
+        internet ~> alb |> on("HTTPS", protocol: :https)
+        alb ~> api |> on(protocol: :http)
+        edge(api ~> rds, "TCP", protocol: :tcp)
+        api ~> worker |> on("Jobs", protocol: :amqp)
+        api ~> s3 |> protocol(:https)
+        worker ~> rds |> on(protocol: :tcp)
+        worker ~> s3 |> protocol(:https)
+      end
+
+    assert system.clusters["cluster_vpc_prod"].cluster_type == :vpc
+    assert system.clusters["cluster_vpc_prod"].label == "Production VPC"
+    assert system.clusters["cluster_subnet_dmz"].cluster_type == :subnet_public
+    assert system.clusters["cluster_subnet_dmz"].parent == "cluster_vpc_prod"
+    assert system.clusters["cluster_subnet_app"].cluster_type == :subnet_private
+    assert system.clusters["cluster_subnet_app"].parent == "cluster_vpc_prod"
+
+    assert system.graph.nodes[:alb][:cluster] == "cluster_subnet_dmz"
+    assert system.graph.nodes[:api][:cluster] == "cluster_subnet_app"
+    assert system.graph.nodes[:worker][:cluster] == "cluster_subnet_app"
+    assert system.graph.nodes[:rds][:cluster] == "cluster_subnet_app"
+    assert system.graph.nodes[:s3][:cluster] == nil
+
+    warnings = Choreo.Infrastructure.Analysis.validate(system)
+    assert warnings == []
+
+    # Check Choreo.Infrastructure query and render functions on DSL output
+    assert :alb in Choreo.Infrastructure.nodes(system)
+    assert :api in Choreo.Infrastructure.nodes(system)
+    assert length(Choreo.Infrastructure.edges(system)) == 7
+
+    assert Choreo.Infrastructure.to_dot(system) =~ "digraph"
+    assert Choreo.Infrastructure.to_mermaid(system) =~ "subgraph"
+  end
+
+  test "supports standalone node declarations updating env" do
+    system =
+      infrastructure do
+        internet("Internet")
+        load_balancer("ALB", id: :my_alb)
+
+        internet ~> my_alb |> on("HTTPS")
+      end
+
+    assert :internet in Map.keys(system.graph.nodes)
+    assert :my_alb in Map.keys(system.graph.nodes)
+    assert Enum.count(Choreo.edges(system)) == 1
+  end
+
+  test "supports pipe modifiers with options, protocol, cost, and edge forms" do
+    system =
+      infrastructure do
+        api = service("API")
+        db = database("DB")
+        cache = cache("Cache")
+
+        api ~> db |> on("SQL", protocol: :tcp, cost: 2)
+        api ~> cache |> edge(protocol: :redis, cost: 1)
+      end
+
+    metas = Map.values(system.edge_meta)
+    sql_meta = Enum.find(metas, &(&1.label == "SQL"))
+    assert sql_meta.protocol == :tcp
+    assert sql_meta.cost == 2
+
+    cache_meta = Enum.find(metas, &(&1.protocol == :redis))
+    assert cache_meta.cost == 1
+  end
+
+  test "helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      vpc("test")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      edge("test")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      on("test")
+    end
+  end
 end

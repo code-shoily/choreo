@@ -288,16 +288,21 @@ defmodule Choreo.Infrastructure do
   @doc """
   Returns all node IDs.
   """
-  @spec nodes(t()) :: [Yog.node_id()]
-  def nodes(%__MODULE__{graph: graph}) do
-    Map.keys(graph.nodes)
-  end
+  @spec nodes(t() | Choreo.t()) :: [Yog.node_id()]
+  def nodes(%__MODULE__{graph: graph}), do: Map.keys(graph.nodes)
+  def nodes(%Choreo{graph: graph}), do: Map.keys(graph.nodes)
 
   @doc """
   Returns all edges.
   """
-  @spec edges(t()) :: [{Yog.node_id(), Yog.node_id(), any()}]
+  @spec edges(t() | Choreo.t()) :: [{Yog.node_id(), Yog.node_id(), any()}]
   def edges(%__MODULE__{graph: graph}) do
+    Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
+      {from, to, weight}
+    end)
+  end
+
+  def edges(%Choreo{graph: graph}) do
     Enum.map(graph.edges, fn {_edge_id, {from, to, weight}} ->
       {from, to, weight}
     end)
@@ -316,10 +321,10 @@ defmodule Choreo.Infrastructure do
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
   """
-  @spec to_dot(t(), keyword()) :: String.t()
-  def to_dot(%__MODULE__{} = infra, opts \\ []) do
-    Choreo.to_dot(to_choreo(infra), opts)
-  end
+  @spec to_dot(t() | Choreo.t(), keyword()) :: String.t()
+  def to_dot(%__MODULE__{} = infra, opts), do: Choreo.to_dot(to_choreo(infra), opts)
+  def to_dot(%Choreo{} = system, opts), do: Choreo.to_dot(system, opts)
+  def to_dot(infra_or_system), do: to_dot(infra_or_system, [])
 
   @doc """
   Renders the infrastructure topology to Mermaid.js syntax.
@@ -333,10 +338,10 @@ defmodule Choreo.Infrastructure do
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
   """
-  @spec to_mermaid(t(), keyword()) :: String.t()
-  def to_mermaid(%__MODULE__{} = infra, opts \\ []) do
-    Choreo.to_mermaid(to_choreo(infra), opts)
-  end
+  @spec to_mermaid(t() | Choreo.t(), keyword()) :: String.t()
+  def to_mermaid(%__MODULE__{} = infra, opts), do: Choreo.to_mermaid(to_choreo(infra), opts)
+  def to_mermaid(%Choreo{} = system, opts), do: Choreo.to_mermaid(system, opts)
+  def to_mermaid(infra_or_system), do: to_mermaid(infra_or_system, [])
 
   @doc """
   Returns a theme for `Choreo.Infrastructure`.

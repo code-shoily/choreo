@@ -48,7 +48,17 @@ stack. What it adds is:
 | `add_subnet_public/3`  | `:subnet_public`  | Rounded | Internet-facing zone (DMZ, load balancers)   |
 | `add_subnet_private/3` | `:subnet_private` | Rounded | Isolated zone (app servers, databases)       |
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two complementary approaches to modeling cloud infrastructure:
+
+1. **Programmatic Pipe API (`Choreo.Infrastructure`)**: The canonical, explicit interface (`Infrastructure.new() |> Infrastructure.add_vpc(...) |> Infrastructure.add_compute(...) |> Infrastructure.connect(...)`). Ideal for automated infrastructure discovery, configuration ingestion, and strict programmatic pipelines.
+2. **Lab DSL (`Choreo.Lab.DSL.Infrastructure`)**: An expressive sketch syntax using `infrastructure do ... end`, semantic node constructors (`compute`, `service`, `managed_db`, `load_balancer`), nested cluster blocks (`vpc "Name" do ... end`, `public_subnet "Name" do ... end`), direct connections (`~>`), and protocol modifiers (`|> on("HTTPS", protocol: :https)`). Ideal for Livebooks, design reviews, and rapid cloud topology sketching.
+
+The Legend in Step 1 demonstrates the canonical programmatic pipe API, while subsequent steps showcase the concise Lab DSL.
+
 ```elixir
+import Choreo.Lab.DSL.Infrastructure
 alias Choreo.Infrastructure
 alias Choreo.Infrastructure.Analysis
 ```
@@ -89,48 +99,37 @@ We model a production VPC with:
 
 ```elixir
 prod =
-  Infrastructure.new()
-  |> Infrastructure.add_internet(:internet, label: "Internet")
-  |> Infrastructure.add_vpc("vpc_prod", label: "Production VPC")
-  |> Infrastructure.add_subnet_public("subnet_dmz",
-    label: "Public Subnet (DMZ)",
-    parent: "vpc_prod"
-  )
-  |> Infrastructure.add_subnet_private("subnet_app",
-    label: "Private Subnet (App)",
-    parent: "vpc_prod"
-  )
-  |> Infrastructure.add_load_balancer(:alb,
-    label: "Application LB",
-    cluster: "subnet_dmz"
-  )
-  |> Infrastructure.add_compute(:api,
-    label: "API Service",
-    cluster: "subnet_app"
-  )
-  |> Infrastructure.add_compute(:worker,
-    label: "Background Worker",
-    cluster: "subnet_app"
-  )
-  |> Infrastructure.add_managed_db(:rds,
-    label: "Postgres RDS",
-    cluster: "subnet_app"
-  )
-  |> Infrastructure.add_storage(:s3, label: "Object Store (S3)")
-  |> Infrastructure.connect(:internet, :alb, protocol: :https, label: "HTTPS")
-  |> Infrastructure.connect(:alb, :api, protocol: :http)
-  |> Infrastructure.connect(:api, :rds, protocol: :tcp)
-  |> Infrastructure.connect(:api, :worker, protocol: :amqp, label: "Jobs")
-  |> Infrastructure.connect(:api, :s3, protocol: :https)
-  |> Infrastructure.connect(:worker, :rds, protocol: :tcp)
-  |> Infrastructure.connect(:worker, :s3, protocol: :https)
+  infrastructure do
+    internet = internet("Internet")
+
+    vpc "vpc_prod", label: "Production VPC" do
+      public_subnet "subnet_dmz", label: "Public Subnet (DMZ)" do
+        alb = load_balancer("Application LB")
+      end
+
+      private_subnet "subnet_app", label: "Private Subnet (App)" do
+        api = service("API Service")
+        worker = compute("Background Worker")
+        rds = managed_db("Postgres RDS")
+      end
+    end
+
+    s3 = storage("Object Store (S3)")
+
+    internet ~> alb |> on("HTTPS", protocol: :https)
+    alb ~> api |> on(protocol: :http)
+    api ~> rds |> on(protocol: :tcp)
+    api ~> worker |> on("Jobs", protocol: :amqp)
+    api ~> s3 |> on(protocol: :https)
+    worker ~> rds |> on(protocol: :tcp)
+    worker ~> s3 |> on(protocol: :https)
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(prod)),
   Graphviz: Kino.VizJS.render(Infrastructure.to_dot(prod), height: "800px"),
   Sketch: Choreo.Lab.Sketch.new(Infrastructure.to_mermaid(prod))
 )
-
 ```
 
 ---
@@ -158,20 +157,27 @@ Now let's build a **deliberately misconfigured** topology to see every rule fire
 
 ```elixir
 broken =
-  Infrastructure.new()
-  |> Infrastructure.add_internet(:internet, label: "Internet")
-  |> Infrastructure.add_vpc("vpc", label: "VPC")
-  |> Infrastructure.add_subnet_public("pub", label: "Public Subnet", parent: "vpc")
-  |> Infrastructure.add_subnet_private("priv", label: "Private Subnet", parent: "vpc")
-  # ❌ Load balancer placed in the private subnet (should be in public/DMZ)
-  |> Infrastructure.add_load_balancer(:lb, label: "LB", cluster: "priv")
-  # ❌ Database placed in the public subnet (should be private)
-  |> Infrastructure.add_managed_db(:db, label: "DB", cluster: "pub")
-  |> Infrastructure.add_compute(:app, label: "App", cluster: "priv")
-  # ❌ Direct internet → private subnet connection (bypasses DMZ)
-  |> Infrastructure.connect(:internet, :app, protocol: :https)
-  |> Infrastructure.connect(:lb, :app)
-  |> Infrastructure.connect(:app, :db)
+  infrastructure do
+    internet = internet("Internet")
+
+    vpc "vpc", label: "VPC" do
+      public_subnet "pub", label: "Public Subnet" do
+        # ❌ Database placed in the public subnet (should be private)
+        db = managed_db("DB")
+      end
+
+      private_subnet "priv", label: "Private Subnet" do
+        # ❌ Load balancer placed in the private subnet (should be in public/DMZ)
+        lb = load_balancer("LB")
+        app = compute("App")
+      end
+    end
+
+    # ❌ Direct internet → private subnet connection (bypasses DMZ)
+    internet ~> app |> on(protocol: :https)
+    lb ~> app
+    app ~> db
+  end
 
 Analysis.validate(broken)
 |> Enum.each(fn 
@@ -201,17 +207,24 @@ All six `Choreo.Theme` presets work out of the box with `Choreo.Infrastructure` 
 ```elixir
 # Build a compact topology for comparing themes
 demo =
-  Infrastructure.new()
-  |> Infrastructure.add_internet(:gw, label: "Internet")
-  |> Infrastructure.add_vpc("vpc", label: "VPC")
-  |> Infrastructure.add_subnet_public("pub", parent: "vpc")
-  |> Infrastructure.add_subnet_private("priv", parent: "vpc")
-  |> Infrastructure.add_load_balancer(:lb, label: "ALB", cluster: "pub")
-  |> Infrastructure.add_compute(:app, label: "API", cluster: "priv")
-  |> Infrastructure.add_managed_db(:db, label: "RDS", cluster: "priv")
-  |> Infrastructure.connect(:gw, :lb, protocol: :https)
-  |> Infrastructure.connect(:lb, :app, protocol: :http)
-  |> Infrastructure.connect(:app, :db, protocol: :tcp)
+  infrastructure do
+    gw = internet("Internet")
+
+    vpc "vpc", label: "VPC" do
+      public_subnet "pub" do
+        lb = load_balancer("ALB")
+      end
+
+      private_subnet "priv" do
+        app = compute("API")
+        db = managed_db("RDS")
+      end
+    end
+
+    gw ~> lb |> on(protocol: :https)
+    lb ~> app |> on(protocol: :http)
+    app ~> db |> on(protocol: :tcp)
+  end
 
 Kino.Layout.tabs(
   Default: Kino.Mermaid.new(Infrastructure.to_mermaid(demo)),
@@ -230,71 +243,50 @@ A more complex deployment: two availability zones with shared storage and a glob
 
 ```elixir
 multi_region =
-  Infrastructure.new()
-  |> Infrastructure.add_internet(:internet, label: "Internet")
-  # Global load balancer (outside VPC)
-  |> Infrastructure.add_load_balancer(:global_lb, label: "Global LB / CDN")
-  # VPC
-  |> Infrastructure.add_vpc("vpc", label: "AWS VPC (us-east-1)")
-  # AZ-1
-  |> Infrastructure.add_subnet_public("az1_pub",
-    label: "AZ-1 Public",
-    parent: "vpc"
-  )
-  |> Infrastructure.add_subnet_private("az1_priv",
-    label: "AZ-1 Private",
-    parent: "vpc"
-  )
-  |> Infrastructure.add_load_balancer(:alb1,
-    label: "ALB (AZ-1)",
-    cluster: "az1_pub"
-  )
-  |> Infrastructure.add_compute(:api1,
-    label: "API (AZ-1)",
-    cluster: "az1_priv"
-  )
-  |> Infrastructure.add_managed_db(:primary_db,
-    label: "Primary RDS",
-    cluster: "az1_priv"
-  )
-  # AZ-2
-  |> Infrastructure.add_subnet_public("az2_pub",
-    label: "AZ-2 Public",
-    parent: "vpc"
-  )
-  |> Infrastructure.add_subnet_private("az2_priv",
-    label: "AZ-2 Private",
-    parent: "vpc"
-  )
-  |> Infrastructure.add_load_balancer(:alb2,
-    label: "ALB (AZ-2)",
-    cluster: "az2_pub"
-  )
-  |> Infrastructure.add_compute(:api2,
-    label: "API (AZ-2)",
-    cluster: "az2_priv"
-  )
-  |> Infrastructure.add_managed_db(:replica_db,
-    label: "Read Replica RDS",
-    cluster: "az2_priv"
-  )
-  # Shared storage (outside any subnet — managed service)
-  |> Infrastructure.add_storage(:s3, label: "S3 (shared)")
-  # Connections
-  |> Infrastructure.connect(:internet, :global_lb, protocol: :https)
-  |> Infrastructure.connect(:global_lb, :alb1, protocol: :https)
-  |> Infrastructure.connect(:global_lb, :alb2, protocol: :https)
-  |> Infrastructure.connect(:alb1, :api1, protocol: :http)
-  |> Infrastructure.connect(:alb2, :api2, protocol: :http)
-  |> Infrastructure.connect(:api1, :primary_db, protocol: :tcp)
-  |> Infrastructure.connect(:api2, :replica_db, protocol: :tcp)
-  # Replication stream
-  |> Infrastructure.connect(:primary_db, :replica_db,
-    protocol: :tcp,
-    label: "Replication"
-  )
-  |> Infrastructure.connect(:api1, :s3, protocol: :https)
-  |> Infrastructure.connect(:api2, :s3, protocol: :https)
+  infrastructure do
+    internet = internet("Internet")
+    # Global load balancer (outside VPC)
+    global_lb = load_balancer("Global LB / CDN")
+
+    # VPC
+    vpc "vpc", label: "AWS VPC (us-east-1)" do
+      # AZ-1
+      public_subnet "az1_pub", label: "AZ-1 Public" do
+        alb1 = load_balancer("ALB (AZ-1)")
+      end
+
+      private_subnet "az1_priv", label: "AZ-1 Private" do
+        api1 = compute("API (AZ-1)")
+        primary_db = managed_db("Primary RDS")
+      end
+
+      # AZ-2
+      public_subnet "az2_pub", label: "AZ-2 Public" do
+        alb2 = load_balancer("ALB (AZ-2)")
+      end
+
+      private_subnet "az2_priv", label: "AZ-2 Private" do
+        api2 = compute("API (AZ-2)")
+        replica_db = managed_db("Read Replica RDS")
+      end
+    end
+
+    # Shared storage (outside any subnet — managed service)
+    s3 = storage("S3 (shared)")
+
+    # Connections
+    internet ~> global_lb |> on(protocol: :https)
+    global_lb ~> alb1 |> on(protocol: :https)
+    global_lb ~> alb2 |> on(protocol: :https)
+    alb1 ~> api1 |> on(protocol: :http)
+    alb2 ~> api2 |> on(protocol: :http)
+    api1 ~> primary_db |> on(protocol: :tcp)
+    api2 ~> replica_db |> on(protocol: :tcp)
+    # Replication stream
+    primary_db ~> replica_db |> on("Replication", protocol: :tcp)
+    api1 ~> s3 |> on(protocol: :https)
+    api2 ~> s3 |> on(protocol: :https)
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(multi_region)),
@@ -305,11 +297,10 @@ Kino.Layout.tabs(
 ```
 
 ```elixir
-# Confirm no security warnings on the multi-region design
+# Confirm no unexpected security errors on the multi-region design (only expected warning about global LB outside subnet)
 [{:warning, message}] = Analysis.validate(multi_region)
 
-IO.puts("⚠️  message")
-
+IO.puts("⚠️  #{message}")
 ```
 
 ---
@@ -323,16 +314,18 @@ IO.puts("⚠️  message")
 
 ```elixir
 proto_demo =
-  Infrastructure.new()
-  |> Infrastructure.add_internet(:inet, label: "Internet")
-  |> Infrastructure.add_load_balancer(:lb, label: "LB")
-  |> Infrastructure.add_compute(:api, label: "API")
-  |> Infrastructure.add_managed_db(:db, label: "DB")
-  |> Infrastructure.add_storage(:store, label: "Store")
-  |> Infrastructure.connect(:inet, :lb, protocol: :https, label: "TLS")
-  |> Infrastructure.connect(:lb, :api, protocol: :http, label: "Plaintext")
-  |> Infrastructure.connect(:api, :db, protocol: :tcp, label: "TCP/5432")
-  |> Infrastructure.connect(:api, :store, protocol: :https, label: "TLS")
+  infrastructure do
+    inet = internet("Internet")
+    lb = load_balancer("LB")
+    api = compute("API")
+    db = managed_db("DB")
+    store = storage("Store")
+
+    inet ~> lb |> on("TLS", protocol: :https)
+    lb ~> api |> on("Plaintext", protocol: :http)
+    api ~> db |> on("TCP/5432", protocol: :tcp)
+    api ~> store |> on("TLS", protocol: :https)
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Infrastructure.to_mermaid(proto_demo)),
@@ -353,19 +346,21 @@ alias Choreo.View
 
 # Build a full topology to slice through
 full =
-  Infrastructure.new()
-  |> Infrastructure.add_internet(:inet, label: "Internet")
-  |> Infrastructure.add_load_balancer(:lb, label: "Load Balancer")
-  |> Infrastructure.add_compute(:api, label: "API")
-  |> Infrastructure.add_compute(:worker, label: "Worker")
-  |> Infrastructure.add_managed_db(:db, label: "DB")
-  |> Infrastructure.add_storage(:store, label: "Store")
-  |> Infrastructure.connect(:inet, :lb, protocol: :https)
-  |> Infrastructure.connect(:lb, :api, protocol: :http)
-  |> Infrastructure.connect(:api, :worker)
-  |> Infrastructure.connect(:api, :db, protocol: :tcp)
-  |> Infrastructure.connect(:api, :store, protocol: :https)
-  |> Infrastructure.connect(:worker, :db, protocol: :tcp)
+  infrastructure do
+    inet = internet("Internet")
+    lb = load_balancer("Load Balancer")
+    api = compute("API")
+    worker = compute("Worker")
+    db = managed_db("DB")
+    store = storage("Store")
+
+    inet ~> lb |> on(protocol: :https)
+    lb ~> api |> on(protocol: :http)
+    api ~> worker
+    api ~> db |> on(protocol: :tcp)
+    api ~> store |> on(protocol: :https)
+    worker ~> db |> on(protocol: :tcp)
+  end
 ```
 
 Focus: show API and its immediate 1-hop neighbourhood
@@ -393,6 +388,47 @@ Kino.Layout.tabs(
   Sketch: Choreo.Lab.Sketch.new(compute_mermaid)
 )
 ```
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax (`Choreo.Lab.DSL.Infrastructure`)
+
+| Syntax | Description |
+| --- | --- |
+| `infrastructure do ... end` | Define an infrastructure diagram block |
+| `gw = internet("Label")` | Public internet entrypoint / gateway |
+| `lb = load_balancer("Label")` / `gateway("...")` / `lb("...")` | Load balancer proxy node |
+| `app = compute("Label")` / `service("...")` | Compute workload runner or application service |
+| `db = managed_db("Label")` / `database("...")` / `db("...")` | Managed database or stateful storage |
+| `store = storage("Label")` / `object_store("...")` | Object or blob storage node |
+| `q = queue("Label")` / `cache("Label")` | Message queue or cache node |
+| `vpc "Name", label: "..." do ... end` | VPC cluster block with automatic subnet/node nesting |
+| `public_subnet "Name" do ... end` / `subnet_public` | Public subnet (DMZ) cluster block |
+| `private_subnet "Name" do ... end` / `subnet_private` | Private subnet cluster block |
+| `cluster "Name" do ... end` | Generic boundary cluster block |
+| `a ~> b` | Unlabeled network connection |
+| `a ~> b \|> on("Label")` / `label("Label")` | Connection with label modifier |
+| `a ~> b \|> on("Label", protocol: :https)` | Connection with label and protocol options |
+| `a ~> b \|> protocol(:tcp)` / `cost(2)` | Connection with protocol or cost modifier |
+| `edge a ~> b, "Label", protocol: :https` | Explicit edge statement with label and options |
+| `edge a ~> b, protocol: :http` | Explicit edge statement with options |
+
+### Programmatic Pipe API & Analysis (`Choreo.Infrastructure`)
+
+| Task / Feature | Command |
+| --- | --- |
+| Create Topology | `Infrastructure.new/1` |
+| Add Boundaries | `Infrastructure.add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`, `add_cluster/3` |
+| Add Nodes | `Infrastructure.add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
+| Connect Nodes | `Infrastructure.connect/4` (Opts: `:protocol`, `:label`, `:cost`, `:type`) |
+| Query Nodes / Edges | `Infrastructure.nodes/1`, `Infrastructure.edges/1` |
+| Security Audit | `Infrastructure.Analysis.validate/1` (Flags internet-to-private, DB/LB misplaced subnets, unassigned compute) |
+| Render Mermaid | `Infrastructure.to_mermaid/2` (Opts: `:syntax`, `:theme`, `:direction`, `:highlighted_nodes`) |
+| Render DOT Graphviz | `Infrastructure.to_dot/2` (Opts: `:theme`, `:highlighted_nodes`, `:highlighted_edges`) |
+| Themes | `Infrastructure.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`) |
+| Lens Views | `Choreo.View.focus/3`, `Choreo.View.filter/3`, `Choreo.View.zoom/2`, `Choreo.View.collapse/4` |
 
 ---
 
