@@ -117,6 +117,81 @@ defmodule Choreo.Lab.RequirementDSLTest do
     assert "requests" in labels
   end
 
+  test "supports edge/3 with label and options" do
+    model =
+      requirements do
+        api = service("API")
+        auth_req = functional("Auth", id: "REQ-1")
+
+        edge(api ~> auth_req, "implements", type: :satisfies, docref: "RFC-6749")
+      end
+
+    assert [{:api, :auth_req, 1, meta}] = Requirement.edges_with_meta(model)
+    assert meta.type == :satisfies
+    assert meta.label == "implements"
+    assert meta.docref == "RFC-6749"
+  end
+
+  test "supports standalone node declarations updating env" do
+    model =
+      requirements do
+        stakeholder("Security Team")
+        functional("MFA Requirement", id: "REQ-001")
+
+        security_team ~> mfa_requirement |> traces("owns")
+      end
+
+    assert :security_team in Requirement.stakeholders(model)
+    assert :mfa_requirement in Requirement.requirements(model)
+    assert [{:security_team, :mfa_requirement, 1, meta}] = Requirement.edges_with_meta(model)
+    assert meta.type == :traces
+    assert meta.label == "owns"
+  end
+
+  test "supports pipe modifiers with options, label and opts, type and docref" do
+    model =
+      requirements do
+        svc = component("Svc")
+        req1 = requirement("R1", id: "R1")
+        req2 = requirement("R2", id: "R2")
+        t = test_case("T1")
+
+        svc ~> req1 |> satisfies("fulfills", docref: "DOC-1")
+        t ~> req1 |> verifies(docref: "TEST-1")
+        req2 ~> req1 |> on("refines R1", type: :refines)
+        svc ~> req2 |> edge(type: :satisfies, label: "also fulfills")
+      end
+
+    metas = Enum.map(Requirement.edges_with_meta(model), fn {_f, _t, _w, m} -> m end)
+
+    fulfills_meta = Enum.find(metas, &(&1.label == "fulfills"))
+    assert fulfills_meta.type == :satisfies
+    assert fulfills_meta.docref == "DOC-1"
+
+    test_meta = Enum.find(metas, &(&1.type == :verifies))
+    assert test_meta.docref == "TEST-1"
+
+    refines_meta = Enum.find(metas, &(&1.type == :refines))
+    assert refines_meta.label == "refines R1"
+
+    also_meta = Enum.find(metas, &(&1.label == "also fulfills"))
+    assert also_meta.type == :satisfies
+  end
+
+  test "helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      functional("test")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      component("test")
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      satisfies("test")
+    end
+  end
+
   test "raises on unknown node variables" do
     assert_raise ArgumentError, ~r/unknown requirement node variable `missing`/, fn ->
       Code.eval_quoted(

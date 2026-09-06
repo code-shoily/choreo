@@ -46,7 +46,17 @@ Common use cases:
 | `:derives`   | Requirement is derived from another                       |
 | `:traces`    | Generic traceability link                                 |
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two complementary approaches to modeling requirements traceability:
+
+1. **Programmatic Pipe API (`Choreo.Requirement`)**: The canonical, explicit interface (`Requirement.new() |> Requirement.add_requirement(...) |> Requirement.satisfies(...)`). Ideal for CI/CD audit pipelines, programmatic model generation, and strict traceability checks.
+2. **Lab DSL (`Choreo.Lab.DSL.Requirement`)**: An expressive sketch syntax using `requirements "Name" do ... end`, semantic requirement constructors (`functional`, `performance`, `interface_requirement`, `design_constraint`), actor/component constructors (`component`, `test_case`, `stakeholder`), direct connections (`~>`), typed edge verbs (`satisfies`, `verifies`, `refines`, `depends`, `contains`), and pipe modifiers (`|> satisfies("implements")`). Ideal for Livebooks, architectural documentation, and rapid requirement sketching.
+
+The Legend below demonstrates the canonical programmatic pipe API, while subsequent examples showcase the concise Lab DSL.
+
 ```elixir
+import Choreo.Lab.DSL.Requirement
 alias Choreo.Requirement
 alias Choreo.Requirement.Analysis
 ```
@@ -76,34 +86,28 @@ A product manager says "users must log in with MFA". Let's capture that requirem
 
 ```elixir
 auth_model =
-  Requirement.new("Auth v2")
-  |> Requirement.add_requirement(:mfa,
-    id: "REQ-001",
-    text: "Users must authenticate with MFA",
-    risk: :high,
-    verification: :test,
-    kind: :functional
-  )
-  |> Requirement.add_requirement(:session_timeout,
-    id: "REQ-002",
-    text: "Sessions expire after 30 minutes of inactivity",
-    risk: :medium,
-    verification: :test
-  )
-  |> Requirement.add_component(:auth_service, label: "Auth Service")
-  |> Requirement.add_component(:session_manager, label: "Session Manager")
-  |> Requirement.add_test(:mfa_integration_test, label: "MFA Integration Test")
-  |> Requirement.add_test(:session_expiry_test, label: "Session Expiry Test")
-  |> Requirement.add_stakeholder(:security_team, label: "Security Team")
-  # Who owns these requirements?
-  |> Requirement.traces(:security_team, :mfa)
-  |> Requirement.traces(:security_team, :session_timeout)
-  # What implements them?
-  |> Requirement.satisfies(:auth_service, :mfa)
-  |> Requirement.satisfies(:session_manager, :session_timeout)
-  # What verifies them?
-  |> Requirement.verifies(:mfa_integration_test, :mfa)
-  |> Requirement.verifies(:session_expiry_test, :session_timeout)
+  requirements "Auth v2" do
+    mfa = functional("Users must authenticate with MFA", id: "REQ-001", risk: :high, verification: :test)
+    session_timeout = functional("Sessions expire after 30 minutes of inactivity", id: "REQ-002", risk: :medium, verification: :test)
+
+    auth_service = component("Auth Service")
+    session_manager = component("Session Manager")
+    mfa_integration_test = test_case("MFA Integration Test")
+    session_expiry_test = test_case("Session Expiry Test")
+    security_team = stakeholder("Security Team")
+
+    # Who owns these requirements?
+    security_team ~> mfa |> traces()
+    security_team ~> session_timeout |> traces()
+
+    # What implements them?
+    auth_service ~> mfa |> satisfies()
+    session_manager ~> session_timeout |> satisfies()
+
+    # What verifies them?
+    mfa_integration_test ~> mfa |> verifies()
+    session_expiry_test ~> session_timeout |> verifies()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(auth_model)),
@@ -158,62 +162,45 @@ Large requirements need decomposition. Use `:refines` or `:contains` to build a 
 
 ```elixir
 checkout_model =
-  Requirement.new("Checkout v3")
-  # High-level business requirement
-  |> Requirement.add_requirement(:checkout,
-    id: "BIZ-001",
-    text: "Users can purchase items in a single checkout flow",
-    risk: :high,
-    kind: :functional
-  )
-  # Functional sub-requirements
-  |> Requirement.add_requirement(:cart_validation,
-    id: "REQ-010",
-    text: "Cart contents are validated before payment",
-    risk: :medium,
-    kind: :functional
-  )
-  |> Requirement.add_requirement(:payment_processing,
-    id: "REQ-011",
-    text: "Payment is processed via PCI-compliant gateway",
-    risk: :critical,
-    kind: :interface
-  )
-  |> Requirement.add_requirement(:order_confirmation,
-    id: "REQ-012",
-    text: "Customer receives a confirmation email within 60 seconds",
-    risk: :low,
-    kind: :performance
-  )
-  # Dependency: payment can only happen after validation
-  |> Requirement.add_requirement(:stock_reservation,
-    id: "REQ-013",
-    text: "Inventory is reserved for 15 minutes after add-to-cart",
-    risk: :high,
-    kind: :functional
-  )
-  # Structural relationships
-  |> Requirement.refines(:cart_validation, :checkout)
-  |> Requirement.refines(:payment_processing, :checkout)
-  |> Requirement.refines(:order_confirmation, :checkout)
-  |> Requirement.depends(:payment_processing, :cart_validation)
-  |> Requirement.depends(:payment_processing, :stock_reservation)
-  # Components
-  |> Requirement.add_component(:cart_service, label: "Cart Service")
-  |> Requirement.add_component(:payment_gateway, label: "Payment Gateway")
-  |> Requirement.add_component(:email_service, label: "Email Service")
-  |> Requirement.add_component(:inventory_service, label: "Inventory Service")
-  |> Requirement.satisfies(:cart_service, :cart_validation)
-  |> Requirement.satisfies(:payment_gateway, :payment_processing)
-  |> Requirement.satisfies(:email_service, :order_confirmation)
-  |> Requirement.satisfies(:inventory_service, :stock_reservation)
-  # Tests
-  |> Requirement.add_test(:cart_test, label: "Cart Validation Test")
-  |> Requirement.add_test(:payment_test, label: "Payment Integration Test")
-  |> Requirement.add_test(:email_test, label: "Email Delivery Test")
-  |> Requirement.verifies(:cart_test, :cart_validation)
-  |> Requirement.verifies(:payment_test, :payment_processing)
-  |> Requirement.verifies(:email_test, :order_confirmation)
+  requirements "Checkout v3" do
+    # High-level business requirement
+    checkout = functional("Users can purchase items in a single checkout flow", id: "BIZ-001", risk: :high)
+
+    # Functional sub-requirements
+    cart_validation = functional("Cart contents are validated before payment", id: "REQ-010", risk: :medium)
+    payment_processing = interface_requirement("Payment is processed via PCI-compliant gateway", id: "REQ-011", risk: :critical)
+    order_confirmation = performance("Customer receives a confirmation email within 60 seconds", id: "REQ-012", risk: :low)
+
+    # Dependency: payment can only happen after validation
+    stock_reservation = functional("Inventory is reserved for 15 minutes after add-to-cart", id: "REQ-013", risk: :high)
+
+    # Structural relationships
+    cart_validation ~> checkout |> refines()
+    payment_processing ~> checkout |> refines()
+    order_confirmation ~> checkout |> refines()
+    payment_processing ~> cart_validation |> depends()
+    payment_processing ~> stock_reservation |> depends()
+
+    # Components
+    cart_service = component("Cart Service")
+    payment_gateway = component("Payment Gateway")
+    email_service = component("Email Service")
+    inventory_service = component("Inventory Service")
+
+    cart_service ~> cart_validation |> satisfies()
+    payment_gateway ~> payment_processing |> satisfies()
+    email_service ~> order_confirmation |> satisfies()
+    inventory_service ~> stock_reservation |> satisfies()
+
+    # Tests
+    cart_test = test_case("Cart Validation Test")
+    payment_test = test_case("Payment Integration Test")
+    email_test = test_case("Email Delivery Test")
+
+    cart_test ~> cart_validation |> verifies()
+    payment_test ~> payment_processing |> verifies()
+    email_test ~> order_confirmation |> verifies()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(checkout_model), height: "900px"),
@@ -290,38 +277,22 @@ Let's model a system deliberately missing some test coverage and implementation 
 
 ```elixir
 gappy_model =
-  Requirement.new("Gappy System")
-  |> Requirement.add_requirement(:r_auth,
-    id: "SEC-001",
-    text: "All API endpoints require authentication",
-    risk: :critical,
-    verification: :test
-  )
-  |> Requirement.add_requirement(:r_rate_limit,
-    id: "SEC-002",
-    text: "Rate limiting is enforced at the gateway",
-    risk: :high,
-    verification: :analysis
-  )
-  |> Requirement.add_requirement(:r_audit_log,
-    id: "SEC-003",
-    text: "All write operations are audit-logged",
-    risk: :high,
-    verification: :inspection
-  )
-  |> Requirement.add_requirement(:r_docs,
-    id: "SEC-004",
-    text: "API documentation is auto-generated from source",
-    risk: :low
-  )
-  # Only auth is implemented and tested
-  |> Requirement.add_component(:api_gateway, label: "API Gateway")
-  |> Requirement.add_component(:auth_middleware, label: "Auth Middleware")
-  |> Requirement.add_test(:auth_test, label: "Auth Middleware Test")
-  |> Requirement.satisfies(:auth_middleware, :r_auth)
-  |> Requirement.satisfies(:api_gateway, :r_rate_limit)
-  |> Requirement.verifies(:auth_test, :r_auth)
-  # r_audit_log and r_docs have no satisfies/verifies edges
+  requirements "Gappy System" do
+    r_auth = functional("All API endpoints require authentication", id: "SEC-001", risk: :critical, verification: :test)
+    r_rate_limit = functional("Rate limiting is enforced at the gateway", id: "SEC-002", risk: :high, verification: :analysis)
+    r_audit_log = functional("All write operations are audit-logged", id: "SEC-003", risk: :high, verification: :inspection)
+    r_docs = requirement("API documentation is auto-generated from source", id: "SEC-004", risk: :low)
+
+    # Only auth is implemented and tested
+    api_gateway = component("API Gateway")
+    auth_middleware = component("Auth Middleware")
+    auth_test = test_case("Auth Middleware Test")
+
+    auth_middleware ~> r_auth |> satisfies()
+    api_gateway ~> r_rate_limit |> satisfies()
+    auth_test ~> r_auth |> verifies()
+    # r_audit_log and r_docs have no satisfies/verifies edges
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(gappy_model)),
@@ -368,14 +339,16 @@ Circular requirement dependencies (`A depends on B depends on A`) are a design s
 
 ```elixir
 circular_model =
-  Requirement.new("Circular Example")
-  |> Requirement.add_requirement(:a, id: "A", text: "Requirement A", risk: :medium)
-  |> Requirement.add_requirement(:b, id: "B", text: "Requirement B", risk: :medium)
-  |> Requirement.add_requirement(:c, id: "C", text: "Requirement C", risk: :low)
-  # A depends on B, B depends on C, C depends back on A — a cycle
-  |> Requirement.depends(:a, :b)
-  |> Requirement.depends(:b, :c)
-  |> Requirement.depends(:c, :a)
+  requirements "Circular Example" do
+    a = requirement("Requirement A", id: "A", risk: :medium)
+    b = requirement("Requirement B", id: "B", risk: :medium)
+    c = requirement("Requirement C", id: "C", risk: :low)
+
+    # A depends on B, B depends on C, C depends back on A — a cycle
+    a ~> b |> depends()
+    b ~> c |> depends()
+    c ~> a |> depends()
+  end
 
 Analysis.circular_dependencies(circular_model)
 |> Enum.each(fn cycle ->
@@ -398,21 +371,19 @@ Analysis.circular_dependencies(checkout_model)
 
 ```elixir
 incomplete =
-  Requirement.new("Incomplete Model")
-  # Missing :id and :text — these should error
-  |> Requirement.add_requirement(:bad_req,
-    id: "",
-    text: "",
-    risk: :high
-  )
-  # Component with no label
-  |> Requirement.add_component(:unlabelled)
-  # High-risk, unimplemented
-  |> Requirement.add_requirement(:critical_gap,
-    id: "GAP-001",
-    text: "This requirement has no component or test",
-    risk: :critical
-  )
+  requirements "Incomplete Model" do
+    # Missing :id and :text — these should error
+    bad_req = requirement("", node_id: :bad_req, id: "", risk: :high)
+    # Component with no label
+    component("", node_id: :unlabelled)
+    # High-risk, unimplemented
+    critical_gap =
+      requirement("This requirement has no component or test",
+        node_id: :critical_gap,
+        id: "GAP-001",
+        risk: :critical
+      )
+  end
 
 Analysis.validate_messages(incomplete)
 |> Enum.each(fn {t, msg} -> IO.puts("[#{t}]  #{msg}") end)
@@ -422,17 +393,14 @@ Fix the model and validate again:
 
 ```elixir
 fixed =
-  Requirement.new("Fixed Model")
-  |> Requirement.add_requirement(:auth,
-    id: "REQ-001",
-    text: "Users must authenticate",
-    risk: :high,
-    verification: :test
-  )
-  |> Requirement.add_component(:auth_service, label: "Auth Service")
-  |> Requirement.add_test(:auth_test, label: "Auth Test")
-  |> Requirement.satisfies(:auth_service, :auth)
-  |> Requirement.verifies(:auth_test, :auth)
+  requirements "Fixed Model" do
+    auth = functional("Users must authenticate", id: "REQ-001", risk: :high, verification: :test)
+    auth_service = component("Auth Service")
+    auth_test = test_case("Auth Test")
+
+    auth_service ~> auth |> satisfies()
+    auth_test ~> auth |> verifies()
+  end
 
 IO.puts("Validation issues (expect none):")
 Analysis.validate(fixed) |> IO.inspect()
@@ -446,43 +414,14 @@ Mermaid's `requirementDiagram` supports six requirement kinds. Here's all of the
 
 ```elixir
 all_kinds =
-  Requirement.new("All Requirement Kinds")
-  |> Requirement.add_requirement(:func,
-    id: "F-001",
-    text: "System processes orders",
-    kind: :functional,
-    risk: :medium
-  )
-  |> Requirement.add_requirement(:iface,
-    id: "I-001",
-    text: "REST API follows OpenAPI 3.1 spec",
-    kind: :interface,
-    risk: :low
-  )
-  |> Requirement.add_requirement(:perf,
-    id: "P-001",
-    text: "p99 response time under 200ms",
-    kind: :performance,
-    risk: :high
-  )
-  |> Requirement.add_requirement(:phys,
-    id: "PH-001",
-    text: "Service runs on a single t3.small instance",
-    kind: :physical,
-    risk: :low
-  )
-  |> Requirement.add_requirement(:design,
-    id: "DC-001",
-    text: "All state is stored in Postgres; no in-memory state",
-    kind: :design_constraint,
-    risk: :medium
-  )
-  |> Requirement.add_requirement(:generic,
-    id: "G-001",
-    text: "System complies with GDPR",
-    kind: :requirement,
-    risk: :critical
-  )
+  requirements "All Requirement Kinds" do
+    func = functional("System processes orders", id: "F-001", risk: :medium)
+    iface = interface_requirement("REST API follows OpenAPI 3.1 spec", id: "I-001", risk: :low)
+    perf = performance("p99 response time under 200ms", id: "P-001", risk: :high)
+    phys = physical("Service runs on a single t3.small instance", id: "PH-001", risk: :low)
+    design = design_constraint("All state is stored in Postgres; no in-memory state", id: "DC-001", risk: :medium)
+    generic = requirement("System complies with GDPR", id: "G-001", risk: :critical)
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Requirement.to_mermaid(all_kinds)),
@@ -523,28 +462,19 @@ Kino.Layout.tabs(
 ```elixir
 # Build a rich model with hierarchy
 zoomy =
-  Requirement.new("Zoom Demo")
-  |> Requirement.add_requirement(:epic,
-    id: "E-001",
-    text: "User account management",
-    risk: :high
-  )
-  |> Requirement.add_requirement(:login,
-    id: "R-001",
-    text: "Users can log in",
-    risk: :medium
-  )
-  |> Requirement.add_requirement(:logout,
-    id: "R-002",
-    text: "Users can log out",
-    risk: :low
-  )
-  |> Requirement.add_component(:auth_svc, label: "Auth Service")
-  |> Requirement.add_test(:login_test, label: "Login Test")
-  |> Requirement.refines(:login, :epic)
-  |> Requirement.refines(:logout, :epic)
-  |> Requirement.satisfies(:auth_svc, :login)
-  |> Requirement.verifies(:login_test, :login)
+  requirements "Zoom Demo" do
+    epic = requirement("User account management", id: "E-001", risk: :high)
+    login = requirement("Users can log in", id: "R-001", risk: :medium)
+    logout = requirement("Users can log out", id: "R-002", risk: :low)
+
+    auth_svc = component("Auth Service")
+    login_test = test_case("Login Test")
+
+    login ~> epic |> refines()
+    logout ~> epic |> refines()
+    auth_svc ~> login |> satisfies()
+    login_test ~> login |> verifies()
+  end
 
 Kino.Layout.tabs(
   "Zoom 0 (top-level reqs)":
@@ -555,6 +485,53 @@ Kino.Layout.tabs(
     Kino.VizJS.render(Choreo.View.zoom(zoomy, level: 2) |> Requirement.to_dot())
 )
 ```
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax (`Choreo.Lab.DSL.Requirement`)
+
+| Syntax | Description |
+| ----------------------------------------------------------------- | ---------------------------------------------------- |
+| `requirements "Title" do ... end`                                 | Define a requirements model block                    |
+| `req = requirement("Text", id: "REQ-001", risk: :high)`           | Generic requirement node                             |
+| `f = functional("Text", id: "F-001")`                             | Functional requirement node                          |
+| `i = interface_requirement("Text", id: "I-001")`                  | Interface requirement node                           |
+| `p = performance("Text", id: "P-001")`                            | Performance requirement node                         |
+| `ph = physical("Text", id: "PH-001")`                             | Physical requirement node                            |
+| `dc = design_constraint("Text", id: "DC-001")`                     | Design constraint requirement node                   |
+| `svc = component("Label")`                                        | System component node                                |
+| `tc = test_case("Label")`                                         | Test case verification node                          |
+| `sh = stakeholder("Label")`                                       | Stakeholder node                                     |
+| `svc ~> req \|> satisfies()` / `satisfies("implements")`          | Component satisfies requirement                      |
+| `test ~> req \|> verifies()` / `verifies("e2e test")`              | Test case verifies requirement                       |
+| `child ~> parent \|> refines()` / `refines("decomposes")`         | Child refines/decomposes parent requirement          |
+| `a ~> b \|> depends()` / `depends("blocks")`                      | Dependency relationship between requirements         |
+| `a ~> b \|> contains()` / `contains("subpart")`                   | Containment relationship                             |
+| `a ~> b \|> derives()` / `derives("derived from")`                | Derivation relationship                              |
+| `a ~> b \|> traces()` / `traces("traced to")`                     | General traceability link                            |
+| `a ~> b \|> on("label", type: :satisfies)`                        | Relationship with label and explicit type            |
+| `a ~> b \|> docref("SPEC-12")`                                    | Relationship with documentation reference            |
+| `edge a ~> b, "label", type: :satisfies, docref: "..."`           | Explicit edge statement with label and options       |
+| `edge a ~> b, type: :verifies`                                    | Explicit edge statement with options                 |
+
+### Programmatic Pipe API & Analysis (`Choreo.Requirement`)
+
+| Task / Feature          | Command                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Create Model            | `Requirement.new/1`                                                                                                                   |
+| Add Requirements        | `Requirement.add_requirement/3`, `add_functional/3`, `add_interface/3`, `add_performance/3`, `add_physical/3`, `add_design_constraint/3` |
+| Add Structural Nodes    | `Requirement.add_component/3`, `add_test/3`, `add_stakeholder/3`                                                                      |
+| Connect Relationships   | `Requirement.satisfies/3`, `verifies/3`, `refines/3`, `depends/3`, `contains/3`, `derives/3`, `traces/3`, `connect/4`                 |
+| Traceability & Coverage | `Requirement.Analysis.coverage/1`, `traceability_matrix/1`, `unsatisfied/1`, `unverified/1`, `orphan_requirements/1`                  |
+| Impact & Tracing        | `Requirement.Analysis.impact_of/2`, `components_for/2`, `requirements_for/2`, `tests_for/2`                                          |
+| Risk Analysis           | `Requirement.Analysis.high_risk_gaps/1`, `unmitigated_risks/1`, `risk_propagation/1`                                                 |
+| Integrity Checks        | `Requirement.Analysis.circular_dependencies/1`, `validate/1`, `validate_messages/1`                                                  |
+| Render Mermaid          | `Requirement.to_mermaid/2` (Supports `requirementDiagram`)                                                                            |
+| Render DOT Graphviz     | `Requirement.to_dot/2` (Opts: `:theme`, `:highlighted_nodes`, `:highlighted_edges`)                                                    |
+| Themes                  | `Requirement.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                              |
+| Lens Views              | `Choreo.View.focus/3`, `Choreo.View.filter/3`, `Choreo.View.zoom/2`                                                                     |
 
 ---
 

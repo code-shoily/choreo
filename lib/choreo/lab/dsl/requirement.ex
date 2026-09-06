@@ -141,11 +141,13 @@ defmodule Choreo.Lab.DSL.Requirement do
       requirements: @requirement_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
-      modifiers: [:on, :label | @edge_verbs],
+      modifiers: [:on, :label, :edge, :type, :docref | @edge_verbs],
       options: [
         :label,
         :with,
         :id,
+        :node_id,
+        :node,
         :text,
         :risk,
         :verification,
@@ -190,6 +192,13 @@ defmodule Choreo.Lab.DSL.Requirement do
     {[{:node, node}], Map.put(env, var, node.id)}
   end
 
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
+  end
+
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
     {edge, nodes} = edge_from_ast(edge_ast, [label: label], env, meta)
     {edge_declaration_steps(nodes, edge), env}
@@ -222,6 +231,7 @@ defmodule Choreo.Lab.DSL.Requirement do
 
       Map.has_key?(@node_builders, name) ->
         node = node_from_constructor(ast, nil, meta)
+        env = Map.put(env, node.id, node.id)
         {[{:node, node}], env}
 
       true ->
@@ -267,7 +277,34 @@ defmodule Choreo.Lab.DSL.Requirement do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @edge_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in @edge_verbs and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in [:on, :label, :edge] and is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    Keyword.merge(acc, opts)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc)
+       when name in [:on, :label, :edge] and is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label, :edge] and is_binary(value) do
     Keyword.put(acc, :label, value)
   end
 
@@ -275,16 +312,28 @@ defmodule Choreo.Lab.DSL.Requirement do
     edge_type_opts(acc, name)
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs do
+  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs and is_binary(value) do
     acc
     |> edge_type_opts(name)
-    |> Keyword.put_new(:label, value)
+    |> Keyword.put(:label, value)
+  end
+
+  defp modifier_opt({:type, _meta, [type]}, acc) do
+    edge_type_opts(acc, type)
+  end
+
+  defp modifier_opt({:docref, _meta, [docref]}, acc) do
+    Keyword.put(acc, :docref, docref)
+  end
+
+  defp modifier_opt({:with, _meta, [value]}, acc) when is_binary(value) do
+    Keyword.put(acc, :label, value)
   end
 
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported requirement edge modifier: #{Macro.to_string(other)}; " <>
-            "use `satisfies(value)`, `verifies(value)`, `refines(value)`, or `traces(value)`"
+            "use `satisfies(value)`, `verifies(value)`, `refines(value)`, `depends(value)`, `traces(value)`, `contains(value)`, `derives(value)`, `on(value)`, or `label(value)`"
   end
 
   defp edge_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -482,9 +531,13 @@ defmodule Choreo.Lab.DSL.Requirement do
         :depends,
         :derives,
         :design_constraint,
+        :docref,
+        :edge,
         :functional,
         :interface_requirement,
+        :label,
         :module,
+        :on,
         :owner,
         :performance,
         :physical,
@@ -498,6 +551,7 @@ defmodule Choreo.Lab.DSL.Requirement do
         :team,
         :test_case,
         :traces,
+        :type,
         :verification,
         :verifies
       ] do

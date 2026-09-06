@@ -160,6 +160,11 @@ defmodule Choreo.Requirement do
       type: :string,
       required: false,
       doc: "Optional edge label used in DOT rendering."
+    ],
+    docref: [
+      type: :string,
+      required: false,
+      doc: "Optional documentation reference."
     ]
   ]
 
@@ -408,10 +413,11 @@ defmodule Choreo.Requirement do
 
     {graph, edge_id} = Yog.Multi.add_edge(req.graph, from, to, 1)
 
-    meta = %{
-      type: type,
-      label: label
-    }
+    meta =
+      opts
+      |> Map.new()
+      |> Map.put(:type, type)
+      |> Map.put_new(:label, label)
 
     %{req | graph: graph, edge_meta: Map.put(req.edge_meta, edge_id, meta)}
   end
