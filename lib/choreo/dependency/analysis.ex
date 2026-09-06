@@ -65,6 +65,31 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
+  Checks whether the dependency graph contains any circular dependencies.
+
+  ## Examples
+
+      iex> deps =
+      ...>   Choreo.Dependency.new()
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      iex> Choreo.Dependency.Analysis.cyclic?(deps)
+      false
+      iex> cyclic_deps = Choreo.Dependency.depends_on(deps, :b, :a)
+      iex> Choreo.Dependency.Analysis.cyclic?(cyclic_deps)
+      true
+
+  This analysis answers the question: "Are there any circular dependencies?"
+  """
+  @spec cyclic?(Dependency.t()) :: boolean()
+  def cyclic?(%Dependency{} = deps) do
+    deps
+    |> Dependency.to_simple_graph()
+    |> Yog.cyclic?()
+  end
+
+  @doc """
   Returns all nodes that transitively depend on the given node.
 
   If you change `target`, these are the components that could break.
@@ -125,6 +150,74 @@ defmodule Choreo.Dependency.Analysis do
     |> MapSet.to_list()
     |> List.delete(target)
     |> Enum.sort()
+  end
+
+  @doc """
+  Returns the components that the given node directly depends on.
+
+  Only immediate outgoing dependencies are returned. For transitive
+  dependencies, see `depends_on/2`.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.add_module(:util)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      ...>   |> Choreo.Dependency.depends_on(:auth, :util)
+      iex> Choreo.Dependency.Analysis.direct_dependencies(deps, :api)
+      [:auth]
+      iex> Choreo.Dependency.Analysis.direct_dependencies(deps, :util)
+      []
+
+  This analysis answers the question: "Which components does this node directly depend on?"
+  """
+  @spec direct_dependencies(Dependency.t(), Yog.node_id()) :: [Yog.node_id()]
+  def direct_dependencies(%Dependency{} = deps, target) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    if Map.has_key?(simple_graph.nodes, target) do
+      Yog.successor_ids(simple_graph, target) |> Enum.sort()
+    else
+      []
+    end
+  end
+
+  @doc """
+  Returns the components that directly depend on the given node.
+
+  Only immediate incoming dependents are returned. For transitive
+  dependents (blast radius), see `affected_by/2`.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:auth)
+      ...>   |> Choreo.Dependency.add_module(:util)
+      ...>   |> Choreo.Dependency.depends_on(:api, :auth)
+      ...>   |> Choreo.Dependency.depends_on(:auth, :util)
+      iex> Choreo.Dependency.Analysis.direct_dependents(deps, :auth)
+      [:api]
+      iex> Choreo.Dependency.Analysis.direct_dependents(deps, :api)
+      []
+
+  This analysis answers the question: "Which components directly depend on this node?"
+  """
+  @spec direct_dependents(Dependency.t(), Yog.node_id()) :: [Yog.node_id()]
+  def direct_dependents(%Dependency{} = deps, target) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    if Map.has_key?(simple_graph.nodes, target) do
+      Yog.predecessors(simple_graph, target)
+      |> Enum.map(fn {pred, _w} -> pred end)
+      |> Enum.sort()
+    else
+      []
+    end
   end
 
   @doc """
@@ -413,6 +506,33 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   @doc """
+  Returns all disconnected nodes with no incoming or outgoing dependencies.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_module(:a)
+      ...>   |> Choreo.Dependency.add_module(:b)
+      ...>   |> Choreo.Dependency.add_module(:orphan)
+      ...>   |> Choreo.Dependency.depends_on(:a, :b)
+      iex> Choreo.Dependency.Analysis.isolated_nodes(deps)
+      [:orphan]
+
+  This analysis answers the question: "Which components are completely isolated?"
+  """
+  @spec isolated_nodes(Dependency.t()) :: [Yog.node_id()]
+  def isolated_nodes(%Dependency{} = deps) do
+    simple_graph = Dependency.to_simple_graph(deps)
+
+    Dependency.nodes(deps)
+    |> Enum.filter(fn id ->
+      Yog.in_degree(simple_graph, id) == 0 and Yog.out_degree(simple_graph, id) == 0
+    end)
+    |> Enum.sort()
+  end
+
+  @doc """
   Finds the longest dependency chain in the graph.
 
   This measures the maximum depth of the dependency tree — useful for
@@ -467,6 +587,63 @@ defmodule Choreo.Dependency.Analysis do
         {:error, :contains_cycle} ->
           :error
       end
+    end
+  end
+
+  @doc """
+  Computes a topological sort of the dependency graph in dependency order.
+
+  Returns `{:ok, [node_id]}` where upstream dependents come before downstream
+  dependencies, or `{:error, :contains_cycle}` if the graph is cyclic.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:app)
+      ...>   |> Choreo.Dependency.add_module(:core)
+      ...>   |> Choreo.Dependency.depends_on(:app, :core)
+      iex> {:ok, order} = Choreo.Dependency.Analysis.topological_sort(deps)
+      iex> order
+      [:app, :core]
+
+  This analysis answers the question: "What is a valid topological ordering of the components?"
+  """
+  @spec topological_sort(Dependency.t()) :: {:ok, [Yog.node_id()]} | {:error, :contains_cycle}
+  def topological_sort(%Dependency{} = deps) do
+    deps
+    |> Dependency.to_simple_graph()
+    |> Yog.Traversal.Sort.topological_sort()
+  end
+
+  @doc """
+  Computes a safe compilation, build, or boot sequence.
+
+  Components with no dependencies appear first, followed by components that
+  depend only on previously built components.
+
+  Returns `{:ok, [node_id]}` or `{:error, :contains_cycle}`.
+
+  ## Examples
+
+      iex> deps = Choreo.Dependency.new()
+      iex> deps = deps
+      ...>   |> Choreo.Dependency.add_application(:api)
+      ...>   |> Choreo.Dependency.add_module(:service)
+      ...>   |> Choreo.Dependency.add_module(:repo)
+      ...>   |> Choreo.Dependency.depends_on(:api, :service)
+      ...>   |> Choreo.Dependency.depends_on(:service, :repo)
+      iex> {:ok, order} = Choreo.Dependency.Analysis.build_order(deps)
+      iex> order
+      [:repo, :service, :api]
+
+  This analysis answers the question: "In what order should components be built or initialized?"
+  """
+  @spec build_order(Dependency.t()) :: {:ok, [Yog.node_id()]} | {:error, :contains_cycle}
+  def build_order(%Dependency{} = deps) do
+    case topological_sort(deps) do
+      {:ok, order} -> {:ok, Enum.reverse(order)}
+      error -> error
     end
   end
 
@@ -551,18 +728,12 @@ defmodule Choreo.Dependency.Analysis do
   end
 
   defp check_orphans(acc, deps) do
-    simple_graph = Dependency.to_simple_graph(deps)
+    case isolated_nodes(deps) do
+      [] ->
+        acc
 
-    isolated =
-      Dependency.nodes(deps)
-      |> Enum.filter(fn id ->
-        Yog.in_degree(simple_graph, id) == 0 and Yog.out_degree(simple_graph, id) == 0
-      end)
-
-    if isolated == [] do
-      acc
-    else
-      [{:warning, "Isolated nodes: #{inspect(isolated)}"} | acc]
+      isolated ->
+        [{:warning, "Isolated nodes: #{inspect(isolated)}"} | acc]
     end
   end
 end

@@ -666,7 +666,11 @@ defmodule Choreo.Dependency do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:rankdir` — `:tb` (default), `:lr`, etc.
+    * `:engine` — Graphviz layout engine (`"dot"`, `"neato"`, `"twopi"`, `"circo"`, `"fdp"`, etc.)
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of `{from, to}` tuples or edge IDs to highlight
 
   ## Examples
 
@@ -689,12 +693,15 @@ defmodule Choreo.Dependency do
   end
 
   @doc """
-  Renders the dependency graph to Mermaid.js flowchart syntax.
+  Renders the dependency graph to Mermaid.js syntax.
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:syntax` — `:flowchart` (default) or `:class_diagram` (native `classDiagram` syntax)
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
+    * `:highlighted_nodes` — list of node IDs to highlight (for `:flowchart` syntax)
+    * `:highlighted_edges` — list of `{from, to}` tuples or edge IDs to highlight (for `:flowchart` syntax)
 
   ## Examples
 
@@ -714,6 +721,8 @@ defmodule Choreo.Dependency do
 
   @doc """
   Returns a theme for `Choreo.Dependency`.
+
+  Supported theme names: `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`.
 
   ## Examples
 

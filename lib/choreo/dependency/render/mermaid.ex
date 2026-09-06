@@ -28,7 +28,7 @@ defmodule Choreo.Dependency.Render.Mermaid do
   ## Options
 
     * `:syntax` — `:flowchart` (default) or `:class_diagram` (native `classDiagram` syntax)
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct (for `:flowchart` syntax)
     * `:direction` — `:td` (default), `:lr`, `:bt`, `:rl`
     * `:highlighted_nodes` — list of node IDs to highlight (for `:flowchart` syntax)
     * `:highlighted_edges` — list of edge IDs/tuples to highlight (for `:flowchart` syntax)

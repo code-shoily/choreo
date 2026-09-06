@@ -27,7 +27,11 @@ defmodule Choreo.Dependency.Render.DOT do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:rankdir` — `:tb` (default), `:lr`, etc.
+    * `:engine` — Graphviz layout engine (`"dot"`, `"neato"`, `"twopi"`, `"circo"`, `"fdp"`, etc.)
+    * `:highlighted_nodes` — list of node IDs to highlight
+    * `:highlighted_edges` — list of `{from, to}` tuples or edge IDs to highlight
 
   ## Examples
 

@@ -15,6 +15,12 @@ Mix.install([
 # ])
 ```
 
+## Section
+
+> **Rendering diagrams:** This livebook uses `Kino.VizJS` to render DOT diagrams inline and `Choreo.Lab.Siren` / `Choreo.Lab.Sketch` for Mermaid previews.
+
+---
+
 ## What is Choreo.Dependency?
 
 `Choreo.Dependency` maps software component relationships — applications, libraries, modules, interfaces, and tests — to help you visualise coupling, detect cycles, enforce architectural layers, and measure instability.
@@ -626,27 +632,35 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 
 ### Programmatic Pipe API & Analysis (`Choreo.Dependency`)
 
-| Task / Feature                 | Command                                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Create Graph                   | `Dependency.new/1` (Opts: `:strict`)                                                              |
-| Add Application / Library      | `Dependency.add_application/3`, `Dependency.add_library/3` (Opts: `:label`, `:cluster`)           |
-| Add Module / Interface / Test  | `Dependency.add_module/3`, `Dependency.add_interface/3`, `Dependency.add_test/3`                  |
-| Add Cluster / Subgraph         | `Dependency.add_cluster/3` (Opts: `:label`, `:fillcolor`, `:color`, `:parent`)                    |
-| Declare Dependency             | `Dependency.depends_on/4` (Opts: `:type`, `:label`)                                               |
-| Render Mermaid Flowchart       | `Dependency.to_mermaid/2` (Opts: `:theme`)                                                        |
-| Render DOT Graphviz            | `Dependency.to_dot/2` (Opts: `:theme`, `:engine`)                                                 |
-| Detect Circular Dependencies   | `Analysis.cyclic_dependencies/1` (Finds cycle paths)                                              |
-| Blast Radius / Impact Analysis | `Analysis.affected_by/2` (Finds all upstream components affected by a change)                     |
-| Transitive Dependencies        | `Analysis.depends_on/2` (Finds all downstream components required)                                |
-| Layer Enforcement              | `Analysis.layer_violations/2` (Detects upwards or prohibited cross-layer calls)                   |
-| Transitive Reduction           | `Analysis.transitive_reduction/1` (Finds redundant edges in transitive paths)                     |
-| Instability Metric             | `Analysis.instability/1` (Calculates Robert C. Martin instability metric: $Ce / (Ca + Ce)$)       |
-| Coupling & Centrality          | `Analysis.centrality/2` (Ranks components by degree of coupling)                                  |
-| Leaves & Roots                 | `Analysis.leaves/1`, `Analysis.roots/1` (Identifies entry points and foundations)                 |
-| Longest Dependency Chain       | `Analysis.longest_dependency_chain/1` (Finds deepest dependency path)                             |
-| Isolated Subsystems            | `Analysis.isolated_subsystems/1` (Identifies disconnected component clusters)                     |
-| Graph Soundness Validation     | `Analysis.validate/1` (Checks for cycles, orphans, and structural issues)                         |
-| Semantic Zoom Views            | `Choreo.View.zoom/2` (Level 0: apps, Level 1: +libs, Level 2: +modules, Level 3: +ifaces, 4: all) |
+| Task / Feature                 | Command                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Create Graph                   | `Dependency.new/1` (Opts: `:strict`)                                                                      |
+| Add Application / Library      | `Dependency.add_application/3`, `Dependency.add_library/3` (Opts: `:label`, `:cluster`)                   |
+| Add Module / Interface / Test  | `Dependency.add_module/3`, `Dependency.add_interface/3`, `Dependency.add_test/3`                          |
+| Add Cluster / Subgraph         | `Dependency.add_cluster/3` (Opts: `:label`, `:fillcolor`, `:color`, `:parent`)                            |
+| Declare Dependency             | `Dependency.depends_on/4` (Opts: `:type`, `:label`)                                                       |
+| Render Mermaid Flowchart       | `Dependency.to_mermaid/2` (Opts: `:theme`, `:direction`, `:highlighted_nodes`, `:highlighted_edges`)      |
+| Render Mermaid Class Diagram   | `Dependency.to_mermaid/2` (`syntax: :class_diagram`)                                                      |
+| Render DOT Graphviz            | `Dependency.to_dot/2` (Opts: `:theme`, `:rankdir`, `:engine`, `:highlighted_nodes`, `:highlighted_edges`) |
+| Themes                         | `Dependency.theme/2` (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`)                      |
+| Cycle Check                    | `Analysis.cyclic?/1` (Detects if graph contains circular dependencies)                                    |
+| Detect Circular Dependencies   | `Analysis.cyclic_dependencies/1` (Finds cycle paths)                                                      |
+| Build / Compilation Order      | `Analysis.build_order/1` (Computes bottom-up compilation/boot order)                                      |
+| Topological Sort               | `Analysis.topological_sort/1` (Computes top-down execution ordering)                                      |
+| Direct Dependencies            | `Analysis.direct_dependencies/2` (Immediate downstream components)                                        |
+| Direct Dependents              | `Analysis.direct_dependents/2` (Immediate upstream components)                                            |
+| Blast Radius / Impact Analysis | `Analysis.affected_by/2` (Finds all upstream components affected by a change)                             |
+| Transitive Dependencies        | `Analysis.depends_on/2` (Finds all downstream components required)                                        |
+| Layer Enforcement              | `Analysis.layer_violations/2` (Detects upwards or prohibited cross-layer calls)                           |
+| Transitive Reduction           | `Analysis.transitive_reduction/1` (Finds redundant edges in transitive paths)                             |
+| Instability Metric             | `Analysis.instability/1` (Calculates Robert C. Martin instability metric: $Ce / (Ca + Ce)$)               |
+| Coupling & Centrality          | `Analysis.centrality/2` (Ranks components by degree of coupling)                                          |
+| Leaves & Roots                 | `Analysis.leaves/1`, `Analysis.roots/1` (Identifies entry points and foundations)                         |
+| Longest Dependency Chain       | `Analysis.longest_dependency_chain/1` (Finds deepest dependency path)                                     |
+| Isolated Nodes                 | `Analysis.isolated_nodes/1` (Finds disconnected components with no edges)                                 |
+| Isolated Subsystems            | `Analysis.isolated_subsystems/1` (Identifies disconnected component clusters)                             |
+| Graph Soundness Validation     | `Analysis.validate/1` (Checks for cycles, orphans, and structural issues)                                 |
+| Semantic Zoom Views            | `Choreo.View.zoom/2` (Level 0: apps, Level 1: +libs, Level 2: +modules, Level 3: +ifaces, 4: all)         |
 
 ---
 
@@ -654,7 +668,11 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 
 | Question                         | Function                              |
 | -------------------------------- | ------------------------------------- |
+| "Are there cycles?"              | `Analysis.cyclic?/1`                  |
 | "Where are the cycles?"          | `Analysis.cyclic_dependencies/1`      |
+| "In what order should I build?"  | `Analysis.build_order/1`              |
+| "What directly depends on X?"    | `Analysis.direct_dependents/2`        |
+| "What does X directly need?"     | `Analysis.direct_dependencies/2`      |
 | "What breaks if I change X?"     | `Analysis.affected_by/2`              |
 | "What does X need?"              | `Analysis.depends_on/2`               |
 | "Are layers respected?"          | `Analysis.layer_violations/2`         |
@@ -662,8 +680,9 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 | "How stable is each component?"  | `Analysis.instability/1`              |
 | "What's most coupled?"           | `Analysis.centrality/2`               |
 | "What's the deepest chain?"      | `Analysis.longest_dependency_chain/1` |
-| "Which components are isolated?" | `Analysis.isolated_subsystems/1`      |
+| "Which components are isolated?" | `Analysis.isolated_nodes/1`           |
 | "Is the graph sound?"            | `Analysis.validate/1`                 |
 | "Render to DOT"                  | `Dependency.to_dot/2`                 |
+| "Render to Mermaid"              | `Dependency.to_mermaid/2`             |
 
 Dependency graphs as code mean your architecture is version-controlled, reviewable, and automatically checked for cycles, layer violations, and coupling hotspots. Every time you add a new module or library, you can immediately see the impact on build order, test parallelism, and architectural integrity — before the code compiles.

@@ -373,4 +373,103 @@ defmodule Choreo.Dependency.AnalysisTest do
              end)
     end
   end
+
+  describe "cyclic?/1" do
+    test "returns false for acyclic dependency graph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:auth)
+        |> Dependency.depends_on(:api, :auth)
+
+      refute Analysis.cyclic?(deps)
+    end
+
+    test "returns true when a cycle is present" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.depends_on(:a, :b)
+        |> Dependency.depends_on(:b, :a)
+
+      assert Analysis.cyclic?(deps)
+    end
+  end
+
+  describe "topological_sort/1 and build_order/1" do
+    test "computes topological sort and build order for acyclic graph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:service)
+        |> Dependency.add_module(:repo)
+        |> Dependency.depends_on(:api, :service)
+        |> Dependency.depends_on(:service, :repo)
+
+      assert {:ok, top_order} = Analysis.topological_sort(deps)
+      assert top_order == [:api, :service, :repo]
+
+      assert {:ok, build_seq} = Analysis.build_order(deps)
+      assert build_seq == [:repo, :service, :api]
+    end
+
+    test "returns error tuple on cyclic graph" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.depends_on(:a, :b)
+        |> Dependency.depends_on(:b, :a)
+
+      assert Analysis.topological_sort(deps) == {:error, :contains_cycle}
+      assert Analysis.build_order(deps) == {:error, :contains_cycle}
+    end
+  end
+
+  describe "direct_dependencies/2 and direct_dependents/2" do
+    test "returns immediate outgoing and incoming neighbors" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_application(:web)
+        |> Dependency.add_application(:api)
+        |> Dependency.add_module(:auth)
+        |> Dependency.add_module(:db)
+        |> Dependency.depends_on(:web, :api)
+        |> Dependency.depends_on(:api, :auth)
+        |> Dependency.depends_on(:auth, :db)
+
+      assert Analysis.direct_dependencies(deps, :api) == [:auth]
+      assert Analysis.direct_dependencies(deps, :db) == []
+      assert Analysis.direct_dependencies(deps, :missing) == []
+
+      assert Analysis.direct_dependents(deps, :api) == [:web]
+      assert Analysis.direct_dependents(deps, :web) == []
+      assert Analysis.direct_dependents(deps, :missing) == []
+    end
+  end
+
+  describe "isolated_nodes/1" do
+    test "identifies nodes without any incoming or outgoing edges" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.add_module(:orphan1)
+        |> Dependency.add_module(:orphan2)
+        |> Dependency.depends_on(:a, :b)
+
+      assert Analysis.isolated_nodes(deps) == [:orphan1, :orphan2]
+    end
+
+    test "returns empty list when all nodes have edges" do
+      deps =
+        Dependency.new()
+        |> Dependency.add_module(:a)
+        |> Dependency.add_module(:b)
+        |> Dependency.depends_on(:a, :b)
+
+      assert Analysis.isolated_nodes(deps) == []
+    end
+  end
 end
