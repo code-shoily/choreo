@@ -395,40 +395,40 @@ Kino.Layout.tabs(
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.Infrastructure`)
 
-| Syntax | Description |
-| --- | --- |
-| `infrastructure do ... end` | Define an infrastructure diagram block |
-| `gw = internet("Label")` | Public internet entrypoint / gateway |
-| `lb = load_balancer("Label")` / `gateway("...")` / `lb("...")` | Load balancer proxy node |
-| `app = compute("Label")` / `service("...")` | Compute workload runner or application service |
-| `db = managed_db("Label")` / `database("...")` / `db("...")` | Managed database or stateful storage |
-| `store = storage("Label")` / `object_store("...")` | Object or blob storage node |
-| `q = queue("Label")` / `cache("Label")` | Message queue or cache node |
-| `vpc "Name", label: "..." do ... end` | VPC cluster block with automatic subnet/node nesting |
-| `public_subnet "Name" do ... end` / `subnet_public` | Public subnet (DMZ) cluster block |
-| `private_subnet "Name" do ... end` / `subnet_private` | Private subnet cluster block |
-| `cluster "Name" do ... end` | Generic boundary cluster block |
-| `a ~> b` | Unlabeled network connection |
-| `a ~> b \|> on("Label")` / `label("Label")` | Connection with label modifier |
-| `a ~> b \|> on("Label", protocol: :https)` | Connection with label and protocol options |
-| `a ~> b \|> protocol(:tcp)` / `cost(2)` | Connection with protocol or cost modifier |
-| `edge a ~> b, "Label", protocol: :https` | Explicit edge statement with label and options |
-| `edge a ~> b, protocol: :http` | Explicit edge statement with options |
+| Syntax                                                         | Description                                          |
+| -------------------------------------------------------------- | ---------------------------------------------------- |
+| `infrastructure do ... end`                                    | Define an infrastructure diagram block               |
+| `gw = internet("Label")`                                       | Public internet entrypoint / gateway                 |
+| `lb = load_balancer("Label")` / `gateway("...")` / `lb("...")` | Load balancer proxy node                             |
+| `app = compute("Label")` / `service("...")`                    | Compute workload runner or application service       |
+| `db = managed_db("Label")` / `database("...")` / `db("...")`   | Managed database or stateful storage                 |
+| `store = storage("Label")` / `object_store("...")`             | Object or blob storage node                          |
+| `q = queue("Label")` / `cache("Label")`                        | Message queue or cache node                          |
+| `vpc "Name", label: "..." do ... end`                          | VPC cluster block with automatic subnet/node nesting |
+| `public_subnet "Name" do ... end` / `subnet_public`            | Public subnet (DMZ) cluster block                    |
+| `private_subnet "Name" do ... end` / `subnet_private`          | Private subnet cluster block                         |
+| `cluster "Name" do ... end`                                    | Generic boundary cluster block                       |
+| `a ~> b`                                                       | Unlabeled network connection                         |
+| `a ~> b |> on("Label")` / `label("Label")`                     | Connection with label modifier                       |
+| `a ~> b |> on("Label", protocol: :https)`                      | Connection with label and protocol options           |
+| `a ~> b |> protocol(:tcp)` / `cost(2)`                         | Connection with protocol or cost modifier            |
+| `edge a ~> b, "Label", protocol: :https`                       | Explicit edge statement with label and options       |
+| `edge a ~> b, protocol: :http`                                 | Explicit edge statement with options                 |
 
 ### Programmatic Pipe API & Analysis (`Choreo.Infrastructure`)
 
-| Task / Feature | Command |
-| --- | --- |
-| Create Topology | `Infrastructure.new/1` |
-| Add Boundaries | `Infrastructure.add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`, `add_cluster/3` |
-| Add Nodes | `Infrastructure.add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
-| Connect Nodes | `Infrastructure.connect/4` (Opts: `:protocol`, `:label`, `:cost`, `:type`) |
-| Query Nodes / Edges | `Infrastructure.nodes/1`, `Infrastructure.edges/1` |
-| Security Audit | `Infrastructure.Analysis.validate/1` (Flags internet-to-private, DB/LB misplaced subnets, unassigned compute) |
-| Render Mermaid | `Infrastructure.to_mermaid/2` (Opts: `:syntax`, `:theme`, `:direction`, `:highlighted_nodes`) |
-| Render DOT Graphviz | `Infrastructure.to_dot/2` (Opts: `:theme`, `:highlighted_nodes`, `:highlighted_edges`) |
-| Themes | `Infrastructure.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`) |
-| Lens Views | `Choreo.View.focus/3`, `Choreo.View.filter/3`, `Choreo.View.zoom/2`, `Choreo.View.collapse/4` |
+| Task / Feature      | Command                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Create Topology     | `Infrastructure.new/1`                                                                                        |
+| Add Boundaries      | `Infrastructure.add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`, `add_cluster/3`                    |
+| Add Nodes           | `Infrastructure.add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3`  |
+| Connect Nodes       | `Infrastructure.connect/4` (Opts: `:protocol`, `:label`, `:cost`, `:type`)                                    |
+| Query Nodes / Edges | `Infrastructure.nodes/1`, `Infrastructure.edges/1`                                                            |
+| Security Audit      | `Infrastructure.Analysis.validate/1` (Flags internet-to-private, DB/LB misplaced subnets, unassigned compute) |
+| Render Mermaid      | `Infrastructure.to_mermaid/2` (Opts: `:syntax`, `:theme`, `:direction`, `:highlighted_nodes`)                 |
+| Render DOT Graphviz | `Infrastructure.to_dot/2` (Opts: `:theme`, `:highlighted_nodes`, `:highlighted_edges`)                        |
+| Themes              | `Infrastructure.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                  |
+| Lens Views          | `Choreo.View.focus/3`, `Choreo.View.filter/3`, `Choreo.View.zoom/2`, `Choreo.View.collapse/4`                 |
 
 ---
 
