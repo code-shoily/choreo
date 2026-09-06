@@ -38,9 +38,19 @@ Nodes are typed: **sources**, **transforms**, **buffers**, **conditionals**, **m
 | `merge`       | ⏩ trapezium    | Combines multiple streams into one                |
 | `sink`        | 🏁 invhouse    | Terminal — writes to DB, file, API, etc.        |
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two ways to author dataflow pipelines:
+
+1. **Programmatic Pipe API (`Choreo.Dataflow`)**: Explicit, pipe-first builder functions (`add_source/3`, `add_sink/3`, `add_transform/3`, `add_buffer/3`, `add_conditional/3`, `add_merge/3`, `add_cluster/3`, `connect/4`). Best for production services, dynamic DAG generation, and pipeline compilers.
+2. **Lab DSL (`Choreo.Lab.DSL.Dataflow`)**: Concise, sketch-oriented syntax (`dataflow do ... end`, variable binding, `~>`, and pipe modifiers like `|> emits("event")`, `|> retry()`, `|> dead_letter()`). Best for Livebooks, architecture reviews, pipeline sketches, and rapid data movement modeling.
+
+In this guide, the introductory legend demonstrates the programmatic pipe API, while subsequent examples showcase the expressive Lab DSL.
+
 ```elixir
 alias Choreo.Dataflow
 alias Choreo.Dataflow.Analysis
+import Choreo.Lab.DSL.Dataflow
 ```
 
 ```elixir
@@ -52,18 +62,27 @@ legend =
   |> Dataflow.add_conditional(:conditional, label: "Conditional")
   |> Dataflow.add_merge(:merge, label: "Merge")
   |> Dataflow.add_sink(:sink, label: "Sink")
-siren = Choreo.Lab.Siren.new(Dataflow.to_mermaid(legend,
+
+siren =
+  Choreo.Lab.Siren.new(
+    Dataflow.to_mermaid(legend,
       theme: Choreo.Dataflow.theme(:default)
-    ))
-graphviz = 
+    )
+  )
+
+graphviz =
   Kino.VizJS.render(
     Dataflow.to_dot(legend,
       theme: Choreo.Dataflow.theme(:default, graph_rankdir: :tb)
     )
   )
-sketch = Choreo.Lab.Sketch.new(Dataflow.to_mermaid(legend,
+
+sketch =
+  Choreo.Lab.Sketch.new(
+    Dataflow.to_mermaid(legend,
       theme: Choreo.Dataflow.theme(:default)
-    ))
+    )
+  )
 
 Kino.Layout.tabs(
   Siren: siren,
@@ -80,16 +99,18 @@ A classic extract-transform-load flow: ingest logs, parse JSON, buffer through K
 
 ```elixir
 etl =
-  Dataflow.new()
-  |> Dataflow.add_source(:log_shipper, label: "Log Shipper\n10_000 evt/s", rate: 10_000)
-  |> Dataflow.add_transform(:json_parser, label: "JSON Parser", latency_ms: 25)
-  |> Dataflow.add_buffer(:kafka, label: "Kafka\n(cap: 50_000)", capacity: 50_000)
-  |> Dataflow.add_transform(:enricher, label: "Enricher", latency_ms: 80)
-  |> Dataflow.add_sink(:timescaledb, label: "TimescaleDB")
-  |> Dataflow.connect(:log_shipper, :json_parser, data_type: "raw logs")
-  |> Dataflow.connect(:json_parser, :kafka, data_type: "parsed event")
-  |> Dataflow.connect(:kafka, :enricher, data_type: "event")
-  |> Dataflow.connect(:enricher, :timescaledb, data_type: "enriched row")
+  dataflow do
+    log_shipper = source("Log Shipper\n10_000 evt/s", rate: 10_000)
+    json_parser = transform("JSON Parser", latency_ms: 25)
+    kafka = buffer("Kafka\n(cap: 50_000)", capacity: 50_000)
+    enricher = transform("Enricher", latency_ms: 80)
+    timescaledb = sink("TimescaleDB")
+
+    log_shipper ~> json_parser |> emits("raw logs")
+    json_parser ~> kafka |> emits("parsed event")
+    kafka ~> enricher |> emits("event")
+    enricher ~> timescaledb |> writes("enriched row")
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(etl)),
@@ -116,22 +137,24 @@ Real-world streams have mismatched speeds. A sensor bursts data faster than the 
 
 ```elixir
 iot =
-  Dataflow.new()
-  |> Dataflow.add_source(:sensor_a, label: "Sensor A\n2_000 evt/s", rate: 2_000)
-  |> Dataflow.add_source(:sensor_b, label: "Sensor B\n3_000 evt/s", rate: 3_000)
-  |> Dataflow.add_source(:sensor_c, label: "Sensor C\n5_000 evt/s", rate: 5_000)
-  |> Dataflow.add_merge(:mux, label: "Merge")
-  |> Dataflow.add_transform(:parser, label: "Parser\n50ms", latency_ms: 50)
-  |> Dataflow.add_buffer(:rabbitmq, label: "RabbitMQ\n(cap: 8_000)", capacity: 8_000)
-  |> Dataflow.add_transform(:aggregator, label: "Window Aggregator\n200ms", latency_ms: 200)
-  |> Dataflow.add_sink(:influxdb, label: "InfluxDB")
-  |> Dataflow.connect(:sensor_a, :mux)
-  |> Dataflow.connect(:sensor_b, :mux)
-  |> Dataflow.connect(:sensor_c, :mux)
-  |> Dataflow.connect(:mux, :parser)
-  |> Dataflow.connect(:parser, :rabbitmq)
-  |> Dataflow.connect(:rabbitmq, :aggregator)
-  |> Dataflow.connect(:aggregator, :influxdb)
+  dataflow do
+    sensor_a = source("Sensor A\n2_000 evt/s", rate: 2_000)
+    sensor_b = source("Sensor B\n3_000 evt/s", rate: 3_000)
+    sensor_c = source("Sensor C\n5_000 evt/s", rate: 5_000)
+    mux = merge("Merge")
+    parser = transform("Parser\n50ms", latency_ms: 50)
+    rabbitmq = buffer("RabbitMQ\n(cap: 8_000)", capacity: 8_000)
+    aggregator = transform("Window Aggregator\n200ms", latency_ms: 200)
+    influxdb = sink("InfluxDB")
+
+    sensor_a ~> mux
+    sensor_b ~> mux
+    sensor_c ~> mux
+    mux ~> parser
+    parser ~> rabbitmq
+    rabbitmq ~> aggregator
+    aggregator ~> influxdb
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(iot)),
@@ -179,28 +202,32 @@ Production pipelines don't just have happy paths. Failed parses need retries; po
 
 ```elixir
 resilient =
-  Dataflow.new()
-  |> Dataflow.add_source(:webhook, label: "Stripe Webhook\n500 req/s", rate: 500)
-  |> Dataflow.add_transform(:validator, label: "Signature Validator\n10ms", latency_ms: 10)
-  |> Dataflow.add_conditional(:router, label: "Valid?")
-  |> Dataflow.add_transform(:processor, label: "Event Processor\n100ms", latency_ms: 100)
-  |> Dataflow.add_buffer(:retry_queue, label: "Retry Queue\n(max: 3)", capacity: 1_000)
-  |> Dataflow.add_transform(:retry_handler, label: "Retry Handler\n150ms", latency_ms: 150)
-  |> Dataflow.add_buffer(:dlq, label: "Dead Letter Queue", capacity: 10_000)
-  |> Dataflow.add_sink(:postgres, label: "Postgres")
-  |> Dataflow.add_sink(:alerting, label: "PagerDuty")
-  # Happy path
-  |> Dataflow.connect(:webhook, :validator, data_type: "raw payload")
-  |> Dataflow.connect(:validator, :router, data_type: "validated payload")
-  |> Dataflow.connect(:router, :processor, data_type: "yes", path_type: :normal)
-  |> Dataflow.connect(:processor, :postgres, data_type: "processed event")
-  # Retry loop
-  |> Dataflow.connect(:router, :retry_queue, data_type: "no", path_type: :retry)
-  |> Dataflow.connect(:retry_queue, :retry_handler)
-  |> Dataflow.connect(:retry_handler, :router, data_type: "reattempt", path_type: :retry)
-  # Dead letter after retries exhausted
-  |> Dataflow.connect(:retry_handler, :dlq, data_type: "failed", path_type: :dead_letter)
-  |> Dataflow.connect(:dlq, :alerting, data_type: "alert", path_type: :error)
+  dataflow do
+    webhook = source("Stripe Webhook\n500 req/s", rate: 500)
+    validator = transform("Signature Validator\n10ms", latency_ms: 10)
+    router = conditional("Valid?")
+    processor = transform("Event Processor\n100ms", latency_ms: 100)
+    retry_queue = buffer("Retry Queue\n(max: 3)", capacity: 1_000)
+    retry_handler = transform("Retry Handler\n150ms", latency_ms: 150)
+    dlq = buffer("Dead Letter Queue", capacity: 10_000)
+    postgres = sink("Postgres")
+    alerting = sink("PagerDuty")
+
+    # Happy path
+    webhook ~> validator |> emits("raw payload")
+    validator ~> router |> emits("validated payload")
+    router ~> processor |> emits("yes")
+    processor ~> postgres |> writes("processed event")
+
+    # Retry loop
+    router ~> retry_queue |> retry("no")
+    retry_queue ~> retry_handler
+    retry_handler ~> router |> retry("reattempt")
+
+    # Dead letter after retries exhausted
+    retry_handler ~> dlq |> dead_letter("failed")
+    dlq ~> alerting |> error("alert")
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(resilient)),
@@ -235,68 +262,50 @@ Complex systems have bounded contexts. Sub-pipeline clusters let you group relat
 
 ```elixir
 microservices =
-  Dataflow.new()
-  # Ingestion cluster
-  |> Dataflow.add_source(:mobile_app, label: "Mobile App\n1_200 req/s", rate: 1_200)
-  |> Dataflow.add_source(:web_app, label: "Web App\n800 req/s", rate: 800)
-  |> Dataflow.add_merge(:api_gateway, label: "API Gateway")
-  |> Dataflow.add_transform(:auth, label: "Auth Middleware\n15ms", latency_ms: 15)
-  # Order service cluster
-  |> Dataflow.add_cluster("order_service", label: "Order Service", fillcolor: "#eff6ff")
-  |> Dataflow.add_transform(:order_handler,
-    label: "Order Handler\n80ms",
-    latency_ms: 80,
-    cluster: "order_service"
-  )
-  |> Dataflow.add_buffer(:order_kafka,
-    label: "Order Events",
-    capacity: 20_000,
-    cluster: "order_service"
-  )
-  |> Dataflow.add_transform(:inventory_check,
-    label: "Inventory Check\n60ms",
-    latency_ms: 60,
-    cluster: "order_service"
-  )
-  |> Dataflow.add_conditional(:in_stock, label: "In Stock?", cluster: "order_service")
-  |> Dataflow.add_transform(:payment,
-    label: "Payment Service\n250ms",
-    latency_ms: 250,
-    cluster: "order_service"
-  )
-  |> Dataflow.add_sink(:order_db, label: "Order DB", cluster: "order_service")
-  # Notification cluster
-  |> Dataflow.add_cluster("notifications", label: "Notifications", fillcolor: "#fdf2f8")
-  |> Dataflow.add_transform(:email_worker,
-    label: "Email Worker\n120ms",
-    latency_ms: 120,
-    cluster: "notifications"
-  )
-  |> Dataflow.add_transform(:push_worker,
-    label: "Push Worker\n40ms",
-    latency_ms: 40,
-    cluster: "notifications"
-  )
-  |> Dataflow.add_merge(:notification_router, label: "Notify Router", cluster: "notifications")
-  |> Dataflow.add_sink(:sendgrid, label: "SendGrid", cluster: "notifications")
-  |> Dataflow.add_sink(:firebase, label: "Firebase FCM", cluster: "notifications")
-  # Cross-cluster flows
-  |> Dataflow.connect(:mobile_app, :api_gateway, data_type: "HTTP")
-  |> Dataflow.connect(:web_app, :api_gateway, data_type: "HTTP")
-  |> Dataflow.connect(:api_gateway, :auth, data_type: "request")
-  |> Dataflow.connect(:auth, :order_handler, data_type: "authed request")
-  |> Dataflow.connect(:order_handler, :order_kafka)
-  |> Dataflow.connect(:order_kafka, :inventory_check)
-  |> Dataflow.connect(:inventory_check, :in_stock)
-  |> Dataflow.connect(:in_stock, :payment, data_type: "yes", path_type: :normal)
-  |> Dataflow.connect(:in_stock, :order_db, data_type: "no", path_type: :normal)
-  |> Dataflow.connect(:payment, :order_db)
-  |> Dataflow.connect(:order_db, :email_worker, data_type: "order confirmed")
-  |> Dataflow.connect(:order_db, :push_worker, data_type: "order confirmed")
-  |> Dataflow.connect(:email_worker, :notification_router)
-  |> Dataflow.connect(:push_worker, :notification_router)
-  |> Dataflow.connect(:notification_router, :sendgrid)
-  |> Dataflow.connect(:notification_router, :firebase)
+  dataflow do
+    # Ingestion cluster
+    mobile_app = source("Mobile App\n1_200 req/s", rate: 1_200)
+    web_app = source("Web App\n800 req/s", rate: 800)
+    api_gateway = merge("API Gateway")
+    auth = transform("Auth Middleware\n15ms", latency_ms: 15)
+
+    # Order service cluster
+    cluster "order_service", label: "Order Service", fillcolor: "#eff6ff" do
+      order_handler = transform("Order Handler\n80ms", latency_ms: 80)
+      order_kafka = buffer("Order Events", capacity: 20_000)
+      inventory_check = transform("Inventory Check\n60ms", latency_ms: 60)
+      in_stock = conditional("In Stock?")
+      payment = transform("Payment Service\n250ms", latency_ms: 250)
+      order_db = sink("Order DB")
+    end
+
+    # Notification cluster
+    cluster "notifications", label: "Notifications", fillcolor: "#fdf2f8" do
+      email_worker = transform("Email Worker\n120ms", latency_ms: 120)
+      push_worker = transform("Push Worker\n40ms", latency_ms: 40)
+      notification_router = merge("Notify Router")
+      sendgrid = sink("SendGrid")
+      firebase = sink("Firebase FCM")
+    end
+
+    # Cross-cluster flows
+    mobile_app ~> api_gateway |> on("HTTP")
+    web_app ~> api_gateway |> on("HTTP")
+    api_gateway ~> auth |> on("request")
+    auth ~> order_handler |> on("authed request")
+    order_handler ~> order_kafka
+    order_kafka ~> inventory_check
+    inventory_check ~> in_stock
+    in_stock ~> payment |> on("yes")
+    in_stock ~> order_db |> on("no")
+    payment ~> order_db
+    order_db ~> email_worker |> on("order confirmed")
+    order_db ~> push_worker |> on("order confirmed")
+    email_worker ~> notification_router
+    push_worker ~> notification_router
+    notification_router ~> sendgrid
+    notification_router ~> firebase
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default))),
@@ -347,17 +356,18 @@ Start with a pipeline that has structural issues and use analysis as a diagnosti
 
 ```elixir
 broken =
-  Dataflow.new()
-  |> Dataflow.add_source(:ingress, label: "Ingress")
-  |> Dataflow.add_transform(:worker, label: "Worker")
-  |> Dataflow.add_transform(:orphan_processor, label: "Orphan")
-  |> Dataflow.add_sink(:db, label: "DB")
-  |> Dataflow.add_sink(:never_reached, label: "Unreachable Sink")
-  |> Dataflow.connect(:ingress, :worker)
-  # worker -> db is forgotten!
-  # orphan_processor has no inputs
-  # never_reached has no inputs
+  dataflow do
+    ingress = source("Ingress")
+    worker = transform("Worker")
+    orphan_processor = transform("Orphan")
+    db = sink("DB")
+    never_reached = sink("Unreachable Sink")
 
+    ingress ~> worker
+    # worker -> db is forgotten!
+    # orphan_processor has no inputs
+    # never_reached has no inputs
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(broken)),
@@ -380,12 +390,14 @@ The orphan processor and unreachable sink are immediately flagged. The missing `
 
 ```elixir
 fixed =
-  Dataflow.new()
-  |> Dataflow.add_source(:ingress, label: "Ingress")
-  |> Dataflow.add_transform(:worker, label: "Worker")
-  |> Dataflow.add_sink(:db, label: "DB")
-  |> Dataflow.connect(:ingress, :worker)
-  |> Dataflow.connect(:worker, :db)
+  dataflow do
+    ingress = source("Ingress")
+    worker = transform("Worker")
+    db = sink("DB")
+
+    ingress ~> worker
+    worker ~> db
+  end
 
 IO.inspect(Analysis.orphan_nodes(fixed), label: "Orphans after fix")
 IO.inspect(Analysis.dead_ends(fixed), label: "Dead ends after fix")
@@ -443,20 +455,22 @@ For Dataflow graphs, zoom levels are semantic:
 alias Choreo.View
 
 zoom_flow =
-  Dataflow.new()
-  |> Dataflow.add_source(:ingest, label: "Event Stream")
-  |> Dataflow.add_buffer(:kafka, label: "Kafka Topic")
-  |> Dataflow.add_transform(:parse, label: "Parser")
-  |> Dataflow.add_conditional(:filter, label: "Is Valid?")
-  |> Dataflow.add_transform(:enrich, label: "Enricher")
-  |> Dataflow.add_sink(:db, label: "Data Warehouse")
-  |> Dataflow.add_sink(:dlq, label: "Dead Letter Queue")
-  |> Dataflow.connect(:ingest, :kafka)
-  |> Dataflow.connect(:kafka, :parse)
-  |> Dataflow.connect(:parse, :filter)
-  |> Dataflow.connect(:filter, :enrich, label: "yes")
-  |> Dataflow.add_error_path(:filter, :dlq, label: "no")
-  |> Dataflow.connect(:enrich, :db)
+  dataflow do
+    ingest = source("Event Stream")
+    kafka = buffer("Kafka Topic")
+    parse = transform("Parser")
+    filter = conditional("Is Valid?")
+    enrich = transform("Enricher")
+    db = sink("Data Warehouse")
+    dlq = sink("Dead Letter Queue")
+
+    ingest ~> kafka
+    kafka ~> parse
+    parse ~> filter
+    filter ~> enrich |> on("yes")
+    filter ~> dlq |> error("no")
+    enrich ~> db
+  end
 
 # Zoom out to Level 0 (Sources and Sinks only)
 high_level_view = View.zoom(zoom_flow, level: 0)
@@ -482,6 +496,57 @@ Kino.Layout.tabs(
   Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(mid_level_view))
 )
 ```
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax (`Choreo.Lab.DSL.Dataflow`)
+
+| Syntax                                            | Description                                  |
+| ------------------------------------------------- | -------------------------------------------- |
+| `dataflow do ... end`                             | Define a dataflow pipeline model             |
+| `s = source("Title", rate: 1000)` / `input(...)`  | Declare a data source / producer entry point |
+| `t = transform("Title", latency_ms: 25)`          | Declare a stateless transform stage          |
+| `b = buffer("Title", capacity: 50_000)` / `queue` | Declare a queue, buffer, or stream topic     |
+| `c = conditional("Title")` / `decision(...)`      | Declare a branching condition / filter       |
+| `m = merge("Title")` / `join(...)`                | Declare a stream merge / multiplexer         |
+| `snk = sink("Title")` / `output(...)`             | Declare a terminal consumer / data sink      |
+| `cluster "Name", label: "..." do ... end`         | Define a visual cluster / stage block        |
+| `a ~> b`                                          | Connect stages via normal dataflow stream    |
+| `a ~> b |> on("label")`                           | Set edge stream label                        |
+| `a ~> b |> emits("data_type")` / `writes(...)`    | Set stream data type and display label       |
+| `a ~> b |> retry("reason")`                       | Mark edge as retry path                      |
+| `a ~> b |> error("reason")`                       | Mark edge as error path                      |
+| `a ~> b |> dead_letter("reason")` / `dlq(...)`    | Mark edge as dead-letter queue path          |
+| `a ~> b |> data("type")`                          | Set stream data payload type                 |
+| `a ~> b |> rate("100/s")`                         | Set stream flow rate                         |
+
+| `a ~> b |> type(:retry, "label", rate: 10)`       | Explicit type modifier with label and options  |
+| `edge a ~> b, "label", rate: 100`                 | Explicit edge statement with label and options |
+
+### Programmatic Pipe API & Analysis (`Choreo.Dataflow`)
+
+| Task / Feature           | Command                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| Create Pipeline          | `Dataflow.new/1` (Opts: `:strict`)                                                          |
+| Add Source / Sink        | `Dataflow.add_source/3`, `Dataflow.add_sink/3` (Opts: `:label`, `:rate`, `:cluster`)        |
+| Add Transform            | `Dataflow.add_transform/3` (Opts: `:label`, `:latency_ms`, `:capacity`, `:cluster`)         |
+| Add Buffer               | `Dataflow.add_buffer/3` (Opts: `:label`, `:capacity`, `:latency_ms`, `:cluster`)            |
+| Add Conditional / Merge  | `Dataflow.add_conditional/3`, `Dataflow.add_merge/3` (Opts: `:label`, `:cluster`)           |
+| Add Cluster / Subgraph   | `Dataflow.add_cluster/3` (Opts: `:label`, `:fillcolor`, `:color`, `:parent`, `:style`)      |
+| Connect Stages           | `Dataflow.connect/4` (Opts: `:label`, `:data_type`, `:rate`, `:path_type`, `:weight`)       |
+| Specialized Path Helpers | `Dataflow.add_error_path/4`, `Dataflow.add_retry_path/4`, `Dataflow.add_dead_letter_path/4` |
+| Render Mermaid Flowchart | `Dataflow.to_mermaid/2` (Opts: `:theme`)                                                    |
+| Render DOT Graphviz      | `Dataflow.to_dot/2` (Opts: `:theme`, `:rankdir`)                                            |
+| Cycle Detection          | `Analysis.cyclic?/1` (Detects loops and cyclic feedback)                                    |
+| Execution Order          | `Analysis.topological_sort/1` (DAG topological order)                                       |
+| Orphan Stages            | `Analysis.orphan_nodes/1` (Stages missing upstream inputs)                                  |
+| Dead-End Stages          | `Analysis.dead_ends/1` (Stages missing downstream consumers)                                |
+| Bottleneck Detection     | `Analysis.bottlenecks/1` (Identifies stages with tightest throughput capacity)              |
+| Critical Path Latency    | `Analysis.longest_path/1` (Finds slowest end-to-end path and latency)                       |
+| Throughput Simulation    | `Analysis.simulate/1` (Simulates inbound/outbound rates and backpressure)                   |
+| Zoom Views               | `Choreo.View.zoom/2` (Level 0: sources/sinks, Level 1: + transforms, Level 2: all)          |
 
 ---
 

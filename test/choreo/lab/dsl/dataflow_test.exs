@@ -124,6 +124,95 @@ defmodule Choreo.Lab.DataflowDSLTest do
     assert pipeline.edge_meta[{:in_stream, :out_stream}].label == "json"
   end
 
+  test "supports edge/3 with label and keyword options" do
+    pipeline =
+      dataflow do
+        src = source("Ingest")
+        dst = sink("Storage")
+
+        edge(src ~> dst, "raw stream", rate: "500/s", path_type: :normal)
+      end
+
+    assert pipeline.edge_meta[{:src, :dst}].label == "raw stream"
+    assert pipeline.edge_meta[{:src, :dst}].rate == "500/s"
+    assert pipeline.edge_meta[{:src, :dst}].path_type == :normal
+  end
+
+  test "supports cluster blocks and inherited scoping" do
+    pipeline =
+      dataflow do
+        ingest = source("Ingest")
+
+        cluster "order_service", label: "Order Service" do
+          handler = transform("Handler")
+          queue = buffer("Queue")
+
+          handler ~> queue |> emits("events")
+        end
+
+        out = sink("Out")
+
+        ingest ~> handler
+        queue ~> out
+      end
+
+    assert pipeline.clusters["cluster_order_service"].label == "Order Service"
+    assert pipeline.graph.nodes[:handler].cluster == "cluster_order_service"
+    assert pipeline.graph.nodes[:queue].cluster == "cluster_order_service"
+    assert pipeline.edge_meta[{:ingest, :handler}].path_type == :normal
+    assert pipeline.edge_meta[{:queue, :out}].path_type == :normal
+  end
+
+  test "supports standalone node declarations updating variable scope" do
+    pipeline =
+      dataflow do
+        source("Ingest Stream")
+        sink("Data Sink")
+
+        ingest_stream ~> data_sink |> emits("records")
+      end
+
+    assert pipeline.graph.nodes[:ingest_stream].label == "Ingest Stream"
+    assert pipeline.graph.nodes[:data_sink].label == "Data Sink"
+    assert pipeline.edge_meta[{:ingest_stream, :data_sink}].data_type == "records"
+  end
+
+  test "supports type modifier and combined options" do
+    pipeline =
+      dataflow do
+        src = source("In")
+        retry_q = buffer("Retry")
+        dlq = sink("DLQ")
+        dst = sink("Out")
+
+        src ~> dst |> on("main", rate: "100/s")
+        src ~> retry_q |> type(:retry, "retrying", rate: "10/s")
+        src ~> dlq |> type(:dead_letter, "poison")
+      end
+
+    assert pipeline.edge_meta[{:src, :dst}].label == "main"
+    assert pipeline.edge_meta[{:src, :dst}].rate == "100/s"
+    assert pipeline.edge_meta[{:src, :retry_q}].path_type == :retry
+    assert pipeline.edge_meta[{:src, :retry_q}].label == "retrying"
+    assert pipeline.edge_meta[{:src, :retry_q}].rate == "10/s"
+    assert pipeline.edge_meta[{:src, :dlq}].path_type == :dead_letter
+    assert pipeline.edge_meta[{:src, :dlq}].label == "poison"
+  end
+
+  test "autocomplete helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/DSL constructor `on` must be called inside a DSL block/, fn ->
+      on("payload")
+    end
+
+    assert_raise RuntimeError, ~r/DSL constructor `type` must be called inside a DSL block/, fn ->
+      type(:retry)
+    end
+
+    assert_raise RuntimeError, ~r/DSL constructor `edge` must be called inside a DSL block/, fn ->
+      edge(:a, :b)
+    end
+  end
+
   test "raises on unknown node variables" do
     assert_raise ArgumentError, ~r/unknown dataflow node variable `sink`/, fn ->
       Code.eval_quoted(

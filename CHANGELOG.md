@@ -4,52 +4,34 @@
 
 ### Added
 
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Workflow` edge pipe modifiers (`|> condition("yes")`, `|> type(:sequence, "init")`, `|> failure("err", weight: 10)`).
-- Added `:type` and `:edge_type` modifiers and expanded autocomplete helper stubs (`:condition`, `:edge`, `:edge_type`, `:on`, `:type`, `:when_`, `:weight`) in `Choreo.Lab.DSL.Workflow`.
-- Added support for `edge/3` with both label and keyword options (`edge step1 ~> step2, "rollback", edge_type: :compensation, weight: 5`) in `Choreo.Lab.DSL.Workflow`.
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Planner` edge pipe modifiers (`|> contains(label: "includes")`, `|> type(:depends_on, "prereq")`).
-- Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.Planner`.
-- Added support for `edge/3` with both label and keyword options (`edge kickoff ~> delivery, "prereq", type: :depends_on`) in `Choreo.Lab.DSL.Planner`.
-- Added `Choreo.Planner.task_labels/2`, `tags/2`, and `tagged_tasks/2` query helpers.
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.C4` relationship pipe modifiers (`|> uses(technology: "HTTPS")`, `|> type(:calls, "JSON requests")`).
-- Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:technology`, `:type`) in `Choreo.Lab.DSL.C4`.
-- Added support for `edge/3` with both label and keyword options (`edge customer ~> web_app, "Visits site", technology: "HTTPS"`) in `Choreo.Lab.DSL.C4`.
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Domain` semantic edge pipe modifiers (`|> initiates(label: "starts")`, `|> type(:handles, "validates")`).
-- Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`) in `Choreo.Lab.DSL.Domain`.
-- Added support for `edge/3` with both label and keyword options (`edge customer ~> place_order, "starts", cost: 2`) in `Choreo.Lab.DSL.Domain`.
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Sequence` message pipe modifiers (`|> async(label: "enqueue")`, `|> type(:sync, "save")`, `|> type(:return)`).
-- Added `:type` message modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.Sequence`.
-- Added support for `edge/3` with both label and keyword options (`edge api ~> worker, "enqueue", async: true`) in `Choreo.Lab.DSL.Sequence`.
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.UML` relationship pipe modifiers (`|> depends(label: "calls")`, `|> type(:realizes, "implements")`).
-- Added `:type` relationship modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.UML`.
-- Added support for `edge/3` with both label and keyword options (`edge controller ~> repo, "calls", type: :depends`) in `Choreo.Lab.DSL.UML`.
-- Added support for keyword options and label tuples in `Choreo.Lab.DSL.ERD` relationship pipe modifiers (`|> one_to_many("writes", from: :id, to: :user_id)`, `|> has_many(from: :id, to: :user_id)`).
-- Added `:from_column`, `:to_column`, and `:cardinality` relationship modifiers and expanded autocomplete helper stubs in `Choreo.Lab.DSL.ERD`.
-- Added support for `edge/3` with both label and keyword options (`edge users ~> posts, "writes", from: :id, to: :user_id`) in `Choreo.Lab.DSL.ERD`.
+- **Lab DSL Hardening across Diagram Vocabularies (`Dataflow`, `Workflow`, `Planner`, `C4`, `Domain`, `Sequence`, `UML`, `ERD`)**:
+  - Added support for `edge/3` with both label and keyword options (`edge from ~> to, "label", opts`).
+  - Added support for keyword options and label tuples in edge and relationship pipe modifiers (e.g. `|> emits("data", rate: 100)`, `|> failure("err", weight: 10)`, `|> uses(technology: "HTTPS")`, `|> one_to_many(from: :id, to: :user_id)`).
+  - Added `:type` (and `:edge_type`) modifiers across DSLs, allowing explicit edge/relationship types with labels and options.
+  - Expanded autocomplete helper stubs and `taxonomy/0` discovery across all diagram DSL modules.
+- **Domain-Specific Additions**:
+  - `Choreo.Lab.DSL.Dataflow`: Added scoped `cluster`/`stage`/`lane` blocks (`cluster "order_service", label: "..." do ... end`) with automatic cluster inheritance.
+  - `Choreo.Planner`: Added `task_labels/2`, `tags/2`, and `tagged_tasks/2` query helpers.
+  - `Choreo.Lab.DSL.ERD`: Added `:from_column`, `:to_column`, and `:cardinality` relationship modifiers.
 
 ### Changed
 
-- Updated `livebooks/guides/workflow_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Workflow` syntax across all orchestration examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
-- Updated `livebooks/guides/planner_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Planner` syntax across all planning examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
-- Updated `livebooks/guides/c4_walkthrough.livemd` to showcase `Choreo.Lab.DSL.C4` syntax across all architecture examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
-- Updated `livebooks/guides/domain_modeling_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Domain` syntax across all examples, retaining programmatic pipe syntax in the introductory example, and added a comprehensive Cheat Sheet.
-- Updated `livebooks/guides/sequence_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Sequence` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
-- Updated `livebooks/guides/uml_walkthrough.livemd` to showcase `Choreo.Lab.DSL.UML` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
-- Updated `livebooks/guides/erd_walkthrough.livemd` to showcase `Choreo.Lab.DSL.ERD` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
+- **Walkthrough Livebooks**:
+  - Updated guides (`dataflow_walkthrough.livemd`, `workflow_walkthrough.livemd`, `planner_walkthrough.livemd`, `c4_walkthrough.livemd`, `domain_modeling_walkthrough.livemd`, `sequence_walkthrough.livemd`, `uml_walkthrough.livemd`, `erd_walkthrough.livemd`) to showcase Lab DSL syntax across all diagrams while preserving canonical programmatic pipe API in introductory legend sections.
+  - Added comprehensive Cheat Sheet reference tables for both Lab DSL syntax and Programmatic Pipe/Analysis APIs to walkthrough notebooks.
 
 ### Fixed
 
-- Fixed swimlane environment state restoration after nested `swimlane` blocks and guarded nil `:swimlane` resolution in `Choreo.Lab.DSL.Workflow`.
-- Ensured user constructors in `Choreo.Lab.DSL.Planner` populate default `:name` attribute matching title/id for query and render compatibility.
-
-- Fixed parent environment state restoration after nested hierarchy blocks and guarded nil `:parent` resolution in `Choreo.Lab.DSL.C4`.
-- Fixed `pop_do_block/1` in `Choreo.Lab.DSL.Compiler` to recognize `do` blocks with preceding keyword options (e.g. `context_boundary "Name", id: "id" do ... end`).
-- Fixed cluster environment state restoration after nested `context_boundary` blocks and guarded nil `:parent` resolution in `Choreo.Lab.DSL.Domain`.
-- Fixed modifier delegation order in `Choreo.Lab.DSL.Domain` when handling `{:type, _meta, [type, label]}`.
-- Hardened native Mermaid rendering for `Choreo.ERD`, `Choreo.Sequence`, and `Choreo.UML` by using Mermaid-safe identifiers and normalizing labels/member text.
-- Fixed `Choreo.Lab.Sketch` preprocessing for UML diagrams so Excalidraw does not strip native `classDiagram` declarations or split HTML line-break labels into invalid Mermaid.
-- Fixed relationship pipe modifier argument order when delegating in `Choreo.Lab.DSL.UML`.
-- Fixed relationship pipe modifier parsing in `Choreo.Lab.DSL.ERD` to accept keyword option lists alongside cardinality verbs.
+- **Block Scoping & Environment State**:
+  - Fixed parent/cluster environment state restoration after exiting nested blocks and guarded nil reference resolution in `Choreo.Lab.DSL.Workflow` (swimlanes), `Choreo.Lab.DSL.C4` (boundaries/systems), and `Choreo.Lab.DSL.Domain` (context boundaries).
+  - Ensured standalone node and cluster declarations in `Choreo.Lab.DSL.Dataflow` update variable scope so subsequent edge statements can reference their IDs.
+  - Fixed `pop_do_block/1` in `Choreo.Lab.DSL.Compiler` to recognize `do` blocks with preceding keyword options (e.g. `cluster "Name", id: "id" do ... end`).
+- **Rendering & Diagram Normalization**:
+  - Hardened native Mermaid rendering for `Choreo.ERD`, `Choreo.Sequence`, and `Choreo.UML` with sanitized identifiers and normalized label/member formatting.
+  - Fixed `Choreo.Lab.Sketch` preprocessing for UML diagrams so Excalidraw preserves native `classDiagram` declarations without invalid label splitting.
+- **DSL Defaults & Modifier Parsing**:
+  - Ensured user constructors in `Choreo.Lab.DSL.Planner` populate default `:name` attributes matching title/id.
+  - Fixed modifier delegation argument order and keyword option parsing in `Choreo.Lab.DSL.Domain`, `Choreo.Lab.DSL.UML`, and `Choreo.Lab.DSL.ERD`.
 
 ## [0.12.0] - 2026-07-26
 

@@ -147,7 +147,7 @@ defmodule Choreo.Lab.DSL.Dataflow do
       clusters: @cluster_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
-      modifiers: [:on, :label, :data, :rate | @edge_verbs],
+      modifiers: [:on, :label, :data, :rate, :weight, :type, :edge_type, :edge | @edge_verbs],
       options: [
         :label,
         :with,
@@ -181,7 +181,7 @@ defmodule Choreo.Lab.DSL.Dataflow do
       block
       |> statements()
       |> Enum.reduce({[], empty_env()}, fn statement, {steps, env} ->
-        {statement_steps, env} = statement_steps(statement, env)
+        {statement_steps, env} = process_statement(statement, env)
         {Enum.reverse(statement_steps, steps), env}
       end)
 
@@ -190,6 +190,39 @@ defmodule Choreo.Lab.DSL.Dataflow do
       quote(do: Choreo.Dataflow.new(unquote(Macro.escape(opts)))),
       &pipe_step/2
     )
+  end
+
+  defp process_statement(statement, env) do
+    case extract_do_block(statement) do
+      {block, stripped_statement} when not is_nil(block) ->
+        {parent_steps, inner_env_base} = statement_steps(stripped_statement, env)
+        parent_id = get_parent_id_from_steps(parent_steps)
+
+        {inner_steps, final_inner_env} =
+          compile_block_statements(
+            block,
+            Map.put(inner_env_base, :cluster, parent_id),
+            &process_statement/2
+          )
+
+        cluster_env =
+          case Map.fetch(env, :cluster) do
+            {:ok, c} -> Map.put(final_inner_env, :cluster, c)
+            :error -> Map.delete(final_inner_env, :cluster)
+          end
+
+        {parent_steps ++ inner_steps, cluster_env}
+
+      _ ->
+        statement_steps(statement, env)
+    end
+  end
+
+  defp get_parent_id_from_steps(steps) do
+    case List.last(steps) do
+      {:cluster, %{id: id}} -> id
+      _ -> nil
+    end
   end
 
   defp empty_env, do: %{nodes: %{}, clusters: %{}}
@@ -209,6 +242,13 @@ defmodule Choreo.Lab.DSL.Dataflow do
         raise ArgumentError,
               "expected dataflow constructor, got #{Macro.to_string(constructor)}#{line_suffix(meta)}"
     end
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -260,11 +300,11 @@ defmodule Choreo.Lab.DSL.Dataflow do
     cond do
       Map.has_key?(cluster_builders(), name) ->
         cluster = cluster_from_constructor(ast, nil, env, meta)
-        {[{:cluster, cluster}], env}
+        {[{:cluster, cluster}], put_in(env.clusters[String.to_atom(cluster.id)], cluster.id)}
 
       Map.has_key?(@node_builders, name) ->
         node = node_from_constructor(ast, nil, env, meta)
-        {[{:node, node}], env}
+        {[{:node, node}], put_in(env.nodes[node.id], node.id)}
 
       true ->
         unsupported_statement!(ast, meta)
@@ -274,10 +314,24 @@ defmodule Choreo.Lab.DSL.Dataflow do
   defp statement_steps(other, _env), do: unsupported_statement!(other, nil)
 
   defp typed_edge_statement(name, edge_ast, opts, env, meta) do
-    opts = opts |> normalize_edge_opts() |> edge_type_opts(name)
+    opts =
+      opts
+      |> normalize_edge_opts()
+      |> edge_type_opts(name)
+      |> maybe_put_data_type(name)
+
     {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
     {edge_declaration_steps(nodes, edge), env}
   end
+
+  defp maybe_put_data_type(opts, name) when name in @data_label_edges do
+    case Keyword.fetch(opts, :label) do
+      {:ok, label} when is_binary(label) -> Keyword.put_new(opts, :data_type, label)
+      _ -> opts
+    end
+  end
+
+  defp maybe_put_data_type(opts, _name), do: opts
 
   defp edge_declaration_steps(nodes, edge) do
     nodes
@@ -291,21 +345,110 @@ defmodule Choreo.Lab.DSL.Dataflow do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label] and is_binary(value) do
     Keyword.put(acc, :label, value)
   end
 
-  defp modifier_opt({:data, _meta, [value]}, acc), do: Keyword.put(acc, :data_type, value)
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in [:on, :label] and is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value, opts]}, acc)
+       when name in [:on, :label] and is_binary(value) and is_list(opts) do
+    acc
+    |> Keyword.put(:label, value)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({:data, _meta, [value]}, acc) when is_binary(value) do
+    acc
+    |> Keyword.put(:data_type, value)
+    |> Keyword.put_new(:label, value)
+  end
+
+  defp modifier_opt({:data, _meta, [opts]}, acc) when is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({:data, _meta, [value, opts]}, acc)
+       when is_binary(value) and is_list(opts) do
+    acc
+    |> Keyword.put(:data_type, value)
+    |> Keyword.put_new(:label, value)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
   defp modifier_opt({:rate, _meta, [value]}, acc), do: Keyword.put(acc, :rate, value)
+  defp modifier_opt({:weight, _meta, [value]}, acc), do: Keyword.put(acc, :weight, value)
+
+  defp modifier_opt({type_verb, _meta, [type]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs do
+    edge_type_opts(acc, type)
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, label]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs and is_binary(label) do
+    acc
+    |> edge_type_opts(type)
+    |> put_edge_label_for(type, label)
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, opts]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs and is_list(opts) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, label, opts]}, acc)
+       when type_verb in [:type, :edge_type] and type in @edge_verbs and is_binary(label) and
+              is_list(opts) do
+    acc
+    |> edge_type_opts(type)
+    |> put_edge_label_for(type, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({:edge, _meta, []}, acc), do: acc
+
+  defp modifier_opt({:edge, _meta, [label]}, acc) when is_binary(label) do
+    Keyword.put(acc, :label, label)
+  end
+
+  defp modifier_opt({:edge, _meta, [opts]}, acc) when is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({:edge, _meta, [label, opts]}, acc)
+       when is_binary(label) and is_list(opts) do
+    acc
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
 
   defp modifier_opt({name, _meta, []}, acc) when name in @edge_verbs do
     edge_type_opts(acc, name)
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs do
+  defp modifier_opt({name, _meta, [label]}, acc) when name in @edge_verbs and is_binary(label) do
     acc
     |> edge_type_opts(name)
-    |> put_edge_label_for(name, value)
+    |> put_edge_label_for(name, label)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in @edge_verbs and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @edge_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> put_edge_label_for(name, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
   end
 
   defp modifier_opt(other, _acc) do
@@ -359,6 +502,16 @@ defmodule Choreo.Lab.DSL.Dataflow do
         raise ArgumentError, "unknown dataflow node constructor `#{name}`#{line_suffix(meta)}"
 
     {opts, positional} = pop_trailing_opts(args)
+
+    opts =
+      case Map.fetch(env, :cluster) do
+        {:ok, cluster_id} when not is_nil(cluster_id) ->
+          Keyword.put_new(opts, :cluster, cluster_id)
+
+        _ ->
+          opts
+      end
+
     opts = resolve_cluster_option(opts, :cluster, env, meta)
     {id, opts} = node_id_and_opts(var, positional, opts, meta)
     %{id: id, builder: builder, opts: opts}
@@ -368,6 +521,16 @@ defmodule Choreo.Lab.DSL.Dataflow do
        when is_atom(name) and is_list(args) do
     builder = Map.fetch!(cluster_builders(), name)
     {opts, positional} = pop_trailing_opts(args)
+
+    opts =
+      case Map.fetch(env, :cluster) do
+        {:ok, cluster_id} when not is_nil(cluster_id) ->
+          Keyword.put_new(opts, :parent, cluster_id)
+
+        _ ->
+          opts
+      end
+
     opts = resolve_cluster_option(opts, :parent, env, meta)
     {id, opts} = cluster_id_and_opts(var, positional, opts, meta)
     %{id: id, builder: builder, opts: opts}
@@ -563,24 +726,30 @@ defmodule Choreo.Lab.DSL.Dataflow do
         :conditional,
         :consumer,
         :consumes,
+        :data,
         :dead_letter,
         :decision,
         :dlq,
+        :edge,
+        :edge_type,
         :emits,
         :error,
         :flow,
         :flows,
         :input,
         :join,
+        :label,
         :lane,
         :merge,
         :normal,
+        :on,
         :output,
         :process,
         :processor,
         :producer,
         :publishes,
         :queue,
+        :rate,
         :reads,
         :retry,
         :routes,
@@ -591,6 +760,8 @@ defmodule Choreo.Lab.DSL.Dataflow do
         :stage,
         :topic,
         :transform,
+        :type,
+        :weight,
         :writes
       ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
