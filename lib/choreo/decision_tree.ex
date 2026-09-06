@@ -348,8 +348,8 @@ defmodule Choreo.DecisionTree do
       iex> Choreo.DecisionTree.branch(tree, :y, :x, "2")
       ** (ArgumentError) Node :x already has a parent
   """
-  @spec branch(t(), Yog.node_id(), Yog.node_id(), String.t()) :: t()
-  def branch(%__MODULE__{} = tree, parent, child, condition) do
+  @spec branch(t(), Yog.node_id(), Yog.node_id(), String.t(), keyword()) :: t()
+  def branch(%__MODULE__{} = tree, parent, child, condition, opts \\ []) do
     if tree.strict and not Yog.has_node?(tree.graph, parent) do
       raise ArgumentError,
             "Parent node #{inspect(parent)} does not exist (strict mode is enabled)"
@@ -385,7 +385,12 @@ defmodule Choreo.DecisionTree do
         raise ArgumentError, "Branch would create a cycle"
 
       true ->
-        meta = %{condition: condition, label: condition}
+        meta =
+          opts
+          |> Enum.into(%{})
+          |> Map.put(:condition, condition)
+          |> Map.put_new(:label, condition)
+
         edge_meta = Map.put(tree.edge_meta, {parent, child}, meta)
         graph = Yog.add_edge_ensure(tree.graph, parent, child, condition)
 

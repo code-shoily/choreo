@@ -69,7 +69,7 @@ defmodule Choreo.Lab.DSL.DecisionTree do
     %{
       nodes: @node_verbs,
       edges: [:~>, :edge, :branch],
-      modifiers: [:when_, :condition, :on, :label],
+      modifiers: [:when_, :condition, :on, :label, :branch, :edge],
       options: [:label, :with, :id, :feature, :class, :probability]
     }
   end
@@ -108,26 +108,35 @@ defmodule Choreo.Lab.DSL.DecisionTree do
     {[{:node, node}], Map.put(env, var, node.id)}
   end
 
-  defp statement_steps({:edge, meta, [edge_ast, condition]}, env) when is_binary(condition) do
-    {branch, nodes} = branch_from_ast(edge_ast, condition, env, meta)
+  defp statement_steps({verb, meta, [edge_ast, condition, opts]}, env)
+       when verb in [:edge, :branch] and is_list(opts) and not is_nil(condition) do
+    cond_val =
+      case Keyword.get(opts, :condition) do
+        nil -> to_string(condition)
+        c -> to_string(c)
+      end
+
+    {branch, nodes} = branch_from_ast(edge_ast, cond_val, opts, env, meta)
     {branch_declaration_steps(nodes, branch), env}
   end
 
-  defp statement_steps({:edge, meta, [edge_ast, opts]}, env) when is_list(opts) do
+  defp statement_steps({verb, meta, [edge_ast, condition]}, env)
+       when verb in [:edge, :branch] and
+              (is_binary(condition) or (is_atom(condition) and not is_nil(condition))) do
+    {branch, nodes} = branch_from_ast(edge_ast, to_string(condition), [], env, meta)
+    {branch_declaration_steps(nodes, branch), env}
+  end
+
+  defp statement_steps({verb, meta, [edge_ast, opts]}, env)
+       when verb in [:edge, :branch] and is_list(opts) do
     condition = condition_from_opts(opts, meta)
-    {branch, nodes} = branch_from_ast(edge_ast, condition, env, meta)
+    {branch, nodes} = branch_from_ast(edge_ast, condition, opts, env, meta)
     {branch_declaration_steps(nodes, branch), env}
   end
 
-  defp statement_steps({:branch, meta, [edge_ast, condition]}, env) when is_binary(condition) do
-    {branch, nodes} = branch_from_ast(edge_ast, condition, env, meta)
-    {branch_declaration_steps(nodes, branch), env}
-  end
-
-  defp statement_steps({:branch, meta, [edge_ast, opts]}, env) when is_list(opts) do
-    condition = condition_from_opts(opts, meta)
-    {branch, nodes} = branch_from_ast(edge_ast, condition, env, meta)
-    {branch_declaration_steps(nodes, branch), env}
+  defp statement_steps({verb, meta, [_edge_ast]}, _env) when verb in [:edge, :branch] do
+    raise ArgumentError,
+          "decision-tree branches require a condition; use `edge parent ~> child, \"yes\"` or `parent ~> child |> when_(\"yes\")`#{line_suffix(meta)}"
   end
 
   defp statement_steps({:|>, _meta, _args} = ast, env) do
@@ -143,7 +152,7 @@ defmodule Choreo.Lab.DSL.DecisionTree do
   defp statement_steps({name, meta, args} = ast, env) when is_atom(name) and is_list(args) do
     if Map.has_key?(@node_builders, name) do
       node = node_from_constructor(ast, nil, meta)
-      {[{:node, node}], env}
+      {[{:node, node}], Map.put(env, node.id, node.id)}
     else
       unsupported_statement!(ast, meta)
     end
@@ -160,31 +169,45 @@ defmodule Choreo.Lab.DSL.DecisionTree do
   defp branch_from_piped_ast(ast, env) do
     {base, modifiers} = unwrap_pipe(ast, [])
 
-    condition =
-      modifiers |> Enum.reduce(nil, &condition_modifier/2) |> require_condition!(line_meta(base))
+    {condition, opts} =
+      Enum.reduce(modifiers, {nil, []}, &condition_modifier/2)
 
-    branch_from_ast(base, condition, env, line_meta(base))
+    condition = require_condition!(condition, line_meta(base))
+    branch_from_ast(base, condition, opts, env, line_meta(base))
   end
 
-  defp condition_modifier({name, _meta, [value]}, _acc)
-       when name in [:when_, :condition, :on, :label] do
-    value
+  defp condition_modifier({name, _meta, [value]}, {_cond, opts})
+       when name in [:when_, :condition, :on, :label, :branch, :edge] and
+              (is_binary(value) or is_atom(value)) do
+    {to_string(value), opts}
+  end
+
+  defp condition_modifier({name, meta, [opts]}, {_cond, prev_opts})
+       when name in [:when_, :condition, :on, :label, :branch, :edge] and is_list(opts) do
+    {condition_from_opts(opts, meta), Keyword.merge(prev_opts, opts)}
+  end
+
+  defp condition_modifier({name, _meta, [value, opts]}, {_cond, prev_opts})
+       when name in [:when_, :condition, :on, :label, :branch, :edge] and
+              (is_binary(value) or is_atom(value)) and is_list(opts) do
+    cond_val = Keyword.get(opts, :condition, to_string(value))
+    {cond_val, Keyword.merge(prev_opts, opts)}
   end
 
   defp condition_modifier(other, _acc) do
     raise ArgumentError,
           "unsupported decision-tree branch modifier: #{Macro.to_string(other)}; " <>
-            "use `when_(value)`, `condition(value)`, `on(value)`, or `label(value)`"
+            "use `when_(value)`, `condition(value)`, `on(value)`, `label(value)`, or `branch(value)`"
   end
 
-  defp branch_from_ast({:~>, meta, [from_ast, to_ast]}, condition, env, _statement_meta) do
+  defp branch_from_ast({:~>, meta, [from_ast, to_ast]}, condition, opts, env, _statement_meta) do
     {from, from_node} = endpoint_id(from_ast, env, meta)
     {to, to_node} = endpoint_id(to_ast, env, meta)
     nodes = [from_node, to_node] |> Enum.reject(&is_nil/1) |> Enum.uniq_by(& &1.id)
-    {%{from: from, to: to, condition: condition}, nodes}
+    {%{from: from, to: to, condition: condition, opts: opts}, nodes}
   end
 
-  defp branch_from_ast(other, _condition, _env, meta) do
+  defp branch_from_ast(other, _condition, _opts, _env, meta) do
     raise ArgumentError,
           "expected `parent ~> child` in decision-tree DSL, got #{Macro.to_string(other)}" <>
             line_suffix(meta)
@@ -279,11 +302,23 @@ defmodule Choreo.Lab.DSL.DecisionTree do
 
   defp condition_from_opts(opts, meta) do
     opts
-    |> Keyword.get(:condition, Keyword.get(opts, :label, Keyword.get(opts, :with)))
+    |> Keyword.get(
+      :condition,
+      Keyword.get(
+        opts,
+        :label,
+        Keyword.get(opts, :with, Keyword.get(opts, :when, Keyword.get(opts, :when_)))
+      )
+    )
     |> require_condition!(meta)
   end
 
   defp require_condition!(condition, _meta) when is_binary(condition), do: condition
+
+  defp require_condition!(condition, _meta) when is_atom(condition) and not is_nil(condition),
+    do: to_string(condition)
+
+  defp require_condition!(condition, _meta) when is_number(condition), do: to_string(condition)
 
   defp require_condition!(_condition, meta) do
     raise ArgumentError,
@@ -300,14 +335,28 @@ defmodule Choreo.Lab.DSL.DecisionTree do
     end
   end
 
-  defp pipe_step({:branch, %{from: from, to: to, condition: condition}}, acc) do
-    quote do
-      Choreo.DecisionTree.branch(
-        unquote(acc),
-        unquote(Macro.escape(from)),
-        unquote(Macro.escape(to)),
-        unquote(condition)
-      )
+  defp pipe_step({:branch, %{from: from, to: to, condition: condition} = branch}, acc) do
+    opts = Map.get(branch, :opts, [])
+
+    if opts == [] do
+      quote do
+        Choreo.DecisionTree.branch(
+          unquote(acc),
+          unquote(Macro.escape(from)),
+          unquote(Macro.escape(to)),
+          unquote(condition)
+        )
+      end
+    else
+      quote do
+        Choreo.DecisionTree.branch(
+          unquote(acc),
+          unquote(Macro.escape(from)),
+          unquote(Macro.escape(to)),
+          unquote(condition),
+          unquote(Macro.escape(opts))
+        )
+      end
     end
   end
 
@@ -317,7 +366,20 @@ defmodule Choreo.Lab.DSL.DecisionTree do
   end
 
   # Autocomplete helper stubs
-  for verb <- [:branch, :decision, :leaf, :outcome, :question, :result, :root] do
+  for verb <- [
+        :branch,
+        :condition,
+        :decision,
+        :edge,
+        :label,
+        :leaf,
+        :on,
+        :outcome,
+        :question,
+        :result,
+        :root,
+        :when_
+      ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do
       raise "DSL constructor `#{unquote(verb)}` must be called inside a DSL block"
     end

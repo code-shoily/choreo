@@ -104,6 +104,79 @@ defmodule Choreo.Lab.DecisionTreeDSLTest do
     end
   end
 
+  test "supports edge/3 and branch/3 with condition and opts" do
+    tree =
+      decision_tree do
+        a = root("A", feature: "a")
+        b = outcome("B")
+        c = outcome("C")
+
+        edge(a ~> b, "yes", probability: 0.8)
+        branch(a ~> c, "no", probability: 0.2)
+      end
+
+    assert Choreo.DecisionTree.condition(tree, :a, :b) == "yes"
+    assert Choreo.DecisionTree.condition(tree, :a, :c) == "no"
+    assert tree.edge_meta[{:a, :b}].probability == 0.8
+    assert tree.edge_meta[{:a, :c}].probability == 0.2
+  end
+
+  test "supports atom condition and pipe modifiers with options" do
+    tree =
+      decision_tree do
+        a = root("A", feature: "a")
+        b = outcome("B")
+        c = outcome("C")
+
+        a ~> b |> when_(:yes, weight: 10)
+        edge(a ~> c, :no)
+      end
+
+    assert Choreo.DecisionTree.condition(tree, :a, :b) == "yes"
+    assert Choreo.DecisionTree.condition(tree, :a, :c) == "no"
+    assert tree.edge_meta[{:a, :b}].weight == 10
+  end
+
+  test "supports standalone node declarations updating variable scope" do
+    tree =
+      decision_tree do
+        root("Weather", feature: "weather")
+        decision("Wind", feature: "wind")
+        outcome("Play")
+        outcome("Stay")
+
+        weather ~> play |> when_("sunny")
+        weather ~> wind |> when_("windy")
+        wind ~> stay |> when_("strong")
+      end
+
+    assert :weather in Choreo.DecisionTree.nodes(tree)
+    assert :wind in Choreo.DecisionTree.nodes(tree)
+    assert :play in Choreo.DecisionTree.nodes(tree)
+    assert :stay in Choreo.DecisionTree.nodes(tree)
+    assert Choreo.DecisionTree.condition(tree, :weather, :play) == "sunny"
+    assert Choreo.DecisionTree.condition(tree, :weather, :wind) == "windy"
+    assert Choreo.DecisionTree.condition(tree, :wind, :stay) == "strong"
+  end
+
+  test "autocomplete helper stubs raise outside DSL block" do
+    assert_raise RuntimeError,
+                 ~r/DSL constructor `when_` must be called inside a DSL block/,
+                 fn ->
+                   when_("yes")
+                 end
+
+    assert_raise RuntimeError,
+                 ~r/DSL constructor `condition` must be called inside a DSL block/,
+                 fn ->
+                   condition("yes")
+                 end
+
+    assert_raise RuntimeError, ~r/DSL constructor `edge` must be called inside a DSL block/, fn ->
+      edge(:a, :b)
+    end
+  end
+
   test "raises on unknown node variables" do
     assert_raise ArgumentError, ~r/unknown decision-tree node variable `b`/, fn ->
       Code.eval_quoted(

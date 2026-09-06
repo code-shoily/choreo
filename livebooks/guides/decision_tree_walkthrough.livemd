@@ -28,6 +28,15 @@ Unlike free-form graphs, decision trees enforce **structural invariants**:
 
 These invariants mean you can evaluate a tree deterministically: start at the root, read a feature value, follow the matching branch, repeat until you reach an outcome.
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two complementary approaches to modeling decision trees:
+
+1. **Programmatic Pipe API (`Choreo.DecisionTree`)**: The canonical, explicit interface (`DecisionTree.new() |> DecisionTree.set_root(...) |> DecisionTree.branch(...)`). Best for runtime decision engines, dynamic rule loading, and strict validation pipelines.
+2. **Lab DSL (`Choreo.Lab.DSL.DecisionTree`)**: An expressive sketch syntax using `decision_tree do ... end`, semantic node constructors (`root`, `decision`, `outcome`), direct connections (`~>`), and branch modifiers (`|> when_("yes")`, `edge parent ~> child, "..."`). Ideal for Livebooks, architectural documentation, and rapid prototyping.
+
+The Legend below demonstrates the canonical programmatic pipe API, while subsequent examples leverage the concise Lab DSL.
+
 ### Node Types
 
 | Type       | Shape                        | Purpose                                    |
@@ -37,6 +46,7 @@ These invariants mean you can evaluate a tree deterministically: start at the ro
 | `outcome`  | ⬭ rounded box              | Terminal leaf with class label or action   |
 
 ```elixir
+import Choreo.Lab.DSL.DecisionTree
 alias Choreo.DecisionTree
 alias Choreo.DecisionTree.Analysis
 
@@ -46,10 +56,11 @@ legend =
   |> DecisionTree.add_decision(:decision, feature: "Decision")
   |> DecisionTree.add_outcome(:outcome, label: "Outcome", class: "class_a")
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(legend)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(legend))
-])
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(legend)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(legend)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(legend))
+)
 ```
 
 ---
@@ -60,25 +71,28 @@ A classic use case: your application's error page asks a series of questions and
 
 ```elixir
 troubleshooting =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:has_power, feature: "Device powers on?")
-  |> DecisionTree.add_decision(:has_network, feature: "Network connected?")
-  |> DecisionTree.add_decision(:has_internet, feature: "Internet reachable?")
-  |> DecisionTree.add_outcome(:check_cable, label: "Check power cable", class: "hardware")
-  |> DecisionTree.add_outcome(:check_wifi, label: "Check Wi-Fi settings", class: "network")
-  |> DecisionTree.add_outcome(:check_dns, label: "Check DNS config", class: "network")
-  |> DecisionTree.add_outcome(:all_good, label: "No issue detected", class: "ok")
-  |> DecisionTree.branch(:has_power, :has_network, "yes")
-  |> DecisionTree.branch(:has_power, :check_cable, "no")
-  |> DecisionTree.branch(:has_network, :has_internet, "yes")
-  |> DecisionTree.branch(:has_network, :check_wifi, "no")
-  |> DecisionTree.branch(:has_internet, :all_good, "yes")
-  |> DecisionTree.branch(:has_internet, :check_dns, "no")
+  decision_tree do
+    has_power = root("Device powers on?", feature: "Device powers on?")
+    has_network = decision("Network connected?", feature: "Network connected?")
+    has_internet = decision("Internet reachable?", feature: "Internet reachable?")
+    check_cable = outcome("Check power cable", class: "hardware")
+    check_wifi = outcome("Check Wi-Fi settings", class: "network")
+    check_dns = outcome("Check DNS config", class: "network")
+    all_good = outcome("No issue detected", class: "ok")
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(troubleshooting)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(troubleshooting))
-])
+    has_power ~> has_network |> when_("yes")
+    has_power ~> check_cable |> when_("no")
+    has_network ~> has_internet |> when_("yes")
+    has_network ~> check_wifi |> when_("no")
+    has_internet ~> all_good |> when_("yes")
+    has_internet ~> check_dns |> when_("no")
+  end
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(troubleshooting)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(troubleshooting)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(troubleshooting))
+)
 ```
 
 ### Evaluating a Decision
@@ -118,33 +132,25 @@ Model a simplified version of the classic Iris dataset decision tree. Features a
 
 ```elixir
 iris =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:petal_length, feature: "petal length (cm)")
-  |> DecisionTree.add_decision(:petal_width, feature: "petal width (cm)")
-  |> DecisionTree.add_outcome(:setosa,
-    label: "Iris-setosa",
-    class: "setosa",
-    probability: 0.98
-  )
-  |> DecisionTree.add_outcome(:versicolor,
-    label: "Iris-versicolor",
-    class: "versicolor",
-    probability: 0.94
-  )
-  |> DecisionTree.add_outcome(:virginica,
-    label: "Iris-virginica",
-    class: "virginica",
-    probability: 0.91
-  )
-  |> DecisionTree.branch(:petal_length, :setosa, "< 2.45")
-  |> DecisionTree.branch(:petal_length, :petal_width, ">= 2.45")
-  |> DecisionTree.branch(:petal_width, :versicolor, "< 1.75")
-  |> DecisionTree.branch(:petal_width, :virginica, ">= 1.75")
+  decision_tree do
+    petal_length = root("petal length (cm)", feature: "petal length (cm)")
+    petal_width = decision("petal width (cm)", feature: "petal width (cm)")
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(iris)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(iris))
-])
+    setosa = outcome("Iris-setosa", class: "setosa", probability: 0.98)
+    versicolor = outcome("Iris-versicolor", class: "versicolor", probability: 0.94)
+    virginica = outcome("Iris-virginica", class: "virginica", probability: 0.91)
+
+    petal_length ~> setosa |> when_("< 2.45")
+    petal_length ~> petal_width |> when_(">= 2.45")
+    petal_width ~> versicolor |> when_("< 1.75")
+    petal_width ~> virginica |> when_(">= 1.75")
+  end
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(iris)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(iris)),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(iris))
+)
 ```
 
 ### Path Enumeration
@@ -214,29 +220,33 @@ Loan approval decisions based on income, credit score, and employment status. So
 
 ```elixir
 loan =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:income, feature: "annual income")
-  |> DecisionTree.add_decision(:credit_score, feature: "credit score")
-  |> DecisionTree.add_decision(:employment, feature: "employment status")
-  |> DecisionTree.add_outcome(:approved_fast, label: "Fast Track Approved", class: "approved")
-  |> DecisionTree.add_outcome(:approved_standard, label: "Standard Approved", class: "approved")
-  |> DecisionTree.add_outcome(:rejected_risk, label: "Rejected — High Risk", class: "rejected")
-  |> DecisionTree.add_outcome(:rejected_income, label: "Rejected — Low Income", class: "rejected")
-  |> DecisionTree.add_outcome(:manual_review_credit, label: "Manual Review (Credit)", class: "pending")
-  |> DecisionTree.add_outcome(:manual_review_employment, label: "Manual Review (Employment)", class: "pending")
-  |> DecisionTree.branch(:income, :credit_score, ">= 50k")
-  |> DecisionTree.branch(:income, :rejected_income, "< 50k")
-  |> DecisionTree.branch(:credit_score, :employment, ">= 700")
-  |> DecisionTree.branch(:credit_score, :manual_review_credit, "600-699")
-  |> DecisionTree.branch(:credit_score, :rejected_risk, "< 600")
-  |> DecisionTree.branch(:employment, :approved_fast, "full-time")
-  |> DecisionTree.branch(:employment, :approved_standard, "part-time")
-  |> DecisionTree.branch(:employment, :manual_review_employment, "self-employed")
+  decision_tree do
+    income = root("annual income", feature: "annual income")
+    credit_score = decision("credit score", feature: "credit score")
+    employment = decision("employment status", feature: "employment status")
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(loan)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(loan), height: "500px")
-])
+    approved_fast = outcome("Fast Track Approved", class: "approved")
+    approved_standard = outcome("Standard Approved", class: "approved")
+    rejected_risk = outcome("Rejected — High Risk", class: "rejected")
+    rejected_income = outcome("Rejected — Low Income", class: "rejected")
+    manual_review_credit = outcome("Manual Review (Credit)", class: "pending")
+    manual_review_employment = outcome("Manual Review (Employment)", class: "pending")
+
+    income ~> credit_score |> when_(">= 50k")
+    income ~> rejected_income |> when_("< 50k")
+    credit_score ~> employment |> when_(">= 700")
+    credit_score ~> manual_review_credit |> when_("600-699")
+    credit_score ~> rejected_risk |> when_("< 600")
+    employment ~> approved_fast |> when_("full-time")
+    employment ~> approved_standard |> when_("part-time")
+    employment ~> manual_review_employment |> when_("self-employed")
+  end
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(loan)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(loan), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(loan))
+)
 ```
 
 ### Inconsistent Path Detection
@@ -252,16 +262,18 @@ In this well-formed tree, there are no inconsistencies. But if someone accidenta
 
 ```elixir
 inconsistent =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:color, feature: "color")
-  |> DecisionTree.add_decision(:shade, feature: "color")
-  |> DecisionTree.add_outcome(:stop, label: "Stop")
-  |> DecisionTree.add_outcome(:go1, label: "Go")
-  |> DecisionTree.add_outcome(:go2, label: "Go")
-  |> DecisionTree.branch(:color, :shade, "red")
-  |> DecisionTree.branch(:color, :go1, "green")
-  |> DecisionTree.branch(:shade, :stop, "dark")
-  |> DecisionTree.branch(:shade, :go2, "light")
+  decision_tree do
+    color = root("color", feature: "color")
+    shade = decision("color", feature: "color")
+    stop = outcome("Stop")
+    go1 = outcome("Go")
+    go2 = outcome("Go")
+
+    color ~> shade |> when_("red")
+    color ~> go1 |> when_("green")
+    shade ~> stop |> when_("dark")
+    shade ~> go2 |> when_("light")
+  end
 
 Analysis.inconsistent_paths(inconsistent)
 |> IO.inspect(label: "Inconsistent paths in broken tree")
@@ -287,44 +299,52 @@ Help a user pick the right AWS EC2 instance type based on workload characteristi
 
 ```elixir
 ec2_selector =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:workload, feature: "workload type")
-  |> DecisionTree.add_decision(:memory, feature: "memory needs")
-  |> DecisionTree.add_decision(:gpu, feature: "needs GPU?")
-  |> DecisionTree.add_decision(:io, feature: "I/O intensity")
-  |> DecisionTree.add_decision(:budget, feature: "budget constraint")
-  |> DecisionTree.add_outcome(:t3_micro, label: "t3.micro", class: "general")
-  |> DecisionTree.add_outcome(:t3_large, label: "t3.large", class: "general")
-  |> DecisionTree.add_outcome(:m6i_xlarge, label: "m6i.xlarge", class: "general")
-  |> DecisionTree.add_outcome(:r6i_large, label: "r6i.large", class: "memory")
-  |> DecisionTree.add_outcome(:r6i_2xlarge, label: "r6i.2xlarge", class: "memory")
-  |> DecisionTree.add_outcome(:c6i_xlarge, label: "c6i.xlarge", class: "compute")
-  |> DecisionTree.add_outcome(:i4i_large, label: "i4i.large", class: "storage")
-  |> DecisionTree.add_outcome(:g5_xlarge, label: "g5.xlarge", class: "gpu")
-  |> DecisionTree.add_outcome(:inf2_xlarge, label: "inf2.xlarge", class: "ml")
-  # Workload branches
-  |> DecisionTree.branch(:workload, :memory, "database")
-  |> DecisionTree.branch(:workload, :gpu, "ml/training")
-  |> DecisionTree.branch(:workload, :io, "analytics")
-  |> DecisionTree.branch(:workload, :budget, "web server")
-  # Memory branches
-  |> DecisionTree.branch(:memory, :r6i_large, "< 64GB")
-  |> DecisionTree.branch(:memory, :r6i_2xlarge, ">= 64GB")
-  # GPU branches
-  |> DecisionTree.branch(:gpu, :g5_xlarge, "yes")
-  |> DecisionTree.branch(:gpu, :inf2_xlarge, "no")
-  # I/O branches
-  |> DecisionTree.branch(:io, :i4i_large, "high")
-  |> DecisionTree.branch(:io, :c6i_xlarge, "medium")
-  # Budget branches
-  |> DecisionTree.branch(:budget, :t3_micro, "tight")
-  |> DecisionTree.branch(:budget, :t3_large, "moderate")
-  |> DecisionTree.branch(:budget, :m6i_xlarge, "flexible")
+  decision_tree do
+    workload = root("workload type", feature: "workload type")
+    memory = decision("memory needs", feature: "memory needs")
+    gpu = decision("needs GPU?", feature: "needs GPU?")
+    io = decision("I/O intensity", feature: "I/O intensity")
+    budget = decision("budget constraint", feature: "budget constraint")
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(ec2_selector)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(ec2_selector), height: "500px")
-])
+    t3_micro = outcome("t3.micro", class: "general")
+    t3_large = outcome("t3.large", class: "general")
+    m6i_xlarge = outcome("m6i.xlarge", class: "general")
+    r6i_large = outcome("r6i.large", class: "memory")
+    r6i_2xlarge = outcome("r6i.2xlarge", class: "memory")
+    c6i_xlarge = outcome("c6i.xlarge", class: "compute")
+    i4i_large = outcome("i4i.large", class: "storage")
+    g5_xlarge = outcome("g5.xlarge", class: "gpu")
+    inf2_xlarge = outcome("inf2.xlarge", class: "ml")
+
+    # Workload branches
+    workload ~> memory |> when_("database")
+    workload ~> gpu |> when_("ml/training")
+    workload ~> io |> when_("analytics")
+    workload ~> budget |> when_("web server")
+
+    # Memory branches
+    memory ~> r6i_large |> when_("< 64GB")
+    memory ~> r6i_2xlarge |> when_(">= 64GB")
+
+    # GPU branches
+    gpu ~> g5_xlarge |> when_("yes")
+    gpu ~> inf2_xlarge |> when_("no")
+
+    # I/O branches
+    io ~> i4i_large |> when_("high")
+    io ~> c6i_xlarge |> when_("medium")
+
+    # Budget branches
+    budget ~> t3_micro |> when_("tight")
+    budget ~> t3_large |> when_("moderate")
+    budget ~> m6i_xlarge |> when_("flexible")
+  end
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(ec2_selector)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(ec2_selector), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(ec2_selector))
+)
 ```
 
 ### Interactive Evaluation
@@ -365,45 +385,46 @@ Sometimes a decision doesn't actually change the outcome. If all branches under 
 
 ```elixir
 redundant =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:color, feature: "color")
-  |> DecisionTree.add_decision(:size_red, feature: "size")
-  |> DecisionTree.add_decision(:size_green, feature: "size")
-  |> DecisionTree.add_outcome(:stop_1, label: "Stop", class: "stop")
-  |> DecisionTree.add_outcome(:stop_2, label: "Stop", class: "stop")
-  |> DecisionTree.add_outcome(:stop_3, label: "Stop", class: "stop")
-  |> DecisionTree.add_outcome(:stop_4, label: "Stop", class: "stop")
-  # Both colors lead to distinct size decisions, which always lead to Stop
-  |> DecisionTree.branch(:color, :size_red, "red")
-  |> DecisionTree.branch(:color, :size_green, "green")
-  |> DecisionTree.branch(:size_red, :stop_1, "small")
-  |> DecisionTree.branch(:size_red, :stop_2, "large")
-  |> DecisionTree.branch(:size_green, :stop_3, "small")
-  |> DecisionTree.branch(:size_green, :stop_4, "large")
+  decision_tree do
+    color = root("color", feature: "color")
+    size_red = decision("size", feature: "size")
+    size_green = decision("size", feature: "size")
+    stop_1 = outcome("Stop", class: "stop")
+    stop_2 = outcome("Stop", class: "stop")
+    stop_3 = outcome("Stop", class: "stop")
+    stop_4 = outcome("Stop", class: "stop")
+
+    # Both colors lead to distinct size decisions, which always lead to Stop
+    color ~> size_red |> when_("red")
+    color ~> size_green |> when_("green")
+    size_red ~> stop_1 |> when_("small")
+    size_red ~> stop_2 |> when_("large")
+    size_green ~> stop_3 |> when_("small")
+    size_green ~> stop_4 |> when_("large")
+  end
 
 before_pruning =
   Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(redundant)),
-  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(redundant)),
-  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(redundant))
-)
+    Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(redundant)),
+    Graphviz: Kino.VizJS.render(DecisionTree.to_dot(redundant)),
+    Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(redundant))
+  )
 
 pruned = Analysis.prune_redundant(redundant)
 
 after_pruning =
   Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(pruned)),
-  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(pruned)),
-  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(pruned))
-)
+    Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(pruned)),
+    Graphviz: Kino.VizJS.render(DecisionTree.to_dot(pruned)),
+    Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(pruned))
+  )
 
-Kino.Layout.grid(
-  [
-    Kino.HTML.new("<h4>Before Pruning</h4>"),
-    before_pruning, 
-    Kino.HTML.new("<h4>After Pruning</h4>"),
-    after_pruning]
-)
+Kino.Layout.grid([
+  Kino.HTML.new("<h4>Before Pruning</h4>"),
+  before_pruning,
+  Kino.HTML.new("<h4>After Pruning</h4>"),
+  after_pruning
+])
 ```
 
 The `:color` and `:size` decisions were both redundant because every path ended at `Stop`. After pruning, the tree collapses to a single outcome node — the simplest possible representation.
@@ -417,14 +438,16 @@ The builder enforces invariants at construction time, but let's see what validat
 ```elixir
 # Simulate a malformed tree by building one with issues
 broken =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:weather, feature: "weather")
-  |> DecisionTree.add_decision(:wind, feature: "wind")
-  |> DecisionTree.add_outcome(:play, label: "Play")
-  |> DecisionTree.add_outcome(:stay, label: "Stay")
-  # Missing branch from root — decision node :wind has no parent
-  |> DecisionTree.branch(:weather, :play, "sunny")
-  |> DecisionTree.branch(:weather, :stay, "rainy")
+  decision_tree do
+    weather = root("weather", feature: "weather")
+    decision("wind", feature: "wind")
+    play = outcome("Play")
+    stay = outcome("Stay")
+
+    # Missing branch from root — decision node :wind has no parent
+    weather ~> play |> when_("sunny")
+    weather ~> stay |> when_("rainy")
+  end
 
 Analysis.validate(broken)
 |> Enum.each(fn {sev, msg} ->
@@ -522,10 +545,11 @@ brand_theme =
     graph_bgcolor: "lightgray"
   )
 
-Kino.Layout.tabs([
-  "Mermaid": Kino.Mermaid.new(DecisionTree.to_mermaid(iris, theme: brand_theme)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme), height: "500px")
-])
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(DecisionTree.to_mermaid(iris, theme: brand_theme)),
+  Graphviz: Kino.VizJS.render(DecisionTree.to_dot(iris, theme: brand_theme), height: "500px"),
+  Sketch: Choreo.Lab.Sketch.new(DecisionTree.to_mermaid(iris, theme: brand_theme))
+)
 ```
 
 ---
@@ -544,22 +568,24 @@ For Decision Tree graphs, zoom levels are semantic:
 alias Choreo.View
 
 zoom_tree =
-  DecisionTree.new()
-  |> DecisionTree.set_root(:weather, feature: "Outlook")
-  |> DecisionTree.add_decision(:temp, feature: "Temperature")
-  |> DecisionTree.add_decision(:wind, feature: "Wind")
-  |> DecisionTree.add_outcome(:play1, label: "Play")
-  |> DecisionTree.add_outcome(:play2, label: "Play")
-  |> DecisionTree.add_outcome(:play3, label: "Play")
-  |> DecisionTree.add_outcome(:stop1, label: "Don't Play")
-  |> DecisionTree.add_outcome(:stop2, label: "Don't Play")
-  |> DecisionTree.branch(:weather, :play1, "Overcast")
-  |> DecisionTree.branch(:weather, :temp, "Sunny")
-  |> DecisionTree.branch(:weather, :wind, "Rain")
-  |> DecisionTree.branch(:temp, :stop1, "High")
-  |> DecisionTree.branch(:temp, :play2, "Normal")
-  |> DecisionTree.branch(:wind, :stop2, "Strong")
-  |> DecisionTree.branch(:wind, :play3, "Weak")
+  decision_tree do
+    weather = root("Outlook", feature: "Outlook")
+    temp = decision("Temperature", feature: "Temperature")
+    wind = decision("Wind", feature: "Wind")
+    play1 = outcome("Play")
+    play2 = outcome("Play")
+    play3 = outcome("Play")
+    stop1 = outcome("Don't Play")
+    stop2 = outcome("Don't Play")
+
+    weather ~> play1 |> when_("Overcast")
+    weather ~> temp |> when_("Sunny")
+    weather ~> wind |> when_("Rain")
+    temp ~> stop1 |> when_("High")
+    temp ~> play2 |> when_("Normal")
+    wind ~> stop2 |> when_("Strong")
+    wind ~> play3 |> when_("Weak")
+  end
 
 # Zoom out to Level 0 (Root only)
 root_only = View.zoom(zoom_tree, level: 0)
@@ -593,6 +619,52 @@ Kino.Layout.tabs(
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
 
 <!-- livebook:{"break_markdown":true} -->
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax (`Choreo.Lab.DSL.DecisionTree`)
+
+| Syntax                                            | Description                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| `decision_tree do ... end`                        | Define a decision tree model                                 |
+| `r = root("Feature", feature: "...")`             | Set root decision node (exactly one per tree)                |
+| `d = decision("Feature", feature: "...")`         | Declare an internal decision node                            |
+| `d = question("Feature")`                         | Alias for decision constructor                               |
+| `o = outcome("Label", class: "...")`              | Declare a terminal leaf outcome node                         |
+| `o = result("Label")` / `leaf("Label")`           | Aliases for outcome constructor                              |
+| `a ~> b`                                          | Connect parent to child (requires branch condition)          |
+| `a ~> b \|> when_("condition")`                   | Branch condition modifier                                    |
+| `a ~> b \|> condition("condition")` / `on(...)`   | Condition aliases                                            |
+| `a ~> b \|> when_("condition", probability: 0.9)` | Branch condition with metadata options                       |
+| `edge a ~> b, "condition"`                        | Explicit branch declaration with condition                   |
+| `branch a ~> b, "condition", opts`                | Explicit branch declaration with condition and options       |
+
+### Programmatic Pipe API & Analysis (`Choreo.DecisionTree`)
+
+| Task / Feature                 | Command                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------- |
+| Create Tree                    | `DecisionTree.new/1` (Opts: `:strict`)                                                  |
+| Set Root Node                  | `DecisionTree.set_root/3` (Opts: `:feature`, `:label`, `:shape`, `:fillcolor`)          |
+| Add Decision Node              | `DecisionTree.add_decision/3` (Opts: `:feature`, `:label`, `:fillcolor`)                 |
+| Add Outcome Node               | `DecisionTree.add_outcome/3` (Opts: `:label`, `:class`, `:probability`, `:fillcolor`)    |
+| Add Branch                     | `DecisionTree.branch/5` (`tree, parent, child, condition, opts \\ []`)                  |
+| Query Branches / Outcomes      | `DecisionTree.branches/1`, `DecisionTree.outcomes/1`, `DecisionTree.decisions/1`         |
+| Query Condition                | `DecisionTree.condition/3` (`tree, parent, child`)                                      |
+| Render Mermaid Flowchart       | `DecisionTree.to_mermaid/2` (Opts: `:theme`, `:direction`)                              |
+| Render DOT Graphviz            | `DecisionTree.to_dot/2` (Opts: `:theme`)                                                |
+| Evaluate Inputs                | `Analysis.decide/2` (Walks tree given feature values and returns outcome)               |
+| Enumerate Paths                | `Analysis.paths/1`, `Analysis.paths_with_conditions/1`                                  |
+| Depth & Breadth Metrics        | `Analysis.depth/1`, `Analysis.breadth/1`                                                |
+| Feature Importance             | `Analysis.feature_importance/1` (Ranks features by split count)                         |
+| Extract IF-THEN Rules          | `Analysis.rules/1` (Converts paths into executable IF-THEN rules)                       |
+| Test Case Generation           | `Analysis.generate_test_cases/1` (Generates minimal feature set covering all outcomes)  |
+| Inconsistent Path Detection    | `Analysis.inconsistent_paths/1` (Finds logically contradictory branches)                |
+| Detect Missing Branches        | `Analysis.missing_branches/2` (Finds missing feature values against domain schema)      |
+| Redundant Branch Pruning       | `Analysis.prune_redundant/1` (Collapses decisions that produce identical outcomes)     |
+| Tree Invariant Validation      | `Analysis.validate/1` (Validates root, single parent, no cycles, orphan nodes)          |
+| Semantic Zoom Views            | `Choreo.View.zoom/2` (Level 0: root, Level 1: root + decisions, Level 2+: all)         |
 
 ---
 
