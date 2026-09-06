@@ -299,4 +299,60 @@ defmodule Choreo.InfrastructureTest do
 
     assert Choreo.to_mermaid(infra) =~ "graph TD"
   end
+
+  test "add_cluster/3 and clusters/1" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_cluster("on_prem", label: "On-Premises Data Center")
+
+    clusters = Infrastructure.clusters(infra)
+    assert Map.has_key?(clusters, "cluster_on_prem")
+    assert clusters["cluster_on_prem"][:label] == "On-Premises Data Center"
+    assert clusters["cluster_on_prem"][:cluster_type] == :cluster
+
+    # Also check delegation on %Choreo{}
+    choreo_system = Infrastructure.to_choreo(infra)
+    assert Infrastructure.clusters(choreo_system) == clusters
+  end
+
+  test "edges_with_meta/1 returns full edge metadata" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_compute(:web)
+      |> Infrastructure.add_compute(:api)
+      |> Infrastructure.connect(:web, :api, cost: 2, protocol: :https, label: "REST")
+
+    edges = Infrastructure.edges_with_meta(infra)
+    assert [{:web, :api, 2, meta}] = edges
+    assert meta[:protocol] == :https
+    assert meta[:label] == "REST"
+
+    # Also check with %Choreo{}
+    choreo_system = Infrastructure.to_choreo(infra)
+    assert Infrastructure.edges_with_meta(choreo_system) == edges
+  end
+
+  test "to_simple_graph/2 and to_graph/1" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_compute(:a)
+      |> Infrastructure.add_compute(:b)
+      |> Infrastructure.connect(:a, :b, cost: 10)
+      |> Infrastructure.connect(:a, :b, cost: 5)
+
+    assert %Yog.Multi.Graph{} = Infrastructure.to_graph(infra)
+
+    simple = Infrastructure.to_simple_graph(infra)
+    assert %Yog.Graph{} = simple
+    assert Yog.all_edges(simple) == [{:a, :b, 5}]
+
+    # Custom combine function
+    summed = Infrastructure.to_simple_graph(infra, combine: &Kernel.+/2)
+    assert Yog.all_edges(summed) == [{:a, :b, 15}]
+
+    # Also check with %Choreo{}
+    choreo_system = Infrastructure.to_choreo(infra)
+    assert %Yog.Multi.Graph{} = Infrastructure.to_graph(choreo_system)
+    assert Yog.all_edges(Infrastructure.to_simple_graph(choreo_system)) == [{:a, :b, 5}]
+  end
 end

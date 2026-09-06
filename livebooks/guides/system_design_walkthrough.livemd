@@ -4,7 +4,7 @@
 Mix.install([
   # {:choreo, "~> 0.13.0"},
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
-  {:kino_vizjs, "~> 0.9.0"},
+  {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
 
@@ -20,17 +20,20 @@ Mix.install([
 
 ### Node Types
 
-| Type            | Shape                    | Purpose                            |
-| --------------- | ------------------------ | ---------------------------------- |
-| `database`      | 🛢️ cylinder         | Postgres, MySQL, MongoDB, DynamoDB |
-| `cache`         | 💎 diamond             | Redis, Memcached                   |
-| `service`       | 📦 box3d               | API Gateway, worker, microservice  |
-| `network`       | ☁️ cloud             | VPC, subnet, CDN, firewall         |
-| `user`          | 👤 box (double border) | Person, device, external service   |
-| `load_balancer` | ▽ invhouse             | Nginx, HAProxy, ALB, Cloudflare    |
-| `queue`         | 🗂️ folder           | Kafka, RabbitMQ, SQS, Pub/Sub      |
-| `storage`       | 📁 folder              | S3, NFS, block storage             |
-| `generic`       | ⬛ box                  | Anything else                      |
+| Type            | Shape                    | Purpose                               |
+| --------------- | ------------------------ | ------------------------------------- |
+| `database`      | 🛢️ cylinder         | Postgres, MySQL, MongoDB, DynamoDB    |
+| `managed_db`    | 🛢️ cylinder         | Managed database (RDS, Aurora, Atlas) |
+| `cache`         | 💎 diamond             | Redis, Memcached                      |
+| `service`       | 📦 box3d               | API Gateway, worker, microservice     |
+| `compute`       | 📦 box3d               | Workload runner (EC2, ECS, Kube pod)  |
+| `network`       | ☁️ cloud             | VPC, subnet, CDN, firewall            |
+| `internet`      | ☁️ cloud             | Public internet gateway / client zone |
+| `user`          | 👤 box (double border) | Person, device, external service      |
+| `load_balancer` | ▽ invhouse             | Nginx, HAProxy, ALB, Cloudflare       |
+| `queue`         | 🗂️ folder           | Kafka, RabbitMQ, SQS, Pub/Sub         |
+| `storage`       | 📁 folder              | S3, NFS, block storage                |
+| `generic`       | ⬛ box                  | Custom node with specific styling     |
 
 ```elixir
 alias Choreo
@@ -38,14 +41,17 @@ alias Choreo.Analysis
 
 legend =
   Choreo.new()
-  |> Choreo.add_database(:db, label: "Database")
-  |> Choreo.add_cache(:cache, label: "Cache")
-  |> Choreo.add_service(:svc, label: "Service")
-  |> Choreo.add_network(:net, label: "Network")
-  |> Choreo.add_user(:user, label: "User")
+  |> Choreo.add_internet(:internet, label: "Internet")
   |> Choreo.add_load_balancer(:lb, label: "Load Balancer")
+  |> Choreo.add_service(:svc, label: "Service")
+  |> Choreo.add_compute(:compute, label: "Compute")
+  |> Choreo.add_database(:db, label: "Database")
+  |> Choreo.add_managed_db(:managed_db, label: "Managed DB")
+  |> Choreo.add_cache(:cache, label: "Cache")
   |> Choreo.add_queue(:queue, label: "Queue")
   |> Choreo.add_storage(:storage, label: "Storage")
+  |> Choreo.add_network(:net, label: "Network")
+  |> Choreo.add_user(:user, label: "User")
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(legend)),
@@ -580,6 +586,56 @@ Yog.all_edges(simple)
 
 ---
 
+## Example 8: Centrality & Heatmap Hotspot Analysis
+
+In complex distributed architectures, identifying which services are central bottlenecks helps prioritize reliability, capacity, and rate-limiting investments. `Analysis.heatmap/2` dynamically recolors nodes based on graph centrality (such as `:degree` or `:betweenness`), and `Analysis.legend/1` produces a matching visual scale.
+
+```elixir
+# Generate a heatmapped architecture highlighting bottlenecks
+heatmapped = Analysis.heatmap(multi_region, measure: :betweenness, palette: :heat)
+heat_legend = Analysis.legend(:heat)
+
+Kino.Layout.tabs(
+  "Heatmap (Mermaid)": Choreo.Lab.Siren.new(Choreo.to_mermaid(heatmapped, direction: :lr)),
+  "Heatmap (Graphviz)": Kino.VizJS.render(Choreo.to_dot(heatmapped), height: "600px"),
+  "Color Legend": Kino.VizJS.render(Choreo.to_dot(heat_legend))
+)
+```
+
+---
+
+## Example 9: Transitive Reduction & Pathfinding
+
+Large systems often accumulate redundant connections (e.g. A connects to B, B to C, and A directly to C). `Analysis.reduce_transitive/1` computes the essential DAG spine by pruning transitively redundant edges.
+
+Additionally, `Analysis.path/4` finds the best path according to architectural measures (`:shortest`, `:latency`, `:throughput`, `:risk`, or custom semirings), and `Analysis.highlight/1` formats the path for visual emphasis in diagrams.
+
+```elixir
+# Transitive reduction on a DAG
+dag_pipeline =
+  Choreo.new()
+  |> Choreo.add_service(:ingest)
+  |> Choreo.add_service(:process)
+  |> Choreo.add_service(:store)
+  |> Choreo.connect(:ingest, :process)
+  |> Choreo.connect(:process, :store)
+  |> Choreo.connect(:ingest, :store)
+
+{:ok, reduced} = Analysis.reduce_transitive(dag_pipeline)
+IO.puts("Original edges: #{length(Choreo.edges(dag_pipeline))}, Reduced edges: #{length(Choreo.edges(reduced))}")
+
+# Pathfinding with visual highlighting
+{:ok, found_path} = Analysis.path(multi_region, :end_user, :postgres_east_a)
+highlight_opts = Analysis.highlight(found_path)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(multi_region, highlight_opts ++ [direction: :lr])),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(multi_region, highlight_opts), height: "600px")
+)
+```
+
+---
+
 ## Example 10: Zooming and Architectural Views
 
 When dealing with large infrastructure diagrams, displaying every component can be overwhelming. `Choreo.Viewable` allows you to "zoom out" to see the big picture, or "zoom in" for detail.
@@ -643,19 +699,24 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 
 ## Summary
 
-| Question                                         | Function                                   |
-| ------------------------------------------------ | ------------------------------------------ |
-| "What's the cheapest way to connect everything?" | `Analysis.mst/2`                           |
-| "In what order should I deploy?"                 | `Analysis.topological_sort/1`              |
-| "Does my architecture have cycles?"              | `Analysis.cyclic?/1` / `Analysis.dag?/1`   |
-| "Which services are mutually dependent?"         | `Analysis.strongly_connected_components/1` |
-| "What breaks if X goes down?"                    | `Analysis.impact_analysis/2`               |
-| "What's the cheapest path from A to B?"          | `Analysis.shortest_path/4`                 |
-| "Which services are critical connectors?"        | `Analysis.centrality/2`                    |
-| "Which nodes have no connections?"               | `Analysis.isolated_nodes/1`                |
-| "Where are my single points of failure?"         | `Analysis.single_points_of_failure/1`      |
-| "Is my architecture sound?"                      | `Analysis.validate/1`                      |
-| "Render to DOT"                                  | `Choreo.to_dot/2`                          |
-| "Render to Mermaid"                              | `Choreo.to_mermaid/2`                      |
+| Question                                         | Function                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| "What's the cheapest way to connect everything?" | `Analysis.mst/2`                                                         |
+| "In what order should I deploy?"                 | `Analysis.topological_sort/1`                                            |
+| "Does my architecture have cycles?"              | `Analysis.cyclic?/1` / `Analysis.dag?/1`                                 |
+| "Which services are mutually dependent?"         | `Analysis.strongly_connected_components/1`                               |
+| "What breaks if X goes down?"                    | `Analysis.impact_analysis/2`                                             |
+| "What's the cheapest path from A to B?"          | `Analysis.shortest_path/4`                                               |
+| "Find domain path (latency, throughput, risk)?"  | `Analysis.path/4` & `Analysis.highlight/1`                               |
+| "Which services are critical connectors?"        | `Analysis.centrality/2`                                                  |
+| "Where are the architecture hotspots?"           | `Analysis.heatmap/2` & `Analysis.legend/1`                               |
+| "Which nodes are articulation points / SPOFs?"   | `Analysis.single_points_of_failure/1` & `Analysis.cut_vertices/1`        |
+| "What is the core clustering structure?"         | `Analysis.core_numbers/1`                                                |
+| "What is the minimal dependency DAG?"            | `Analysis.reduce_transitive/1`                                           |
+| "Which nodes have no connections?"               | `Analysis.isolated_nodes/1`                                              |
+| "Is my architecture sound?"                      | `Analysis.validate/1`                                                    |
+| "Query nodes, edges, clusters, graphs"           | `Choreo.nodes/1`, `edges_with_meta/1`, `clusters/1`, `to_simple_graph/2` |
+| "Render to DOT"                                  | `Choreo.to_dot/2` (themes, highlighting)                                 |
+| "Render to Mermaid"                              | `Choreo.to_mermaid/2` (`:flowchart`, `:architecture`, directions)        |
 
 Infrastructure diagrams as code mean your architecture is version-controlled, reviewable, and automatically analysed for cost, resilience, and correctness. Every time you add a service or connection, you can immediately see the impact on deployment order, network cost, and fault tolerance — before you provision a single resource.

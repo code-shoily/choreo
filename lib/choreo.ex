@@ -1025,6 +1025,8 @@ defmodule Choreo do
   ## Options
 
     * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, or `:ocean`
+    * `:highlighted_nodes` - list of node IDs to highlight
+    * `:highlighted_edges` - list of edge IDs or `{from, to}` tuples to highlight
     * Any option accepted by `Yog.Render.DOT.to_dot/2`
 
   ## Examples
@@ -1050,6 +1052,8 @@ defmodule Choreo do
       `architecture-beta` diagram type)
     * `:theme` - `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, or `:ocean`
     * `:direction` - `:td`, `:lr`, `:bt`, or `:rl`
+    * `:highlighted_nodes` - list of node IDs to highlight
+    * `:highlighted_edges` - list of edge IDs or `{from, to}` tuples to highlight
     * Any option accepted by `Yog.Multi.Mermaid.to_mermaid/2`
 
   ## Examples

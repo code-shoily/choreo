@@ -9,6 +9,8 @@
 - `Choreo.DecisionTree.Analysis`: Added `cyclic?/1` to check for graph cycles, `dead_ends/1` to detect decision paths that cannot reach an outcome, and `outcome_distribution/1` to compute frequencies of reachable outcome classes.
 - `Choreo.DecisionTree.Analysis`: Enhanced `validate/1` with cycle detection and multiple parent checks to enforce tree invariants.
 - `Choreo.Dependency.Analysis`: Added `cyclic?/1` for circular dependency checks, `topological_sort/1` for execution ordering, `build_order/1` for bottom-up compilation/boot sequencing, `direct_dependencies/2` and `direct_dependents/2` for immediate neighbor queries, and `isolated_nodes/1` for disconnected component detection.
+- `Choreo.Infrastructure`: Added `add_cluster/3`, `clusters/1`, `edges_with_meta/1`, `to_simple_graph/2`, and `to_graph/1` for complete parity with top-level `Choreo`.
+- `Choreo.Infrastructure.Analysis`: Added programmatic violation and placement queries: `direct_internet_violations/1`, `misplaced_databases/1`, `misplaced_storage/1`, `misplaced_load_balancers/1`, `unassigned_compute/1`, and `isolated_nodes/1`.
 - **ThreatModel Hardening & Advanced Security Analysis**:
   - `Choreo.ThreatModel`: Added support for `:role` (`:anonymous`, `:user`, `:partner`, `:admin`, `:third_party`), `:privilege`, and `:controls` in external entities; `:controls` in processes and data stores; and `:authenticated`, `:data`, `:sensitivity`, and `:controls` in data flows.
   - `Choreo.ThreatModel`: Added `:highlighted_nodes` and `:highlighted_edges` fields to the struct, and forwarded them seamlessly through `to_dot/2` and `to_mermaid/2`. Added `clear_highlight/1`.
@@ -24,6 +26,9 @@
 
 ### Fixed
 
+- Documented `:highlighted_nodes` and `:highlighted_edges` in `Choreo.to_dot/2` and `Choreo.to_mermaid/2`, and documented `:minimal` theme support in `Choreo.Infrastructure.to_dot/2` and `Choreo.Infrastructure.to_mermaid/2`.
+- Fixed outdated reference to deprecated `Analysis.warnings/1` in `infrastructure_topology_walkthrough.livemd`, updated Step 3 to detail all 5 security audit rules and programmatic queries, and updated Cheat Sheet and Summary tables.
+- Fixed trailing comma in `system_design_walkthrough.livemd`, added `:compute`, `:managed_db`, and `:internet` to node types table/legend, added Example 8 (Centrality & Heatmap Hotspot Analysis) and Example 9 (Transitive Reduction & Pathfinding), and expanded summary table.
 - Fixed stale Planner walkthrough `to_dot/2` option references and added an assignee workload analysis example.
 - Fixed stale Sequence walkthrough rendering wording and async Mermaid arrow reference.
 - Fixed stale UML walkthrough connector references and ERD Mermaid `:many_to_many` cardinality rendering.

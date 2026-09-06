@@ -137,7 +137,7 @@ Kino.Layout.tabs(
 ## Step 3: Security analysis — `Choreo.Infrastructure.Analysis`
 
 The analysis module runs structural audit rules against your topology.
-Each warning carries a `:rule`, `:message`, and `:nodes` list.
+`Analysis.validate/1` returns a list of `{severity, message}` tuples where severity is `:error` or `:warning`.
 
 ```elixir
 warnings = Analysis.validate(prod)
@@ -145,15 +145,16 @@ warnings = Analysis.validate(prod)
 if warnings == [] do
   IO.puts("✅ No security warnings — topology looks clean.")
 else
-  Enum.each(warnings, fn message ->
-    IO.puts("⚠️  #{message}")
+  Enum.each(warnings, fn {severity, message} ->
+    icon = if severity == :error, do: "❌", else: "⚠️"
+    IO.puts("#{icon} #{message}")
   end)
 end
 ```
 
-### Intentionally broken topology — triggering all three rules
+### Intentionally broken topology — triggering all audit rules
 
-Now let's build a **deliberately misconfigured** topology to see every rule fire:
+Now let's build a **deliberately misconfigured** topology to see the audit rules fire:
 
 ```elixir
 broken =
@@ -164,6 +165,8 @@ broken =
       public_subnet "pub", label: "Public Subnet" do
         # ❌ Database placed in the public subnet (should be private)
         db = managed_db("DB")
+        # ❌ Storage placed in the public subnet
+        store = storage("Store")
       end
 
       private_subnet "priv", label: "Private Subnet" do
@@ -172,6 +175,9 @@ broken =
         app = compute("App")
       end
     end
+
+    # ❌ Compute node without subnet assignment
+    worker = compute("Worker")
 
     # ❌ Direct internet → private subnet connection (bypasses DMZ)
     internet ~> app |> on(protocol: :https)
@@ -183,19 +189,30 @@ Analysis.validate(broken)
 |> Enum.each(fn 
   {:error, message} -> IO.puts("❌ #{message}")
   {:warning, message} -> IO.puts("⚠️ #{message}")
-  {_, message} -> IO.puts("UNKNOWN: #{message}")
 end)
 ```
 
-### The three audit rules explained
+You can also inspect specific violations programmatically:
 
-`Analysis.warnings/1` returns a list of plain strings. Each message describes the violation:
+```elixir
+IO.inspect(Analysis.direct_internet_violations(broken), label: "Direct internet violations")
+IO.inspect(Analysis.misplaced_databases(broken), label: "Misplaced databases")
+IO.inspect(Analysis.misplaced_storage(broken), label: "Misplaced storage")
+IO.inspect(Analysis.misplaced_load_balancers(broken), label: "Misplaced load balancers")
+IO.inspect(Analysis.unassigned_compute(broken), label: "Unassigned compute")
+```
 
-| Violation detected                 | Example message                                                                             |
-| ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| Direct internet → private subnet | `"Private resource 'app' is connected directly to public internet boundary 'internet'."`    |
-| Database not in private subnet     | `"Managed database 'db' should be located in a private subnet, but it is in subnet 'pub'."` |
-| Load balancer not in public subnet | `"Load balancer 'lb' should be in a public-facing subnet, but it is in subnet 'priv'."`     |
+### The five audit rules explained
+
+Each violation message describes the problem:
+
+| Violation detected                 | Severity   | Example message                                                                                 |
+| ---------------------------------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| Direct internet → private subnet | `:error`   | `"Private resource 'app' is connected directly to public internet boundary 'internet'."`        |
+| Database not in private subnet     | `:error`   | `"Managed database 'db' should be located in a private subnet, but it is in 'Public Subnet'."`  |
+| Storage in public subnet           | `:error`   | `"Storage 'store' should not be in a public subnet, but it is in 'Public Subnet'."`             |
+| Load balancer not in public subnet | `:warning` | `"Load balancer 'lb' should be located in a public subnet, but it is in 'Private Subnet'."`     |
+| Compute node unassigned to subnet  | `:warning` | `"Compute node 'worker' is not assigned to any subnet. This may indicate incomplete modeling."` |
 
 ---
 
@@ -417,30 +434,36 @@ Kino.Layout.tabs(
 
 ### Programmatic Pipe API & Analysis (`Choreo.Infrastructure`)
 
-| Task / Feature      | Command                                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Create Topology     | `Infrastructure.new/1`                                                                                        |
-| Add Boundaries      | `Infrastructure.add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`, `add_cluster/3`                    |
-| Add Nodes           | `Infrastructure.add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3`  |
-| Connect Nodes       | `Infrastructure.connect/4` (Opts: `:protocol`, `:label`, `:cost`, `:type`)                                    |
-| Query Nodes / Edges | `Infrastructure.nodes/1`, `Infrastructure.edges/1`                                                            |
-| Security Audit      | `Infrastructure.Analysis.validate/1` (Flags internet-to-private, DB/LB misplaced subnets, unassigned compute) |
-| Render Mermaid      | `Infrastructure.to_mermaid/2` (Opts: `:syntax`, `:theme`, `:direction`, `:highlighted_nodes`)                 |
-| Render DOT Graphviz | `Infrastructure.to_dot/2` (Opts: `:theme`, `:highlighted_nodes`, `:highlighted_edges`)                        |
-| Themes              | `Infrastructure.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                  |
-| Lens Views          | `Choreo.View.focus/3`, `Choreo.View.filter/3`, `Choreo.View.zoom/2`, `Choreo.View.collapse/4`                 |
+| Task / Feature       | Command                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Create Topology      | `Infrastructure.new/1`                                                                                             |
+| Add Boundaries       | `Infrastructure.add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`, `add_cluster/3`                         |
+| Add Nodes            | `Infrastructure.add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3`       |
+| Connect Nodes        | `Infrastructure.connect/4` (Opts: `:protocol`, `:label`, `:cost`, `:type`)                                         |
+| Query Nodes / Edges  | `Infrastructure.nodes/1`, `Infrastructure.edges/1`, `Infrastructure.edges_with_meta/1`                             |
+| Query Clusters       | `Infrastructure.clusters/1`                                                                                        |
+| Graph Conversion     | `Infrastructure.to_simple_graph/2`, `Infrastructure.to_graph/1`, `Infrastructure.to_choreo/1`                      |
+| Security Audit       | `Infrastructure.Analysis.validate/1` (Flags 5 rules: direct internet, DB/storage/LB placement, compute assignment) |
+| Programmatic Queries | `Analysis.direct_internet_violations/1`, `misplaced_databases/1`, `misplaced_storage/1`                            |
+| Placement Queries    | `Analysis.misplaced_load_balancers/1`, `Analysis.unassigned_compute/1`, `Analysis.isolated_nodes/1`                |
+| Render Mermaid       | `Infrastructure.to_mermaid/2` (Opts: `:syntax`, `:theme`, `:direction`, `:highlighted_nodes`)                      |
+| Render DOT Graphviz  | `Infrastructure.to_dot/2` (Opts: `:theme`, `:highlighted_nodes`, `:highlighted_edges`)                             |
+| Themes               | `Infrastructure.theme/2` (`:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`)                           |
+| Lens Views           | `Choreo.View.focus/3`, `Choreo.View.filter/3`, `Choreo.View.zoom/2`, `Choreo.View.collapse/4`                      |
 
 ---
 
 ## Summary
 
-| Feature         | API                                                                                           |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| Create topology | `Infrastructure.new/0`                                                                        |
-| Add boundary    | `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`                                    |
-| Add nodes       | `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
-| Add edge        | `connect/3` — options: `:protocol`, `:label`                                                |
-| Audit           | `Analysis.warnings/1`                                                                         |
-| Render DOT      | `Infrastructure.to_dot/2` — option: `theme:`                                                |
-| Render Mermaid  | `Infrastructure.to_mermaid/2` — option: `theme:`, `direction:`                              |
-| Lens ops        | `Choreo.View.focus/3`, `filter/3`, `zoom/2`, `collapse/4`                                     |
+| Feature            | API                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| Create topology    | `Infrastructure.new/0`                                                                        |
+| Add boundary       | `add_vpc/3`, `add_subnet_public/3`, `add_subnet_private/3`, `add_cluster/3`                   |
+| Add nodes          | `add_internet/3`, `add_load_balancer/3`, `add_compute/3`, `add_managed_db/3`, `add_storage/3` |
+| Add edge           | `connect/4` — options: `:protocol`, `:label`, `:cost`, `:type`                              |
+| Query edges & meta | `Infrastructure.edges_with_meta/1`, `Infrastructure.clusters/1`                               |
+| Audit topology     | `Analysis.validate/1`                                                                         |
+| Audit queries      | `Analysis.direct_internet_violations/1`, `misplaced_databases/1`, `misplaced_storage/1`, etc. |
+| Render DOT         | `Infrastructure.to_dot/2` — option: `theme:`, `highlighted_nodes:`, `highlighted_edges:`    |
+| Render Mermaid     | `Infrastructure.to_mermaid/2` — option: `syntax:`, `theme:`, `direction:`                   |
+| Lens ops           | `Choreo.View.focus/3`, `filter/3`, `zoom/2`, `collapse/4`                                     |

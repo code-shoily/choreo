@@ -187,6 +187,14 @@ defmodule Choreo.Infrastructure do
   # ============================================================================
 
   @doc """
+  Adds a generic cluster boundary to the infrastructure diagram.
+  """
+  @spec add_cluster(t(), String.t(), keyword()) :: t()
+  def add_cluster(infra, name, opts \\ []) do
+    add_typed_cluster(infra, name, :cluster, opts)
+  end
+
+  @doc """
   Adds a VPC cluster network boundary.
   """
   @spec add_vpc(t(), String.t(), keyword()) :: t()
@@ -308,6 +316,45 @@ defmodule Choreo.Infrastructure do
     end)
   end
 
+  @doc """
+  Returns all edges with their metadata as `{from, to, cost, meta}` tuples.
+  """
+  @spec edges_with_meta(t() | Choreo.t()) :: [{Yog.node_id(), Yog.node_id(), number(), map()}]
+  def edges_with_meta(%__MODULE__{graph: graph, edge_meta: edge_meta}) do
+    Enum.map(graph.edges, fn {edge_id, {from, to, weight}} ->
+      {from, to, weight, Map.get(edge_meta, edge_id, %{})}
+    end)
+  end
+
+  def edges_with_meta(%Choreo{} = system), do: Choreo.edges_with_meta(system)
+
+  @doc """
+  Returns all cluster definitions in the infrastructure diagram.
+  """
+  @spec clusters(t() | Choreo.t()) :: %{String.t() => map()}
+  def clusters(%__MODULE__{clusters: clusters}), do: clusters
+  def clusters(%Choreo{clusters: clusters}), do: clusters
+
+  @doc """
+  Collapses parallel edges into a simple `Yog.Graph` for algorithm analysis.
+  """
+  @spec to_simple_graph(t() | Choreo.t(), keyword()) :: Yog.Graph.t()
+  def to_simple_graph(infra_or_system, opts \\ [])
+
+  def to_simple_graph(%__MODULE__{graph: graph}, opts) do
+    combine = Keyword.get(opts, :combine, &min/2)
+    Yog.Multi.to_simple_graph(graph, combine)
+  end
+
+  def to_simple_graph(%Choreo{} = system, opts), do: Choreo.to_simple_graph(system, opts)
+
+  @doc """
+  Returns the raw `Yog.Multi.Graph` struct underpinning the infrastructure diagram.
+  """
+  @spec to_graph(t() | Choreo.t()) :: Yog.Multi.Graph.t()
+  def to_graph(%__MODULE__{graph: graph}), do: graph
+  def to_graph(%Choreo{graph: graph}), do: graph
+
   # ============================================================================
   # Render wrappers
   # ============================================================================
@@ -317,7 +364,7 @@ defmodule Choreo.Infrastructure do
 
   ## Options
 
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight
   """
@@ -333,7 +380,7 @@ defmodule Choreo.Infrastructure do
 
     * `:syntax` — `:flowchart` (default) or `:architecture` (native
       `architecture-beta` diagram type)
-    * `:theme` — `:default`, `:dark`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
+    * `:theme` — `:default`, `:dark`, `:minimal`, `:warm`, `:forest`, `:ocean`, or a `Choreo.Theme` struct
     * `:direction` — `:td` (default), `:lr`, `:rl`, `:bt`
     * `:highlighted_nodes` — list of node IDs to highlight
     * `:highlighted_edges` — list of edge IDs or `{from, to}` tuples to highlight

@@ -257,4 +257,44 @@ defmodule Choreo.Infrastructure.AnalysisTest do
     assert Enum.any?(issues, fn {_, msg} -> String.contains?(msg, "Load balancer 'lb'") end)
     assert Enum.any?(issues, fn {_, msg} -> String.contains?(msg, "Compute node 'worker'") end)
   end
+
+  test "programmatic query functions" do
+    infra =
+      Infrastructure.new()
+      |> Infrastructure.add_internet(:gw)
+      |> Infrastructure.add_subnet_public("pub")
+      |> Infrastructure.add_subnet_private("priv")
+      |> Infrastructure.add_compute(:app, cluster: "priv")
+      |> Infrastructure.add_compute(:worker)
+      |> Infrastructure.add_managed_db(:db_exposed, cluster: "pub")
+      |> Infrastructure.add_managed_db(:db_secure, cluster: "priv")
+      |> Infrastructure.add_storage(:s3_exposed, cluster: "pub")
+      |> Infrastructure.add_storage(:s3_isolated)
+      |> Infrastructure.add_load_balancer(:alb_misplaced, cluster: "priv")
+      |> Infrastructure.add_load_balancer(:alb_proper, cluster: "pub")
+      |> Infrastructure.add_compute(:orphan)
+      |> Infrastructure.connect(:gw, :app)
+      |> Infrastructure.connect(:app, :worker)
+      |> Infrastructure.connect(:worker, :db_exposed)
+      |> Infrastructure.connect(:worker, :db_secure)
+      |> Infrastructure.connect(:app, :s3_exposed)
+      |> Infrastructure.connect(:app, :s3_isolated)
+      |> Infrastructure.connect(:alb_proper, :alb_misplaced)
+
+    assert Analysis.direct_internet_violations(infra) == [{:gw, :app}]
+    assert Analysis.misplaced_databases(infra) == [:db_exposed]
+    assert Analysis.misplaced_storage(infra) == [:s3_exposed]
+    assert Analysis.misplaced_load_balancers(infra) == [:alb_misplaced]
+    assert Enum.sort(Analysis.unassigned_compute(infra)) == [:orphan, :worker]
+    assert Analysis.isolated_nodes(infra) == [:orphan]
+
+    # Also check with %Choreo{} struct input
+    choreo_system = Infrastructure.to_choreo(infra)
+    assert Analysis.direct_internet_violations(choreo_system) == [{:gw, :app}]
+    assert Analysis.misplaced_databases(choreo_system) == [:db_exposed]
+    assert Analysis.misplaced_storage(choreo_system) == [:s3_exposed]
+    assert Analysis.misplaced_load_balancers(choreo_system) == [:alb_misplaced]
+    assert Enum.sort(Analysis.unassigned_compute(choreo_system)) == [:orphan, :worker]
+    assert Analysis.isolated_nodes(choreo_system) == [:orphan]
+  end
 end
