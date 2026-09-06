@@ -39,6 +39,13 @@ Choreo automatically handles:
 * **Diagram Scoping**: Zooming in automatically expands only the software system or container in scope, collapsing other components and external entities.
 * **Auto-Clustering**: Automatically groups elements inside visual boundaries (clusters) using parent metadata.
 
+Choreo provides two ways to work with C4 models:
+
+1. **Programmatic Pipe API (`Choreo.C4`)** — A stable, pipe-first interface ideal for dynamic builders, code generation, and automated tracing middleware.
+2. **Lab DSL (`Choreo.Lab.DSL.C4`)** — A concise, Livebook-friendly syntax for sketching software architectures, hierarchical containers, components, and relationships.
+
+The introductory example below (Node Types & Shapes) uses the explicit pipe-first syntax. All subsequent architectural models throughout this guide demonstrate the Lab DSL.
+
 ---
 
 ## Node Types & Shapes
@@ -53,6 +60,7 @@ Choreo automatically handles:
 ```elixir
 alias Choreo.C4
 alias Choreo.C4.Analysis
+import Choreo.Lab.DSL.C4
 
 legend =
   C4.new()
@@ -75,126 +83,93 @@ Kino.Layout.tabs(
 Let's construct a complete model for an **Internet Banking Application**. We define people, systems, containers, and components, and connect them at their most specific level.
 
 ```elixir
-alias Choreo.C4
-
 model =
-  C4.new()
-  # 1. Persons
-  |> C4.add_person(:customer,
-    label: "Personal Banking Customer",
-    description: "A customer of the bank who wants to view balances and make payments."
-  )
-  # 2. Software Systems
-  |> C4.add_software_system(:banking,
-    label: "Internet Banking System",
-    description: "Allows customers to view financial info and make payments.",
-    scope: :in
-  )
-  |> C4.add_software_system(:mainframe,
-    label: "Mainframe Banking System",
-    description: "Stores all core bank account, transaction, and customer details.",
-    scope: :out
-  )
-  |> C4.add_software_system(:email,
-    label: "E-mail System",
-    description: "The internal Microsoft Exchange e-mail system.",
-    scope: :out
-  )
-  # 3. L2 Containers (parent: :banking)
-  |> C4.add_container(:web_app,
-    label: "Single-Page Application",
-    technology: "React & TypeScript",
-    description: "Provides internet banking features to customers via their web browser.",
-    parent: :banking
-  )
-  |> C4.add_container(:api,
-    label: "API Application",
-    technology: "Elixir & Phoenix",
-    description: "Provides internet banking functionality via a JSON API.",
-    parent: :banking
-  )
-  |> C4.add_container(:db,
-    label: "Database",
-    technology: "PostgreSQL",
-    description: "Stores user credentials, hashed passwords, and audit logs.",
-    parent: :banking
-  )
-  # 4. L3 Components (parent: :api)
-  |> C4.add_component(:signin_controller,
-    label: "Sign In Controller",
-    technology: "Phoenix Controller",
-    description: "Authenticates users and generates JWT sessions.",
-    parent: :api
-  )
-  |> C4.add_component(:accounts_controller,
-    label: "Accounts Controller",
-    technology: "Phoenix Controller",
-    description: "Fetches summaries and transactions for bank accounts.",
-    parent: :api
-  )
-  |> C4.add_component(:accounts_context,
-    label: "Accounts Context",
-    technology: "Elixir Module",
-    description: "Coordinates access to account summaries and mainframe calls.",
-    parent: :api
-  )
-  |> C4.add_component(:auth_service,
-    label: "Security Service",
-    technology: "Elixir Module",
-    description: "Provides token generation, verification, and credentials checking.",
-    parent: :api
-  )
-  |> C4.add_component(:mailer,
-    label: "Mailer",
-    technology: "Swoosh / SMTP Adapter",
-    description: "Formats and sends transactional e-mails.",
-    parent: :api
-  )
-  # 5. Relationships (defined at their most detailed/specific levels)
-  |> C4.add_relationship(:customer, :web_app,
-    label: "Visits banking site using",
-    technology: "HTTPS"
-  )
-  |> C4.add_relationship(:web_app, :signin_controller,
-    label: "Submits credentials to",
-    technology: "JSON / HTTPS"
-  )
-  |> C4.add_relationship(:web_app, :accounts_controller,
-    label: "Requests account details from",
-    technology: "JSON / HTTPS"
-  )
-  |> C4.add_relationship(:signin_controller, :auth_service,
-    label: "Authenticates via"
-  )
-  |> C4.add_relationship(:accounts_controller, :auth_service,
-    label: "Authorizes requests using"
-  )
-  |> C4.add_relationship(:accounts_controller, :accounts_context,
-    label: "Fetches summaries from"
-  )
-  |> C4.add_relationship(:auth_service, :db,
-    label: "Verifies hashes in",
-    technology: "SQL / TCP"
-  )
-  |> C4.add_relationship(:accounts_context, :db,
-    label: "Reads transactions from",
-    technology: "SQL / TCP"
-  )
-  |> C4.add_relationship(:accounts_context, :mainframe,
-    label: "Fetches core ledger data from",
-    technology: "gRPC"
-  )
-  |> C4.add_relationship(:signin_controller, :mailer,
-    label: "Requests alert email from"
-  )
-  |> C4.add_relationship(:mailer, :email,
-    label: "Dispatches SMTP traffic to",
-    technology: "SMTP"
-  )
-  |> C4.add_relationship(:email, :customer,
-    label: "Delivers notifications to",
-    technology: "Exchange Protocol"
-  )
+  c4 do
+    # 1. Persons
+    customer =
+      person "Personal Banking Customer",
+        description: "A customer of the bank who wants to view balances and make payments."
+
+    # 2. Software Systems
+    banking =
+      system "Internet Banking System",
+        scope: :in,
+        description: "Allows customers to view financial info and make payments."
+
+    mainframe =
+      system "Mainframe Banking System",
+        scope: :out,
+        description: "Stores all core bank account, transaction, and customer details."
+
+    email =
+      system "E-mail System",
+        scope: :out,
+        description: "The internal Microsoft Exchange e-mail system."
+
+    # 3. L2 Containers (parent: banking)
+    web_app =
+      container "Single-Page Application",
+        technology: "React & TypeScript",
+        description: "Provides internet banking features to customers via their web browser.",
+        parent: banking
+
+    api =
+      container "API Application",
+        technology: "Elixir & Phoenix",
+        description: "Provides internet banking functionality via a JSON API.",
+        parent: banking
+
+    db =
+      database "Database",
+        technology: "PostgreSQL",
+        description: "Stores user credentials, hashed passwords, and audit logs.",
+        parent: banking
+
+    # 4. L3 Components (parent: api)
+    signin_controller =
+      component "Sign In Controller",
+        technology: "Phoenix Controller",
+        description: "Authenticates users and generates JWT sessions.",
+        parent: api
+
+    accounts_controller =
+      component "Accounts Controller",
+        technology: "Phoenix Controller",
+        description: "Fetches summaries and transactions for bank accounts.",
+        parent: api
+
+    accounts_context =
+      component "Accounts Context",
+        technology: "Elixir Module",
+        description: "Coordinates access to account summaries and mainframe calls.",
+        parent: api
+
+    auth_service =
+      component "Security Service",
+        technology: "Elixir Module",
+        description: "Provides token generation, verification, and credentials checking.",
+        parent: api
+
+    mailer =
+      component "Mailer",
+        technology: "Swoosh / SMTP Adapter",
+        description: "Formats and sends transactional e-mails.",
+        parent: api
+
+    # 5. Relationships (defined at their most detailed/specific levels)
+    customer ~> web_app |> uses("Visits banking site using", technology: "HTTPS")
+    web_app ~> signin_controller |> calls("Submits credentials to", technology: "JSON / HTTPS")
+    web_app ~> accounts_controller |> calls("Requests account details from", technology: "JSON / HTTPS")
+    signin_controller ~> auth_service |> calls("Authenticates via")
+    accounts_controller ~> auth_service |> calls("Authorizes requests using")
+    accounts_controller ~> accounts_context |> calls("Fetches summaries from")
+    auth_service ~> db |> reads("Verifies hashes in", technology: "SQL / TCP")
+    accounts_context ~> db |> reads("Reads transactions from", technology: "SQL / TCP")
+    accounts_context ~> mainframe |> calls("Fetches core ledger data from", technology: "gRPC")
+    signin_controller ~> mailer |> sends("Requests alert email from")
+    mailer ~> email |> sends("Dispatches SMTP traffic to", technology: "SMTP")
+    email ~> customer |> sends("Delivers notifications to", technology: "Exchange Protocol")
+  end
 ```
 
 ---
@@ -364,19 +339,27 @@ Because Choreo allows you to compose different diagrams together using `Choreo.e
 For example, let's embed a **User Login Workflow** and a **Database ERD** into our system architecture, and then draw semantic traces connecting them.
 
 ```elixir
+import Choreo.Lab.DSL.Workflow, only: [workflow: 1]
+import Choreo.Lab.DSL.ERD, only: [erd: 1]
+
 # 1. Define a runtime login workflow
 login_flow =
-  Choreo.Workflow.new()
-  |> Choreo.Workflow.add_start(:start)
-  |> Choreo.Workflow.add_task(:verify_credentials)
-  |> Choreo.Workflow.add_end(:stop)
-  |> Choreo.Workflow.connect(:start, :verify_credentials)
-  |> Choreo.Workflow.connect(:verify_credentials, :stop)
+  workflow do
+    start = start("start")
+    verify_credentials = task("verify_credentials")
+    stop = done("stop")
+
+    start ~> verify_credentials
+    verify_credentials ~> stop
+  end
 
 # 2. Define database tables in an ERD
 database_erd =
-  Choreo.ERD.new()
-  |> Choreo.ERD.add_table(:users, columns: [%{name: :id, type: :integer}])
+  erd do
+    table "users", id: :users do
+      column :id, :integer
+    end
+  end
 
 # 3. Create a master composed system and embed C4, Workflow, and ERD
 system =
@@ -458,3 +441,54 @@ IO.puts(C4.to_mermaid(container_view))
 * [C4 Model](https://c4model.com/) — Official site
 * [Software Architecture for Developers](https://softwarearchitecturefordevelopers.com/) — Simon Brown's book
 * [Choreo.C4 module documentation](https://hexdocs.pm/choreo/Choreo.C4.html)
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax
+
+| Syntax | Description |
+| ------------------------------------------------- | --------------------------------------------------- |
+| `c4 do ... end` | Define a C4 architecture model |
+| `customer = person("Customer")` | Declare an end-user / actor |
+| `banking = system("Internet Banking", scope: :in)` | Declare in-scope or external software system |
+| `api = container("API", parent: banking)` | Declare a container inside a software system |
+| `db = database("DB", parent: banking)` | Declare a database container |
+| `auth = component("Auth Service", parent: api)` | Declare a component inside a container |
+| `scope banking` or `in_scope banking` | Set the active scoped boundary for diagrams |
+| `boundary "Platform" do ... end` | Define an explicit boundary cluster |
+| `a ~> b \|> uses("Calls API", technology: "HTTPS")` | Piped relationship with label and technology |
+| `a ~> b \|> calls("Requests token")` | Piped calling relationship |
+| `a ~> b \|> reads("Queries data", technology: "SQL")` | Piped read relationship |
+| `a ~> b \|> writes("Saves record")` | Piped write relationship |
+| `a ~> b \|> sends("Emits event", technology: "Kafka")` | Piped event emission relationship |
+| `a ~> b \|> on("label")` | Piped relationship label modifier |
+| `a ~> b \|> technology("gRPC")` | Piped technology modifier |
+| `edge a ~> b, "label", technology: "HTTPS"` | Explicit edge declaration with options |
+| `system("App") do ... end` | Nested hierarchy block automatically setting parent |
+
+### Programmatic Pipe API & Analysis
+
+| Task / Feature | Command |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| Create C4 Model | `C4.new/1` |
+| Add Person | `C4.add_person/3` (Opts: `:label`, `:description`) |
+| Add Software System | `C4.add_software_system/3` (Opts: `:label`, `:description`, `:scope`) |
+| Add Container | `C4.add_container/3` (Opts: `:label`, `:technology`, `:description`, `:parent`) |
+| Add Component | `C4.add_component/3` (Opts: `:label`, `:technology`, `:description`, `:parent`) |
+| Add Relationship | `C4.add_relationship/4` (Opts: `:label`, `:technology`) |
+| Set Active Scope | `C4.set_scope/2` |
+| Get Active Scope | `C4.scope/1` |
+| Query Model | `C4.nodes/1`, `C4.edges/1`, `C4.edges_with_meta/1` |
+| L1 System Context View | `Choreo.View.zoom(model, level: 0)` |
+| L2 Container View | `Choreo.View.zoom(model, level: 1)` |
+| L3 Component View | `Choreo.View.zoom(model, level: 2)` |
+| Focus Neighborhood View | `Choreo.View.focus(model, node_id, radius: N)` |
+| Focus Between (Path View) | `Choreo.View.focus_between(model, from_id, to_id)` |
+| Render Mermaid | `C4.to_mermaid/2` (Opts: `:theme`, `:direction`) |
+| Render DOT Graphviz | `C4.to_dot/2` (Opts: `:theme`, `:rankdir`) |
+| Validate Model Integrity | `Analysis.validate/1` (Checks orphan nodes, missing parents/tech/descriptions) |
+| Missing Technology | `Analysis.missing_technology/1` |
+| Missing Descriptions | `Analysis.missing_descriptions/1` |
+| Parents Without Relationships | `Analysis.parents_without_relationships/1` |

@@ -16,6 +16,7 @@ defmodule Choreo.Lab.C4DSLTest do
     assert :calls in taxonomy.edges
     assert :scope in taxonomy.events
     assert :technology in taxonomy.modifiers
+    assert :type in taxonomy.modifiers
     assert Choreo.Lab.DSL.C4.verbs() == taxonomy
   end
 
@@ -175,6 +176,104 @@ defmodule Choreo.Lab.C4DSLTest do
           end
         end
       )
+    end
+  end
+
+  test "supports edge/3 with label and options" do
+    model =
+      c4 do
+        customer = person("Customer")
+        web_app = container("Web App")
+        edge(customer ~> web_app, "Visits site", technology: "HTTPS")
+      end
+
+    assert [{:customer, :web_app, _w, meta}] = Choreo.C4.edges_with_meta(model)
+    assert meta.label == "Visits site"
+    assert meta.technology == "HTTPS"
+  end
+
+  test "supports piped modifiers with options and type/1,2,3 modifiers" do
+    model =
+      c4 do
+        customer = person("Customer")
+        web_app = container("Web App")
+        api = container("API")
+        db = database("DB")
+
+        customer ~> web_app |> uses(technology: "HTTPS")
+        web_app ~> api |> type(:calls, "JSON requests")
+        api ~> db |> type(:reads, "Reads data", technology: "SQL")
+      end
+
+    edges = Choreo.C4.edges_with_meta(model)
+
+    assert Enum.any?(edges, fn
+             {:customer, :web_app, _, meta} -> meta.technology == "HTTPS"
+             _ -> false
+           end)
+
+    assert Enum.any?(edges, fn
+             {:web_app, :api, _, meta} -> meta.label == "JSON requests"
+             _ -> false
+           end)
+
+    assert Enum.any?(edges, fn
+             {:api, :db, _, meta} -> meta.label == "Reads data" and meta.technology == "SQL"
+             _ -> false
+           end)
+  end
+
+  test "supports standalone node declarations inside DSL" do
+    model =
+      c4 do
+        person "Customer"
+        container "Web App"
+      end
+
+    assert Map.has_key?(model.graph.nodes, :customer)
+    assert Map.has_key?(model.graph.nodes, :web_app)
+  end
+
+  test "supports multiple nested blocks with parent environment restoration" do
+    model =
+      c4 do
+        system("Banking System", scope: :in) do
+          container("Web App", technology: "React")
+          container("API", technology: "Phoenix")
+        end
+
+        system("External Gateway", scope: :out) do
+          container("Stripe Gateway")
+        end
+
+        person("Independent User")
+      end
+
+    assert model.graph.nodes[:web_app].parent == :banking_system
+    assert model.graph.nodes[:api].parent == :banking_system
+    assert model.graph.nodes[:stripe_gateway].parent == :external_gateway
+    assert Map.get(model.graph.nodes[:independent_user], :parent) == nil
+  end
+
+  test "autocomplete stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.C4.person()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.C4.edge()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.C4.on()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.C4.technology()
+    end
+
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn ->
+      Choreo.Lab.DSL.C4.type()
     end
   end
 end

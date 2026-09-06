@@ -7,17 +7,19 @@ defmodule Choreo.Lab.DomainDSLTest do
 
   alias Choreo.Domain
   alias Choreo.Domain.Analysis
+  alias Choreo.Lab.DSL.Domain, as: DSL
 
   test "taxonomy returns the Livebook discovery vocabulary" do
-    taxonomy = Choreo.Lab.DSL.Domain.taxonomy()
+    taxonomy = DSL.taxonomy()
 
     assert :aggregate in taxonomy.nodes
     assert :context in taxonomy.nodes
     assert :context_boundary in taxonomy.clusters
     assert :emits in taxonomy.edges
+    assert :type in taxonomy.modifiers
     assert :scenario in taxonomy.events
     assert :with in taxonomy.options
-    assert Choreo.Lab.DSL.Domain.verbs() == taxonomy
+    assert DSL.verbs() == taxonomy
   end
 
   test "builds a tactical event-storming model with variable-bound nodes" do
@@ -198,5 +200,81 @@ defmodule Choreo.Lab.DomainDSLTest do
         end
       )
     end
+  end
+
+  test "supports edge/3 with label and options" do
+    model =
+      domain do
+        customer = actor("Customer")
+        place_order = command("Place Order")
+
+        edge(customer ~> place_order, "starts", cost: 2)
+      end
+
+    assert [{:customer, :place_order, 2}] = Domain.edges(model)
+    assert [%{label: "starts", cost: 2, type: :sequence}] = Map.values(model.edge_meta)
+  end
+
+  test "supports piped modifiers with options and type/1,2 modifiers" do
+    model =
+      domain do
+        customer = actor("Customer")
+        place_order = command("Place Order")
+        order = aggregate("Order")
+        placed = event("Order Placed")
+
+        customer ~> place_order |> initiates(label: "starts")
+        place_order ~> order |> type(:handles, "validates")
+        order ~> placed |> type(:emits)
+      end
+
+    edge_meta = Map.values(model.edge_meta)
+    assert Enum.any?(edge_meta, &(&1.relationship == :initiates and &1.label == "starts"))
+    assert Enum.any?(edge_meta, &(&1.relationship == :handles and &1.label == "validates"))
+    assert Enum.any?(edge_meta, &(&1.relationship == :emits))
+  end
+
+  test "supports standalone node declarations inside DSL" do
+    model =
+      domain do
+        actor "Customer"
+        command "Place Order"
+      end
+
+    assert Map.has_key?(Domain.nodes(model), :customer)
+    assert Map.has_key?(Domain.nodes(model), :place_order)
+  end
+
+  test "supports multiple context_boundary blocks with cluster scoping" do
+    model =
+      domain do
+        actor "Customer"
+
+        context_boundary "Ordering", id: "ordering" do
+          place_order = command("Place Order")
+          order = aggregate("Order")
+          place_order ~> order |> handles()
+        end
+
+        context_boundary "Billing", id: "billing" do
+          pay = command("Pay")
+          invoice = aggregate("Invoice")
+          pay ~> invoice |> handles()
+        end
+      end
+
+    nodes = Domain.nodes(model)
+    assert nodes[:place_order][:cluster] == "cluster_ordering"
+    assert nodes[:order][:cluster] == "cluster_ordering"
+    assert nodes[:pay][:cluster] == "cluster_billing"
+    assert nodes[:invoice][:cluster] == "cluster_billing"
+    assert nodes[:customer][:cluster] == nil
+  end
+
+  test "autocomplete stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.actor() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.edge() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.on() end
+    assert_raise RuntimeError, ~r/must be called inside a DSL block/, fn -> DSL.aggregate() end
   end
 end

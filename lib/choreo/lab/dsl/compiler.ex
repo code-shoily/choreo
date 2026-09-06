@@ -34,8 +34,20 @@ defmodule Choreo.Lab.DSL.Compiler do
   @spec pop_do_block([any()]) :: {Macro.t() | nil, [any()]}
   def pop_do_block(args) do
     case List.last(args) do
-      [do: block] -> {block, Enum.drop(args, -1)}
-      _other -> {nil, args}
+      last when is_list(last) ->
+        if Keyword.keyword?(last) and Keyword.has_key?(last, :do) do
+          block = Keyword.get(last, :do)
+
+          case Keyword.delete(last, :do) do
+            [] -> {block, Enum.drop(args, -1)}
+            rest -> {block, List.replace_at(args, -1, rest)}
+          end
+        else
+          {nil, args}
+        end
+
+      _other ->
+        {nil, args}
     end
   end
 
@@ -108,9 +120,9 @@ defmodule Choreo.Lab.DSL.Compiler do
   end
 
   defp pop_do_block_from_call({name, meta, args}) when is_atom(name) and is_list(args) do
-    case List.last(args) do
-      [do: block] ->
-        {block, {name, meta, Enum.drop(args, -1)}}
+    case pop_do_block(args) do
+      {block, stripped_args} when not is_nil(block) ->
+        {block, {name, meta, stripped_args}}
 
       _ ->
         {nil, nil}

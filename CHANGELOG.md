@@ -4,6 +4,12 @@
 
 ### Added
 
+- Added support for keyword options and label tuples in `Choreo.Lab.DSL.C4` relationship pipe modifiers (`|> uses(technology: "HTTPS")`, `|> type(:calls, "JSON requests")`).
+- Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:technology`, `:type`) in `Choreo.Lab.DSL.C4`.
+- Added support for `edge/3` with both label and keyword options (`edge customer ~> web_app, "Visits site", technology: "HTTPS"`) in `Choreo.Lab.DSL.C4`.
+- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Domain` semantic edge pipe modifiers (`|> initiates(label: "starts")`, `|> type(:handles, "validates")`).
+- Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`) in `Choreo.Lab.DSL.Domain`.
+- Added support for `edge/3` with both label and keyword options (`edge customer ~> place_order, "starts", cost: 2`) in `Choreo.Lab.DSL.Domain`.
 - Added support for keyword options and label tuples in `Choreo.Lab.DSL.Sequence` message pipe modifiers (`|> async(label: "enqueue")`, `|> type(:sync, "save")`, `|> type(:return)`).
 - Added `:type` message modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.Sequence`.
 - Added support for `edge/3` with both label and keyword options (`edge api ~> worker, "enqueue", async: true`) in `Choreo.Lab.DSL.Sequence`.
@@ -16,12 +22,18 @@
 
 ### Changed
 
+- Updated `livebooks/guides/c4_walkthrough.livemd` to showcase `Choreo.Lab.DSL.C4` syntax across all architecture examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
+- Updated `livebooks/guides/domain_modeling_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Domain` syntax across all examples, retaining programmatic pipe syntax in the introductory example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/sequence_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Sequence` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 - Updated `livebooks/guides/uml_walkthrough.livemd` to showcase `Choreo.Lab.DSL.UML` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 - Updated `livebooks/guides/erd_walkthrough.livemd` to showcase `Choreo.Lab.DSL.ERD` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 
 ### Fixed
 
+- Fixed parent environment state restoration after nested hierarchy blocks and guarded nil `:parent` resolution in `Choreo.Lab.DSL.C4`.
+- Fixed `pop_do_block/1` in `Choreo.Lab.DSL.Compiler` to recognize `do` blocks with preceding keyword options (e.g. `context_boundary "Name", id: "id" do ... end`).
+- Fixed cluster environment state restoration after nested `context_boundary` blocks and guarded nil `:parent` resolution in `Choreo.Lab.DSL.Domain`.
+- Fixed modifier delegation order in `Choreo.Lab.DSL.Domain` when handling `{:type, _meta, [type, label]}`.
 - Hardened native Mermaid rendering for `Choreo.ERD`, `Choreo.Sequence`, and `Choreo.UML` by using Mermaid-safe identifiers and normalizing labels/member text.
 - Fixed `Choreo.Lab.Sketch` preprocessing for UML diagrams so Excalidraw does not strip native `classDiagram` declarations or split HTML line-break labels into invalid Mermaid.
 - Fixed relationship pipe modifier argument order when delegating in `Choreo.Lab.DSL.UML`.

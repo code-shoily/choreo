@@ -126,7 +126,7 @@ defmodule Choreo.Lab.DSL.C4 do
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
       events: [:scope, :in_scope],
-      modifiers: [:on, :label, :technology | @edge_verbs],
+      modifiers: [:on, :label, :technology, :type | @edge_verbs],
       options: [:label, :with, :id, :description, :technology, :parent, :scope | @edge_verbs]
     }
   end
@@ -172,7 +172,13 @@ defmodule Choreo.Lab.DSL.C4 do
             &process_statement/2
           )
 
-        {parent_steps ++ inner_steps, Map.put(final_inner_env, :parent, Map.get(env, :parent))}
+        parent_env =
+          case Map.fetch(env, :parent) do
+            {:ok, p} -> Map.put(final_inner_env, :parent, p)
+            :error -> Map.delete(final_inner_env, :parent)
+          end
+
+        {parent_steps ++ inner_steps, parent_env}
 
       _ ->
         statement_steps(statement, env)
@@ -210,6 +216,13 @@ defmodule Choreo.Lab.DSL.C4 do
 
   defp statement_steps({:in_scope, meta, [node_ast]}, env),
     do: scope_statement(node_ast, env, meta)
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
+  end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
     {edge, nodes} = edge_from_ast(edge_ast, [label: label], env, meta)
@@ -308,19 +321,50 @@ defmodule Choreo.Lab.DSL.C4 do
 
   defp modifier_opt({:technology, _meta, [value]}, acc), do: Keyword.put(acc, :technology, value)
 
+  defp modifier_opt({:type, _meta, [type]}, acc) when type in @edge_verbs do
+    put_edge_label_for(acc, type, nil)
+  end
+
+  defp modifier_opt({:type, _meta, [type, label]}, acc)
+       when type in @edge_verbs and is_binary(label) do
+    acc
+    |> put_edge_label_for(type, nil)
+    |> Keyword.put(:label, label)
+  end
+
+  defp modifier_opt({:type, _meta, [type, opts]}, acc)
+       when type in @edge_verbs and is_list(opts) do
+    acc
+    |> Keyword.merge(normalize_edge_opts(opts))
+    |> put_edge_label_for(type, nil)
+  end
+
+  defp modifier_opt({:type, _meta, [type, label, opts]}, acc)
+       when type in @edge_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> Keyword.merge(normalize_edge_opts(opts))
+    |> put_edge_label_for(type, label)
+  end
+
   defp modifier_opt({name, _meta, []}, acc) when name in @edge_verbs do
     put_edge_label_for(acc, name, nil)
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs do
-    put_edge_label_for(acc, name, value)
+  defp modifier_opt({name, _meta, [label]}, acc) when name in @edge_verbs and is_binary(label) do
+    put_edge_label_for(acc, name, label)
   end
 
-  defp modifier_opt({name, _meta, [value, opts]}, acc)
-       when name in @edge_verbs and is_list(opts) do
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in @edge_verbs and is_list(opts) do
     acc
-    |> Keyword.merge(opts)
-    |> put_edge_label_for(name, value)
+    |> Keyword.merge(normalize_edge_opts(opts))
+    |> put_edge_label_for(name, nil)
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @edge_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> Keyword.merge(normalize_edge_opts(opts))
+    |> put_edge_label_for(name, label)
   end
 
   defp modifier_opt(other, _acc) do
@@ -481,8 +525,8 @@ defmodule Choreo.Lab.DSL.C4 do
 
       :error ->
         case Map.fetch(env, :parent) do
-          {:ok, parent_id} -> Keyword.put(opts, key, parent_id)
-          :error -> opts
+          {:ok, parent_id} when not is_nil(parent_id) -> Keyword.put(opts, key, parent_id)
+          _ -> opts
         end
     end
   end
@@ -507,8 +551,8 @@ defmodule Choreo.Lab.DSL.C4 do
 
       :error ->
         case Map.fetch(env, :parent) do
-          {:ok, parent_id} -> Keyword.put(opts, key, parent_id)
-          :error -> opts
+          {:ok, parent_id} when not is_nil(parent_id) -> Keyword.put(opts, key, parent_id)
+          _ -> opts
         end
     end
   end
@@ -617,10 +661,12 @@ defmodule Choreo.Lab.DSL.C4 do
         :database,
         :datastore,
         :depends,
+        :edge,
         :external_system,
         :group,
         :in_scope,
         :module,
+        :on,
         :person,
         :publishes,
         :reads,
@@ -631,6 +677,8 @@ defmodule Choreo.Lab.DSL.C4 do
         :service,
         :software_system,
         :system,
+        :technology,
+        :type,
         :user,
         :uses,
         :writes
