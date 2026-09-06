@@ -112,7 +112,7 @@ defmodule Choreo.Lab.DSL.Dependency do
       clusters: @cluster_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
-      modifiers: [:on, :label | @edge_verbs],
+      modifiers: [:on, :label, :type, :edge_type, :edge | @edge_verbs],
       options: [:label, :with, :id, :description, :cluster, :parent, :type | @edge_verbs]
     }
   end
@@ -134,7 +134,7 @@ defmodule Choreo.Lab.DSL.Dependency do
       block
       |> statements()
       |> Enum.reduce({[], empty_env()}, fn statement, {steps, env} ->
-        {statement_steps, env} = statement_steps(statement, env)
+        {statement_steps, env} = process_statement(statement, env)
         {Enum.reverse(statement_steps, steps), env}
       end)
 
@@ -143,6 +143,44 @@ defmodule Choreo.Lab.DSL.Dependency do
       quote(do: Choreo.Dependency.new(unquote(Macro.escape(opts)))),
       &pipe_step/2
     )
+  end
+
+  defp process_statement(statement, env) do
+    case extract_do_block(statement) do
+      {block, stripped_statement} when not is_nil(block) ->
+        compile_nested_cluster(stripped_statement, block, env)
+
+      _ ->
+        statement_steps(statement, env)
+    end
+  end
+
+  defp compile_nested_cluster(statement, block, env) do
+    {cluster_steps, inner_env} = statement_steps(statement, env)
+    cluster_id = get_cluster_id(cluster_steps)
+
+    {block_steps, block_env} =
+      compile_block_statements(
+        block,
+        Map.put(inner_env, :cluster, cluster_id),
+        &process_statement/2
+      )
+
+    {cluster_steps ++ block_steps, restore_cluster_scope(env, block_env)}
+  end
+
+  defp get_cluster_id(steps) do
+    case List.last(steps) do
+      {:cluster, %{id: id}} -> id
+      _ -> nil
+    end
+  end
+
+  defp restore_cluster_scope(original_env, current_env) do
+    case Map.fetch(original_env, :cluster) do
+      {:ok, id} -> Map.put(current_env, :cluster, id)
+      :error -> Map.delete(current_env, :cluster)
+    end
   end
 
   defp empty_env, do: %{nodes: %{}, clusters: %{}}
@@ -162,6 +200,13 @@ defmodule Choreo.Lab.DSL.Dependency do
         raise ArgumentError,
               "expected dependency constructor, got #{Macro.to_string(constructor)}#{line_suffix(meta)}"
     end
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = [label: label] ++ normalize_edge_opts(opts)
+    {edge, nodes} = edge_from_ast(edge_ast, opts, env, meta)
+    {edge_declaration_steps(nodes, edge), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -196,11 +241,11 @@ defmodule Choreo.Lab.DSL.Dependency do
 
       name in @cluster_verbs ->
         cluster = cluster_from_constructor(ast, nil, env, meta)
-        {[{:cluster, cluster}], env}
+        {[{:cluster, cluster}], put_in(env.clusters[String.to_atom(cluster.id)], cluster.id)}
 
       Map.has_key?(@node_builders, name) ->
         node = node_from_constructor(ast, nil, env, meta)
-        {[{:node, node}], env}
+        {[{:node, node}], put_in(env.nodes[node.id], node.id)}
 
       true ->
         unsupported_statement!(ast, meta)
@@ -245,18 +290,95 @@ defmodule Choreo.Lab.DSL.Dependency do
     edge_from_ast(base, opts, env, line_meta(base))
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in [:on, :label] do
+  defp modifier_opt({name, _meta, [value]}, acc)
+       when name in [:on, :label] and is_binary(value) do
     Keyword.put(acc, :label, value)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in [:on, :label] and is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [value, opts]}, acc)
+       when name in [:on, :label] and is_binary(value) and is_list(opts) do
+    acc
+    |> Keyword.put(:label, value)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({type_verb, _meta, [type]}, acc)
+       when type_verb in [:type, :edge_type] and
+              (type in @edge_verbs or type in [:uses, :imports, :calls, :inherits, :dev]) do
+    edge_type_opts(acc, type)
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, label]}, acc)
+       when type_verb in [:type, :edge_type] and
+              (type in @edge_verbs or type in [:uses, :imports, :calls, :inherits, :dev]) and
+              is_binary(label) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.put(:label, label)
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, opts]}, acc)
+       when type_verb in [:type, :edge_type] and
+              (type in @edge_verbs or type in [:uses, :imports, :calls, :inherits, :dev]) and
+              is_list(opts) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({type_verb, _meta, [type, label, opts]}, acc)
+       when type_verb in [:type, :edge_type] and
+              (type in @edge_verbs or type in [:uses, :imports, :calls, :inherits, :dev]) and
+              is_binary(label) and is_list(opts) do
+    acc
+    |> edge_type_opts(type)
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({:edge, _meta, []}, acc), do: acc
+
+  defp modifier_opt({:edge, _meta, [label]}, acc) when is_binary(label) do
+    Keyword.put(acc, :label, label)
+  end
+
+  defp modifier_opt({:edge, _meta, [opts]}, acc) when is_list(opts) do
+    Keyword.merge(acc, normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({:edge, _meta, [label, opts]}, acc)
+       when is_binary(label) and is_list(opts) do
+    acc
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
   end
 
   defp modifier_opt({name, _meta, []}, acc) when name in @edge_verbs do
     edge_type_opts(acc, name)
   end
 
-  defp modifier_opt({name, _meta, [value]}, acc) when name in @edge_verbs do
+  defp modifier_opt({name, _meta, [label]}, acc) when name in @edge_verbs and is_binary(label) do
     acc
     |> edge_type_opts(name)
-    |> Keyword.put_new(:label, value)
+    |> Keyword.put(:label, label)
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc) when name in @edge_verbs and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.merge(normalize_edge_opts(opts))
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc)
+       when name in @edge_verbs and is_binary(label) and is_list(opts) do
+    acc
+    |> edge_type_opts(name)
+    |> Keyword.put(:label, label)
+    |> Keyword.merge(normalize_edge_opts(opts))
   end
 
   defp modifier_opt(other, _acc) do
@@ -321,6 +443,16 @@ defmodule Choreo.Lab.DSL.Dependency do
         raise ArgumentError, "unknown dependency node constructor `#{name}`#{line_suffix(meta)}"
 
     {opts, positional} = pop_trailing_opts(args)
+
+    opts =
+      case Map.fetch(env, :cluster) do
+        {:ok, cluster_id} when not is_nil(cluster_id) ->
+          Keyword.put_new(opts, :cluster, cluster_id)
+
+        _ ->
+          opts
+      end
+
     opts = resolve_cluster_option(opts, :cluster, env, meta)
     {id, opts} = node_id_and_opts(var, positional, opts, meta)
     %{id: id, builder: builder, opts: opts}
@@ -329,6 +461,16 @@ defmodule Choreo.Lab.DSL.Dependency do
   defp cluster_from_constructor({name, meta, args}, var, env, _statement_meta)
        when name in @cluster_verbs and is_list(args) do
     {opts, positional} = pop_trailing_opts(args)
+
+    opts =
+      case Map.fetch(env, :cluster) do
+        {:ok, cluster_id} when not is_nil(cluster_id) ->
+          Keyword.put_new(opts, :parent, cluster_id)
+
+        _ ->
+          opts
+      end
+
     opts = resolve_cluster_option(opts, :parent, env, meta)
     {id, opts} = cluster_id_and_opts(var, positional, opts, meta)
     %{id: id, opts: opts}
@@ -451,7 +593,8 @@ defmodule Choreo.Lab.DSL.Dependency do
   end
 
   defp edge_type_opts(opts, name) do
-    Keyword.put(opts, :type, Map.fetch!(@edge_type_aliases, name))
+    type = Map.get(@edge_type_aliases, name, name)
+    Keyword.put(opts, :type, type)
   end
 
   defp cluster_constructor?({name, _meta, args}) when is_atom(name) and is_list(args),
@@ -511,20 +654,25 @@ defmodule Choreo.Lab.DSL.Dependency do
         :depends,
         :depends_on,
         :dev,
+        :edge,
+        :edge_type,
         :group,
         :implements,
         :imports,
         :inherits,
         :interface,
+        :label,
         :layer,
         :lib,
         :library,
         :module,
+        :on,
         :package,
         :protocol,
         :service,
         :spec,
         :test_suite,
+        :type,
         :uses
       ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do

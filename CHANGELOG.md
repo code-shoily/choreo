@@ -4,12 +4,13 @@
 
 ### Added
 
-- **Lab DSL Hardening across Diagram Vocabularies (`Dataflow`, `Workflow`, `Planner`, `C4`, `Domain`, `Sequence`, `UML`, `ERD`)**:
+- **Lab DSL Hardening across Diagram Vocabularies (`Dependency`, `Dataflow`, `Workflow`, `Planner`, `C4`, `Domain`, `Sequence`, `UML`, `ERD`)**:
   - Added support for `edge/3` with both label and keyword options (`edge from ~> to, "label", opts`).
   - Added support for keyword options and label tuples in edge and relationship pipe modifiers (e.g. `|> emits("data", rate: 100)`, `|> failure("err", weight: 10)`, `|> uses(technology: "HTTPS")`, `|> one_to_many(from: :id, to: :user_id)`).
   - Added `:type` (and `:edge_type`) modifiers across DSLs, allowing explicit edge/relationship types with labels and options.
   - Expanded autocomplete helper stubs and `taxonomy/0` discovery across all diagram DSL modules.
 - **Domain-Specific Additions**:
+  - `Choreo.Lab.DSL.Dependency`: Added scoped `cluster`/`group` blocks (`cluster "data", label: "..." do ... end`) with automatic cluster inheritance.
   - `Choreo.Lab.DSL.Dataflow`: Added scoped `cluster`/`stage`/`lane` blocks (`cluster "order_service", label: "..." do ... end`) with automatic cluster inheritance.
   - `Choreo.Planner`: Added `task_labels/2`, `tags/2`, and `tagged_tasks/2` query helpers.
   - `Choreo.Lab.DSL.ERD`: Added `:from_column`, `:to_column`, and `:cardinality` relationship modifiers.
@@ -17,14 +18,14 @@
 ### Changed
 
 - **Walkthrough Livebooks**:
-  - Updated guides (`dataflow_walkthrough.livemd`, `workflow_walkthrough.livemd`, `planner_walkthrough.livemd`, `c4_walkthrough.livemd`, `domain_modeling_walkthrough.livemd`, `sequence_walkthrough.livemd`, `uml_walkthrough.livemd`, `erd_walkthrough.livemd`) to showcase Lab DSL syntax across all diagrams while preserving canonical programmatic pipe API in introductory legend sections.
+  - Updated guides (`dependency_walkthrough.livemd`, `dataflow_walkthrough.livemd`, `workflow_walkthrough.livemd`, `planner_walkthrough.livemd`, `c4_walkthrough.livemd`, `domain_modeling_walkthrough.livemd`, `sequence_walkthrough.livemd`, `uml_walkthrough.livemd`, `erd_walkthrough.livemd`) to showcase Lab DSL syntax across all diagrams while preserving canonical programmatic pipe API in introductory legend sections.
   - Added comprehensive Cheat Sheet reference tables for both Lab DSL syntax and Programmatic Pipe/Analysis APIs to walkthrough notebooks.
 
 ### Fixed
 
 - **Block Scoping & Environment State**:
   - Fixed parent/cluster environment state restoration after exiting nested blocks and guarded nil reference resolution in `Choreo.Lab.DSL.Workflow` (swimlanes), `Choreo.Lab.DSL.C4` (boundaries/systems), and `Choreo.Lab.DSL.Domain` (context boundaries).
-  - Ensured standalone node and cluster declarations in `Choreo.Lab.DSL.Dataflow` update variable scope so subsequent edge statements can reference their IDs.
+  - Ensured standalone node and cluster declarations in `Choreo.Lab.DSL.Dependency` and `Choreo.Lab.DSL.Dataflow` update variable scope so subsequent edge statements can reference their IDs.
   - Fixed `pop_do_block/1` in `Choreo.Lab.DSL.Compiler` to recognize `do` blocks with preceding keyword options (e.g. `cluster "Name", id: "id" do ... end`).
 - **Rendering & Diagram Normalization**:
   - Hardened native Mermaid rendering for `Choreo.ERD`, `Choreo.Sequence`, and `Choreo.UML` with sanitized identifiers and normalized label/member formatting.

@@ -137,6 +137,96 @@ defmodule Choreo.Lab.DependencyDSLTest do
     end
   end
 
+  test "supports edge/3 with label and keyword options" do
+    deps =
+      dependency do
+        api = app("API")
+        auth = module("Auth")
+
+        edge(api ~> auth, "validates token", type: :calls)
+      end
+
+    assert [{:api, :auth, _w, meta}] = Dependency.edges_with_meta(deps)
+    assert meta.label == "validates token"
+    assert meta.type == :calls
+  end
+
+  test "supports cluster blocks and inherited scoping" do
+    deps =
+      dependency do
+        api = app("API Gateway")
+
+        cluster "core", label: "Core Services" do
+          auth = module("Auth")
+          crypto = module("Crypto")
+
+          auth ~> crypto |> calls("hashes")
+        end
+
+        api ~> auth |> calls("verifies")
+      end
+
+    assert deps.clusters["cluster_core"].label == "Core Services"
+    assert Map.get(deps.graph.nodes, :auth).cluster == "cluster_core"
+    assert Map.get(deps.graph.nodes, :crypto).cluster == "cluster_core"
+    assert length(Dependency.edges(deps)) == 2
+  end
+
+  test "supports standalone node declarations updating variable scope" do
+    deps =
+      dependency do
+        module("Auth Service")
+        library("Guardian")
+
+        auth_service ~> guardian |> uses("JWT")
+      end
+
+    assert :auth_service in Dependency.nodes(deps)
+    assert :guardian in Dependency.nodes(deps)
+    assert [{:auth_service, :guardian, _w, meta}] = Dependency.edges_with_meta(deps)
+    assert meta.label == "JWT"
+    assert meta.type == :uses
+  end
+
+  test "supports type modifier and combined options" do
+    deps =
+      dependency do
+        api = app("API")
+        core = module("Core")
+        db = library("Postgres")
+        tests = test_suite("API Tests")
+
+        api ~> core |> type(:calls, "invokes")
+        core ~> db |> on("reads/writes", type: :uses)
+        tests ~> api |> type(:dev)
+      end
+
+    edge_meta = Dependency.edges_with_meta(deps)
+    calls_edge = Enum.find(edge_meta, fn {f, t, _, _} -> f == :api and t == :core end)
+    uses_edge = Enum.find(edge_meta, fn {f, t, _, _} -> f == :core and t == :db end)
+    dev_edge = Enum.find(edge_meta, fn {f, t, _, _} -> f == :tests and t == :api end)
+
+    assert elem(calls_edge, 3).type == :calls
+    assert elem(calls_edge, 3).label == "invokes"
+    assert elem(uses_edge, 3).type == :uses
+    assert elem(uses_edge, 3).label == "reads/writes"
+    assert elem(dev_edge, 3).type == :dev
+  end
+
+  test "autocomplete helper stubs raise outside DSL block" do
+    assert_raise RuntimeError, ~r/DSL constructor `on` must be called inside a DSL block/, fn ->
+      on("calls")
+    end
+
+    assert_raise RuntimeError, ~r/DSL constructor `type` must be called inside a DSL block/, fn ->
+      type(:calls)
+    end
+
+    assert_raise RuntimeError, ~r/DSL constructor `edge` must be called inside a DSL block/, fn ->
+      edge(:a, :b)
+    end
+  end
+
   test "raises on unknown cluster variables" do
     assert_raise ArgumentError, ~r/unknown dependency cluster variable `core`/, fn ->
       Code.eval_quoted(

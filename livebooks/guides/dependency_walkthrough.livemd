@@ -47,9 +47,19 @@ Unlike static dependency graphs drawn by hand, Choreo dependency graphs are **an
 | `:inherits` | dotted      | Inheritance / implementation |
 | `:dev`      | dashed grey | Development-only dependency  |
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two ways to author dependency graphs:
+
+1. **Programmatic Pipe API (`Choreo.Dependency`)**: Explicit, pipe-first builder functions (`add_application/3`, `add_library/3`, `add_module/3`, `add_interface/3`, `add_test/3`, `add_cluster/3`, `depends_on/4`). Best for production services, build tool integrations, and static analysis compilers.
+2. **Lab DSL (`Choreo.Lab.DSL.Dependency`)**: Concise, sketch-oriented syntax (`dependency do ... end`, variable binding, `~>`, and pipe modifiers like `|> calls("verifies")`, `|> uses()`, `|> type(:dev)`). Best for Livebooks, architecture reviews, refactoring discussions, and rapid coupling modeling.
+
+In this guide, the introductory legend demonstrates the programmatic pipe API, while subsequent examples showcase the expressive Lab DSL.
+
 ```elixir
 alias Choreo.Dependency
 alias Choreo.Dependency.Analysis
+import Choreo.Lab.DSL.Dependency
 
 legend =
   Dependency.new()
@@ -79,30 +89,38 @@ A classic three-service architecture: API Gateway, Auth Service, and User Servic
 
 ```elixir
 microservices =
-  Dependency.new()
-  |> Dependency.add_application(:api_gateway, label: "API Gateway")
-  |> Dependency.add_application(:auth_service, label: "Auth Service")
-  |> Dependency.add_application(:user_service, label: "User Service")
-  |> Dependency.add_library(:phoenix, label: "Phoenix")
-  |> Dependency.add_library(:ecto, label: "Ecto")
-  |> Dependency.add_library(:jwt, label: "Joken JWT")
-  |> Dependency.add_library(:redis, label: "Redix")
-  |> Dependency.add_interface(:auth_iface, label: "AuthContract")
-  |> Dependency.add_test(:api_tests, label: "API Tests")
-  |> Dependency.add_test(:auth_tests, label: "Auth Tests")
-  |> Dependency.depends_on(:api_gateway, :phoenix, type: :uses)
-  |> Dependency.depends_on(:api_gateway, :auth_service, type: :calls)
-  |> Dependency.depends_on(:api_gateway, :user_service, type: :calls)
-  |> Dependency.depends_on(:auth_service, :phoenix, type: :uses)
-  |> Dependency.depends_on(:auth_service, :ecto, type: :uses)
-  |> Dependency.depends_on(:auth_service, :jwt, type: :imports)
-  |> Dependency.depends_on(:auth_service, :redis, type: :uses)
-  |> Dependency.depends_on(:auth_service, :auth_iface, type: :inherits)
-  |> Dependency.depends_on(:user_service, :phoenix, type: :uses)
-  |> Dependency.depends_on(:user_service, :ecto, type: :uses)
-  |> Dependency.depends_on(:user_service, :auth_iface, type: :inherits)
-  |> Dependency.depends_on(:api_tests, :api_gateway, type: :dev)
-  |> Dependency.depends_on(:auth_tests, :auth_service, type: :dev)
+  dependency do
+    api_gateway = application("API Gateway")
+    auth_service = application("Auth Service")
+    user_service = application("User Service")
+
+    phoenix = library("Phoenix")
+    ecto = library("Ecto")
+    jwt = library("Joken JWT")
+    redis = library("Redix")
+
+    auth_iface = interface("AuthContract")
+
+    api_tests = test("API Tests")
+    auth_tests = test("Auth Tests")
+
+    api_gateway ~> phoenix |> uses()
+    api_gateway ~> auth_service |> calls()
+    api_gateway ~> user_service |> calls()
+
+    auth_service ~> phoenix |> uses()
+    auth_service ~> ecto |> uses()
+    auth_service ~> jwt |> imports()
+    auth_service ~> redis |> uses()
+    auth_service ~> auth_iface |> implements()
+
+    user_service ~> phoenix |> uses()
+    user_service ~> ecto |> uses()
+    user_service ~> auth_iface |> implements()
+
+    api_tests ~> api_gateway |> dev()
+    auth_tests ~> auth_service |> dev()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices)),
@@ -137,28 +155,37 @@ A well-designed system has layers: Repository (data access) → Service (busines
 
 ```elixir
 layers =
-  Dependency.new()
-  |> Dependency.add_cluster("data", label: "Data Layer", fillcolor: "#dbeafe")
-  |> Dependency.add_cluster("service", label: "Service Layer", fillcolor: "#dcfce7")
-  |> Dependency.add_cluster("api", label: "API Layer", fillcolor: "#fef3c7")
-  |> Dependency.add_module(:user_repo, label: "UserRepo", cluster: "data")
-  |> Dependency.add_module(:order_repo, label: "OrderRepo", cluster: "data")
-  |> Dependency.add_module(:user_service, label: "UserService", cluster: "service")
-  |> Dependency.add_module(:order_service, label: "OrderService", cluster: "service")
-  |> Dependency.add_module(:auth_service, label: "AuthService", cluster: "service")
-  |> Dependency.add_module(:api_controller, label: "APIController", cluster: "api")
-  |> Dependency.add_module(:web_socket, label: "WebSocket", cluster: "api")
-  # Correct flows
-  |> Dependency.depends_on(:user_service, :user_repo, type: :calls)
-  |> Dependency.depends_on(:order_service, :order_repo, type: :calls)
-  |> Dependency.depends_on(:auth_service, :user_repo, type: :calls)
-  |> Dependency.depends_on(:api_controller, :user_service, type: :calls)
-  |> Dependency.depends_on(:api_controller, :order_service, type: :calls)
-  |> Dependency.depends_on(:web_socket, :auth_service, type: :calls)
-  # VIOLATION: repo calls back up to API layer!
-  |> Dependency.depends_on(:order_repo, :api_controller, type: :calls)
-  # VIOLATION: API layer talks directly to another API module
-  |> Dependency.depends_on(:web_socket, :api_controller, type: :calls)
+  dependency do
+    cluster "data", label: "Data Layer", fillcolor: "#dbeafe" do
+      user_repo = module("UserRepo")
+      order_repo = module("OrderRepo")
+    end
+
+    cluster "service", label: "Service Layer", fillcolor: "#dcfce7" do
+      user_service = module("UserService")
+      order_service = module("OrderService")
+      auth_service = module("AuthService")
+    end
+
+    cluster "api", label: "API Layer", fillcolor: "#fef3c7" do
+      api_controller = module("APIController")
+      web_socket = module("WebSocket")
+    end
+
+    # Correct flows
+    user_service ~> user_repo |> calls()
+    order_service ~> order_repo |> calls()
+    auth_service ~> user_repo |> calls()
+    api_controller ~> user_service |> calls()
+    api_controller ~> order_service |> calls()
+    web_socket ~> auth_service |> calls()
+
+    # VIOLATION: repo calls back up to API layer!
+    order_repo ~> api_controller |> calls()
+
+    # VIOLATION: API layer talks directly to another API module
+    web_socket ~> api_controller |> calls()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(layers)),
@@ -209,23 +236,27 @@ The most dangerous pattern in dependency graphs. Let's model a messy codebase an
 
 ```elixir
 messy =
-  Dependency.new()
-  |> Dependency.add_module(:cart, label: "Cart Module")
-  |> Dependency.add_module(:order, label: "Order Module")
-  |> Dependency.add_module(:payment, label: "Payment Module")
-  |> Dependency.add_module(:inventory, label: "Inventory Module")
-  |> Dependency.add_module(:shipping, label: "Shipping Module")
-  |> Dependency.add_module(:notification, label: "Notification Module")
-  # Cycle 1: cart ↔ order
-  |> Dependency.depends_on(:cart, :order, type: :calls)
-  |> Dependency.depends_on(:order, :cart, type: :imports)
-  # Cycle 2: order ↔ payment ↔ inventory → order
-  |> Dependency.depends_on(:order, :payment, type: :calls)
-  |> Dependency.depends_on(:payment, :inventory, type: :uses)
-  |> Dependency.depends_on(:inventory, :order, type: :calls)
-  # Clean edges
-  |> Dependency.depends_on(:order, :shipping, type: :calls)
-  |> Dependency.depends_on(:order, :notification, type: :calls)
+  dependency do
+    cart = module("Cart Module")
+    order = module("Order Module")
+    payment = module("Payment Module")
+    inventory = module("Inventory Module")
+    shipping = module("Shipping Module")
+    notification = module("Notification Module")
+
+    # Cycle 1: cart ↔ order
+    cart ~> order |> calls()
+    order ~> cart |> imports()
+
+    # Cycle 2: order ↔ payment ↔ inventory → order
+    order ~> payment |> calls()
+    payment ~> inventory |> uses()
+    inventory ~> order |> calls()
+
+    # Clean edges
+    order ~> shipping |> calls()
+    order ~> notification |> calls()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(messy)),
@@ -260,17 +291,20 @@ Build a graph with multiple disconnected groups to see `isolated_subsystems/1` i
 
 ```elixir
 subsystems_graph =
-  Dependency.new()
-  # Group A: e-commerce
-  |> Dependency.add_module(:cart)
-  |> Dependency.add_module(:checkout)
-  |> Dependency.depends_on(:cart, :checkout)
-  # Group B: analytics
-  |> Dependency.add_module(:tracker)
-  |> Dependency.add_module(:reporter)
-  |> Dependency.depends_on(:tracker, :reporter)
-  # Group C: orphan
-  |> Dependency.add_module(:legacy_parser)
+  dependency do
+    # Group A: e-commerce
+    cart = module("Cart")
+    checkout = module("Checkout")
+    cart ~> checkout
+
+    # Group B: analytics
+    tracker = module("Tracker")
+    reporter = module("Reporter")
+    tracker ~> reporter
+
+    # Group C: orphan
+    legacy_parser = module("Legacy Parser")
+  end
 
 Analysis.isolated_subsystems(subsystems_graph)
 |> Enum.each(fn component ->
@@ -286,21 +320,23 @@ Robert C. Martin's instability metric measures how likely a component is to chan
 
 ```elixir
 metrics =
-  Dependency.new()
-  |> Dependency.add_application(:api, label: "API")
-  |> Dependency.add_application(:auth, label: "Auth")
-  |> Dependency.add_application(:orders, label: "Orders")
-  |> Dependency.add_library(:phoenix, label: "Phoenix")
-  |> Dependency.add_library(:logger, label: "Logger")
-  |> Dependency.add_library(:config, label: "Config")
-  |> Dependency.depends_on(:api, :auth, type: :calls)
-  |> Dependency.depends_on(:api, :orders, type: :calls)
-  |> Dependency.depends_on(:api, :phoenix, type: :uses)
-  |> Dependency.depends_on(:auth, :phoenix, type: :uses)
-  |> Dependency.depends_on(:auth, :logger, type: :uses)
-  |> Dependency.depends_on(:orders, :phoenix, type: :uses)
-  |> Dependency.depends_on(:orders, :logger, type: :uses)
-  |> Dependency.depends_on(:orders, :config, type: :uses)
+  dependency do
+    api = application("API")
+    auth = application("Auth")
+    orders = application("Orders")
+    phoenix = library("Phoenix")
+    logger = library("Logger")
+    config = library("Config")
+
+    api ~> auth |> calls()
+    api ~> orders |> calls()
+    api ~> phoenix |> uses()
+    auth ~> phoenix |> uses()
+    auth ~> logger |> uses()
+    orders ~> phoenix |> uses()
+    orders ~> logger |> uses()
+    orders ~> config |> uses()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(metrics)),
@@ -347,20 +383,22 @@ Long dependency chains slow down builds, tests, and deployments. Let's find the 
 
 ```elixir
 deep =
-  Dependency.new()
-  |> Dependency.add_module(:web, label: "Web Layer")
-  |> Dependency.add_module(:api, label: "API Layer")
-  |> Dependency.add_module(:service, label: "Service Layer")
-  |> Dependency.add_module(:repository, label: "Repository Layer")
-  |> Dependency.add_module(:db_client, label: "DB Client")
-  |> Dependency.add_module(:connection_pool, label: "Connection Pool")
-  |> Dependency.add_module(:tcp_stack, label: "TCP Stack")
-  |> Dependency.depends_on(:web, :api, type: :calls)
-  |> Dependency.depends_on(:api, :service, type: :calls)
-  |> Dependency.depends_on(:service, :repository, type: :calls)
-  |> Dependency.depends_on(:repository, :db_client, type: :calls)
-  |> Dependency.depends_on(:db_client, :connection_pool, type: :uses)
-  |> Dependency.depends_on(:connection_pool, :tcp_stack, type: :uses)
+  dependency do
+    web = module("Web Layer")
+    api = module("API Layer")
+    service = module("Service Layer")
+    repository = module("Repository Layer")
+    db_client = module("DB Client")
+    connection_pool = module("Connection Pool")
+    tcp_stack = module("TCP Stack")
+
+    web ~> api |> calls()
+    api ~> service |> calls()
+    service ~> repository |> calls()
+    repository ~> db_client |> calls()
+    db_client ~> connection_pool |> uses()
+    connection_pool ~> tcp_stack |> uses()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(deep)),
@@ -389,16 +427,18 @@ The [Dependency Inversion Principle](https://en.wikipedia.org/wiki/Dependency_in
 
 ```elixir
 broken =
-  Dependency.new()
-  |> Dependency.add_module(:report_generator, label: "Report Generator")
-  |> Dependency.add_module(:pdf_exporter, label: "PDF Exporter")
-  |> Dependency.add_module(:email_sender, label: "Email Sender")
-  |> Dependency.add_module(:orphan, label: "Orphan")
-  # High-level Report Generator directly depends on low-level implementations
-  |> Dependency.depends_on(:report_generator, :pdf_exporter, type: :calls)
-  |> Dependency.depends_on(:report_generator, :email_sender, type: :calls)
-  # Circular: pdf_exporter calls back up to report_generator
-  |> Dependency.depends_on(:pdf_exporter, :report_generator, type: :calls)
+  dependency do
+    report_generator = module("Report Generator")
+    pdf_exporter = module("PDF Exporter")
+    email_sender = module("Email Sender")
+    orphan = module("Orphan")
+
+    # High-level Report Generator directly depends on low-level implementations
+    report_generator ~> pdf_exporter |> calls()
+    report_generator ~> email_sender |> calls()
+    # Circular: pdf_exporter calls back up to report_generator
+    pdf_exporter ~> report_generator |> calls()
+  end
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(broken)),
@@ -424,16 +464,18 @@ Apply Dependency Inversion: introduce an interface so both high- and low-level m
 
 ```elixir
 fixed =
-  Dependency.new()
-  |> Dependency.add_module(:report_generator, label: "Report Generator")
-  |> Dependency.add_module(:pdf_exporter, label: "PDF Exporter")
-  |> Dependency.add_module(:email_sender, label: "Email Sender")
-  |> Dependency.add_interface(:exportable, label: "Exportable")
-  # High-level module depends on the abstraction
-  |> Dependency.depends_on(:report_generator, :exportable, type: :inherits)
-  # Low-level modules implement the abstraction
-  |> Dependency.depends_on(:pdf_exporter, :exportable, type: :inherits)
-  |> Dependency.depends_on(:email_sender, :exportable, type: :inherits)
+  dependency do
+    report_generator = module("Report Generator")
+    pdf_exporter = module("PDF Exporter")
+    email_sender = module("Email Sender")
+    exportable = interface("Exportable")
+
+    # High-level module depends on the abstraction
+    report_generator ~> exportable |> inherits()
+    # Low-level modules implement the abstraction
+    pdf_exporter ~> exportable |> inherits()
+    email_sender ~> exportable |> inherits()
+  end
 
 IO.puts("After applying DIP:")
 Analysis.validate(fixed) |> IO.inspect()
@@ -482,11 +524,13 @@ A component can depend on another for multiple distinct reasons (e.g., both an e
 
 ```elixir
 parallel_deps =
-  Dependency.new()
-  |> Dependency.add_application(:api, label: "API")
-  |> Dependency.add_library(:auth, label: "Auth Service")
-  |> Dependency.depends_on(:api, :auth, type: :uses)
-  |> Dependency.depends_on(:api, :auth, type: :dev)
+  dependency do
+    api = application("API")
+    auth = library("Auth Service")
+
+    api ~> auth |> uses()
+    api ~> auth |> dev()
+  end
 
 IO.puts("Number of dependencies: #{length(Dependency.edges(parallel_deps))}")
 
@@ -515,18 +559,20 @@ For Dependency graphs, zoom levels are semantic:
 alias Choreo.View
 
 system =
-  Dependency.new()
-  |> Dependency.add_application(:frontend, label: "Frontend API")
-  |> Dependency.add_application(:backend, label: "Backend Service")
-  |> Dependency.add_library(:phx, label: "Phoenix")
-  |> Dependency.add_module(:router, label: "Router")
-  |> Dependency.add_module(:auth, label: "Auth")
-  |> Dependency.add_test(:auth_test, label: "Auth Test")
-  |> Dependency.depends_on(:frontend, :backend, type: :calls)
-  |> Dependency.depends_on(:frontend, :phx, type: :uses)
-  |> Dependency.depends_on(:frontend, :router, type: :calls)
-  |> Dependency.depends_on(:backend, :auth, type: :calls)
-  |> Dependency.depends_on(:auth_test, :auth, type: :dev)
+  dependency do
+    frontend = application("Frontend API")
+    backend = application("Backend Service")
+    phx = library("Phoenix")
+    router = module("Router")
+    auth = module("Auth")
+    auth_test = test("Auth Test")
+
+    frontend ~> backend |> calls()
+    frontend ~> phx |> uses()
+    frontend ~> router |> calls()
+    backend ~> auth |> calls()
+    auth_test ~> auth |> dev()
+  end
 ```
 
 Compare all zoom levels side-by-side:
@@ -552,6 +598,55 @@ Kino.Layout.tabs(zoomed_diagrams)
 ```
 
 When you zoom out, intermediate nodes are hidden, but their transitive dependencies are preserved as **virtual edges** (dashed light-grey lines) so you don't lose the structural relationship between the visible components!
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax (`Choreo.Lab.DSL.Dependency`)
+
+| Syntax                                    | Description                                             |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `dependency do ... end`                   | Define a dependency graph model                         |
+| `app = application("API Gateway")`        | Declare an application component                        |
+| `lib = library("Repo", version: "1.0")`   | Declare a library or external dependency                |
+| `mod = module("AuthService")`             | Declare an internal module                              |
+| `iface = interface("Contract")`           | Declare an abstract interface or protocol               |
+| `t = test("TestSuite")`                   | Declare a test component or harness                     |
+| `cluster "Name", label: "..." do ... end` | Group components into an architectural layer or cluster |
+| `a ~> b`                                  | Declare a dependency from `a` to `b`                    |
+| `a ~> b |> calls()`                       | Runtime invocation dependency (`:calls`)                |
+| `a ~> b |> uses()`                        | General usage dependency (`:uses`)                      |
+| `a ~> b |> imports()`                     | Compile-time or module import dependency (`:imports`)   |
+| `a ~> b |> inherits()`                    | Interface implementation / inheritance (`:inherits`)    |
+| `a ~> b |> dev()`                         | Development or test-only dependency (`:dev`)            |
+| `a ~> b |> on("label")`                   | Set edge display label                                  |
+| `a ~> b |> type(:calls, "label")`         | Explicit dependency type modifier with label            |
+| `edge a ~> b, "label", type: :calls`      | Explicit edge statement with label and options          |
+
+### Programmatic Pipe API & Analysis (`Choreo.Dependency`)
+
+| Task / Feature                 | Command                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Create Graph                   | `Dependency.new/1` (Opts: `:strict`)                                                              |
+| Add Application / Library      | `Dependency.add_application/3`, `Dependency.add_library/3` (Opts: `:label`, `:cluster`)           |
+| Add Module / Interface / Test  | `Dependency.add_module/3`, `Dependency.add_interface/3`, `Dependency.add_test/3`                  |
+| Add Cluster / Subgraph         | `Dependency.add_cluster/3` (Opts: `:label`, `:fillcolor`, `:color`, `:parent`)                    |
+| Declare Dependency             | `Dependency.depends_on/4` (Opts: `:type`, `:label`)                                               |
+| Render Mermaid Flowchart       | `Dependency.to_mermaid/2` (Opts: `:theme`)                                                        |
+| Render DOT Graphviz            | `Dependency.to_dot/2` (Opts: `:theme`, `:engine`)                                                 |
+| Detect Circular Dependencies   | `Analysis.cyclic_dependencies/1` (Finds cycle paths)                                              |
+| Blast Radius / Impact Analysis | `Analysis.affected_by/2` (Finds all upstream components affected by a change)                     |
+| Transitive Dependencies        | `Analysis.depends_on/2` (Finds all downstream components required)                                |
+| Layer Enforcement              | `Analysis.layer_violations/2` (Detects upwards or prohibited cross-layer calls)                   |
+| Transitive Reduction           | `Analysis.transitive_reduction/1` (Finds redundant edges in transitive paths)                     |
+| Instability Metric             | `Analysis.instability/1` (Calculates Robert C. Martin instability metric: $Ce / (Ca + Ce)$)       |
+| Coupling & Centrality          | `Analysis.centrality/2` (Ranks components by degree of coupling)                                  |
+| Leaves & Roots                 | `Analysis.leaves/1`, `Analysis.roots/1` (Identifies entry points and foundations)                 |
+| Longest Dependency Chain       | `Analysis.longest_dependency_chain/1` (Finds deepest dependency path)                             |
+| Isolated Subsystems            | `Analysis.isolated_subsystems/1` (Identifies disconnected component clusters)                     |
+| Graph Soundness Validation     | `Analysis.validate/1` (Checks for cycles, orphans, and structural issues)                         |
+| Semantic Zoom Views            | `Choreo.View.zoom/2` (Level 0: apps, Level 1: +libs, Level 2: +modules, Level 3: +ifaces, 4: all) |
 
 ---
 
