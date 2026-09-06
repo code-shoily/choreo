@@ -270,6 +270,14 @@ defmodule Choreo.MindMap.AnalysisTest do
       assert {:error, "Mind map has no root"} in Analysis.validate(map)
     end
 
+    test "errors when root pointer does not exist in graph nodes" do
+      map = %{MindMap.new() | root: :missing}
+
+      assert {:error, "Mind map root :missing does not exist in graph nodes"} in Analysis.validate(
+               map
+             )
+    end
+
     test "errors when cycle detected" do
       map =
         MindMap.new()

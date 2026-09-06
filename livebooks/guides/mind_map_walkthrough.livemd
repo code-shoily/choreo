@@ -495,9 +495,9 @@ Kino.Layout.tabs(
 | Add Note               | `MindMap.add_note/3` (Opts: `:label`, styling)                                             |
 | Add Edges              | `MindMap.branch/4`, `MindMap.associate/4` (Opts: `:label`)                                 |
 | Structural Analysis    | `MindMap.Analysis.depth/1`, `breadth/1`, `max_width/1`, `leaves/1`                         |
-| Navigation & Hierarchy | `MindMap.Analysis.paths/1`, `ancestors/2`, `descendants/2`, `children/2`                   |
-| Validation & Health    | `MindMap.Analysis.orphan_nodes/1`, `cycles/1`, `validate/1`                                |
-| Views & Graph Lenses   | `Choreo.View.zoom_to_depth/2`, `View.focus/3`, `View.focus_between/4`, `View.filter/2`     |
+| Navigation & Hierarchy | `MindMap.Analysis.paths/1`, `orphan_nodes/1`, `leaves/1`                                   |
+| Validation & Health    | `MindMap.Analysis.cyclic?/1`, `validate/1`, `suggest_merges/2`                             |
+| Views & Graph Lenses   | `Choreo.View.zoom/2`, `View.focus/3`, `View.focus_between/4`, `View.filter/2`              |
 | Render Formats         | `MindMap.to_mermaid/2` (syntax: `:flowchart`, `:mindmap`, `:ishikawa`), `MindMap.to_dot/2` |
 | Themes                 | `MindMap.theme/2` (`:default`, `:dark`, `:forest`, `:ocean`, `:warm`)                      |
 

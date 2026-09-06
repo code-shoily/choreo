@@ -436,10 +436,15 @@ defmodule Choreo.MindMap.Analysis do
   # ============================================================================
 
   defp check_root(acc, map) do
-    if is_nil(map.root) do
-      [{:error, "Mind map has no root"} | acc]
-    else
-      acc
+    cond do
+      is_nil(map.root) ->
+        [{:error, "Mind map has no root"} | acc]
+
+      not Map.has_key?(map.graph.nodes, map.root) ->
+        [{:error, "Mind map root #{inspect(map.root)} does not exist in graph nodes"} | acc]
+
+      true ->
+        acc
     end
   end
 
