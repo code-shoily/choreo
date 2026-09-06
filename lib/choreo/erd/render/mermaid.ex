@@ -70,7 +70,7 @@ defmodule Choreo.ERD.Render.Mermaid do
         :one_to_many -> "||--o{"
         :zero_or_one_to_many -> "|o--o{"
         :exactly_one_to_many -> "||--|{"
-        :many_to_many -> "}|--|{"
+        :many_to_many -> "}o--o{"
         _ -> "||--||"
       end
 

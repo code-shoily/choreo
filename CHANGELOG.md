@@ -22,6 +22,7 @@
 
 - Fixed stale Planner walkthrough `to_dot/2` option references and added an assignee workload analysis example.
 - Fixed stale Sequence walkthrough rendering wording and async Mermaid arrow reference.
+- Fixed stale UML walkthrough connector references and ERD Mermaid `:many_to_many` cardinality rendering.
 - Fixed stale Requirement walkthrough API references and added validation for duplicate human requirement IDs.
 - Fixed stale FSM walkthrough API references and added defensive validation for duplicate outgoing transition labels.
 - Fixed stale MindMap walkthrough API references and added defensive validation for invalid root pointers.

@@ -106,12 +106,12 @@ end
 
 Relationships between software blocks map exactly to standard UML connectors:
 
-| Relationship Type | Arrow Style | Connector Style  | Intended Semantics                                  |
-| ----------------- | ----------- | ---------------- | --------------------------------------------------- |
-| `:inherits`       | Hollow      | Solid (`--  |>`) | Class inheritance or adopting a behavior.           |
-| `:realizes`       | Hollow      | Dashed (`.. |>`) | Adopting/implementing an Elixir protocol.           |
-| `:associates`     | Solid       | Solid (`-->`)    | Composition (e.g. struct nesting/embedding).        |
-| `:depends`        | Open        | Dashed (`..>`)   | Run-time dependency or function calling invocation. |
+| Relationship Type | Arrow Style | Connector Style | Intended Semantics                                  |
+| ----------------- | ----------- | --------------- | --------------------------------------------------- |
+| `:inherits`       | Hollow      | Solid (`--|>`)  | Class inheritance or adopting a behavior.           |
+| `:realizes`       | Hollow      | Dashed (`..|>`) | Adopting/implementing an Elixir protocol.           |
+| `:associates`     | Solid       | Solid (`-->`)   | Composition (e.g. struct nesting/embedding).        |
+| `:depends`        | Open        | Dashed (`..>`)  | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance using Lab DSL

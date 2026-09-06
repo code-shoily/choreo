@@ -227,7 +227,7 @@ defmodule Choreo.ERDTest do
     assert mermaid =~ "||--||"
     assert mermaid =~ "|o--o{"
     assert mermaid =~ "||--|{"
-    assert mermaid =~ "}|--|{"
+    assert mermaid =~ "}o--o{"
   end
 
   test "zoom level 0 filters isolated tables" do
