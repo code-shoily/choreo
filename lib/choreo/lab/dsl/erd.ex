@@ -101,7 +101,16 @@ defmodule Choreo.Lab.DSL.ERD do
       tables: @table_verbs,
       columns: @column_verbs,
       edges: [:~>, :edge | @cardinality_verbs],
-      modifiers: [:on, :label, :columns, :from, :to | @cardinality_verbs],
+      modifiers: [
+        :on,
+        :label,
+        :columns,
+        :from,
+        :to,
+        :from_column,
+        :to_column,
+        :cardinality | @cardinality_verbs
+      ],
       options: [
         :label,
         :with,
@@ -158,6 +167,13 @@ defmodule Choreo.Lab.DSL.ERD do
        when is_atom(var) and is_atom(context) do
     table = table_from_constructor(constructor, var, meta)
     {[{:table, table}], Map.put(env, var, table.id)}
+  end
+
+  defp statement_steps({:edge, meta, [edge_ast, label, opts]}, env)
+       when is_binary(label) and is_list(opts) do
+    opts = opts |> normalize_relationship_opts() |> Keyword.put(:label, label)
+    {relationship, tables} = relationship_from_ast(edge_ast, opts, env, meta)
+    {relationship_declaration_steps(tables, relationship), env}
   end
 
   defp statement_steps({:edge, meta, [edge_ast, label]}, env) when is_binary(label) do
@@ -292,13 +308,23 @@ defmodule Choreo.Lab.DSL.ERD do
     Keyword.put(acc, :label, value)
   end
 
-  defp modifier_opt({:from, _meta, [value]}, acc), do: Keyword.put(acc, :from_column, value)
-  defp modifier_opt({:to, _meta, [value]}, acc), do: Keyword.put(acc, :to_column, value)
+  defp modifier_opt({name, _meta, [value]}, acc) when name in [:from, :from_column],
+    do: Keyword.put(acc, :from_column, value)
+
+  defp modifier_opt({name, _meta, [value]}, acc) when name in [:to, :to_column],
+    do: Keyword.put(acc, :to_column, value)
 
   defp modifier_opt({:columns, _meta, [from_column, to_column]}, acc) do
     acc
     |> Keyword.put(:from_column, from_column)
     |> Keyword.put(:to_column, to_column)
+  end
+
+  defp modifier_opt({:cardinality, _meta, [cardinality]}, acc) do
+    case cardinality_for(cardinality) do
+      {:ok, val} -> Keyword.put(acc, :cardinality, val)
+      :error -> Keyword.put(acc, :cardinality, cardinality)
+    end
   end
 
   defp modifier_opt({name, _meta, []}, acc) do
@@ -317,6 +343,31 @@ defmodule Choreo.Lab.DSL.ERD do
 
       :error ->
         unsupported_modifier!(name, [label])
+    end
+  end
+
+  defp modifier_opt({name, _meta, [opts]}, acc) when is_list(opts) do
+    case cardinality_for(name) do
+      {:ok, cardinality} ->
+        acc
+        |> Keyword.put(:cardinality, cardinality)
+        |> Keyword.merge(opts)
+
+      :error ->
+        unsupported_modifier!(name, [opts])
+    end
+  end
+
+  defp modifier_opt({name, _meta, [label, opts]}, acc) when is_binary(label) and is_list(opts) do
+    case cardinality_for(name) do
+      {:ok, cardinality} ->
+        acc
+        |> Keyword.put(:cardinality, cardinality)
+        |> Keyword.put(:label, label)
+        |> Keyword.merge(opts)
+
+      :error ->
+        unsupported_modifier!(name, [label, opts])
     end
   end
 
@@ -538,22 +589,29 @@ defmodule Choreo.Lab.DSL.ERD do
   # Autocomplete helper stubs
   for verb <- [
         :column,
+        :columns,
+        :edge,
         :entity,
         :exactly_one_to_many,
         :field,
         :fk,
         :foreign_key,
+        :from,
+        :from_column,
         :has_and_belongs_to_many,
         :has_at_least_one,
         :has_many,
         :has_one,
         :many_to_many,
         :maybe_has_many,
+        :on,
         :one_to_many,
         :one_to_one,
         :pk,
         :primary_key,
         :table,
+        :to,
+        :to_column,
         :zero_or_one_to_many
       ] do
     def unquote(verb)(_arg1 \\ nil, _arg2 \\ nil, _opts \\ []) do

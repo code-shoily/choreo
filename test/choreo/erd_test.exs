@@ -242,6 +242,18 @@ defmodule Choreo.ERDTest do
     refute :logs in Map.keys(zoomed.graph.nodes)
     assert :users in Map.keys(zoomed.graph.nodes)
     assert :posts in Map.keys(zoomed.graph.nodes)
+
+    zoomed1 = Choreo.View.zoom(erd, level: 1)
+    assert :logs in Map.keys(zoomed1.graph.nodes)
+  end
+
+  test "to_dot supports directions and minimal theme", %{erd: erd} do
+    for dir <- [:tb, :bt, :rl, "tb", "lr", "bt", "rl"] do
+      assert ERD.to_dot(erd, direction: dir) =~ "rankdir"
+    end
+
+    assert ERD.to_dot(erd, theme: :minimal) =~ "label=<<TABLE"
+    assert Choreo.ERD.Render.Mermaid.theme(:ocean).name == :erd_ocean
   end
 
   test "shortest join path BFS", %{erd: erd} do
