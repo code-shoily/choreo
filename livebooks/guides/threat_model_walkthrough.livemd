@@ -544,9 +544,9 @@ Kino.Markdown.new(table_markdown)
 | `a ~> b`                                                          | Direct data flow edge                                 |
 | `a ~> b |> encrypted("HTTPS", protocol: :https)`                  | Encrypted flow with label and protocol options        |
 | `a ~> b |> unencrypted("HTTP", protocol: :http)`                  | Explicit unencrypted data flow                        |
-| `a ~> b |> authenticated("Login")`                                 | Authenticated data flow edge modifier                 |
-| `a ~> b |> carries(:token, :restricted)`                           | Data payload and sensitivity modifier                 |
-| `a ~> b |> controls([:waf, :rate_limiting])`                       | Applied security controls on data flow                |
+| `a ~> b |> authenticated("Login")`                                | Authenticated data flow edge modifier                 |
+| `a ~> b |> carries(:token, :restricted)`                          | Data payload and sensitivity modifier                 |
+| `a ~> b |> controls([:waf, :rate_limiting])`                      | Applied security controls on data flow                |
 | `a ~> b |> flow("Query", protocol: :sql)`                         | Data flow with label and options                      |
 | `a ~> b |> on("Label", encrypted: true, protocol: :https)`        | Data flow with label modifier and options             |
 | `edge a ~> b, "Label", encrypted: true, protocol: :https`         | Explicit edge statement with label and options        |
@@ -554,22 +554,22 @@ Kino.Markdown.new(table_markdown)
 
 ### Programmatic Pipe API & Analysis (`Choreo.ThreatModel`)
 
-| Task / Feature       | Command                                                                                                                            |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Create Model         | `ThreatModel.new/1` (Opts: `:strict`)                                                                                              |
-| Add Boundaries       | `ThreatModel.add_trust_boundary/3` (Opts: `:level`, `:label`, `:style`, `:color`, `:fillcolor`)                                    |
+| Task / Feature       | Command                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Create Model         | `ThreatModel.new/1` (Opts: `:strict`)                                                                                                                        |
+| Add Boundaries       | `ThreatModel.add_trust_boundary/3` (Opts: `:level`, `:label`, `:style`, `:color`, `:fillcolor`)                                                              |
 | Add Elements         | `ThreatModel.add_external_entity/3`, `add_process/3` (Opts: `:privilege`, `:controls`), `add_data_store/3` (Opts: `:sensitivity`, `:retention`, `:controls`) |
-| Connect Data Flows   | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`, `:authenticated`, `:data`, `:sensitivity`, `:controls`)    |
-| Ingress & Egress     | `ThreatModel.entry_points/1`, `ThreatModel.exit_points/1`                                                                          |
-| Blast Radius         | `ThreatModel.blast_radius/2`                                                                                                       |
-| Attack Path Visuals  | `ThreatModel.highlight_attack_paths/2`, `ThreatModel.clear_highlight/1`                                                             |
-| Generate Threats     | `ThreatModel.Analysis.stride_threats/2` (Supports `:rules`, `:only_unmitigated`, `:category`, `:severity`)                         |
-| Filter Threats       | `ThreatModel.unmitigated_threats/2`, `ThreatModel.threats_for/3`                                                                    |
-| Markdown Reporting   | `ThreatModel.to_markdown/2` (Opts: `:summary`)                                                                                     |
-| Security Audits      | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`            |
-| Integrity Validation | `ThreatModel.Analysis.validate/2` (Opts: `:require_levels`), `threat_summary/1`                                                    |
-| Render Formats       | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                |
-| Themes               | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                          |
+| Connect Data Flows   | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`, `:authenticated`, `:data`, `:sensitivity`, `:controls`)                                |
+| Ingress & Egress     | `ThreatModel.entry_points/1`, `ThreatModel.exit_points/1`                                                                                                    |
+| Blast Radius         | `ThreatModel.blast_radius/2`                                                                                                                                 |
+| Attack Path Visuals  | `ThreatModel.highlight_attack_paths/2`, `ThreatModel.clear_highlight/1`                                                                                      |
+| Generate Threats     | `ThreatModel.Analysis.stride_threats/2` (Supports `:rules`, `:only_unmitigated`, `:category`, `:severity`)                                                   |
+| Filter Threats       | `ThreatModel.unmitigated_threats/2`, `ThreatModel.threats_for/3`                                                                                             |
+| Markdown Reporting   | `ThreatModel.to_markdown/2` (Opts: `:summary`)                                                                                                               |
+| Security Audits      | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`                                      |
+| Integrity Validation | `ThreatModel.Analysis.validate/2` (Opts: `:require_levels`), `threat_summary/1`                                                                              |
+| Render Formats       | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                                          |
+| Themes               | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                                                    |
 
 ---
 
