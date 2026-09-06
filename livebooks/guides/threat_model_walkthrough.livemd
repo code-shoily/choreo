@@ -328,14 +328,17 @@ Kino.VizJS.render(ThreatModel.to_dot(saas))
 
 While Data Flow Diagrams illustrate security boundaries, Sequence Diagrams visualize interactions chronologically. Choreo supports both **Mermaid.js** and **PlantUML** formats.
 
-````elixir
+```elixir
+bt = String.duplicate("`", 3)
+plantuml_block = bt <> "plantuml\n" <> ThreatModel.to_plantuml(microservices) <> "\n" <> bt
+
 tabs = [
   {"Mermaid", Kino.Mermaid.new(ThreatModel.to_sequence(microservices))},
-  {"PlantUML", Kino.Markdown.new("```plantuml\n#{ThreatModel.to_plantuml(microservices)}\n```")}
+  {"PlantUML", Kino.Markdown.new(plantuml_block)}
 ]
 
 Kino.Layout.tabs(tabs)
-````
+```
 
 You can copy these payloads directly into [PlantText](https://www.planttext.com/), Mermaid Live Editor, or your Confluence macro blocks securely.
 
@@ -453,6 +456,79 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 
 ---
 
+## Example 6: Ingress, Blast Radius & Attack Path Highlighting
+
+Threat modeling goes beyond cataloging static elements: security engineers need to trace ingress vectors, compute worst-case downstream compromise blast radius, and highlight multi-hop attack vectors on diagrams.
+
+```elixir
+review_model =
+  threat_model do
+    internet = boundary("Internet", level: 0)
+    dmz = boundary("DMZ", level: 1)
+    internal = boundary("Internal Zone", level: 2)
+    vault = boundary("Data Vault", level: 3)
+
+    user = external("End User", boundary: internet, role: :user)
+    partner = external("Partner API", boundary: internet, role: :partner)
+    proxy = process("Reverse Proxy", boundary: dmz, privilege: :none, controls: [:rate_limiting, :waf])
+    api = process("Core API", boundary: internal, privilege: :user, controls: [:auth, :input_validation])
+    billing = process("Billing Service", boundary: internal, privilege: :admin)
+    db = database("Customer DB", boundary: vault, sensitivity: :restricted, controls: [:encryption_at_rest])
+    webhook = external("Partner Webhook", boundary: internet)
+
+    user ~> proxy |> authenticated("Login") |> encrypted()
+    partner ~> proxy |> authenticated("Partner API Call") |> encrypted()
+    proxy ~> api |> encrypted("Forward request")
+    api ~> billing |> carries(:payment_intent, :confidential) |> encrypted()
+    billing ~> db |> carries(:card_token, :restricted) |> protects([:tls, :integrity])
+    billing ~> webhook |> encrypted("Payment callback")
+  end
+
+IO.puts("=== Ingress Entry Points ===")
+ThreatModel.entry_points(review_model) |> IO.inspect()
+
+IO.puts("\n=== Egress Exit Points ===")
+ThreatModel.exit_points(review_model) |> IO.inspect()
+
+IO.puts("\n=== Blast Radius if Proxy is compromised ===")
+ThreatModel.blast_radius(review_model, :proxy) |> IO.inspect()
+```
+
+### Visualizing Highlighted Attack Paths
+
+You can highlight the attack paths directly on the diagram using `ThreatModel.highlight_attack_paths/2`:
+
+```elixir
+highlighted_review = ThreatModel.highlight_attack_paths(review_model)
+
+Kino.Layout.tabs(
+  Siren: Choreo.Lab.Siren.new(ThreatModel.to_mermaid(highlighted_review)),
+  Graphviz: Kino.VizJS.render(ThreatModel.to_dot(highlighted_review)),
+  Sketch: Choreo.Lab.Sketch.new(ThreatModel.to_mermaid(highlighted_review))
+)
+```
+
+---
+
+## Example 7: Mitigations, Controls & Markdown Threat Matrices
+
+Choreo tracks applied security controls (like MFA, rate limiting, encryption at rest, WAF) and automatically evaluates whether specific STRIDE threats are mitigated.
+
+```elixir
+all_threats = Analysis.stride_threats(review_model)
+unmitigated = ThreatModel.unmitigated_threats(review_model)
+
+IO.puts("Total STRIDE Threats: #{length(all_threats)}")
+IO.puts("Unmitigated Threats: #{length(unmitigated)}")
+IO.puts("Mitigated Threats: #{length(all_threats) - length(unmitigated)}")
+
+# Generate an executive GitHub Flavored Markdown threat table
+table_markdown = ThreatModel.to_markdown(review_model)
+Kino.Markdown.new(table_markdown)
+```
+
+---
+
 ## Cheat Sheet
 
 ### Lab DSL Syntax (`Choreo.Lab.DSL.ThreatModel`)
@@ -468,6 +544,9 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 | `a ~> b`                                                          | Direct data flow edge                                 |
 | `a ~> b |> encrypted("HTTPS", protocol: :https)`                  | Encrypted flow with label and protocol options        |
 | `a ~> b |> unencrypted("HTTP", protocol: :http)`                  | Explicit unencrypted data flow                        |
+| `a ~> b |> authenticated("Login")`                                 | Authenticated data flow edge modifier                 |
+| `a ~> b |> carries(:token, :restricted)`                           | Data payload and sensitivity modifier                 |
+| `a ~> b |> controls([:waf, :rate_limiting])`                       | Applied security controls on data flow                |
 | `a ~> b |> flow("Query", protocol: :sql)`                         | Data flow with label and options                      |
 | `a ~> b |> on("Label", encrypted: true, protocol: :https)`        | Data flow with label modifier and options             |
 | `edge a ~> b, "Label", encrypted: true, protocol: :https`         | Explicit edge statement with label and options        |
@@ -479,11 +558,16 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Create Model         | `ThreatModel.new/1` (Opts: `:strict`)                                                                                              |
 | Add Boundaries       | `ThreatModel.add_trust_boundary/3` (Opts: `:level`, `:label`, `:style`, `:color`, `:fillcolor`)                                    |
-| Add Elements         | `ThreatModel.add_external_entity/3`, `add_process/3` (Opts: `:privilege`), `add_data_store/3` (Opts: `:sensitivity`, `:retention`) |
-| Connect Data Flows   | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`)                                                              |
-| Generate Threats     | `ThreatModel.Analysis.stride_threats/2` (Supports custom rules via `:rules`)                                                       |
+| Add Elements         | `ThreatModel.add_external_entity/3`, `add_process/3` (Opts: `:privilege`, `:controls`), `add_data_store/3` (Opts: `:sensitivity`, `:retention`, `:controls`) |
+| Connect Data Flows   | `ThreatModel.data_flow/4` (Opts: `:label`, `:protocol`, `:encrypted`, `:authenticated`, `:data`, `:sensitivity`, `:controls`)    |
+| Ingress & Egress     | `ThreatModel.entry_points/1`, `ThreatModel.exit_points/1`                                                                          |
+| Blast Radius         | `ThreatModel.blast_radius/2`                                                                                                       |
+| Attack Path Visuals  | `ThreatModel.highlight_attack_paths/2`, `ThreatModel.clear_highlight/1`                                                             |
+| Generate Threats     | `ThreatModel.Analysis.stride_threats/2` (Supports `:rules`, `:only_unmitigated`, `:category`, `:severity`)                         |
+| Filter Threats       | `ThreatModel.unmitigated_threats/2`, `ThreatModel.threats_for/3`                                                                    |
+| Markdown Reporting   | `ThreatModel.to_markdown/2` (Opts: `:summary`)                                                                                     |
 | Security Audits      | `ThreatModel.Analysis.unencrypted_boundary_flows/1`, `exposed_data_stores/1`, `high_risk_processes/1`, `attack_paths/2`            |
-| Integrity Validation | `ThreatModel.Analysis.validate/1`, `threat_summary/1`                                                                              |
+| Integrity Validation | `ThreatModel.Analysis.validate/2` (Opts: `:require_levels`), `threat_summary/1`                                                    |
 | Render Formats       | `ThreatModel.to_dot/2` (Graphviz DFD), `ThreatModel.to_mermaid/2`, `to_sequence/2`, `to_plantuml/2`                                |
 | Themes               | `ThreatModel.theme/2` (`:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                                          |
 
@@ -491,18 +575,23 @@ Kino.VizJS.render(ThreatModel.to_dot(parallel_flows))
 
 ## Summary
 
-| Task                   | Function                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Model architecture     | `ThreatModel.new/1`, `add_trust_boundary/3`, `add_external_entity/3`, `add_process/3`, `add_data_store/3`, `data_flow/4` |
-| Auto-generate threats  | `Analysis.stride_threats/2`                                                                                              |
-| Custom rules           | Implement `Analysis.Rule` behaviour, pass via `rules: [MyRule]`                                                          |
-| Find unencrypted flows | `Analysis.unencrypted_boundary_flows/1`                                                                                  |
-| Find exposed databases | `Analysis.exposed_data_stores/1`                                                                                         |
-| Find risky processes   | `Analysis.high_risk_processes/1`                                                                                         |
-| Attack paths           | `Analysis.attack_paths/2`                                                                                                |
-| Validate model         | `Analysis.validate/1`                                                                                                    |
-| Summarise threats      | `Analysis.threat_summary/1`                                                                                              |
-| Render DFD             | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                       |
-| Render sequence        | `ThreatModel.to_sequence/2` (Mermaid), `ThreatModel.to_plantuml/2`                                                       |
+| Task                     | Function                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Model architecture       | `ThreatModel.new/1`, `add_trust_boundary/3`, `add_external_entity/3`, `add_process/3`, `add_data_store/3`, `data_flow/4` |
+| Auto-generate threats    | `Analysis.stride_threats/2`                                                                                              |
+| Mitigations & controls   | `Analysis.unmitigated_threats/2`, `Analysis.threats_for/3`                                                               |
+| Trace entry & exit       | `Analysis.entry_points/1`, `Analysis.exit_points/1`                                                                      |
+| Blast radius calculation | `Analysis.blast_radius/2`                                                                                                |
+| Attack path visualizer   | `Analysis.highlight_attack_paths/2`, `ThreatModel.clear_highlight/1`                                                     |
+| Markdown threat matrices | `Analysis.to_markdown/2`                                                                                                 |
+| Custom rules             | Implement `Analysis.Rule` behaviour, pass via `rules: [MyRule]`                                                          |
+| Find unencrypted flows   | `Analysis.unencrypted_boundary_flows/1`                                                                                  |
+| Find exposed databases   | `Analysis.exposed_data_stores/1`                                                                                         |
+| Find risky processes     | `Analysis.high_risk_processes/1`                                                                                         |
+| Attack paths             | `Analysis.attack_paths/2`                                                                                                |
+| Validate model           | `Analysis.validate/2`                                                                                                    |
+| Summarise threats        | `Analysis.threat_summary/1`                                                                                              |
+| Render DFD               | `ThreatModel.to_dot/2` (themes: `:default`, `:dark`, `:warm`, `:forest`, `:ocean`)                                       |
+| Render sequence          | `ThreatModel.to_sequence/2` (Mermaid), `ThreatModel.to_plantuml/2`                                                       |
 
 Threat modeling as code means your security review is version-controlled, diffable, and repeatable. Every pull request can include an updated threat model alongside the code changes.

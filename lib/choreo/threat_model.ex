@@ -87,14 +87,23 @@ defmodule Choreo.ThreatModel do
   </div>
   """
 
+  alias Choreo.ThreatModel.Analysis
+
   @type t :: %__MODULE__{
           graph: Yog.Multi.Graph.t(),
           edge_meta: %{optional(Yog.Multi.Graph.edge_id()) => map()},
           clusters: %{String.t() => map()},
-          strict: boolean()
+          strict: boolean(),
+          highlighted_nodes: [Yog.node_id()],
+          highlighted_edges: [Yog.Multi.Graph.edge_id() | {Yog.node_id(), Yog.node_id()}]
         }
 
-  defstruct graph: nil, edge_meta: %{}, clusters: %{}, strict: false
+  defstruct graph: nil,
+            edge_meta: %{},
+            clusters: %{},
+            strict: false,
+            highlighted_nodes: [],
+            highlighted_edges: []
 
   @add_trust_boundary_schema [
     label: [
@@ -158,12 +167,32 @@ defmodule Choreo.ThreatModel do
     ]
   ]
 
-  @add_external_entity_schema @node_schema
+  @add_external_entity_schema [
+                                role: [
+                                  type:
+                                    {:in, [:anonymous, :user, :partner, :admin, :third_party]},
+                                  required: false
+                                ],
+                                privilege: [
+                                  type: {:in, [:none, :user, :admin, :system]},
+                                  required: false
+                                ],
+                                controls: [
+                                  type: {:list, :atom},
+                                  required: false,
+                                  default: []
+                                ]
+                              ] ++ @node_schema
 
   @add_process_schema [
                         privilege: [
                           type: {:in, [:none, :user, :admin, :system]},
                           required: false
+                        ],
+                        controls: [
+                          type: {:list, :atom},
+                          required: false,
+                          default: []
                         ]
                       ] ++ @node_schema
 
@@ -175,6 +204,11 @@ defmodule Choreo.ThreatModel do
                            retention: [
                              type: {:or, [:integer, :string]},
                              required: false
+                           ],
+                           controls: [
+                             type: {:list, :atom},
+                             required: false,
+                             default: []
                            ]
                          ] ++ @node_schema
 
@@ -191,6 +225,24 @@ defmodule Choreo.ThreatModel do
       type: :boolean,
       required: false,
       default: false
+    ],
+    authenticated: [
+      type: :boolean,
+      required: false,
+      default: false
+    ],
+    data: [
+      type: {:or, [:atom, :string]},
+      required: false
+    ],
+    sensitivity: [
+      type: {:in, [:public, :internal, :confidential, :restricted]},
+      required: false
+    ],
+    controls: [
+      type: {:list, :atom},
+      required: false,
+      default: []
     ]
   ]
 
@@ -436,6 +488,8 @@ defmodule Choreo.ThreatModel do
       |> Map.new()
       |> Map.put(:label, label)
       |> Map.put_new(:encrypted, false)
+      |> Map.put_new(:authenticated, false)
+      |> Map.put_new(:controls, [])
 
     {graph, edge_id} = Yog.Multi.add_edge(model.graph, from, to, label)
     edge_meta = Map.put(model.edge_meta, edge_id, meta)
@@ -605,27 +659,27 @@ defmodule Choreo.ThreatModel do
       node [shape=box, style=filled, fillcolor="white", fontname="Helvetica", fontsize=12, fontcolor="white"];
       edge [arrowhead=normal, color="#64748b", style=solid, fontname="Helvetica", fontsize=10, penwidth=1.0];
 
+      api [label="api", fillcolor="#3b82f6", shape="circle"];
       user [label="user", penwidth="2.0", fillcolor="#64748b", shape="box"];
       worker [label="worker", fillcolor="#3b82f6", shape="circle"];
-      api [label="api", fillcolor="#3b82f6", shape="circle"];
 
       subgraph cluster_app {
-        label="cluster_app";
+        label="app";
         style=dashed;
         fillcolor="#f8fafc";
         color="#ef4444";
-        worker;
         api;
+        worker;
       }
       subgraph cluster_internet {
-        label="cluster_internet";
+        label="internet";
         style=dashed;
         fillcolor="#f8fafc";
         color="#ef4444";
         user;
       }
-      user -> api [label="", style="dashed", penwidth="2.0", fontcolor="#ef4444", color="#ef4444"];
       api -> worker [label="", penwidth="1.0", fontcolor="#64748b", color="#64748b"];
+      user -> api [label="", style="dashed", penwidth="2.0", fontcolor="#ef4444", color="#ef4444"];
     }
   </div>
   """
@@ -636,6 +690,67 @@ defmodule Choreo.ThreatModel do
 
     from_boundary != nil and to_boundary != nil and from_boundary != to_boundary
   end
+
+  @doc """
+  Identifies external entry points entering trusted zones.
+  Delegates to `Choreo.ThreatModel.Analysis.entry_points/1`.
+  """
+  @spec entry_points(t()) :: [map()]
+  def entry_points(%__MODULE__{} = model), do: Analysis.entry_points(model)
+
+  @doc """
+  Identifies egress exit points leaving trusted zones.
+  Delegates to `Choreo.ThreatModel.Analysis.exit_points/1`.
+  """
+  @spec exit_points(t()) :: [map()]
+  def exit_points(%__MODULE__{} = model), do: Analysis.exit_points(model)
+
+  @doc """
+  Computes the downstream blast radius if `element_id` is compromised.
+  Delegates to `Choreo.ThreatModel.Analysis.blast_radius/2`.
+  """
+  @spec blast_radius(t(), Yog.node_id()) :: map()
+  def blast_radius(%__MODULE__{} = model, element_id),
+    do: Analysis.blast_radius(model, element_id)
+
+  @doc """
+  Highlights attack paths in the model by setting `:highlighted_nodes` and `:highlighted_edges`.
+  Delegates to `Choreo.ThreatModel.Analysis.highlight_attack_paths/2`.
+  """
+  @spec highlight_attack_paths(t(), keyword()) :: t()
+  def highlight_attack_paths(%__MODULE__{} = model, opts \\ []),
+    do: Analysis.highlight_attack_paths(model, opts)
+
+  @doc """
+  Clears the current scenario / attack path highlights.
+  """
+  @spec clear_highlight(t()) :: t()
+  def clear_highlight(%__MODULE__{} = model),
+    do: %{model | highlighted_nodes: [], highlighted_edges: []}
+
+  @doc """
+  Generates a GitHub Flavored Markdown threat table.
+  Delegates to `Choreo.ThreatModel.Analysis.to_markdown/2`.
+  """
+  @spec to_markdown(t(), keyword()) :: String.t()
+  def to_markdown(%__MODULE__{} = model, opts \\ []),
+    do: Analysis.to_markdown(model, opts)
+
+  @doc """
+  Returns only unmitigated threats.
+  Delegates to `Choreo.ThreatModel.Analysis.unmitigated_threats/2`.
+  """
+  @spec unmitigated_threats(t(), keyword()) :: [map()]
+  def unmitigated_threats(%__MODULE__{} = model, opts \\ []),
+    do: Analysis.unmitigated_threats(model, opts)
+
+  @doc """
+  Returns threats targeting a specific element or flow.
+  Delegates to `Choreo.ThreatModel.Analysis.threats_for/3`.
+  """
+  @spec threats_for(t(), Yog.node_id() | {Yog.node_id(), Yog.node_id()}, keyword()) :: [map()]
+  def threats_for(%__MODULE__{} = model, target, opts \\ []),
+    do: Analysis.threats_for(model, target, opts)
 
   @doc """
   Returns the raw `Yog.Graph` struct underpinning the model.
@@ -678,6 +793,11 @@ defmodule Choreo.ThreatModel do
   """
   @spec to_dot(t(), keyword()) :: String.t()
   def to_dot(%__MODULE__{} = model, opts \\ []) do
+    opts =
+      opts
+      |> Keyword.put_new(:highlighted_nodes, model.highlighted_nodes)
+      |> Keyword.put_new(:highlighted_edges, model.highlighted_edges)
+
     Choreo.ThreatModel.Render.DOT.to_dot(model, opts)
   end
 
@@ -702,6 +822,11 @@ defmodule Choreo.ThreatModel do
   """
   @spec to_mermaid(t(), keyword()) :: String.t()
   def to_mermaid(%__MODULE__{} = model, opts \\ []) do
+    opts =
+      opts
+      |> Keyword.put_new(:highlighted_nodes, model.highlighted_nodes)
+      |> Keyword.put_new(:highlighted_edges, model.highlighted_edges)
+
     Choreo.ThreatModel.Render.Mermaid.to_mermaid(model, opts)
   end
 
@@ -784,13 +909,22 @@ defmodule Choreo.ThreatModel do
     # Only include type-specific fields when they have meaning
     data =
       case type do
+        :external_entity ->
+          data
+          |> Map.put(:role, rest_opts[:role])
+          |> Map.put(:privilege, rest_opts[:privilege])
+          |> Map.put(:controls, rest_opts[:controls] || [])
+
         :process ->
-          Map.put(data, :privilege, rest_opts[:privilege])
+          data
+          |> Map.put(:privilege, rest_opts[:privilege])
+          |> Map.put(:controls, rest_opts[:controls] || [])
 
         :data_store ->
           data
           |> Map.put(:sensitivity, rest_opts[:sensitivity])
           |> Map.put(:retention, rest_opts[:retention])
+          |> Map.put(:controls, rest_opts[:controls] || [])
 
         _ ->
           data

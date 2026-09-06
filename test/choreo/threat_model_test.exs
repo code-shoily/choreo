@@ -494,4 +494,115 @@ defmodule Choreo.ThreatModelTest do
       assert seq =~ "api->>db: flow"
     end
   end
+
+  describe "extended schemas and controls" do
+    test "add_external_entity with role and controls" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:admin_user,
+          role: :admin,
+          privilege: :admin,
+          controls: [:mfa, :hardware_token]
+        )
+
+      node_data = Map.get(model.graph.nodes, :admin_user)
+      assert node_data.role == :admin
+      assert node_data.privilege == :admin
+      assert node_data.controls == [:mfa, :hardware_token]
+    end
+
+    test "add_process with controls" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:gateway, controls: [:rate_limiting, :waf])
+
+      node_data = Map.get(model.graph.nodes, :gateway)
+      assert node_data.controls == [:rate_limiting, :waf]
+    end
+
+    test "add_data_store with controls" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_data_store(:vault,
+          sensitivity: :restricted,
+          controls: [:encryption_at_rest, :kms]
+        )
+
+      node_data = Map.get(model.graph.nodes, :vault)
+      assert node_data.controls == [:encryption_at_rest, :kms]
+      assert node_data.sensitivity == :restricted
+    end
+
+    test "data_flow with authenticated, data, sensitivity, and controls" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:api, :db,
+          label: "Store Card",
+          authenticated: true,
+          encrypted: true,
+          data: :credit_card,
+          sensitivity: :restricted,
+          controls: [:tls, :field_encryption]
+        )
+
+      [{:api, :db, "Store Card", meta}] = ThreatModel.edges_with_meta(model)
+      assert meta.authenticated == true
+      assert meta.encrypted == true
+      assert meta.data == :credit_card
+      assert meta.sensitivity == :restricted
+      assert meta.controls == [:tls, :field_encryption]
+    end
+  end
+
+  describe "delegated analysis functions and highlighting on model" do
+    setup do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet", level: 0)
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_trust_boundary("db", level: 3)
+        |> ThreatModel.add_external_entity(:user, boundary: "internet")
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.add_data_store(:postgres, boundary: "db", sensitivity: :confidential)
+        |> ThreatModel.data_flow(:user, :api, label: "Login")
+        |> ThreatModel.data_flow(:api, :postgres, label: "Query")
+
+      %{model: model}
+    end
+
+    test "entry_points, exit_points, blast_radius delegation", %{model: model} do
+      assert [_] = ThreatModel.entry_points(model)
+      assert ThreatModel.exit_points(model) == []
+      radius = ThreatModel.blast_radius(model, :api)
+      assert radius.affected_stores == [:postgres]
+    end
+
+    test "highlight_attack_paths and clear_highlight", %{model: model} do
+      hl = ThreatModel.highlight_attack_paths(model)
+      assert hl.highlighted_nodes == [:user, :api, :postgres]
+      assert {:user, :api} in hl.highlighted_edges
+      assert {:api, :postgres} in hl.highlighted_edges
+
+      # Rendering forwards highlights
+      dot = ThreatModel.to_dot(hl)
+      assert dot =~ "penwidth"
+
+      cleared = ThreatModel.clear_highlight(hl)
+      assert cleared.highlighted_nodes == []
+      assert cleared.highlighted_edges == []
+    end
+
+    test "to_markdown, unmitigated_threats, threats_for delegation", %{model: model} do
+      md = ThreatModel.to_markdown(model)
+      assert md =~ "Threat Model Summary"
+
+      unmitigated = ThreatModel.unmitigated_threats(model)
+      assert is_list(unmitigated) and unmitigated != []
+
+      api_threats = ThreatModel.threats_for(model, :api)
+      assert api_threats != []
+    end
+  end
 end

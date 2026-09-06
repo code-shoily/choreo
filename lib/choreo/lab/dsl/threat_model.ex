@@ -87,7 +87,16 @@ defmodule Choreo.Lab.DSL.ThreatModel do
     bucket: :add_data_store
   }
 
-  @edge_verbs [:flow, :data_flow, :sends, :reads, :writes, :encrypted, :unencrypted]
+  @edge_verbs [
+    :flow,
+    :data_flow,
+    :sends,
+    :reads,
+    :writes,
+    :encrypted,
+    :unencrypted,
+    :authenticated
+  ]
 
   @doc """
   Returns the vocabulary supported by the threat-model DSL.
@@ -98,6 +107,8 @@ defmodule Choreo.Lab.DSL.ThreatModel do
       iex> :process in taxonomy.nodes
       true
       iex> :encrypted in taxonomy.modifiers
+      true
+      iex> :authenticated in taxonomy.modifiers
       true
   """
   @spec taxonomy() :: %{
@@ -112,7 +123,21 @@ defmodule Choreo.Lab.DSL.ThreatModel do
       boundaries: @boundary_verbs,
       nodes: @node_verbs,
       edges: [:~>, :edge | @edge_verbs],
-      modifiers: [:on, :label, :edge, :with, :protocol, :encrypted, :unencrypted | @edge_verbs],
+      modifiers: [
+        :on,
+        :label,
+        :edge,
+        :with,
+        :protocol,
+        :encrypted,
+        :unencrypted,
+        :authenticated,
+        :carries,
+        :controls,
+        :protects,
+        :sensitivity
+        | @edge_verbs
+      ],
       options: [
         :id,
         :label,
@@ -124,7 +149,12 @@ defmodule Choreo.Lab.DSL.ThreatModel do
         :sensitivity,
         :retention,
         :protocol,
-        :encrypted | @edge_verbs
+        :encrypted,
+        :authenticated,
+        :data,
+        :controls,
+        :role
+        | @edge_verbs
       ]
     }
   end
@@ -355,6 +385,46 @@ defmodule Choreo.Lab.DSL.ThreatModel do
   defp modifier_opt({:encrypted, _meta, []}, acc), do: Keyword.put(acc, :encrypted, true)
   defp modifier_opt({:unencrypted, _meta, []}, acc), do: Keyword.put(acc, :encrypted, false)
 
+  defp modifier_opt({:authenticated, _meta, []}, acc),
+    do: Keyword.put(acc, :authenticated, true)
+
+  defp modifier_opt({:authenticated, _meta, [value]}, acc) when is_boolean(value),
+    do: Keyword.put(acc, :authenticated, value)
+
+  defp modifier_opt({:authenticated, _meta, [label]}, acc) when is_binary(label),
+    do: acc |> Keyword.put(:authenticated, true) |> Keyword.put(:label, label)
+
+  defp modifier_opt({:authenticated, _meta, [label, opts]}, acc)
+       when is_binary(label) and is_list(opts) do
+    opts
+    |> Keyword.merge(acc)
+    |> Keyword.put(:authenticated, true)
+    |> Keyword.put(:label, label)
+    |> normalize_edge_opts()
+  end
+
+  defp modifier_opt({:carries, _meta, [data]}, acc),
+    do: Keyword.put(acc, :data, data)
+
+  defp modifier_opt({:carries, _meta, [data, sensitivity]}, acc)
+       when sensitivity in [:public, :internal, :confidential, :restricted],
+       do: acc |> Keyword.put(:data, data) |> Keyword.put(:sensitivity, sensitivity)
+
+  defp modifier_opt({:carries, _meta, [data, opts]}, acc) when is_list(opts) do
+    opts
+    |> Keyword.merge(acc)
+    |> Keyword.put(:data, data)
+    |> normalize_edge_opts()
+  end
+
+  defp modifier_opt({verb, _meta, [controls]}, acc) when verb in [:controls, :protects] do
+    ctrls = if is_list(controls), do: controls, else: [controls]
+    Keyword.update(acc, :controls, ctrls, fn existing -> Enum.uniq(existing ++ ctrls) end)
+  end
+
+  defp modifier_opt({:sensitivity, _meta, [level]}, acc),
+    do: Keyword.put(acc, :sensitivity, level)
+
   defp modifier_opt({name, _meta, []}, acc) when name in @edge_verbs do
     edge_semantic_opts(acc, name)
   end
@@ -371,7 +441,7 @@ defmodule Choreo.Lab.DSL.ThreatModel do
   defp modifier_opt(other, _acc) do
     raise ArgumentError,
           "unsupported threat-model edge modifier: #{Macro.to_string(other)}; " <>
-            "use `flow(value)`, `encrypted(value)`, `unencrypted(value)`, `on(value)`, `protocol(value)`, or `label(value)`"
+            "use `flow(value)`, `encrypted(value)`, `unencrypted(value)`, `authenticated(value)`, `carries(data)`, `controls(controls)`, `on(value)`, `protocol(value)`, or `label(value)`"
   end
 
   defp edge_from_ast({:~>, meta, [from_ast, to_ast]}, opts, env, _statement_meta) do
@@ -578,6 +648,7 @@ defmodule Choreo.Lab.DSL.ThreatModel do
 
   defp edge_semantic_opts(opts, :encrypted), do: Keyword.put(opts, :encrypted, true)
   defp edge_semantic_opts(opts, :unencrypted), do: Keyword.put(opts, :encrypted, false)
+  defp edge_semantic_opts(opts, :authenticated), do: Keyword.put(opts, :authenticated, true)
   defp edge_semantic_opts(opts, _name), do: opts
 
   defp boundary_constructor?({name, _meta, args}) when is_atom(name) and is_list(args),
@@ -630,10 +701,13 @@ defmodule Choreo.Lab.DSL.ThreatModel do
   for verb <- [
         :actor,
         :api,
+        :authenticated,
         :boundary,
         :bucket,
         :cache,
+        :carries,
         :client,
+        :controls,
         :data_flow,
         :data_store,
         :database,
@@ -647,10 +721,12 @@ defmodule Choreo.Lab.DSL.ThreatModel do
         :label,
         :on,
         :process,
+        :protects,
         :protocol,
         :queue,
         :reads,
         :sends,
+        :sensitivity,
         :service,
         :store,
         :third_party,

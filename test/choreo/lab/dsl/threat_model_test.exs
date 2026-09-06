@@ -301,4 +301,56 @@ defmodule Choreo.Lab.ThreatModelDSLTest do
       """)
     end
   end
+
+  test "supports authenticated, carries, controls, protects, and sensitivity modifiers" do
+    model =
+      threat_model do
+        internet = boundary("Internet", level: 0)
+        app = boundary("App", level: 2)
+        data = boundary("Data", level: 3)
+
+        user = external("User", boundary: internet, role: :user, controls: [:mfa])
+        api = service("API", boundary: app, privilege: :user, controls: [:rate_limiting])
+        db = database("DB", boundary: data, sensitivity: :confidential)
+
+        user
+        ~> api
+        |> authenticated("HTTPS Login")
+        |> encrypted()
+        |> controls([:waf, :rate_limiting])
+
+        api
+        ~> db
+        |> carries(:credentials, :confidential)
+        |> protects([:tls, :input_validation])
+      end
+
+    edges = ThreatModel.edges_with_meta(model)
+
+    assert {:user, :api, _, user_api_meta} =
+             Enum.find(edges, fn {from, to, _, _} -> from == :user and to == :api end)
+
+    assert user_api_meta.authenticated == true
+    assert user_api_meta.encrypted == true
+    assert user_api_meta.label == "HTTPS Login"
+    assert :waf in user_api_meta.controls
+    assert :rate_limiting in user_api_meta.controls
+
+    assert {:api, :db, _, api_db_meta} =
+             Enum.find(edges, fn {from, to, _, _} -> from == :api and to == :db end)
+
+    assert api_db_meta.data == :credentials
+    assert api_db_meta.sensitivity == :confidential
+    assert :tls in api_db_meta.controls
+    assert :input_validation in api_db_meta.controls
+
+    # Statement form: authenticated from ~> to
+    model2 =
+      threat_model do
+        authenticated(user("User") ~> process("API"), "Login")
+      end
+
+    [{:user, :api, "Login", meta2}] = ThreatModel.edges_with_meta(model2)
+    assert meta2.authenticated == true
+  end
 end

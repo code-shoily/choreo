@@ -481,4 +481,220 @@ defmodule Choreo.ThreatModel.AnalysisTest do
       assert eop.severity == :critical
     end
   end
+
+  describe "entry_points/1 and exit_points/1" do
+    test "identifies ingress entry points" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet", level: 0)
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_external_entity(:user, boundary: "internet")
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.data_flow(:user, :api,
+          label: "Login",
+          authenticated: true,
+          encrypted: true
+        )
+
+      [entry] = Analysis.entry_points(model)
+      assert entry.source == :user
+      assert entry.target == :api
+      assert entry.from_boundary == "internet"
+      assert entry.to_boundary == "app"
+      assert entry.authenticated == true
+      assert entry.encrypted == true
+      assert entry.label == "Login"
+    end
+
+    test "identifies egress exit points" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet", level: 0)
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_external_entity(:webhook, boundary: "internet")
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.data_flow(:api, :webhook, label: "Notify", encrypted: true)
+
+      [exit_point] = Analysis.exit_points(model)
+      assert exit_point.source == :api
+      assert exit_point.target == :webhook
+      assert exit_point.from_boundary == "app"
+      assert exit_point.to_boundary == "internet"
+    end
+  end
+
+  describe "blast_radius/2" do
+    test "calculates downstream impact and risk level correctly" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_trust_boundary("db", level: 3)
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.add_process(:worker, boundary: "app")
+        |> ThreatModel.add_data_store(:postgres, boundary: "db", sensitivity: :restricted)
+        |> ThreatModel.data_flow(:api, :worker)
+        |> ThreatModel.data_flow(:worker, :postgres)
+
+      radius = Analysis.blast_radius(model, :api)
+      assert :worker in radius.reachable_nodes
+      assert :postgres in radius.reachable_nodes
+      assert radius.affected_stores == [:postgres]
+      assert "db" in radius.affected_boundaries
+      assert radius.max_sensitivity == :restricted
+      assert radius.risk_level == :critical
+    end
+
+    test "returns empty reachable nodes and :none risk level for leaf nodes" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db, sensitivity: :public)
+        |> ThreatModel.data_flow(:api, :db)
+
+      radius = Analysis.blast_radius(model, :db)
+      assert radius.reachable_nodes == []
+      assert radius.affected_stores == []
+      assert radius.risk_level == :none
+    end
+  end
+
+  describe "highlight_attack_paths/2" do
+    test "sets highlighted_nodes and highlighted_edges on the model" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_external_entity(:attacker)
+        |> ThreatModel.add_process(:proxy)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:attacker, :proxy)
+        |> ThreatModel.data_flow(:proxy, :db)
+
+      highlighted = Analysis.highlight_attack_paths(model)
+      assert :attacker in highlighted.highlighted_nodes
+      assert :proxy in highlighted.highlighted_nodes
+      assert :db in highlighted.highlighted_nodes
+      assert {:attacker, :proxy} in highlighted.highlighted_edges
+      assert {:proxy, :db} in highlighted.highlighted_edges
+    end
+  end
+
+  describe "to_markdown/2" do
+    test "renders markdown table and summary header" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app")
+        |> ThreatModel.add_process(:api, boundary: "app", privilege: :user)
+
+      md = Analysis.to_markdown(model)
+      assert String.contains?(md, "### Threat Model Summary")
+      assert String.contains?(md, "| ID | Category | Target |")
+      assert String.contains?(md, "`api`")
+    end
+
+    test "respects summary: false option" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:api)
+
+      md = Analysis.to_markdown(model, summary: false)
+      refute String.contains?(md, "### Threat Model Summary")
+      assert String.contains?(md, "| ID | Category | Target |")
+    end
+  end
+
+  describe "mitigations and unmitigated_threats/2" do
+    test "marks threats mitigated when corresponding controls are present" do
+      unmitigated_model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_process(:api, boundary: "app")
+        |> ThreatModel.add_data_store(:db, boundary: "app")
+        |> ThreatModel.data_flow(:api, :db)
+
+      all_threats = Analysis.stride_threats(unmitigated_model)
+      unmitigated_count = length(Analysis.unmitigated_threats(unmitigated_model))
+      assert unmitigated_count == length(all_threats)
+
+      mitigated_model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app", level: 2)
+        |> ThreatModel.add_process(:api,
+          boundary: "app",
+          controls: [:auth, :input_validation, :rate_limiting]
+        )
+        |> ThreatModel.add_data_store(:db, boundary: "app", controls: [:encryption_at_rest])
+        |> ThreatModel.data_flow(:api, :db, encrypted: true)
+
+      remaining = Analysis.unmitigated_threats(mitigated_model)
+      assert length(remaining) < length(Analysis.stride_threats(mitigated_model))
+    end
+  end
+
+  describe "threats_for/3" do
+    test "filters threats targeting a specific element" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_process(:api)
+        |> ThreatModel.add_data_store(:db)
+        |> ThreatModel.data_flow(:api, :db)
+
+      api_only = Analysis.threats_for(model, :api, include_flows: false)
+      assert Enum.all?(api_only, &(&1.target == :api))
+
+      api_with_flows = Analysis.threats_for(model, :api, include_flows: true)
+      assert Enum.any?(api_with_flows, &match?({:api, :db}, &1.target))
+    end
+  end
+
+  describe "extended validate/2 checks" do
+    test "flags direct data flow between external entity and data store" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("internet")
+        |> ThreatModel.add_trust_boundary("data")
+        |> ThreatModel.add_external_entity(:user, boundary: "internet")
+        |> ThreatModel.add_data_store(:db, boundary: "data", sensitivity: :confidential)
+        |> ThreatModel.data_flow(:user, :db, encrypted: true)
+
+      issues = Analysis.validate(model)
+
+      assert Enum.any?(issues, fn {sev, msg} ->
+               sev == :error and
+                 String.contains?(msg, "Direct data flow between external entity and data store")
+             end)
+    end
+
+    test "flags sensitive data stores placed in low-trust boundaries" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("dmz", level: 1)
+        |> ThreatModel.add_process(:proxy, boundary: "dmz", privilege: :user)
+        |> ThreatModel.add_data_store(:db, boundary: "dmz", sensitivity: :restricted)
+        |> ThreatModel.data_flow(:proxy, :db, encrypted: true)
+
+      issues = Analysis.validate(model)
+
+      assert Enum.any?(issues, fn {sev, msg} ->
+               sev == :warning and String.contains?(msg, "sits in low-trust boundary")
+             end)
+    end
+
+    test "flags boundaries missing :level when require_levels: true is set" do
+      model =
+        ThreatModel.new()
+        |> ThreatModel.add_trust_boundary("app")
+        |> ThreatModel.add_process(:api, boundary: "app", privilege: :user)
+        |> ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :internal)
+        |> ThreatModel.data_flow(:api, :db, encrypted: true)
+
+      refute Enum.any?(Analysis.validate(model), fn {_sev, msg} ->
+               String.contains?(msg, "without a `:level`")
+             end)
+
+      issues = Analysis.validate(model, require_levels: true)
+
+      assert Enum.any?(issues, fn {sev, msg} ->
+               sev == :warning and String.contains?(msg, "without a `:level`")
+             end)
+    end
+  end
 end

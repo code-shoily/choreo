@@ -84,7 +84,10 @@ defmodule Choreo.ThreatModel.Analysis do
             target: Yog.node_id() | {Yog.node_id(), Yog.node_id()},
             description: String.t(),
             severity: :low | :medium | :high | :critical,
-            mitigation: String.t()
+            mitigation: String.t(),
+            mitigated?: boolean(),
+            controls: [atom()],
+            owasp: String.t()
           }
         ]
   def stride_threats(%ThreatModel{} = model, opts \\ []) do
@@ -93,6 +96,7 @@ defmodule Choreo.ThreatModel.Analysis do
     element_threats =
       model.graph.nodes
       |> Enum.flat_map(fn {id, data} ->
+        controls = data[:controls] || []
         base = threats_for_element(model, id, data)
 
         custom =
@@ -104,13 +108,15 @@ defmodule Choreo.ThreatModel.Analysis do
             end
           end)
 
-        base ++ custom
+        (base ++ custom)
+        |> Enum.map(&decorate_threat(&1, controls, data))
       end)
 
     flow_threats =
       model
       |> ThreatModel.edges_with_meta()
       |> Enum.flat_map(fn {from, to, _label, meta} ->
+        controls = meta[:controls] || []
         base = default_threats_for_flow(model, from, to, meta)
 
         custom =
@@ -122,12 +128,370 @@ defmodule Choreo.ThreatModel.Analysis do
             end
           end)
 
-        base ++ custom
+        (base ++ custom)
+        |> Enum.map(&decorate_threat(&1, controls, meta))
       end)
 
     (element_threats ++ flow_threats)
     |> Enum.with_index(1)
     |> Enum.map(fn {threat, idx} -> Map.put_new(threat, :id, "T#{idx}") end)
+    |> maybe_filter_unmitigated(opts)
+    |> maybe_filter_category(opts)
+    |> maybe_filter_severity(opts)
+  end
+
+  @doc """
+  Returns only unmitigated threats.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      iex> threats = Choreo.ThreatModel.Analysis.unmitigated_threats(model)
+      iex> Enum.all?(threats, &(!&1.mitigated?))
+      true
+  """
+  @spec unmitigated_threats(ThreatModel.t(), keyword()) :: [map()]
+  def unmitigated_threats(%ThreatModel{} = model, opts \\ []) do
+    stride_threats(model, Keyword.put(opts, :only_unmitigated, true))
+  end
+
+  @doc """
+  Returns threats targeting a specific element or flow.
+
+  ## Options
+
+    * `:include_flows` — boolean, whether to include flows connected to `target` (default: `true`)
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.add_data_store(:db)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :db)
+      iex> api_threats = Choreo.ThreatModel.Analysis.threats_for(model, :api, include_flows: false)
+      iex> Enum.all?(api_threats, &(&1.target == :api))
+      true
+  """
+  @spec threats_for(ThreatModel.t(), Yog.node_id() | {Yog.node_id(), Yog.node_id()}, keyword()) ::
+          [map()]
+  def threats_for(%ThreatModel{} = model, target, opts \\ []) do
+    include_flows = Keyword.get(opts, :include_flows, true)
+    threats = stride_threats(model, opts)
+
+    Enum.filter(threats, fn t ->
+      case t.target do
+        ^target -> true
+        {^target, _} when include_flows -> true
+        {_, ^target} when include_flows -> true
+        _ -> false
+      end
+    end)
+  end
+
+  @doc """
+  Identifies external entry points entering trusted zones.
+
+  Returns a list of entry point maps with `:source`, `:target`, `:from_boundary`,
+  `:to_boundary`, `:authenticated`, `:encrypted`, `:label`, and `:controls`.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("internet", level: 0)
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
+      ...>   |> Choreo.ThreatModel.add_external_entity(:user, boundary: "internet")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      ...>   |> Choreo.ThreatModel.data_flow(:user, :api, label: "Login")
+      iex> [entry] = Choreo.ThreatModel.Analysis.entry_points(model)
+      iex> entry.source
+      :user
+      iex> entry.target
+      :api
+  """
+  @spec entry_points(ThreatModel.t()) :: [map()]
+  def entry_points(%ThreatModel{} = model) do
+    model
+    |> ThreatModel.edges_with_meta()
+    |> Enum.filter(fn {from, to, _label, _meta} ->
+      from_data = Map.get(model.graph.nodes, from, %{})
+      to_data = Map.get(model.graph.nodes, to, %{})
+      from_type = from_data[:element_type]
+      to_type = to_data[:element_type]
+      from_level = ThreatModel.trust_level(model, from)
+      to_level = ThreatModel.trust_level(model, to)
+      from_boundary = ThreatModel.boundary_of(model, from)
+      to_boundary = ThreatModel.boundary_of(model, to)
+
+      cond do
+        from_type == :external_entity and to_type != :external_entity ->
+          true
+
+        from_boundary != to_boundary and
+          (from_level == 0 or from_boundary in ["internet", "untrusted", "public"]) and
+            (to_level != 0 and to_boundary not in ["internet", "untrusted", "public"]) ->
+          true
+
+        true ->
+          false
+      end
+    end)
+    |> Enum.map(fn {from, to, label, meta} ->
+      %{
+        source: from,
+        target: to,
+        from_boundary: ThreatModel.boundary_of(model, from),
+        to_boundary: ThreatModel.boundary_of(model, to),
+        authenticated: meta[:authenticated] == true,
+        encrypted: meta[:encrypted] == true,
+        label: meta[:label] || label || "",
+        controls: meta[:controls] || []
+      }
+    end)
+  end
+
+  @doc """
+  Identifies egress exit points leaving trusted zones towards untrusted or external targets.
+
+  Returns a list of exit point maps with `:source`, `:target`, `:from_boundary`,
+  `:to_boundary`, `:authenticated`, `:encrypted`, `:label`, and `:controls`.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("internet", level: 0)
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
+      ...>   |> Choreo.ThreatModel.add_external_entity(:webhook, boundary: "internet")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :webhook, label: "Notify")
+      iex> [exit_point] = Choreo.ThreatModel.Analysis.exit_points(model)
+      iex> exit_point.source
+      :api
+      iex> exit_point.target
+      :webhook
+  """
+  @spec exit_points(ThreatModel.t()) :: [map()]
+  def exit_points(%ThreatModel{} = model) do
+    model
+    |> ThreatModel.edges_with_meta()
+    |> Enum.filter(fn {from, to, _label, _meta} ->
+      from_data = Map.get(model.graph.nodes, from, %{})
+      to_data = Map.get(model.graph.nodes, to, %{})
+      from_type = from_data[:element_type]
+      to_type = to_data[:element_type]
+      from_level = ThreatModel.trust_level(model, from)
+      to_level = ThreatModel.trust_level(model, to)
+      from_boundary = ThreatModel.boundary_of(model, from)
+      to_boundary = ThreatModel.boundary_of(model, to)
+
+      cond do
+        from_type != :external_entity and to_type == :external_entity ->
+          true
+
+        from_boundary != to_boundary and
+          (to_level == 0 or to_boundary in ["internet", "untrusted", "public"]) and
+            (from_level != 0 and from_boundary not in ["internet", "untrusted", "public"]) ->
+          true
+
+        true ->
+          false
+      end
+    end)
+    |> Enum.map(fn {from, to, label, meta} ->
+      %{
+        source: from,
+        target: to,
+        from_boundary: ThreatModel.boundary_of(model, from),
+        to_boundary: ThreatModel.boundary_of(model, to),
+        authenticated: meta[:authenticated] == true,
+        encrypted: meta[:encrypted] == true,
+        label: meta[:label] || label || "",
+        controls: meta[:controls] || []
+      }
+    end)
+  end
+
+  @doc """
+  Computes the downstream blast radius if `element_id` is compromised.
+
+  Returns a map detailing reachable nodes, affected data stores, affected boundaries,
+  maximum data sensitivity exposed, and qualitative risk rating.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_process(:api)
+      ...>   |> Choreo.ThreatModel.add_data_store(:db, sensitivity: :restricted)
+      ...>   |> Choreo.ThreatModel.data_flow(:api, :db)
+      iex> radius = Choreo.ThreatModel.Analysis.blast_radius(model, :api)
+      iex> radius.max_sensitivity
+      :restricted
+      iex> radius.risk_level
+      :critical
+      iex> radius.affected_stores
+      [:db]
+  """
+  @spec blast_radius(ThreatModel.t(), Yog.node_id()) :: %{
+          element: Yog.node_id(),
+          reachable_nodes: [Yog.node_id()],
+          affected_stores: [Yog.node_id()],
+          affected_boundaries: [String.t()],
+          max_sensitivity: atom() | nil,
+          risk_level: atom()
+        }
+  def blast_radius(%ThreatModel{} = model, element_id) do
+    simple_graph = ThreatModel.to_simple_graph(model)
+    all_reachable = Choreo.Internal.bfs_reachable(simple_graph, [element_id])
+    downstream = MapSet.delete(all_reachable, element_id) |> MapSet.to_list() |> Enum.sort()
+
+    affected_stores =
+      downstream
+      |> Enum.filter(fn id ->
+        data = Map.get(model.graph.nodes, id, %{})
+        data[:element_type] == :data_store
+      end)
+      |> Enum.sort()
+
+    affected_boundaries =
+      [element_id | downstream]
+      |> Enum.map(&ThreatModel.boundary_of(model, &1))
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    sensitivities =
+      affected_stores
+      |> Enum.map(fn id ->
+        data = Map.get(model.graph.nodes, id, %{})
+        data[:sensitivity]
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    max_sensitivity =
+      cond do
+        :restricted in sensitivities -> :restricted
+        :confidential in sensitivities -> :confidential
+        :internal in sensitivities -> :internal
+        :public in sensitivities -> :public
+        true -> nil
+      end
+
+    risk_level =
+      cond do
+        max_sensitivity == :restricted -> :critical
+        max_sensitivity == :confidential -> :high
+        max_sensitivity == :internal -> :medium
+        affected_stores != [] -> :medium
+        downstream != [] -> :low
+        true -> :none
+      end
+
+    %{
+      element: element_id,
+      reachable_nodes: downstream,
+      affected_stores: affected_stores,
+      affected_boundaries: affected_boundaries,
+      max_sensitivity: max_sensitivity,
+      risk_level: risk_level
+    }
+  end
+
+  @doc """
+  Highlights attack paths in the model by setting `:highlighted_nodes` and `:highlighted_edges`.
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_external_entity(:attacker)
+      ...>   |> Choreo.ThreatModel.add_process(:gateway)
+      ...>   |> Choreo.ThreatModel.add_data_store(:vault)
+      ...>   |> Choreo.ThreatModel.data_flow(:attacker, :gateway)
+      ...>   |> Choreo.ThreatModel.data_flow(:gateway, :vault)
+      iex> highlighted = Choreo.ThreatModel.Analysis.highlight_attack_paths(model)
+      iex> :vault in highlighted.highlighted_nodes
+      true
+      iex> {:gateway, :vault} in highlighted.highlighted_edges
+      true
+  """
+  @spec highlight_attack_paths(ThreatModel.t(), keyword()) :: ThreatModel.t()
+  def highlight_attack_paths(%ThreatModel{} = model, opts \\ []) do
+    paths = Keyword.get(opts, :paths) || attack_paths(model, opts)
+
+    hl_nodes = paths |> List.flatten() |> Enum.uniq()
+
+    hl_edges =
+      paths
+      |> Enum.flat_map(fn path ->
+        path |> Enum.chunk_every(2, 1, :discard) |> Enum.map(fn [a, b] -> {a, b} end)
+      end)
+      |> Enum.uniq()
+
+    %{model | highlighted_nodes: hl_nodes, highlighted_edges: hl_edges}
+  end
+
+  @doc """
+  Generates a GitHub Flavored Markdown threat table.
+
+  ## Options
+
+    * `:summary` — boolean, whether to include a summary header with risk score and counts (default: `true`)
+    * All other options are passed to `stride_threats/2` (`:only_unmitigated`, `:category`, `:severity`, etc.)
+
+  ## Examples
+
+      iex> model = Choreo.ThreatModel.new()
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
+      ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app")
+      iex> md = Choreo.ThreatModel.Analysis.to_markdown(model)
+      iex> String.contains?(md, "| ID | Category | Target |")
+      true
+  """
+  @spec to_markdown(ThreatModel.t(), keyword()) :: String.t()
+  def to_markdown(%ThreatModel{} = model, opts \\ []) do
+    threats = stride_threats(model, opts)
+    summary? = Keyword.get(opts, :summary, true)
+
+    summary_section =
+      if summary? do
+        risk = risk_score(model)
+        unmitigated_count = Enum.count(threats, &(!&1.mitigated?))
+
+        """
+        ### Threat Model Summary
+
+        - **Total Threats**: #{length(threats)}
+        - **Unmitigated**: #{unmitigated_count}
+        - **Risk Score**: #{risk.score} (#{risk.rating})
+
+        """
+      else
+        ""
+      end
+
+    header =
+      "| ID | Category | Target | Severity | Mitigated | OWASP | Mitigation |\n" <>
+        "|:---|:---|:---|:---|:---:|:---|:---|\n"
+
+    rows =
+      threats
+      |> Enum.map_join("\n", fn t ->
+        target_str =
+          case t.target do
+            {from, to} -> "#{from} -> #{to}"
+            id -> to_string(id)
+          end
+
+        mitigated_str = if t.mitigated?, do: "Yes", else: "No"
+
+        category_str =
+          t.category |> to_string() |> String.replace("_", " ") |> String.capitalize()
+
+        severity_str = t.severity |> to_string() |> String.capitalize()
+
+        "| #{t.id} | #{category_str} | `#{target_str}` | #{severity_str} | #{mitigated_str} | #{t.owasp} | #{t.mitigation} |"
+      end)
+
+    summary_section <> header <> rows <> "\n"
   end
 
   @doc """
@@ -462,17 +826,19 @@ defmodule Choreo.ThreatModel.Analysis do
     * unencrypted cross-boundary flows
     * processes without privilege level
     * data stores without sensitivity classification
+    * direct data flows between external entities and data stores
+    * sensitive data stores located in low-trust boundaries
+    * trust boundaries without a `:level` (when `require_levels: true`)
 
-  Does *not* currently check:
-    * external entities with incoming flows from internal processes
-    * data stores in low-trust boundaries with high sensitivity
-    * trust boundaries without a `:level`
+  ## Options
+
+    * `:require_levels` — boolean, whether to warn if trust boundaries lack a `:level` (default: `false`)
 
   ## Examples
 
       iex> model = Choreo.ThreatModel.new()
       iex> model = model
-      ...>   |> Choreo.ThreatModel.add_trust_boundary("app")
+      ...>   |> Choreo.ThreatModel.add_trust_boundary("app", level: 2)
       ...>   |> Choreo.ThreatModel.add_process(:api, boundary: "app", privilege: :user)
       ...>   |> Choreo.ThreatModel.add_data_store(:db, boundary: "app", sensitivity: :internal)
       ...>   |> Choreo.ThreatModel.data_flow(:api, :db, encrypted: true)
@@ -488,13 +854,16 @@ defmodule Choreo.ThreatModel.Analysis do
 
   This analysis answers the question: "Is the threat model structurally sound?"
   """
-  @spec validate(ThreatModel.t()) :: [{:error | :warning, String.t()}]
-  def validate(%ThreatModel{} = model) do
+  @spec validate(ThreatModel.t(), keyword()) :: [{:error | :warning, String.t()}]
+  def validate(%ThreatModel{} = model, opts \\ []) do
     []
     |> check_missing_boundaries(model)
     |> check_unencrypted_flows(model)
     |> check_unclassified_processes(model)
     |> check_unclassified_stores(model)
+    |> check_sensitive_stores_in_low_trust(model)
+    |> check_direct_external_data_store_flows(model)
+    |> maybe_check_missing_boundary_levels(model, opts)
   end
 
   # ============================================================================
@@ -791,6 +1160,244 @@ defmodule Choreo.ThreatModel.Analysis do
       acc
     else
       [{:warning, "Data stores without sensitivity: #{inspect(unclassified)}"} | acc]
+    end
+  end
+
+  defp check_sensitive_stores_in_low_trust(acc, model) do
+    stores = ThreatModel.elements_of_type(model, :data_store)
+
+    issues =
+      stores
+      |> Enum.filter(fn id ->
+        data = Map.get(model.graph.nodes, id, %{})
+        level = ThreatModel.trust_level(model, id)
+        boundary = ThreatModel.boundary_of(model, id)
+
+        data[:sensitivity] in [:confidential, :restricted] and
+          ((is_integer(level) and level <= 1) or
+             boundary in ["internet", "dmz", "public", "untrusted"])
+      end)
+      |> Enum.map(fn id ->
+        boundary = ThreatModel.boundary_of(model, id) || "none"
+        {:warning, "Sensitive data store `#{id}` sits in low-trust boundary `#{boundary}`"}
+      end)
+
+    issues ++ acc
+  end
+
+  defp check_direct_external_data_store_flows(acc, model) do
+    direct_flows =
+      model
+      |> ThreatModel.edges_with_meta()
+      |> Enum.filter(fn {from, to, _label, _meta} ->
+        from_data = Map.get(model.graph.nodes, from, %{})
+        to_data = Map.get(model.graph.nodes, to, %{})
+        from_type = from_data[:element_type]
+        to_type = to_data[:element_type]
+
+        (from_type == :external_entity and to_type == :data_store) or
+          (from_type == :data_store and to_type == :external_entity)
+      end)
+      |> Enum.map(fn {from, to, _label, _meta} ->
+        {:error,
+         "Direct data flow between external entity and data store: #{from}->#{to} (must mediate through a process)"}
+      end)
+
+    direct_flows ++ acc
+  end
+
+  defp maybe_check_missing_boundary_levels(acc, model, opts) do
+    if Keyword.get(opts, :require_levels, false) do
+      missing =
+        model.clusters
+        |> Enum.filter(fn {_id, data} -> is_nil(data[:level]) end)
+        |> Enum.map(fn {id, _data} -> String.replace_prefix(id, "cluster_", "") end)
+
+      if missing == [] do
+        acc
+      else
+        [{:warning, "Trust boundaries without a `:level`: #{inspect(missing)}"} | acc]
+      end
+    else
+      acc
+    end
+  end
+
+  # ============================================================================
+  # Private helpers — Threat filtering and decoration
+  # ============================================================================
+
+  defp decorate_threat(threat, controls, meta_or_data) do
+    threat
+    |> Map.put_new(:controls, controls)
+    |> Map.put_new(:owasp, owasp_mapping(threat.category))
+    |> Map.put_new_lazy(:mitigated?, fn ->
+      threat_mitigated?(threat.category, threat.target, controls, meta_or_data)
+    end)
+  end
+
+  defp owasp_mapping(:spoofing), do: "A07:2021-Identification and Authentication Failures"
+  defp owasp_mapping(:tampering), do: "A08:2021-Software and Data Integrity Failures"
+  defp owasp_mapping(:repudiation), do: "A09:2021-Security Logging and Monitoring Failures"
+  defp owasp_mapping(:information_disclosure), do: "A02:2021-Cryptographic Failures"
+  defp owasp_mapping(:denial_of_service), do: "A04:2021-Insecure Design"
+  defp owasp_mapping(:elevation_of_privilege), do: "A01:2021-Broken Access Control"
+  defp owasp_mapping(_), do: "A04:2021-Insecure Design"
+
+  defp threat_mitigated?(category, {_from, _to}, controls, meta) do
+    case category do
+      :tampering ->
+        meta[:encrypted] == true or
+          has_control?(controls, [
+            :tls,
+            :mtls,
+            :https,
+            :encryption,
+            :encrypted,
+            :ipsec,
+            :vpn,
+            :signing,
+            :hmac,
+            :integrity,
+            :tampering
+          ])
+
+      :information_disclosure ->
+        meta[:encrypted] == true or
+          has_control?(controls, [:tls, :mtls, :https, :encryption, :encrypted, :ipsec, :vpn])
+
+      :spoofing ->
+        meta[:authenticated] == true or
+          has_control?(controls, [
+            :auth,
+            :authentication,
+            :mfa,
+            :jwt,
+            :oauth,
+            :tokens,
+            :mtls,
+            :certificates
+          ])
+
+      :denial_of_service ->
+        has_control?(controls, [
+          :rate_limiting,
+          :waf,
+          :circuit_breaker,
+          :ddos_protection,
+          :throttling
+        ])
+
+      _ ->
+        false
+    end
+  end
+
+  defp threat_mitigated?(category, _target_id, controls, _data) do
+    case category do
+      :spoofing ->
+        has_control?(controls, [
+          :auth,
+          :authentication,
+          :mfa,
+          :jwt,
+          :oauth,
+          :saml,
+          :sso,
+          :tokens,
+          :certificates,
+          :mtls,
+          :signature
+        ])
+
+      :tampering ->
+        has_control?(controls, [
+          :input_validation,
+          :schema_validation,
+          :sanitization,
+          :signing,
+          :hmac,
+          :integrity,
+          :waf
+        ])
+
+      :repudiation ->
+        has_control?(controls, [
+          :audit_logging,
+          :logging,
+          :siem,
+          :tamper_evident_logging,
+          :audit_trail,
+          :append_only_log
+        ])
+
+      :information_disclosure ->
+        has_control?(controls, [
+          :encryption_at_rest,
+          :field_level_encryption,
+          :kms,
+          :acls,
+          :data_masking,
+          :tokenization,
+          :least_privilege,
+          :memory_safe,
+          :sandbox
+        ])
+
+      :denial_of_service ->
+        has_control?(controls, [
+          :rate_limiting,
+          :waf,
+          :circuit_breaker,
+          :ddos_protection,
+          :autoscaling,
+          :quotas,
+          :throttling,
+          :replication,
+          :backups
+        ])
+
+      :elevation_of_privilege ->
+        has_control?(controls, [
+          :least_privilege,
+          :rbac,
+          :abac,
+          :privilege_separation,
+          :sandboxing,
+          :mfa
+        ])
+
+      _ ->
+        false
+    end
+  end
+
+  defp has_control?(controls, target_controls) do
+    ctrl_set = MapSet.new(controls)
+    Enum.any?(target_controls, &MapSet.member?(ctrl_set, &1))
+  end
+
+  defp maybe_filter_unmitigated(threats, opts) do
+    if Keyword.get(opts, :only_unmitigated, false) do
+      Enum.filter(threats, &(!&1.mitigated?))
+    else
+      threats
+    end
+  end
+
+  defp maybe_filter_category(threats, opts) do
+    case Keyword.get(opts, :category) do
+      nil -> threats
+      categories when is_list(categories) -> Enum.filter(threats, &(&1.category in categories))
+      cat when is_atom(cat) -> Enum.filter(threats, &(&1.category == cat))
+    end
+  end
+
+  defp maybe_filter_severity(threats, opts) do
+    case Keyword.get(opts, :severity) do
+      nil -> threats
+      severities when is_list(severities) -> Enum.filter(threats, &(&1.severity in severities))
+      sev when is_atom(sev) -> Enum.filter(threats, &(&1.severity == sev))
     end
   end
 

@@ -4,11 +4,24 @@
 
 ### Added
 
+- **ThreatModel Hardening & Advanced Security Analysis**:
+  - `Choreo.ThreatModel`: Added support for `:role` (`:anonymous`, `:user`, `:partner`, `:admin`, `:third_party`), `:privilege`, and `:controls` in external entities; `:controls` in processes and data stores; and `:authenticated`, `:data`, `:sensitivity`, and `:controls` in data flows.
+  - `Choreo.ThreatModel`: Added `:highlighted_nodes` and `:highlighted_edges` fields to the struct, and forwarded them seamlessly through `to_dot/2` and `to_mermaid/2`. Added `clear_highlight/1`.
+  - `Choreo.ThreatModel.Analysis`: Added `entry_points/1` and `exit_points/1` to detect ingress vectors entering trusted domains and egress vectors leaving trusted boundaries.
+  - `Choreo.ThreatModel.Analysis`: Added `blast_radius/2` to compute downstream compromise reachability, affected sensitive data stores, exposed trust boundaries, and qualitative risk rating.
+  - `Choreo.ThreatModel.Analysis`: Added `highlight_attack_paths/2` to automatically highlight multi-hop attack paths across Graphviz and Mermaid visualizations.
+  - `Choreo.ThreatModel.Analysis`: Added mitigation and control tracking to STRIDE threat generation (`:mitigated?`, `:controls`, `:owasp`), plus `unmitigated_threats/2` and `threats_for/3`.
+  - `Choreo.ThreatModel.Analysis`: Added `to_markdown/2` for exporting structured, executive GitHub Flavored Markdown threat tables.
+  - `Choreo.ThreatModel.Analysis`: Enhanced `validate/2` to check for direct flows between external entities and data stores, sensitive stores in low-trust boundaries, and missing boundary levels (`require_levels: true`).
+  - `Choreo.Lab.DSL.ThreatModel`: Added edge modifiers `authenticated`, `carries`, `controls`/`protects`, and `sensitivity`.
+  - Updated `livebooks/guides/threat_model_walkthrough.livemd` and `doc/threat_model_walkthrough.livemd` with ingress/egress analysis, blast radius, attack path highlighting, mitigations, and Markdown matrices.
+
 ### Fixed
 
 - Fixed sequence diagram flow label resolution in `Choreo.ThreatModel.Render.Mermaid.to_sequence/2` when flow labels are empty strings.
 - Fixed non-constructor node expression handling in `Choreo.Lab.DSL.Sequence`.
 
+## [0.13.0] - 2026-09-06
 
 ### Added
 
