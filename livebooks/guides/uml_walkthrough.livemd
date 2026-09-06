@@ -106,12 +106,12 @@ end
 
 Relationships between software blocks map exactly to standard UML connectors:
 
-| Relationship Type | Arrow Style | Connector Style | Intended Semantics                                  |
-| ----------------- | ----------- | --------------- | --------------------------------------------------- |
-| `:inherits`       | Hollow      | Solid (`--|>`)  | Class inheritance or adopting a behavior.           |
-| `:realizes`       | Hollow      | Dashed (`..|>`) | Adopting/implementing an Elixir protocol.           |
-| `:associates`     | Solid       | Solid (`-->`)   | Composition (e.g. struct nesting/embedding).        |
-| `:depends`        | Open        | Dashed (`..>`)  | Run-time dependency or function calling invocation. |
+| Relationship Type | Arrow Style | Connector Style  | Intended Semantics                                  |
+| ----------------- | ----------- | ---------------- | --------------------------------------------------- |
+| `:inherits`       | Hollow      | Solid (`--  |>`) | Class inheritance or adopting a behavior.           |
+| `:realizes`       | Hollow      | Dashed (`.. |>`) | Adopting/implementing an Elixir protocol.           |
+| `:associates`     | Solid       | Solid (`-->`)    | Composition (e.g. struct nesting/embedding).        |
+| `:depends`        | Open        | Dashed (`..>`)   | Run-time dependency or function calling invocation. |
 
 ```elixir
 # Quick example of behavior inheritance using Lab DSL
@@ -303,9 +303,8 @@ Analysis.coupling_metrics(uml)
 | `inherits child ~> base, "extends"`               | Class inheritance or specialization       |
 | `depends service ~> cache, "calls"`               | Runtime dependency or invocation          |
 | `has order ~> item, "owns"`                       | Composition / association relationship    |
-
-| `service ~> repo  | > depends("calls")`  | Piped relationship modifier           |
-| `service ~> cache | > type(:associates)` | Piped relationship with type modifier |
+| `service ~> repo  |> depends("calls")`            | Piped relationship modifier               |
+| `service ~> cache |> type(:associates)`           | Piped relationship with type modifier     |
 
 ### Programmatic Pipe API & Analysis
 

@@ -325,17 +325,16 @@ Analysis.normalization_score(schema)
 
 ### Lab DSL Syntax
 
-| Syntax                                                     | Description                               |
-| ---------------------------------------------------------- | ----------------------------------------- |
-| `erd do ... end`                                           | Define an ERD diagram                     |
-| `erd strict_column_matching: true do ... end`              | Define an ERD with strict column matching |
-| `users = table("users") do ... end`                        | Declare a table with columns              |
-| `pk :id, :integer` / `primary_key :id, :integer`           | Primary key column                        |
-| `fk :user_id, :integer` / `foreign_key :user_id, :integer` | Foreign key column                        |
-| `field :name, :type, comment: "..."`                       | Regular column with optional comment      |
-| `has_many users ~> posts, "writes"`                        | Relationship with label                   |
-| `one_to_many users ~> posts, from: :id, to: :user_id`      | Relationship with column mappings         |
-
+| Syntax                                                           | Description                               |
+| ---------------------------------------------------------------- | ----------------------------------------- |
+| `erd do ... end`                                                 | Define an ERD diagram                     |
+| `erd strict_column_matching: true do ... end`                    | Define an ERD with strict column matching |
+| `users = table("users") do ... end`                              | Declare a table with columns              |
+| `pk :id, :integer` / `primary_key :id, :integer`                 | Primary key column                        |
+| `fk :user_id, :integer` / `foreign_key :user_id, :integer`       | Foreign key column                        |
+| `field :name, :type, comment: "..."`                             | Regular column with optional comment      |
+| `has_many users ~> posts, "writes"`                              | Relationship with label                   |
+| `one_to_many users ~> posts, from: :id, to: :user_id`            | Relationship with column mappings         |
 | `users ~> posts |> has_many("writes") |> columns(:id, :user_id)` | Piped relationship modifiers              |
 
 ### Programmatic Pipe API & Analysis

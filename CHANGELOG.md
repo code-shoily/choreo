@@ -23,6 +23,7 @@
 ### Fixed
 
 - Hardened native Mermaid rendering for `Choreo.ERD`, `Choreo.Sequence`, and `Choreo.UML` by using Mermaid-safe identifiers and normalizing labels/member text.
+- Fixed `Choreo.Lab.Sketch` preprocessing for UML diagrams so Excalidraw does not strip native `classDiagram` declarations or split HTML line-break labels into invalid Mermaid.
 - Fixed relationship pipe modifier argument order when delegating in `Choreo.Lab.DSL.UML`.
 - Fixed relationship pipe modifier parsing in `Choreo.Lab.DSL.ERD` to accept keyword option lists alongside cardinality verbs.
 

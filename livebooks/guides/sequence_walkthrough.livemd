@@ -332,16 +332,14 @@ Sequence.to_dot(login) |> IO.puts()
 
 ### Lab DSL Syntax
 
-| Syntax                       | Description                           |
-| ---------------------------- | ------------------------------------- |
-| `sequence do ... end`        | Define a sequence diagram             |
-| `user = actor("User")`       | Declare an external actor participant |
-| `api = participant("API")`   | Declare a system/service participant  |
-| `service("Auth", id: :auth)` | Declare participant with custom id    |
-
-| `user ~> api   | > call("GET /items")` | Piped synchronous call                       |
-| `api ~> worker | > async("process")`   | Piped asynchronous / fire-and-forget message |
-
+| Syntax                                            | Description                                  |
+| ------------------------------------------------- | -------------------------------------------- |
+| `sequence do ... end`                             | Define a sequence diagram                    |
+| `user = actor("User")`                            | Declare an external actor participant        |
+| `api = participant("API")`                        | Declare a system/service participant         |
+| `service("Auth", id: :auth)`                      | Declare participant with custom id           |
+| `user ~> api   |> call("GET /items")`             | Piped synchronous call                       |
+| `api ~> worker |> async("process")`               | Piped asynchronous / fire-and-forget message |
 | `reply db ~> api, "rows"`                         | Return / response message                    |
 | `api ~> api |> call("verify")`                    | Self-message (internal processing)           |
 | `edge api ~> db, "query", type: :sync`            | Explicit edge with type option               |

@@ -59,7 +59,7 @@ if Code.ensure_loaded?(Kino) do
         container.style.border = "1px solid #e2e8f0";
         container.style.borderRadius = "8px";
         container.style.overflow = "hidden";
-        
+
         const defaultHeightNum = typeof data.height === 'number' ? data.height : parseInt(data.height) || 400;
         const updateHeight = function() {
           if (Math.max(window.innerHeight, defaultHeightNum + 11) === window.innerHeight) {
@@ -116,7 +116,7 @@ if Code.ensure_loaded?(Kino) do
           // Load React and ReactDOM first (required by Excalidraw UMD)
           await loadScript("https://unpkg.com/react@18.2.0/umd/react.production.min.js");
           await loadScript("https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js");
-          
+
           // Load Excalidraw UMD library
           await loadScript("https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw.production.min.js");
 
@@ -126,32 +126,35 @@ if Code.ensure_loaded?(Kino) do
           // Preprocess Mermaid code to make it Excalidraw friendly
           // Specifically handles C4 model diagrams and custom styles which crash or clutter the parser
           const preprocessMermaid = function(code) {
-            const isSequence = code.toLowerCase().includes("sequencediagram");
+            const loweredCode = code.toLowerCase();
+            const isSequence = loweredCode.includes("sequencediagram");
+            const isClassDiagram = loweredCode.includes("classdiagram");
             const lines = code.split("\\n");
             const cleanLines = [];
             for (let line of lines) {
               const trimmed = line.trim();
-              
+
               // Skip style definitions, class definitions, subgraphs, and link styles to keep the diagram clean & hand-drawn.
               // Note: Do not remove 'subgraph' or 'end' lines if we are inside a sequence diagram, where they are required loops/conditionals.
               if (
                 trimmed.startsWith("style ") ||
                 trimmed.startsWith("classDef ") ||
-                trimmed.startsWith("class ") ||
+                (trimmed.startsWith("class ") && !isClassDiagram) ||
                 trimmed.startsWith("linkStyle ") ||
                 (trimmed.toLowerCase().startsWith("subgraph") && !isSequence) ||
-                (trimmed.toLowerCase() === "end" && !isSequence)
+                (trimmed.toLowerCase() === "end" && !isSequence) ||
+                (isClassDiagram && /^<<[^>]+>>$/.test(trimmed))
               ) {
                 continue;
               }
-              
+
               // Normalize custom shapes that are not well supported by Excalidraw (supporting hyphens in IDs):
               // Stadium ([label]) to Rounded Rect (label)
               line = line.replace(/([\\w\\-]+)\\(\\[([^\\]]+)\\]\\)/g, '$1($2)');
-              
+
               // Subroutine [[label]] to Rect [label]
               line = line.replace(/([\\w\\-]+)\\[\\[([^\\]]+)\\]\\]/g, '$1[$2]');
-              
+
               // Person/Double circle (((label))) to Circle ((label))
               line = line.replace(/([\\w\\-]+)\\(\\(\\(([^)]+)\\)\\)\\)/g, '$1(($2))');
 
@@ -168,9 +171,11 @@ if Code.ensure_loaded?(Kino) do
               line = line.replace(/([\\w\\-]+)\\[\\\\\\"(.*?)\\"\\/\\]/g, '$1["$2"]');
               line = line.replace(/([\\w\\-]+)\\[\\\\([^\]]+)\\/\\]/g, '$1[$2]');
 
-              // Replace HTML line breaks <br> / <br/> with newlines so Excalidraw parses them as multi-line labels
-              line = line.replace(new RegExp("\\\\x3cbr\\\\\\\\s*\\\\\\\\/?\\\\x3e", "gi"), "\\\\n");
-              
+              // Excalidraw's Mermaid parser is stricter than Mermaid itself. Keep labels single-line
+              // so HTML breaks emitted by Choreo renderers do not split node declarations mid-label.
+              line = line.replace(new RegExp("\\x3cbr\\\\s*\\\\/?\\x3e", "gi"), " / ");
+              line = line.replace(new RegExp("\\x3c/?b\\x3e", "gi"), "");
+
               cleanLines.push(line);
             }
             return cleanLines.join("\\n");
@@ -185,7 +190,7 @@ if Code.ensure_loaded?(Kino) do
           const { elements, files } = await parseMermaidToExcalidraw(cleanCode, {
             themeVariables: { fontSize: "16px" }
           });
-          
+
           const excalidrawElements = window.ExcalidrawLib.convertToExcalidrawElements(elements);
           const ExcalidrawComponent = window.ExcalidrawLib.Excalidraw;
 
@@ -208,7 +213,7 @@ if Code.ensure_loaded?(Kino) do
                 initialData: {
                   elements: excalidrawElements,
                   scrollToContent: true,
-                  appState: { 
+                  appState: {
                     viewBackgroundColor: "#FAF9F6",
                     gridSize: 20
                   },
