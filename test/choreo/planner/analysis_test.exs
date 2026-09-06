@@ -128,6 +128,47 @@ defmodule Choreo.Planner.AnalysisTest do
     end
   end
 
+  describe "workload_by_assignee/2" do
+    test "groups open task counts and estimates by assignee" do
+      project =
+        Planner.new()
+        |> Planner.add_task(:api, status: :todo, estimate_hours: 5)
+        |> Planner.add_task(:ui, status: :in_progress, estimate_hours: 3)
+        |> Planner.add_task(:docs, status: :backlog, estimate_hours: 2)
+        |> Planner.add_task(:done, status: :done, estimate_hours: 8)
+        |> Planner.add_user(:alice)
+        |> Planner.add_user(:bob)
+        |> Planner.assign(:api, :alice)
+        |> Planner.assign(:ui, :bob)
+        |> Planner.assign(:done, :alice)
+
+      assert [
+               {:alice,
+                %{task_count: 1, tasks: [:api], estimate_hours: 5, status_counts: %{todo: 1}}},
+               {:bob,
+                %{
+                  task_count: 1,
+                  tasks: [:ui],
+                  estimate_hours: 3,
+                  status_counts: %{in_progress: 1}
+                }},
+               {:unassigned,
+                %{task_count: 1, tasks: [:docs], estimate_hours: 2, status_counts: %{backlog: 1}}}
+             ] = Analysis.workload_by_assignee(project)
+    end
+
+    test "can include done and cancelled tasks" do
+      project =
+        Planner.new()
+        |> Planner.add_task(:done, status: :done, estimate_hours: 8)
+        |> Planner.add_user(:alice)
+        |> Planner.assign(:done, :alice)
+
+      assert [{:alice, %{task_count: 1, estimate_hours: 8, status_counts: %{done: 1}}}] =
+               Analysis.workload_by_assignee(project, include_done?: true)
+    end
+  end
+
   describe "validate/1" do
     test "detects cycles" do
       project =

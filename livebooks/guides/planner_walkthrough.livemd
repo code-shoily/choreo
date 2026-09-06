@@ -16,7 +16,7 @@ Mix.install([
 
 ## What is Choreo.Planner?
 
-`Choreo.Planner` models **projects, tasks, milestones, users, and labels** as a typed multigraph. Unlike a static task list, Choreo Planner is a **computable project model** — you can analyse it for readiness, blocked work, critical paths, and bottlenecks, then render the same data as a Kanban board, Gantt chart, or dependency flowchart.
+`Choreo.Planner` models **projects, tasks, milestones, users, and labels** as a typed multigraph. Unlike a static task list, Choreo Planner is a **computable project model** — you can analyse it for readiness, blocked work, critical paths, bottlenecks, and assignee workload, then render the same data as a Kanban board, Gantt chart, or dependency flowchart.
 
 Common use cases:
 
@@ -125,7 +125,7 @@ With `Choreo.Lab.Siren`, we can render modern native `kanban` syntax directly in
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :kanban)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :flowchart))
 )
 ```
@@ -137,7 +137,7 @@ Render the same sprint as a Gantt chart. Tasks are auto-scheduled based on depen
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-06-02])),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint, syntax: :gantt, start_date: ~D[2026-06-02])),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(sprint)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(sprint, syntax: :gantt, start_date: ~D[2026-06-02]))
 )
 ```
@@ -236,7 +236,7 @@ View only the launch milestone tasks:
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban, milestone: :launch)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :flowchart, milestone: :launch)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :flowchart, milestone: :launch))
 )
 ```
@@ -248,7 +248,7 @@ See what Carol is working on:
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :kanban, assignee: :carol)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :flowchart, assignee: :carol)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :flowchart, assignee: :carol))
 )
 ```
@@ -274,7 +274,7 @@ Group the Gantt chart sections by team member instead of milestone:
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02])),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02])),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(release)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(release, syntax: :gantt, section_by: :assignee, start_date: ~D[2026-06-02]))
 )
 ```
@@ -346,6 +346,23 @@ Analysis.bottlenecks(release)
 end)
 ```
 
+### Workload by Assignee
+
+Summarise remaining work by owner. Done and cancelled tasks are excluded by default.
+
+```elixir
+Analysis.workload_by_assignee(release)
+|> Enum.each(fn {assignee, summary} ->
+  name =
+    case assignee do
+      :unassigned -> "Unassigned"
+      id -> release.graph.nodes[id][:name] || inspect(id)
+    end
+
+  IO.puts("  • #{name}: #{summary.task_count} open tasks, #{summary.estimate_hours}h estimated")
+end)
+```
+
 ### Validation
 
 Check for structural problems: dependency cycles, unassigned in-progress work, etc.
@@ -403,7 +420,7 @@ incident =
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(incident, syntax: :kanban)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(incident, syntax: :flowchart)),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(incident)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(incident, syntax: :flowchart))
 )
 ```
@@ -413,7 +430,7 @@ Kino.Layout.tabs(
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(incident, syntax: :gantt, start_date: Date.utc_today())),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(incident, syntax: :gantt, start_date: Date.utc_today())),
+  Graphviz: Kino.VizJS.render(Planner.to_dot(incident)),
   Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(incident, syntax: :gantt, start_date: Date.utc_today()))
 )
 ```
@@ -506,12 +523,13 @@ IO.puts(Planner.to_mermaid(sprint, syntax: :kanban))
 | Render Gantt             | `Planner.to_mermaid(plan, syntax: :gantt, start_date: date)` (Opts: `:section_by`)                             |
 | Render Flowchart         | `Planner.to_mermaid(plan, syntax: :flowchart)`                                                                 |
 | Render Swimlane          | `Planner.to_mermaid(plan, syntax: :swimlane, swimlane_by: :assignee | :milestone | :status)`                   |
-| Render DOT Graphviz      | `Planner.to_dot(plan, opts)` (Opts: `:theme`, `:syntax`, `:start_date`, `:milestone`, `:assignee`)             |
+| Render DOT Graphviz      | `Planner.to_dot(plan, opts)` (Opts: `:theme`, `:direction`, `:highlighted_nodes`, `:highlighted_edges`)        |
 | Ready Work               | `Analysis.ready/1` (Tasks in backlog/todo with dependencies resolved)                                          |
 | Blocked Work             | `Analysis.blocked/1` (Tasks waiting on unresolved prerequisites)                                               |
 | Orphan Tasks             | `Analysis.orphans/1` (Tasks not contained in any milestone)                                                    |
 | Critical Path            | `Analysis.critical_path/2` (Longest dependency chain by estimate hours)                                        |
 | Bottlenecks              | `Analysis.bottlenecks/1` (Tasks ranked by transitive downstream impact)                                        |
+| Workload                 | `Analysis.workload_by_assignee/2` (Open task counts and estimates grouped by owner)                            |
 | Structural Validation    | `Analysis.validate/1` (Checks for dependency cycles, unassigned work, empty milestones)                        |
 
 ---

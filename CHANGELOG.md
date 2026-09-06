@@ -4,6 +4,7 @@
 
 ### Added
 
+- `Choreo.Planner.Analysis`: Added `workload_by_assignee/2` to summarize open task counts, estimates, and statuses by owner.
 - **ThreatModel Hardening & Advanced Security Analysis**:
   - `Choreo.ThreatModel`: Added support for `:role` (`:anonymous`, `:user`, `:partner`, `:admin`, `:third_party`), `:privilege`, and `:controls` in external entities; `:controls` in processes and data stores; and `:authenticated`, `:data`, `:sensitivity`, and `:controls` in data flows.
   - `Choreo.ThreatModel`: Added `:highlighted_nodes` and `:highlighted_edges` fields to the struct, and forwarded them seamlessly through `to_dot/2` and `to_mermaid/2`. Added `clear_highlight/1`.
@@ -19,6 +20,7 @@
 
 ### Fixed
 
+- Fixed stale Planner walkthrough `to_dot/2` option references and added an assignee workload analysis example.
 - Fixed stale Requirement walkthrough API references and added validation for duplicate human requirement IDs.
 - Fixed stale FSM walkthrough API references and added defensive validation for duplicate outgoing transition labels.
 - Fixed stale MindMap walkthrough API references and added defensive validation for invalid root pointers.

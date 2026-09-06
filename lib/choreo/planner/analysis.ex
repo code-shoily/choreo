@@ -9,6 +9,7 @@ defmodule Choreo.Planner.Analysis do
     * `orphans/1` — tasks not in any milestone
     * `critical_path/2` — longest dependency chain (by estimate)
     * `bottlenecks/1` — tasks ranked by transitive downstream impact
+    * `workload_by_assignee/2` — open work grouped by owner
     * `validate/1` — structural integrity checks
   """
 
@@ -172,6 +173,75 @@ defmodule Choreo.Planner.Analysis do
       {id, count}
     end)
     |> Enum.sort_by(fn {_, count} -> count end, :desc)
+  end
+
+  @doc """
+  Groups open work by assignee with task counts, estimates, and status counts.
+
+  By default this excludes `:done` and `:cancelled` tasks so the result reflects
+  remaining workload. Pass `include_done?: true` to include every task. Tasks with
+  multiple assignees are counted once for each assignee; unassigned tasks are
+  grouped under `:unassigned`.
+
+  ## Examples
+
+      iex> project = Choreo.Planner.new()
+      ...> |> Choreo.Planner.add_task(:a, status: :todo, estimate_hours: 2)
+      ...> |> Choreo.Planner.add_task(:b, status: :done, estimate_hours: 3)
+      ...> |> Choreo.Planner.add_user(:alice)
+      ...> |> Choreo.Planner.assign(:a, :alice)
+      iex> Choreo.Planner.Analysis.workload_by_assignee(project)
+      [alice: %{estimate_hours: 2, status_counts: %{todo: 1}, task_count: 1, tasks: [:a]}]
+  """
+  @spec workload_by_assignee(Planner.t(), keyword()) :: [
+          {Yog.node_id() | :unassigned,
+           %{
+             task_count: non_neg_integer(),
+             tasks: [Yog.node_id()],
+             estimate_hours: number(),
+             status_counts: %{optional(atom()) => non_neg_integer()}
+           }}
+        ]
+  def workload_by_assignee(%Planner{} = planner, opts \\ []) do
+    include_done? = Keyword.get(opts, :include_done?, false)
+
+    planner
+    |> Planner.tasks()
+    |> Enum.reject(fn {_id, data} ->
+      not include_done? and data[:status] in [:done, :cancelled]
+    end)
+    |> Enum.flat_map(fn {id, data} ->
+      assignees =
+        case Planner.assignees(planner, id) do
+          [] -> [:unassigned]
+          ids -> ids
+        end
+
+      Enum.map(assignees, fn assignee -> {assignee, id, data} end)
+    end)
+    |> Enum.group_by(fn {assignee, _id, _data} -> assignee end)
+    |> Enum.map(fn {assignee, entries} ->
+      tasks = Enum.map(entries, fn {_assignee, id, _data} -> id end)
+
+      estimate_hours =
+        Enum.reduce(entries, 0, fn {_assignee, _id, data}, acc -> acc + task_estimate(data) end)
+
+      status_counts =
+        entries
+        |> Enum.map(fn {_assignee, _id, data} -> data[:status] || :backlog end)
+        |> Enum.frequencies()
+
+      {assignee,
+       %{
+         task_count: length(tasks),
+         tasks: tasks,
+         estimate_hours: estimate_hours,
+         status_counts: status_counts
+       }}
+    end)
+    |> Enum.sort_by(fn {assignee, summary} ->
+      {-summary.estimate_hours, -summary.task_count, inspect(assignee)}
+    end)
   end
 
   @doc """
@@ -368,10 +438,13 @@ defmodule Choreo.Planner.Analysis do
 
   defp task_estimate(%Planner{graph: g}, id) do
     case g.nodes[id] do
-      %{estimate_hours: hrs} when is_number(hrs) and hrs > 0 -> hrs
+      data when is_map(data) -> task_estimate(data)
       _ -> 1
     end
   end
+
+  defp task_estimate(%{estimate_hours: hrs}) when is_number(hrs) and hrs > 0, do: hrs
+  defp task_estimate(_data), do: 1
 
   defp cycle_nodes(g) do
     case Yog.Traversal.Sort.topological_sort(g) do
