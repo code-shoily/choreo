@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added support for keyword options and label tuples in `Choreo.Lab.DSL.Planner` edge pipe modifiers (`|> contains(label: "includes")`, `|> type(:depends_on, "prereq")`).
+- Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:type`) in `Choreo.Lab.DSL.Planner`.
+- Added support for `edge/3` with both label and keyword options (`edge kickoff ~> delivery, "prereq", type: :depends_on`) in `Choreo.Lab.DSL.Planner`.
+- Added `Choreo.Planner.task_labels/2`, `tags/2`, and `tagged_tasks/2` query helpers.
 - Added support for keyword options and label tuples in `Choreo.Lab.DSL.C4` relationship pipe modifiers (`|> uses(technology: "HTTPS")`, `|> type(:calls, "JSON requests")`).
 - Added `:type` modifier and expanded autocomplete helper stubs (`:edge`, `:on`, `:technology`, `:type`) in `Choreo.Lab.DSL.C4`.
 - Added support for `edge/3` with both label and keyword options (`edge customer ~> web_app, "Visits site", technology: "HTTPS"`) in `Choreo.Lab.DSL.C4`.
@@ -22,6 +26,7 @@
 
 ### Changed
 
+- Updated `livebooks/guides/planner_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Planner` syntax across all planning examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/c4_walkthrough.livemd` to showcase `Choreo.Lab.DSL.C4` syntax across all architecture examples, retaining programmatic pipe syntax in the introductory legend example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/domain_modeling_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Domain` syntax across all examples, retaining programmatic pipe syntax in the introductory example, and added a comprehensive Cheat Sheet.
 - Updated `livebooks/guides/sequence_walkthrough.livemd` to showcase `Choreo.Lab.DSL.Sequence` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
@@ -29,6 +34,8 @@
 - Updated `livebooks/guides/erd_walkthrough.livemd` to showcase `Choreo.Lab.DSL.ERD` syntax across all examples, retaining programmatic pipe syntax in the introductory example.
 
 ### Fixed
+
+- Ensured user constructors in `Choreo.Lab.DSL.Planner` populate default `:name` attribute matching title/id for query and render compatibility.
 
 - Fixed parent environment state restoration after nested hierarchy blocks and guarded nil `:parent` resolution in `Choreo.Lab.DSL.C4`.
 - Fixed `pop_do_block/1` in `Choreo.Lab.DSL.Compiler` to recognize `do` blocks with preceding keyword options (e.g. `context_boundary "Name", id: "id" do ... end`).

@@ -45,9 +45,19 @@ Common use cases:
 | `:tagged_with` | `tag/3`        | task → label      | Categorisation                 |
 | `:relates_to`  | `relates/3`    | bidirectional       | Loose association              |
 
+### API Approaches: Programmatic Pipe API vs Lab DSL
+
+Choreo provides two ways to author planners:
+
+1. **Programmatic Pipe API (`Choreo.Planner`)**: Explicit, pipe-first builder functions (`add_task/3`, `add_milestone/3`, `contains/3`, `depends_on/3`, `assign/3`, `tag/3`). Best for production code, dynamic graph generation, and data pipelines.
+2. **Lab DSL (`Choreo.Lab.DSL.Planner`)**: Concise, sketch-oriented syntax (`planner do ... end`, variable binding, `~>`, and pipe modifiers like `|> depends_on()`, `|> assigned_to()`). Best for Livebooks, architecture reviews, sprint sketches, and rapid planning.
+
+In this guide, the introductory legend demonstrates the programmatic pipe API, while subsequent examples showcase the expressive Lab DSL.
+
 ```elixir
 alias Choreo.Planner
 alias Choreo.Planner.Analysis
+import Choreo.Lab.DSL.Planner
 
 legend =
   Planner.new("Legend")
@@ -74,23 +84,27 @@ Let's model a small two-week sprint with a milestone, a few tasks, and one depen
 
 ```elixir
 sprint =
-  Planner.new("Sprint 42")
-  |> Planner.add_milestone(:sprint_42, title: "Sprint 42")
-  |> Planner.add_task(:design, title: "Design API", status: :done, estimate_hours: 16)
-  |> Planner.add_task(:impl, title: "Implement API", status: :in_progress, estimate_hours: 24)
-  |> Planner.add_task(:test, title: "Write Tests", status: :backlog, estimate_hours: 8)
-  |> Planner.add_task(:docs, title: "Update Docs", status: :backlog, estimate_hours: 4)
-  |> Planner.add_user(:alice, name: "Alice")
-  |> Planner.add_user(:bob, name: "Bob")
-  |> Planner.contains(:sprint_42, :design)
-  |> Planner.contains(:sprint_42, :impl)
-  |> Planner.contains(:sprint_42, :test)
-  |> Planner.contains(:sprint_42, :docs)
-  |> Planner.depends_on(:impl, :design)
-  |> Planner.depends_on(:test, :impl)
-  |> Planner.assign(:design, :alice)
-  |> Planner.assign(:impl, :alice)
-  |> Planner.assign(:test, :bob)
+  planner "Sprint 42" do
+    sprint_42 = milestone("Sprint 42")
+    design = task("Design API", status: :done, estimate_hours: 16)
+    impl = task("Implement API", status: :in_progress, estimate_hours: 24)
+    test = task("Write Tests", status: :backlog, estimate_hours: 8)
+    docs = task("Update Docs", status: :backlog, estimate_hours: 4)
+    alice = user("Alice")
+    bob = user("Bob")
+
+    contains sprint_42 ~> design
+    contains sprint_42 ~> impl
+    contains sprint_42 ~> test
+    contains sprint_42 ~> docs
+
+    design ~> impl |> depends_on()
+    impl ~> test |> depends_on()
+
+    design ~> alice |> assigned_to()
+    impl ~> alice |> assigned_to()
+    test ~> bob |> assigned_to()
+  end
 ```
 
 ### Query the Project
@@ -148,51 +162,61 @@ A larger project with multiple milestones, cross-team dependencies, and labels f
 
 ```elixir
 release =
-  Planner.new("Q3 Release")
-  |> Planner.add_milestone(:backend, title: "Backend Work")
-  |> Planner.add_milestone(:frontend, title: "Frontend Work")
-  |> Planner.add_milestone(:launch, title: "Launch Day")
-  |> Planner.add_task(:auth_api, title: "Auth API", status: :done, estimate_hours: 16, priority: :high)
-  |> Planner.add_task(:user_api, title: "User API", status: :in_progress, estimate_hours: 24, priority: :high)
-  |> Planner.add_task(:payment_api, title: "Payment API", status: :backlog, estimate_hours: 32, priority: :critical)
-  |> Planner.add_task(:login_ui, title: "Login UI", status: :backlog, estimate_hours: 12)
-  |> Planner.add_task(:dashboard_ui, title: "Dashboard UI", status: :backlog, estimate_hours: 20)
-  |> Planner.add_task(:marketing_site, title: "Marketing Site", status: :backlog, estimate_hours: 16)
-  |> Planner.add_task(:load_test, title: "Load Testing", status: :backlog, estimate_hours: 8)
-  |> Planner.add_task(:deploy, title: "Deploy to Prod", status: :backlog, estimate_hours: 4)
-  |> Planner.add_user(:alice, name: "Alice")
-  |> Planner.add_user(:bob, name: "Bob")
-  |> Planner.add_user(:carol, name: "Carol")
-  |> Planner.add_label(:backend_label, title: "backend")
-  |> Planner.add_label(:frontend_label, title: "frontend")
-  |> Planner.contains(:backend, :auth_api)
-  |> Planner.contains(:backend, :user_api)
-  |> Planner.contains(:backend, :payment_api)
-  |> Planner.contains(:frontend, :login_ui)
-  |> Planner.contains(:frontend, :dashboard_ui)
-  |> Planner.contains(:launch, :marketing_site)
-  |> Planner.contains(:launch, :load_test)
-  |> Planner.contains(:launch, :deploy)
-  |> Planner.depends_on(:user_api, :auth_api)
-  |> Planner.depends_on(:payment_api, :user_api)
-  |> Planner.depends_on(:login_ui, :auth_api)
-  |> Planner.depends_on(:dashboard_ui, :user_api)
-  |> Planner.depends_on(:load_test, :payment_api)
-  |> Planner.depends_on(:deploy, :load_test)
-  |> Planner.depends_on(:deploy, :marketing_site)
-  |> Planner.assign(:auth_api, :alice)
-  |> Planner.assign(:user_api, :alice)
-  |> Planner.assign(:payment_api, :bob)
-  |> Planner.assign(:login_ui, :carol)
-  |> Planner.assign(:dashboard_ui, :carol)
-  |> Planner.assign(:marketing_site, :bob)
-  |> Planner.assign(:load_test, :alice)
-  |> Planner.assign(:deploy, :alice)
-  |> Planner.tag(:auth_api, :backend_label)
-  |> Planner.tag(:user_api, :backend_label)
-  |> Planner.tag(:payment_api, :backend_label)
-  |> Planner.tag(:login_ui, :frontend_label)
-  |> Planner.tag(:dashboard_ui, :frontend_label)
+  planner "Q3 Release" do
+    backend = milestone("Backend Work")
+    frontend = milestone("Frontend Work")
+    launch = milestone("Launch Day")
+
+    auth_api = task("Auth API", status: :done, estimate_hours: 16, priority: :high)
+    user_api = task("User API", status: :in_progress, estimate_hours: 24, priority: :high)
+    payment_api = task("Payment API", status: :backlog, estimate_hours: 32, priority: :critical)
+    login_ui = task("Login UI", status: :backlog, estimate_hours: 12)
+    dashboard_ui = task("Dashboard UI", status: :backlog, estimate_hours: 20)
+    marketing_site = task("Marketing Site", status: :backlog, estimate_hours: 16)
+    load_test = task("Load Testing", status: :backlog, estimate_hours: 8)
+    deploy = task("Deploy to Prod", status: :backlog, estimate_hours: 4)
+
+    alice = user("Alice")
+    bob = user("Bob")
+    carol = user("Carol")
+
+    backend_label = label("backend")
+    frontend_label = label("frontend")
+
+    contains backend ~> auth_api
+    contains backend ~> user_api
+    contains backend ~> payment_api
+
+    contains frontend ~> login_ui
+    contains frontend ~> dashboard_ui
+
+    contains launch ~> marketing_site
+    contains launch ~> load_test
+    contains launch ~> deploy
+
+    auth_api ~> user_api |> depends_on()
+    user_api ~> payment_api |> depends_on()
+    auth_api ~> login_ui |> depends_on()
+    user_api ~> dashboard_ui |> depends_on()
+    payment_api ~> load_test |> depends_on()
+    load_test ~> deploy |> depends_on()
+    marketing_site ~> deploy |> depends_on()
+
+    auth_api ~> alice |> assigned_to()
+    user_api ~> alice |> assigned_to()
+    payment_api ~> bob |> assigned_to()
+    login_ui ~> carol |> assigned_to()
+    dashboard_ui ~> carol |> assigned_to()
+    marketing_site ~> bob |> assigned_to()
+    load_test ~> alice |> assigned_to()
+    deploy ~> alice |> assigned_to()
+
+    auth_api ~> backend_label |> tagged_with()
+    user_api ~> backend_label |> tagged_with()
+    payment_api ~> backend_label |> tagged_with()
+    login_ui ~> frontend_label |> tagged_with()
+    dashboard_ui ~> frontend_label |> tagged_with()
+  end
 ```
 
 ### Full Dependency Graph
@@ -348,25 +372,30 @@ A different flavour of planner — tracking an active incident with blockers and
 
 ```elixir
 incident =
-  Planner.new("INC-2026-0042")
-  |> Planner.add_task(:detect, title: "Detect Issue", status: :done, estimate_hours: 1)
-  |> Planner.add_task(:triage, title: "Triage Severity", status: :done, estimate_hours: 1)
-  |> Planner.add_task(:isolate, title: "Isolate Affected Service", status: :in_progress, estimate_hours: 2)
-  |> Planner.add_task(:fix, title: "Deploy Fix", status: :backlog, estimate_hours: 4)
-  |> Planner.add_task(:verify, title: "Verify in Prod", status: :backlog, estimate_hours: 1)
-  |> Planner.add_task(:postmortem, title: "Write Postmortem", status: :backlog, estimate_hours: 4)
-  |> Planner.add_task(:notify_customers, title: "Notify Customers", status: :backlog, estimate_hours: 1)
-  |> Planner.add_user(:oncall, name: "On-Call Engineer")
-  |> Planner.depends_on(:triage, :detect)
-  |> Planner.depends_on(:isolate, :triage)
-  |> Planner.depends_on(:fix, :isolate)
-  |> Planner.depends_on(:verify, :fix)
-  |> Planner.depends_on(:postmortem, :verify)
-  |> Planner.depends_on(:notify_customers, :verify)
-  |> Planner.blocks(:isolate, :fix)
-  |> Planner.assign(:detect, :oncall)
-  |> Planner.assign(:triage, :oncall)
-  |> Planner.assign(:isolate, :oncall)
+  planner "INC-2026-0042" do
+    detect = task("Detect Issue", status: :done, estimate_hours: 1)
+    triage = task("Triage Severity", status: :done, estimate_hours: 1)
+    isolate = task("Isolate Affected Service", status: :in_progress, estimate_hours: 2)
+    fix = task("Deploy Fix", status: :backlog, estimate_hours: 4)
+    verify = task("Verify in Prod", status: :backlog, estimate_hours: 1)
+    postmortem = task("Write Postmortem", status: :backlog, estimate_hours: 4)
+    notify_customers = task("Notify Customers", status: :backlog, estimate_hours: 1)
+
+    oncall = user("On-Call Engineer")
+
+    detect ~> triage |> depends_on()
+    triage ~> isolate |> depends_on()
+    isolate ~> fix |> depends_on()
+    fix ~> verify |> depends_on()
+    verify ~> postmortem |> depends_on()
+    verify ~> notify_customers |> depends_on()
+
+    blocks isolate ~> fix
+
+    detect ~> oncall |> assigned_to()
+    triage ~> oncall |> assigned_to()
+    isolate ~> oncall |> assigned_to()
+  end
 ```
 
 ### Incident Kanban
@@ -429,6 +458,61 @@ Render to Mermaid and paste into GitHub issues, pull request descriptions, Notio
 ```elixir
 IO.puts(Planner.to_mermaid(sprint, syntax: :kanban))
 ```
+
+---
+
+## Cheat Sheet
+
+### Lab DSL Syntax
+
+| Syntax                                                | Description                                                                      |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `planner do ... end`                                  | Define a project plan model                                                      |
+| `planner "Name" do ... end`                           | Define a named project plan                                                      |
+| `m = milestone("Title", due_date: ~D[2026-06-01])`    | Declare a milestone node                                                         |
+| `t = task("Title", status: :todo, estimate_hours: 8)` | Declare a task node (`:backlog`, `:todo`, `:in_progress`, `:in_review`, `:done`) |
+| `u = user("Alice", email: "alice@example.com")`       | Declare a team member / user node                                                |
+| `l = label("frontend")`                               | Declare a label / tag node                                                       |
+| `contains milestone ~> task`                          | Declare milestone containment                                                    |
+| `m ~> t |> contains()`                                | Piped milestone containment                                                      |
+| `a ~> b |> depends_on()`                              | Prerequisite dependency (`b` depends on `a`)                                     |
+| `blocks blocker ~> blocked`                           | Explicit blocker relationship                                                    |
+| `t ~> u |> assigned_to()`                             | Assign task to user                                                              |
+| `t ~> l |> tagged_with()`                             | Tag task with label                                                              |
+| `edge a ~> b, "label", type: :depends_on`             | Explicit edge statement with type and options                                    |
+| `milestone "Sprint 1"`                                | Standalone milestone declaration                                                 |
+| `task "Feature A"`                                    | Standalone task declaration                                                      |
+
+### Programmatic Pipe API & Analysis
+
+| Task / Feature           | Command                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Create Plan              | `Planner.new/1` (Accepts name binary or options list)                                                          |
+| Add Milestone            | `Planner.add_milestone/3` (Opts: `:title`, `:due_date`)                                                        |
+| Add Task                 | `Planner.add_task/3` (Opts: `:title`, `:status`, `:priority`, `:due_date`, `:estimate_hours`, `:actual_hours`) |
+| Add User                 | `Planner.add_user/3` (Opts: `:name`, `:email`)                                                                 |
+| Add Label                | `Planner.add_label/3` (Opts: `:title`)                                                                         |
+| Containment Edge         | `Planner.contains/3` (Milestone, task)                                                                         |
+| Dependency Edge          | `Planner.depends_on/3` (Task, dependency — finish-to-start)                                                  |
+| Blocking Edge            | `Planner.blocks/3` (Blocker, blocked)                                                                          |
+| Assign Task              | `Planner.assign/3` (Task, user)                                                                                |
+| Tag Task                 | `Planner.tag/3` (Task, label)                                                                                  |
+| Relates Edge             | `Planner.relates/3` (Bidirectional association)                                                                |
+| Query Tasks              | `Planner.tasks/1`, `Planner.tasks_by_status/2`                                                                 |
+| Query Milestones & Users | `Planner.milestones/1`, `Planner.users/1`, `Planner.labels/1`                                                  |
+| Query Relationships      | `Planner.children/2`, `Planner.parents/2`, `Planner.dependencies/2`, `Planner.dependents/2`                    |
+| Query Assignments & Tags | `Planner.assignees/2`, `Planner.assigned_tasks/2`, `Planner.task_labels/2`, `Planner.tagged_tasks/2`           |
+| Render Kanban            | `Planner.to_mermaid(plan, syntax: :kanban)` (Opts: `:milestone`, `:assignee`)                                  |
+| Render Gantt             | `Planner.to_mermaid(plan, syntax: :gantt, start_date: date)` (Opts: `:section_by`)                             |
+| Render Flowchart         | `Planner.to_mermaid(plan, syntax: :flowchart)`                                                                 |
+| Render Swimlane          | `Planner.to_mermaid(plan, syntax: :swimlane, swimlane_by: :assignee | :milestone | :status)`                   |
+| Render DOT Graphviz      | `Planner.to_dot(plan, opts)` (Opts: `:theme`, `:syntax`, `:start_date`, `:milestone`, `:assignee`)             |
+| Ready Work               | `Analysis.ready/1` (Tasks in backlog/todo with dependencies resolved)                                          |
+| Blocked Work             | `Analysis.blocked/1` (Tasks waiting on unresolved prerequisites)                                               |
+| Orphan Tasks             | `Analysis.orphans/1` (Tasks not contained in any milestone)                                                    |
+| Critical Path            | `Analysis.critical_path/2` (Longest dependency chain by estimate hours)                                        |
+| Bottlenecks              | `Analysis.bottlenecks/1` (Tasks ranked by transitive downstream impact)                                        |
+| Structural Validation    | `Analysis.validate/1` (Checks for dependency cycles, unassigned work, empty milestones)                        |
 
 ---
 

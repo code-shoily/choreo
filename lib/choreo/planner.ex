@@ -409,6 +409,32 @@ defmodule Choreo.Planner do
   end
 
   @doc """
+  Returns all label IDs tagged on a task.
+  """
+  @spec task_labels(t(), Yog.node_id()) :: [Yog.node_id()]
+  def task_labels(%__MODULE__{} = planner, task_id) do
+    planner
+    |> outgoing_of_type(task_id, :tagged_with)
+    |> Enum.map(fn {_eid, _from, to, _w} -> to end)
+  end
+
+  @doc """
+  Alias for `task_labels/2`.
+  """
+  @spec tags(t(), Yog.node_id()) :: [Yog.node_id()]
+  def tags(%__MODULE__{} = planner, task_id), do: task_labels(planner, task_id)
+
+  @doc """
+  Returns all task IDs tagged with a given label.
+  """
+  @spec tagged_tasks(t(), Yog.node_id()) :: [Yog.node_id()]
+  def tagged_tasks(%__MODULE__{} = planner, label_id) do
+    planner
+    |> incoming_of_type(label_id, :tagged_with)
+    |> Enum.map(fn {_eid, from, _to, _w} -> from end)
+  end
+
+  @doc """
   Returns all edges with their metadata as `{from, to, weight, meta}` tuples.
   """
   @spec edges_with_meta(t()) :: [{Yog.node_id(), Yog.node_id(), any(), map()}]
