@@ -128,8 +128,8 @@ defmodule Choreo.Sequence.Render.Mermaid do
   defp render_theme_directive(theme) do
     actor_bkg = theme.colors[:participant] || "#e8f4f8"
     actor_border = Choreo.Internal.darken(actor_bkg)
-    actor_text = theme.node_fontcolor || "#334155"
-    line_color = theme.edge_color || "#64748b"
+    actor_text = theme.node_fontcolor
+    line_color = theme.edge_color
     note_bkg = theme.colors[:note] || "#ffffcc"
     note_border = Choreo.Internal.darken(note_bkg)
     activation_bkg = theme.colors[:activation] || "#10b981"
@@ -152,7 +152,7 @@ defmodule Choreo.Sequence.Render.Mermaid do
       }
     }
 
-    "%%{init: #{Jason.encode!(init_map)}}%%"
+    "%%{init: #{Choreo.JSON.encode!(init_map)}}%%"
   end
 
   # ============================================================================

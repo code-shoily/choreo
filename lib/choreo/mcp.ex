@@ -1,7 +1,10 @@
 defmodule Choreo.MCP do
   @moduledoc """
-  A lightweight, zero-dependency MCP (Model Context Protocol) server implementation.
+  A lightweight MCP (Model Context Protocol) server implementation.
   Exposes system design capabilities to LLM clients via stdio transport.
+
+  Stdio JSON-RPC decoding uses `Jason` when available. Choreo itself does not
+  require Jason for ordinary diagram building or rendering.
   """
 
   require Logger
@@ -34,7 +37,7 @@ defmodule Choreo.MCP do
         :ok
 
       line ->
-        case Jason.decode(line) do
+        case Choreo.JSON.decode(line) do
           {:ok, request} ->
             case handle_request(request) do
               nil ->
@@ -42,14 +45,14 @@ defmodule Choreo.MCP do
 
               response ->
                 # credo:disable-for-next-line Credo.Check.Refactor.IoPuts
-                IO.puts(Jason.encode!(response))
+                IO.puts(Choreo.JSON.encode!(response))
                 loop()
             end
 
           {:error, reason} ->
             # Best-effort parse error response when we cannot read an id
             response =
-              case Jason.decode(line, keys: :strings) do
+              case Choreo.JSON.decode(line, keys: :strings) do
                 {:ok, %{"id" => id}} ->
                   jsonrpc_error(id, -32_700, "Parse error: #{inspect(reason)}")
 
@@ -58,7 +61,7 @@ defmodule Choreo.MCP do
               end
 
             # credo:disable-for-next-line Credo.Check.Refactor.IoPuts
-            IO.puts(Jason.encode!(response))
+            IO.puts(Choreo.JSON.encode!(response))
             loop()
         end
     end
@@ -255,7 +258,7 @@ defmodule Choreo.MCP do
     case File.read(path) do
       {:ok, content} ->
         sections = Livebook.parse_sections(content)
-        {:ok, Jason.encode!(sections, pretty: true)}
+        {:ok, Choreo.JSON.encode!(sections, pretty: true)}
 
       {:error, reason} ->
         {:error, "Failed to read Livebook: #{inspect(reason)}"}

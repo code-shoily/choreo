@@ -16,7 +16,9 @@
 - Fixed sequence diagram flow label resolution for empty labels in `Choreo.ThreatModel` and non-constructor expressions in `Choreo.Lab.DSL.Sequence`.
 - Fixed defensive validations for duplicate requirement IDs, duplicate transition labels in FSM, and invalid root pointers in MindMap.
 - Fixed `Choreo.FSM.to_simple_graph/2` to use the current arity-2 Yog multigraph combine callback.
+- Removed compile-time `Jason` references so Choreo no longer warns when Jason is not installed.
 - Improved documentation and walkthrough livebooks across all domains with updated rendering options, audit rules, cheat sheets, and dual syntax examples.
+- Upgraded project system-design Livebooks with Lab DSL-authored models, stronger analysis sections, and fuller review scaffolding.
 - Fixed stale Dataflow and Workflow rendering/theme option documentation and guide references.
 
 ## [0.13.0] - 2026-09-06
