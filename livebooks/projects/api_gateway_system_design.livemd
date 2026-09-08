@@ -38,17 +38,11 @@ alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
 ```
 
 ```elixir
-mermaid_source = fn source ->
-  fence = String.duplicate("`", 3)
-  Kino.Markdown.new(fence <> "mermaid\n" <> source <> "\n" <> fence)
-end
-
 render_tabs = fn mermaid, dot, height ->
   Kino.Layout.tabs(
     Siren: Choreo.Lab.Siren.new(mermaid),
     Graphviz: Kino.VizJS.render(dot, height: height),
-    Sketch: Choreo.Lab.Sketch.new(mermaid),
-    Source: mermaid_source.(mermaid)
+    Sketch: Choreo.Lab.Sketch.new(mermaid)
   )
 end
 ```
@@ -110,55 +104,43 @@ The gateway is the in-scope software system. External users are tenant applicati
 
 ```elixir
 c4 =
-  C4.new(strict: true)
-  |> C4.add_person(:tenant_app,
-    label: "Tenant Application",
-    description: "A customer-owned application calling public APIs."
-  )
-  |> C4.add_person(:tenant_admin,
-    label: "Tenant Admin",
-    description: "Customer administrator managing API keys and tenant settings."
-  )
-  |> C4.add_software_system(:api_gateway,
-    label: "Multi-Tenant API Gateway",
-    description: "Shared edge platform for authentication, authorization, rate limiting, routing, audit, and observability.",
-    scope: :in
-  )
-  |> C4.add_software_system(:identity_provider,
-    label: "Identity Provider",
-    description: "External OAuth2/OIDC provider for tenant admin and optional caller token validation.",
-    scope: :out
-  )
-  |> C4.add_software_system(:backend_apis,
-    label: "Backend Product APIs",
-    description: "Private internal services that implement product-specific API behavior.",
-    scope: :out
-  )
-  |> C4.add_software_system(:observability,
-    label: "Observability Platform",
-    description: "Metrics, logs, traces, dashboards, and alerts.",
-    scope: :out
-  )
-  |> C4.add_relationship(:tenant_app, :api_gateway,
-    label: "Calls public APIs via",
-    technology: "HTTPS"
-  )
-  |> C4.add_relationship(:tenant_admin, :api_gateway,
-    label: "Manages tenants and credentials via",
-    technology: "HTTPS"
-  )
-  |> C4.add_relationship(:api_gateway, :identity_provider,
-    label: "Validates tokens with",
-    technology: "OIDC / HTTPS"
-  )
-  |> C4.add_relationship(:api_gateway, :backend_apis,
-    label: "Routes authorized requests to",
-    technology: "mTLS / HTTP"
-  )
-  |> C4.add_relationship(:api_gateway, :observability,
-    label: "Publishes metrics, traces, logs to",
-    technology: "OTLP"
-  )
+  (fn ->
+    import Choreo.Lab.DSL.C4
+
+    c4 do
+      tenant_app = person("Tenant Application", description: "A customer-owned application calling public APIs.")
+
+      tenant_admin =
+        person("Tenant Admin", description: "Customer administrator managing API keys and tenant settings.")
+
+      api_gateway =
+        system("Multi-Tenant API Gateway",
+          description: "Shared edge platform for authentication, authorization, rate limiting, routing, audit, and observability.",
+          scope: :in
+        )
+
+      identity_provider =
+        system("Identity Provider",
+          description: "External OAuth2/OIDC provider for tenant admin and optional caller token validation.",
+          scope: :out
+        )
+
+      backend_apis =
+        system("Backend Product APIs",
+          description: "Private internal services that implement product-specific API behavior.",
+          scope: :out
+        )
+
+      observability =
+        system("Observability Platform", description: "Metrics, logs, traces, dashboards, and alerts.", scope: :out)
+
+      tenant_app ~> api_gateway |> uses("Calls public APIs via", technology: "HTTPS")
+      tenant_admin ~> api_gateway |> uses("Manages tenants and credentials via", technology: "HTTPS")
+      api_gateway ~> identity_provider |> uses("Validates tokens with", technology: "OIDC / HTTPS")
+      api_gateway ~> backend_apis |> calls("Routes authorized requests to", technology: "mTLS / HTTP")
+      api_gateway ~> observability |> publishes("Publishes metrics, traces, logs to", technology: "OTLP")
+    end
+  end).()
 ```
 
 ```elixir
@@ -174,107 +156,98 @@ The gateway is decomposed into deployable/runtime containers and data stores. In
 
 ```elixir
 c4 =
-  c4
-  |> C4.add_container(:edge_proxy,
-    label: "Edge Proxy",
-    technology: "Envoy / NGINX",
-    description: "Terminates TLS, normalizes requests, and forwards to the policy engine.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:policy_engine,
-    label: "Policy Engine",
-    technology: "Elixir / Phoenix",
-    description: "Authenticates callers, authorizes requests, selects routes, and emits decisions.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:rate_limiter,
-    label: "Rate Limit Service",
-    technology: "Elixir / GenServer + Redis",
-    description: "Computes tenant/key/route quotas using low-latency counters.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:admin_api,
-    label: "Admin API",
-    technology: "Elixir / Phoenix",
-    description: "Tenant onboarding, route configuration, API key lifecycle, and policy management.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:config_db,
-    label: "Configuration Database",
-    technology: "PostgreSQL",
-    description: "Source of truth for tenants, users, keys, routes, policies, and limits.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:rate_cache,
-    label: "Rate Counter Cache",
-    technology: "Redis Cluster",
-    description: "Low-latency distributed counters for rate-limit decisions.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:audit_stream,
-    label: "Audit Event Stream",
-    technology: "Kafka / Redpanda",
-    description: "Durable stream of gateway decisions and security-relevant events.",
-    parent: :api_gateway
-  )
-  |> C4.add_container(:audit_store,
-    label: "Audit Store",
-    technology: "Object Storage / Warehouse",
-    description: "Long-retention audit archive for compliance and investigations.",
-    parent: :api_gateway
-  )
-  |> C4.add_relationship(:tenant_app, :edge_proxy,
-    label: "Sends API requests to",
-    technology: "HTTPS"
-  )
-  |> C4.add_relationship(:tenant_admin, :admin_api,
-    label: "Configures tenant settings through",
-    technology: "HTTPS"
-  )
-  |> C4.add_relationship(:edge_proxy, :policy_engine,
-    label: "Delegates authz/routing decision to",
-    technology: "gRPC"
-  )
-  |> C4.add_relationship(:policy_engine, :identity_provider,
-    label: "Validates OAuth/JWT token with",
-    technology: "OIDC"
-  )
-  |> C4.add_relationship(:policy_engine, :config_db,
-    label: "Reads tenant policy and route config from",
-    technology: "SQL"
-  )
-  |> C4.add_relationship(:policy_engine, :rate_limiter,
-    label: "Checks quota with",
-    technology: "gRPC"
-  )
-  |> C4.add_relationship(:rate_limiter, :rate_cache,
-    label: "Updates counters in",
-    technology: "RESP / TCP"
-  )
-  |> C4.add_relationship(:policy_engine, :backend_apis,
-    label: "Routes allowed request to",
-    technology: "mTLS / HTTP"
-  )
-  |> C4.add_relationship(:policy_engine, :audit_stream,
-    label: "Publishes decision event to",
-    technology: "Kafka"
-  )
-  |> C4.add_relationship(:audit_stream, :audit_store,
-    label: "Archives events into",
-    technology: "Batch / Streaming Sink"
-  )
-  |> C4.add_relationship(:admin_api, :config_db,
-    label: "Writes configuration to",
-    technology: "SQL"
-  )
-  |> C4.add_relationship(:edge_proxy, :observability,
-    label: "Emits edge metrics/traces to",
-    technology: "OTLP"
-  )
-  |> C4.add_relationship(:policy_engine, :observability,
-    label: "Emits decision metrics/traces to",
-    technology: "OTLP"
-  )
+  (fn ->
+    import Choreo.Lab.DSL.C4
+
+    c4 do
+      tenant_app = person("Tenant Application", description: "A customer-owned application calling public APIs.")
+
+      tenant_admin =
+        person("Tenant Admin", description: "Customer administrator managing API keys and tenant settings.")
+
+      identity_provider =
+        system("Identity Provider",
+          description: "External OAuth2/OIDC provider for tenant admin and optional caller token validation.",
+          scope: :out
+        )
+
+      backend_apis =
+        system("Backend Product APIs",
+          description: "Private internal services that implement product-specific API behavior.",
+          scope: :out
+        )
+
+      observability = system("Observability Platform", description: "Metrics, logs, traces, dashboards, and alerts.", scope: :out)
+
+      api_gateway =
+        system("Multi-Tenant API Gateway",
+          description: "Shared edge platform for authentication, authorization, rate limiting, routing, audit, and observability.",
+          scope: :in
+        ) do
+          edge_proxy =
+            container("Edge Proxy",
+              technology: "Envoy / NGINX",
+              description: "Terminates TLS, normalizes requests, and forwards to the policy engine."
+            )
+
+          policy_engine =
+            container("Policy Engine",
+              technology: "Elixir / Phoenix",
+              description: "Authenticates callers, authorizes requests, selects routes, and emits decisions."
+            )
+
+          rate_limiter =
+            container("Rate Limit Service",
+              technology: "Elixir / GenServer + Redis",
+              description: "Computes tenant/key/route quotas using low-latency counters."
+            )
+
+          admin_api =
+            container("Admin API",
+              technology: "Elixir / Phoenix",
+              description: "Tenant onboarding, route configuration, API key lifecycle, and policy management."
+            )
+
+          config_db =
+            database("Configuration Database",
+              technology: "PostgreSQL",
+              description: "Source of truth for tenants, users, keys, routes, policies, and limits."
+            )
+
+          rate_cache =
+            datastore("Rate Counter Cache",
+              technology: "Redis Cluster",
+              description: "Low-latency distributed counters for rate-limit decisions."
+            )
+
+          audit_stream =
+            container("Audit Event Stream",
+              technology: "Kafka / Redpanda",
+              description: "Durable stream of gateway decisions and security-relevant events."
+            )
+
+          audit_store =
+            datastore("Audit Store",
+              technology: "Object Storage / Warehouse",
+              description: "Long-retention audit archive for compliance and investigations."
+            )
+        end
+
+      tenant_app ~> edge_proxy |> uses("Sends API requests to", technology: "HTTPS")
+      tenant_admin ~> admin_api |> uses("Configures tenant settings through", technology: "HTTPS")
+      edge_proxy ~> policy_engine |> calls("Delegates authz/routing decision to", technology: "gRPC")
+      policy_engine ~> identity_provider |> uses("Validates OAuth/JWT token with", technology: "OIDC")
+      policy_engine ~> config_db |> reads("Reads tenant policy and route config from", technology: "SQL")
+      policy_engine ~> rate_limiter |> calls("Checks quota with", technology: "gRPC")
+      rate_limiter ~> rate_cache |> writes("Updates counters in", technology: "RESP / TCP")
+      policy_engine ~> backend_apis |> calls("Routes allowed request to", technology: "mTLS / HTTP")
+      policy_engine ~> audit_stream |> publishes("Publishes decision event to", technology: "Kafka")
+      audit_stream ~> audit_store |> writes("Archives events into", technology: "Batch / Streaming Sink")
+      admin_api ~> config_db |> writes("Writes configuration to", technology: "SQL")
+      edge_proxy ~> observability |> publishes("Emits edge metrics/traces to", technology: "OTLP")
+      policy_engine ~> observability |> publishes("Emits decision metrics/traces to", technology: "OTLP")
+    end
+  end).()
 ```
 
 ```elixir
@@ -290,63 +263,36 @@ This dataflow focuses on the hot path for an API request. The gateway should min
 
 ```elixir
 request_flow =
-  Dataflow.new(strict: true)
-  |> Dataflow.add_source(:client_request,
-    label: "Client Request",
-    rate: "variable by tenant"
-  )
-  |> Dataflow.add_transform(:tls_termination,
-    label: "TLS Termination",
-    latency_ms: 2,
-    capacity: "edge autoscale"
-  )
-  |> Dataflow.add_transform(:authn,
-    label: "Authenticate API Key / Token",
-    latency_ms: 5,
-    capacity: "policy pool"
-  )
-  |> Dataflow.add_transform(:authz,
-    label: "Authorize Route + Tenant Policy",
-    latency_ms: 4,
-    capacity: "policy pool"
-  )
-  |> Dataflow.add_transform(:rate_check,
-    label: "Rate Limit Check",
-    latency_ms: 3,
-    capacity: "redis-backed"
-  )
-  |> Dataflow.add_conditional(:allowed,
-    label: "Allowed?"
-  )
-  |> Dataflow.add_transform(:route_request,
-    label: "Route to Backend",
-    latency_ms: 2
-  )
-  |> Dataflow.add_sink(:backend_response,
-    label: "Backend Response"
-  )
-  |> Dataflow.add_sink(:reject_response,
-    label: "401 / 403 / 429 Response"
-  )
-  |> Dataflow.add_buffer(:audit_events,
-    label: "Audit Event Buffer",
-    capacity: "durable stream"
-  )
-  |> Dataflow.add_sink(:audit_archive,
-    label: "Audit Archive"
-  )
-  |> Dataflow.connect(:client_request, :tls_termination, data_type: "HTTPS request")
-  |> Dataflow.connect(:tls_termination, :authn, data_type: "normalized request")
-  |> Dataflow.connect(:authn, :authz, data_type: "identity + tenant")
-  |> Dataflow.connect(:authz, :rate_check, data_type: "policy decision context")
-  |> Dataflow.connect(:rate_check, :allowed, data_type: "quota decision")
-  |> Dataflow.connect(:allowed, :route_request, label: "yes", data_type: "authorized request")
-  |> Dataflow.connect(:route_request, :backend_response, data_type: "proxied response")
-  |> Dataflow.connect(:allowed, :reject_response, label: "no", data_type: "deny decision")
-  |> Dataflow.connect(:authn, :audit_events, data_type: "auth event")
-  |> Dataflow.connect(:authz, :audit_events, data_type: "policy event")
-  |> Dataflow.connect(:rate_check, :audit_events, data_type: "rate event")
-  |> Dataflow.connect(:audit_events, :audit_archive, data_type: "audit log")
+  (fn ->
+    import Choreo.Lab.DSL.Dataflow
+
+    dataflow do
+      client_request = source("Client Request", rate: "variable by tenant")
+      tls_termination = transform("TLS Termination", latency_ms: 2, capacity: "edge autoscale")
+      authn = transform("Authenticate API Key / Token", latency_ms: 5, capacity: "policy pool")
+      authz = transform("Authorize Route + Tenant Policy", latency_ms: 4, capacity: "policy pool")
+      rate_check = transform("Rate Limit Check", latency_ms: 3, capacity: "redis-backed")
+      allowed = conditional("Allowed?")
+      route_request = transform("Route to Backend", latency_ms: 2)
+      backend_response = sink("Backend Response")
+      reject_response = sink("401 / 403 / 429 Response")
+      audit_events = buffer("Audit Event Buffer", capacity: "durable stream")
+      audit_archive = sink("Audit Archive")
+
+      client_request ~> tls_termination |> emits("HTTPS request")
+      tls_termination ~> authn |> emits("normalized request")
+      authn ~> authz |> emits("identity + tenant")
+      authz ~> rate_check |> emits("policy decision context")
+      rate_check ~> allowed |> emits("quota decision")
+      allowed ~> route_request |> emits("authorized request")
+      route_request ~> backend_response |> writes("proxied response")
+      allowed ~> reject_response |> emits("deny decision")
+      authn ~> audit_events |> emits("auth event")
+      authz ~> audit_events |> emits("policy event")
+      rate_check ~> audit_events |> emits("rate event")
+      audit_events ~> audit_archive |> writes("audit log")
+    end
+  end).()
 ```
 
 ```elixir
@@ -361,60 +307,42 @@ This workflow shows the decision path for each request. The key operational conc
 
 ```elixir
 auth_workflow =
-  Workflow.new()
-  |> Workflow.add_start(:request_received, label: "Request Received")
-  |> Workflow.add_task(:extract_credentials,
-    label: "Extract Credentials",
-    timeout_ms: 5,
-    retry: 0
-  )
-  |> Workflow.add_decision(:has_credentials, label: "Credentials Present?")
-  |> Workflow.add_task(:validate_identity,
-    label: "Validate API Key / JWT",
-    timeout_ms: 50,
-    retry: 1
-  )
-  |> Workflow.add_decision(:identity_valid, label: "Identity Valid?")
-  |> Workflow.add_task(:load_policy,
-    label: "Load Tenant Policy",
-    timeout_ms: 25,
-    retry: 2
-  )
-  |> Workflow.add_decision(:route_allowed, label: "Route Allowed?")
-  |> Workflow.add_task(:check_rate_limit,
-    label: "Check Rate Limit",
-    timeout_ms: 10,
-    retry: 1
-  )
-  |> Workflow.add_decision(:quota_available, label: "Quota Available?")
-  |> Workflow.add_task(:forward_request,
-    label: "Forward to Backend",
-    timeout_ms: 1000,
-    retry: 0
-  )
-  |> Workflow.add_task(:audit_decision,
-    label: "Audit Decision",
-    timeout_ms: 20,
-    retry: 3
-  )
-  |> Workflow.add_end(:allowed_response, label: "Allowed Response")
-  |> Workflow.add_end(:deny_response, label: "Deny Response")
-  |> Workflow.connect(:request_received, :extract_credentials)
-  |> Workflow.connect(:extract_credentials, :has_credentials)
-  |> Workflow.connect(:has_credentials, :validate_identity, condition: "yes")
-  |> Workflow.connect(:has_credentials, :audit_decision, condition: "no")
-  |> Workflow.connect(:validate_identity, :identity_valid)
-  |> Workflow.connect(:identity_valid, :load_policy, condition: "yes")
-  |> Workflow.connect(:identity_valid, :audit_decision, condition: "no")
-  |> Workflow.connect(:load_policy, :route_allowed)
-  |> Workflow.connect(:route_allowed, :check_rate_limit, condition: "yes")
-  |> Workflow.connect(:route_allowed, :audit_decision, condition: "no")
-  |> Workflow.connect(:check_rate_limit, :quota_available)
-  |> Workflow.connect(:quota_available, :forward_request, condition: "yes")
-  |> Workflow.connect(:quota_available, :audit_decision, condition: "no")
-  |> Workflow.connect(:forward_request, :audit_decision)
-  |> Workflow.connect(:audit_decision, :allowed_response, condition: "allow")
-  |> Workflow.connect(:audit_decision, :deny_response, condition: "deny")
+  (fn ->
+    import Choreo.Lab.DSL.Workflow
+
+    workflow do
+      request_received = start("Request Received")
+      extract_credentials = task("Extract Credentials", timeout_ms: 5, retry: 0)
+      has_credentials = decision("Credentials Present?")
+      validate_identity = task("Validate API Key / JWT", timeout_ms: 50, retry: 1)
+      identity_valid = decision("Identity Valid?")
+      load_policy = task("Load Tenant Policy", timeout_ms: 25, retry: 2)
+      route_allowed = decision("Route Allowed?")
+      check_rate_limit = task("Check Rate Limit", timeout_ms: 10, retry: 1)
+      quota_available = decision("Quota Available?")
+      forward_request = task("Forward to Backend", timeout_ms: 1000, retry: 0)
+      audit_decision = task("Audit Decision", timeout_ms: 20, retry: 3)
+      allowed_response = finish("Allowed Response")
+      deny_response = finish("Deny Response")
+
+      request_received ~> extract_credentials
+      extract_credentials ~> has_credentials
+      has_credentials ~> validate_identity |> condition("yes")
+      has_credentials ~> audit_decision |> condition("no")
+      validate_identity ~> identity_valid
+      identity_valid ~> load_policy |> condition("yes")
+      identity_valid ~> audit_decision |> condition("no")
+      load_policy ~> route_allowed
+      route_allowed ~> check_rate_limit |> condition("yes")
+      route_allowed ~> audit_decision |> condition("no")
+      check_rate_limit ~> quota_available
+      quota_available ~> forward_request |> condition("yes")
+      quota_available ~> audit_decision |> condition("no")
+      forward_request ~> audit_decision
+      audit_decision ~> allowed_response |> condition("allow")
+      audit_decision ~> deny_response |> condition("deny")
+    end
+  end).()
 ```
 
 ```elixir
@@ -545,8 +473,7 @@ erd =
 Kino.Layout.tabs(
   Mermaid: Choreo.Lab.Siren.new(ERD.to_mermaid(erd, syntax: :erd)),
   Graphviz: Kino.VizJS.render(ERD.to_dot(erd), height: "900px"),
-  Sketch: Choreo.Lab.Sketch.new(ERD.to_mermaid(erd, syntax: :erd)),
-  Source: mermaid_source.(ERD.to_mermaid(erd, syntax: :erd))
+  Sketch: Choreo.Lab.Sketch.new(ERD.to_mermaid(erd, syntax: :erd))
 )
 ```
 
@@ -738,12 +665,13 @@ requirements =
   |> Requirement.verifies(:load_tests, :rate_limits)
 ```
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 Kino.Layout.tabs(
   Mermaid: Choreo.Lab.Siren.new(Requirement.to_mermaid(requirements)),
   Graphviz: Kino.VizJS.render(Requirement.to_dot(requirements), height: "850px"),
-  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(requirements)),
-  Source: mermaid_source.(Requirement.to_mermaid(requirements))
+  Sketch: Choreo.Lab.Sketch.new(Requirement.to_mermaid(requirements))
 )
 ```
 

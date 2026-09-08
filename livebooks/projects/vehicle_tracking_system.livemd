@@ -1,448 +1,644 @@
 # System Design: Real-Time Fleet Vehicle Tracking System
 
+## Section
+
 ```elixir
 Mix.install([
-  # {:choreo, github: "code-shoily/choreo", branch: "main"},
-  {:choreo, path: Path.expand("../..", __DIR__), force: true}, 
-  {:kino, "~> 0.19"}
+  # {:choreo, "~> 0.13.0"},
+  {:choreo, path: Path.expand("../..", __DIR__), force: true},
+  {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
 
-## 🚗 1. Business Context & Requirements
-
-This system design details a enterprise-grade, real-time vehicle tracking platform managing a heterogeneous fleet of **10,000 vehicles** (comprising office vehicles, trucks, and motorbikes) operating across **3 distinct timezones**. Telemetry data is captured once every minute per vehicle from a mix of dedicated IoT hardware and mobile apps. We require a robust, scalable architecture with a strict security access control model, real-time command dispatch capabilities, and historical data retention for up to **3 years**.
-
-### 🔒 Access Control Model (ACL)
-
-1. **Departmental Isolation:** Vehicles are partitioned by departments (e.g., Logistics, Corporate Office, Field Operations). Users and vehicles belong to specific departments.
-2. **Role-Based Visibility:** Telemetry data, real-time tracking, and historical logs are strictly visible only to users with the **Supervisor** role within their corresponding department. A supervisor from "Field Operations" cannot view vehicles or reports from "Logistics".
-3. **Admin Overrides:** Global administrators have cross-departmental access for configuration and hardware provisioning.
-
-### 📥 Telemetry Ingestion Constraints
-
-* **IoT Devices:** Send telemetry payloads formatted as raw **NMEA 0183** sentences (e.g., `$GPRMC`) over lightweight protocols (UDP or raw TCP).
-* **Mobile Applications:** Send structured **JSON** payloads containing latitude, longitude, speed, battery levels, and timestamp details over HTTPS or secure WebSockets.
-* **Frequency:** Each vehicle emits 1 telemetry point per minute.
-* **Volume Projection:**
-  * 10,000 vehicles × 1 message/min = 10,000 writes/min (~167 writes/second).
-  * Daily Telemetry Points: 14.4 Million records.
-  * Yearly Telemetry Points: ~5.26 Billion records.
-  * 3-Year Telemetry Points: ~15.78 Billion records (requiring tiered warm/cold storage strategy).
-
-### 📊 Reporting & Direct Command Requirements
-
-* **Batch/On-Demand Reports:** Daily start/stop times, max/average speed per trip, stoppage analysis (idling duration), and geofence entry/exit violations.
-* **Interactive Command Dispatch:** Ability to send real-time commands from the supervisor's browser down to the active vehicle device or application (e.g., `immobilize_engine`, `get_instant_location`, `ping_diagnostics`).
-
----
-
-## 🗄️ 2. Telemetry Data Taxonomy & ERD
-
-To support strict ACL boundaries and high-throughput telemetry, the database schema is divided into **relational metadata** (users, roles, departments, geofences) and **time-series data** (telemetry logs, geofence violations, command history).
-
-```elixir
-alias Choreo.ERD
-alias Choreo.Lab.{Siren, Sketch}
-
-db_schema =
-  ERD.new()
-  # Organization & ACL
-  |> ERD.add_table(:departments, columns: [
-    %{name: :id, type: :uuid, key: :pk},
-    %{name: :name, type: :varchar},
-    %{name: :timezone, type: :varchar, comment: "One of the 3 supported timezone regions"}
-  ])
-  |> ERD.add_table(:users, columns: [
-    %{name: :id, type: :uuid, key: :pk},
-    %{name: :email, type: :varchar},
-    %{name: :password_hash, type: :varchar},
-    %{name: :role, type: :varchar, comment: "supervisor, driver, admin"},
-    %{name: :department_id, type: :uuid, key: :fk}
-  ])
-  
-  # Vehicles
-  |> ERD.add_table(:vehicles, columns: [
-    %{name: :id, type: :uuid, key: :pk},
-    %{name: :license_plate, type: :varchar},
-    %{name: :type, type: :varchar, comment: "office_vehicle, truck, motorbike"},
-    %{name: :device_uid, type: :varchar, comment: "Hardware IMEI or App client token"},
-    %{name: :device_type, type: :varchar, comment: "iot_nmea, app_json"},
-    %{name: :status, type: :varchar, comment: "active, maintenance, retired"},
-    %{name: :department_id, type: :uuid, key: :fk}
-  ])
-
-  # Geofencing
-  |> ERD.add_table(:geofences, columns: [
-    %{name: :id, type: :uuid, key: :pk},
-    %{name: :name, type: :varchar},
-    %{name: :polygon_coordinates, type: :geometry, comment: "Spatial boundary data"},
-    %{name: :department_id, type: :uuid, key: :fk}
-  ])
-
-  # High-throughput Telemetry (Partitioned by Month / Year)
-  |> ERD.add_table(:telemetry_logs, columns: [
-    %{name: :id, type: :bigint, key: :pk},
-    %{name: :vehicle_id, type: :uuid, key: :fk},
-    %{name: :timestamp, type: :timestamp_tz},
-    %{name: :latitude, type: :double},
-    %{name: :longitude, type: :double},
-    %{name: :speed_kmh, type: :double},
-    %{name: :heading, type: :int, comment: "0-359 degrees"},
-    %{name: :raw_payload, type: :text, comment: "Original NMEA or JSON string"}
-  ])
-
-  # Alerts & Violations
-  |> ERD.add_table(:geofence_violations, columns: [
-    %{name: :id, type: :uuid, key: :pk},
-    %{name: :vehicle_id, type: :uuid, key: :fk},
-    %{name: :geofence_id, type: :uuid, key: :fk},
-    %{name: :violation_type, type: :varchar, comment: "entry, exit"},
-    %{name: :timestamp, type: :timestamp_tz}
-  ])
-
-  # Device Downlink Commands
-  |> ERD.add_table(:device_commands, columns: [
-    %{name: :id, type: :uuid, key: :pk},
-    %{name: :vehicle_id, type: :uuid, key: :fk},
-    %{name: :command_type, type: :varchar, comment: "ping, engine_lock, reset"},
-    %{name: :payload, type: :jsonb},
-    %{name: :status, type: :varchar, comment: "pending, sent, acknowledged, failed"},
-    %{name: :issued_by_user_id, type: :uuid, key: :fk},
-    %{name: :created_at, type: :timestamp_tz},
-    %{name: :updated_at, type: :timestamp_tz}
-  ])
-
-  # Relationships
-  |> ERD.add_relationship(:departments, :users, cardinality: :exactly_one_to_many, label: "employs")
-  |> ERD.add_relationship(:departments, :vehicles, cardinality: :exactly_one_to_many, label: "allocates")
-  |> ERD.add_relationship(:departments, :geofences, cardinality: :exactly_one_to_many, label: "monitors")
-  |> ERD.add_relationship(:vehicles, :telemetry_logs, cardinality: :exactly_one_to_many, label: "emits")
-  |> ERD.add_relationship(:vehicles, :geofence_violations, cardinality: :exactly_one_to_many, label: "triggers")
-  |> ERD.add_relationship(:geofences, :geofence_violations, cardinality: :exactly_one_to_many, label: "references")
-  |> ERD.add_relationship(:vehicles, :device_commands, cardinality: :exactly_one_to_many, label: "receives")
-  |> ERD.add_relationship(:users, :device_commands, cardinality: :exactly_one_to_many, label: "commands")
-```
-
-<!-- livebook:{"output_size":"wide"} -->
-
-```elixir
-mermaid_erd = ERD.to_mermaid(db_schema)
-
-Kino.Layout.tabs(
-  "Entity Relationship Model (Siren)": Siren.new(mermaid_erd, height: "650px", theme: "neutral"),
-  "Interactive Sketch Canvas": Sketch.new(mermaid_erd, height: "1000px")
-)
-```
-
----
-
-## 🏛️ 3. High-Level System Architecture (C4 Model)
-
-The ingestion and execution flows utilize **Elixir's concurrency model**. Specifically, each active vehicle (out of 10,000) is backed by a dedicated, dynamic **GenServer** process. These GenServers are distributed across the Elixir cluster using a cluster registry (e.g., `Horde` or `DynamicSupervisor` with `pg`).
-
-### Architecture Decomposition
-
-1. **Ingestion Gateways:**
-   * **TCP/UDP Ingestion Gateway:** Custom Elixir/Erlang listeners (using `ranch` or `:gen_tcp`/`:gen_udp`) that accept connections from IoT hardware, parse raw NMEA sentences, and dispatch updates to the matching vehicle GenServer.
-   * **HTTP/WS Ingestion Gateway:** Phoenix channels and HTTP controllers that authenticate client apps and parse JSON telemetry.
-2. **Elixir Vehicle GenServers (Active Tracking Layer):**
-   * Keeps the latest state in memory (last location, active geofences, speed, connection health).
-   * Validates coordinates against active geofences in-process (or via spatial indexing).
-   * Buffers telemetry writes to prevent database throttling.
-   * Maintains active TCP socket/WS connection refs to send direct commands down to the hardware immediately.
-3. **Tiered Storage Layer:**
-   * **Hot State (Redis):** Fast lookup of the latest coordinates for dashboard rendering.
-   * **Warm Storage (TimescaleDB / Postgres):** Retains 3 to 6 months of detailed telemetry for real-time reporting and alerts.
-   * **Cold Storage (S3 / Parquet):** Raw/compressed telemetry partition files. An ETL process runs daily to batch-migrate warm telemetry to Parquet format in S3, allowing cost-effective storage for 3 years, queried on-demand using AWS Athena.
-
 ```elixir
 alias Choreo.C4
+alias Choreo.C4.Analysis, as: C4Analysis
+alias Choreo.Dataflow
+alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
+alias Choreo.ERD
+alias Choreo.ERD.Analysis, as: ERDAnalysis
+alias Choreo.FSM
+alias Choreo.FSM.Analysis, as: FSMAnalysis
+alias Choreo.Requirement
+alias Choreo.Requirement.Analysis, as: RequirementAnalysis
+alias Choreo.Sequence
+alias Choreo.ThreatModel
+alias Choreo.ThreatModel.Analysis, as: ThreatAnalysis
+alias Choreo.Workflow
+alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
+```
 
+```elixir
+mermaid_source = fn source ->
+  fence = String.duplicate("`", 3)
+  Kino.Markdown.new(fence <> "mermaid\n" <> source <> "\n" <> fence)
+end
+
+render_tabs = fn mermaid, dot, height ->
+  Kino.Layout.tabs(
+    Siren: Choreo.Lab.Siren.new(mermaid),
+    Graphviz: Kino.VizJS.render(dot, height: height),
+    Sketch: Choreo.Lab.Sketch.new(mermaid)
+  )
+end
+```
+
+## 1. Problem Statement
+
+Design an enterprise **real-time fleet vehicle tracking platform** for **10,000 vehicles** across **3 timezones**. Vehicles report telemetry once per minute from either dedicated IoT GPS hardware or mobile applications. Supervisors need real-time maps, historical reports, geofence alerts, and direct command dispatch to active devices.
+
+The design must preserve strict department-level access control: supervisors can only see vehicles and reports for their department, while global administrators can provision devices and manage cross-department configuration.
+
+---
+
+## 2. Requirements
+
+### Functional Requirements
+
+| ID   | Requirement                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------- |
+| FR-1 | Ingest NMEA 0183 telemetry over UDP/TCP from IoT devices.                                   |
+| FR-2 | Ingest JSON telemetry over HTTPS/WebSockets from mobile apps.                               |
+| FR-3 | Maintain latest vehicle position for real-time supervisor dashboards.                       |
+| FR-4 | Persist historical telemetry for 3 years using warm and cold storage tiers.                 |
+| FR-5 | Enforce department and role-based access control on live tracking, reports, and commands.   |
+| FR-6 | Detect geofence entry/exit violations and notify supervisors.                               |
+| FR-7 | Support direct downlink commands such as `ping_diagnostics` and `immobilize_engine`.        |
+| FR-8 | Produce daily and on-demand reports for trips, stops, speed, idling, and geofence activity. |
+
+### Non-Functional Requirements
+
+| ID    | Requirement                                                                                |
+| ----- | ------------------------------------------------------------------------------------------ |
+| NFR-1 | Sustain ~167 telemetry writes/sec on average, plus bursts from reconnecting devices.       |
+| NFR-2 | Keep dashboard latest-position latency under a few seconds for active vehicles.            |
+| NFR-3 | Survive telemetry database outages by buffering recent events and draining after recovery. |
+| NFR-4 | Keep tenant/department boundaries auditable and testable.                                  |
+| NFR-5 | Keep the command path authenticated, authorized, logged, and idempotent.                   |
+
+---
+
+## 3. Assumptions and Constraints
+
+### Assumptions
+
+* 10,000 vehicles × 1 telemetry point/minute ≈ 167 writes/second average.
+* 14.4 million telemetry points/day and ~15.8 billion points over 3 years require warm/cold storage separation.
+* Latest position is operational state and can live in Redis; full historical telemetry belongs in TimescaleDB/Postgres and S3/Parquet.
+* A single Elixir process per active vehicle is feasible at this scale if processes are lightweight, supervised, and shardable across nodes.
+* Commands only work for currently connected devices/apps; offline commands are persisted and retried or expire by policy.
+
+### Explicitly Out of Scope
+
+* Turn-by-turn navigation and route optimization.
+* Video or high-frequency sensor streaming.
+* Consumer-facing driver gamification.
+* Global active-active command delivery.
+* Hardware firmware implementation.
+
+---
+
+## 4. Telemetry Data Taxonomy and ERD
+
+The ERD separates ACL metadata, vehicle metadata, high-volume telemetry, geofence events, and command history. Telemetry tables should be time-partitioned; older partitions can be exported to S3/Parquet.
+
+```elixir
+db_schema =
+  (fn ->
+    import Choreo.Lab.DSL.ERD
+
+    erd do
+      departments =
+        table("departments") do
+          pk :id, :uuid
+          field :name, :varchar
+          field :timezone, :varchar, comment: "One of the supported operating regions"
+        end
+
+      users =
+        table("users") do
+          pk :id, :uuid
+          fk :department_id, :uuid
+          field :email, :varchar
+          field :password_hash, :varchar
+          field :role, :varchar, comment: "supervisor, driver, admin"
+        end
+
+      vehicles =
+        table("vehicles") do
+          pk :id, :uuid
+          fk :department_id, :uuid
+          field :license_plate, :varchar
+          field :vehicle_type, :varchar, comment: "office_vehicle, truck, motorbike"
+          field :device_uid, :varchar, comment: "IMEI or app client token"
+          field :device_type, :varchar, comment: "iot_nmea, app_json"
+          field :status, :varchar
+        end
+
+      geofences =
+        table("geofences") do
+          pk :id, :uuid
+          fk :department_id, :uuid
+          field :name, :varchar
+          field :polygon_coordinates, :geometry
+        end
+
+      telemetry_logs =
+        table("telemetry_logs") do
+          pk :id, :bigint
+          fk :vehicle_id, :uuid
+          field :recorded_at, :timestamp_tz
+          field :latitude, :double
+          field :longitude, :double
+          field :speed_kmh, :double
+          field :heading, :integer
+          field :raw_payload, :text
+        end
+
+      geofence_violations =
+        table("geofence_violations") do
+          pk :id, :uuid
+          fk :vehicle_id, :uuid
+          fk :geofence_id, :uuid
+          field :violation_type, :varchar, comment: "entry, exit"
+          field :recorded_at, :timestamp_tz
+        end
+
+      device_commands =
+        table("device_commands") do
+          pk :id, :uuid
+          fk :vehicle_id, :uuid
+          fk :issued_by_user_id, :uuid
+          field :command_type, :varchar
+          field :payload, :jsonb
+          field :status, :varchar, comment: "pending, sent, acknowledged, failed, expired"
+          field :created_at, :timestamp_tz
+          field :updated_at, :timestamp_tz
+        end
+
+      departments ~> users |> has_many("employs", from: :id, to: :department_id)
+      departments ~> vehicles |> has_many("allocates", from: :id, to: :department_id)
+      departments ~> geofences |> has_many("owns", from: :id, to: :department_id)
+      vehicles ~> telemetry_logs |> has_many("emits", from: :id, to: :vehicle_id)
+      vehicles ~> geofence_violations |> has_many("triggers", from: :id, to: :vehicle_id)
+      geofences ~> geofence_violations |> has_many("classifies", from: :id, to: :geofence_id)
+      vehicles ~> device_commands |> has_many("receives", from: :id, to: :vehicle_id)
+      users ~> device_commands |> has_many("issues", from: :id, to: :issued_by_user_id)
+    end
+  end).()
+```
+
+```elixir
+render_tabs.(ERD.to_mermaid(db_schema, syntax: :erd), ERD.to_dot(db_schema), "900px")
+```
+
+---
+
+## 5. C4 System Context and Container View
+
+The C4 model uses external devices/apps as out-of-scope systems and keeps server-side runtime components inside the fleet platform boundary.
+
+```elixir
 c4_system =
-  C4.new()
-  # Actors
-  |> C4.add_person(:supervisor, label: "Department Supervisor", description: "Monitors department vehicle coordinates, views reports, and dispatches commands.")
-  |> C4.add_person(:driver, label: "Vehicle Driver", description: "Drives vehicles, broadcasts telemetry from mobile applications.")
+  (fn ->
+    import Choreo.Lab.DSL.C4
 
-  # System Boundaries
-  |> C4.add_software_system(:vehicle_fleet, label: "Vehicle Fleet System", scope: :in)
-  
-  # External telemetry units
-  |> C4.add_container(:iot_hardware, label: "IoT GPS Device", technology: "Embedded SIM / NMEA 0183", description: "Broadcasts GPS sentences over UDP every minute.")
-  |> C4.add_container(:driver_app, label: "Driver Mobile App", technology: "iOS / Android (JSON)", description: "Sends locations over JSON WebSockets / HTTPS.")
+    c4 do
+      supervisor = person("Department Supervisor", description: "Views live fleet state, reports, and sends commands.")
+      driver = person("Driver", description: "Uses vehicle or mobile app during operations.")
+      iot_hardware = system("IoT GPS Device", scope: :out, technology: "Embedded SIM / NMEA 0183")
+      driver_app = system("Driver Mobile App", scope: :out, technology: "iOS / Android JSON client")
+      observability = system("Observability Platform", scope: :out, technology: "Metrics, logs, traces, alerts")
 
-  # Web Interfaces
-  |> C4.add_container(:supervisor_web_portal, label: "Supervisor Dashboard", technology: "Phoenix LiveView", description: "Real-time tracking UI, command console, and reporting views.", parent: :vehicle_fleet)
+      fleet =
+        system("Vehicle Fleet System", scope: :in) do
+          dashboard = container("Supervisor Dashboard", technology: "Phoenix LiveView")
+          load_balancer = container("Load Balancer", technology: "HAProxy / AWS ALB")
+          telemetry_gateway = container("Telemetry Gateway", technology: "Elixir / Phoenix / Ranch")
+          vehicle_registry = container("Vehicle Registry", technology: "Horde / Registry / pg")
+          vehicle_processes = container("Vehicle GenServer Pool", technology: "Elixir GenServer per active vehicle")
+          redis = datastore("Latest Location Cache", technology: "Redis Cluster")
+          timescaledb = database("Warm Telemetry DB", technology: "TimescaleDB / PostgreSQL")
+          cold_archive = datastore("Cold Telemetry Archive", technology: "S3 / Parquet")
+          report_workers = container("Report Workers", technology: "Oban / Elixir")
+        end
 
-  # Gateway Layers
-  |> C4.add_container(:load_balancer, label: "Load Balancer", technology: "HAProxy / AWS ALB", description: "Routes traffic to gateways and handles TCP/UDP/HTTPS load distribution.", parent: :vehicle_fleet)
-  |> C4.add_container(:telemetry_gateway, label: "Elixir Ingestion Gateways", technology: "Elixir / Phoenix / Ranch", description: "Decodes NMEA sentences and JSON. Routes inputs to Vehicle GenServers.", parent: :vehicle_fleet)
-
-  # Core Compute / Stateful Layer
-  |> C4.add_container(:genserver_registry, label: "Horde / Dynamic Registry", technology: "Elixir Registry", description: "Maps 10,000 Vehicle IDs to active GenServer PIDs.", parent: :vehicle_fleet)
-  |> C4.add_container(:vehicle_genserver, label: "Vehicle GenServer Instance", technology: "Elixir GenServer", description: "One per vehicle. Manages current state, local geofence rules, command delivery.", parent: :vehicle_fleet)
-
-  # Storage Tiers
-  |> C4.add_container(:redis_cache, label: "Latest Location Cache", technology: "Redis Cluster", description: "Caches current coordinates and supervisor sessions.", parent: :vehicle_fleet)
-  |> C4.add_container(:timescaledb, label: "Warm Database", technology: "TimescaleDB (Postgres)", description: "Stores relational metadata (ACL) and warm telemetry logs.", parent: :vehicle_fleet)
-  |> C4.add_container(:s3_cold, label: "Cold Archive", technology: "S3 Object Store (Parquet)", description: "Holds up to 3 years of telemetry logs for long-term reporting.", parent: :vehicle_fleet)
-
-  # Worker Pipeline
-  |> C4.add_container(:oban_workers, label: "Report Processing Engine", technology: "Oban / Elixir Task", description: "Executes geofence violation detection and daily report generations.", parent: :vehicle_fleet)
-
-  # Connections — Drivers & Hardware
-  |> C4.add_relationship(:driver, :driver_app, label: "Uses")
-  |> C4.add_relationship(:driver_app, :load_balancer, label: "JSON Telemetry", technology: "WebSockets / HTTPS")
-  |> C4.add_relationship(:iot_hardware, :load_balancer, label: "NMEA Sentences", technology: "UDP / TCP")
-  |> C4.add_relationship(:load_balancer, :telemetry_gateway, label: "Proxies traffic", technology: "TCP/UDP/HTTP")
-
-  # Connections — Gateway to Elixir Compute
-  |> C4.add_relationship(:telemetry_gateway, :genserver_registry, label: "Resolves PID", technology: "Local/Distributed Registry Call")
-  |> C4.add_relationship(:telemetry_gateway, :vehicle_genserver, label: "Dispatches telemetry data", technology: "Erlang message send")
-
-  # Compute details
-  |> C4.add_relationship(:vehicle_genserver, :redis_cache, label: "Updates latest location", technology: "Redix")
-  |> C4.add_relationship(:vehicle_genserver, :timescaledb, label: "Buffers and writes telemetry logs", technology: "Ecto pool")
-  |> C4.add_relationship(:vehicle_genserver, :oban_workers, label: "Enqueues geofence events", technology: "Oban enqueuer")
-
-  # Supervisor Web Flow
-  |> C4.add_relationship(:supervisor, :supervisor_web_portal, label: "Accesses reports & tracks vehicles", technology: "Web Browser")
-  |> C4.add_relationship(:supervisor_web_portal, :timescaledb, label: "Queries metadata & ACL definitions", technology: "Ecto SQL")
-  |> C4.add_relationship(:supervisor_web_portal, :redis_cache, label: "Reads real-time states", technology: "Redix")
-  |> C4.add_relationship(:supervisor_web_portal, :vehicle_genserver, label: "Sends direct downlink command", technology: "GenServer.call")
-
-  # Cold Storage Pipeline
-  |> C4.add_relationship(:oban_workers, :timescaledb, label: "Aggregates daily reports", technology: "SQL query")
-  |> C4.add_relationship(:oban_workers, :s3_cold, label: "Flushes consolidated data to Parquet", technology: "AWS SDK")
+      driver ~> driver_app |> uses("Sends mobile telemetry")
+      driver_app ~> load_balancer |> calls("JSON telemetry + command ACKs", technology: "HTTPS / WebSockets")
+      iot_hardware ~> load_balancer |> calls("NMEA telemetry", technology: "UDP / TCP")
+      load_balancer ~> telemetry_gateway |> calls("Routes telemetry ingress")
+      telemetry_gateway ~> vehicle_registry |> calls("Resolves vehicle process")
+      telemetry_gateway ~> vehicle_processes |> sends("Dispatches telemetry")
+      vehicle_processes ~> redis |> writes("Updates latest position")
+      vehicle_processes ~> timescaledb |> writes("Buffers and persists telemetry")
+      vehicle_processes ~> dashboard |> publishes("Broadcasts live updates", technology: "Phoenix PubSub")
+      dashboard ~> timescaledb |> reads("Queries ACL, reports, command history")
+      dashboard ~> redis |> reads("Reads latest locations")
+      dashboard ~> vehicle_processes |> calls("Sends authorized commands")
+      report_workers ~> timescaledb |> reads("Aggregates warm reports")
+      report_workers ~> cold_archive |> writes("Exports old partitions")
+      telemetry_gateway ~> observability |> publishes("Emits ingress metrics")
+      report_workers ~> observability |> publishes("Emits job metrics")
+    end
+  end).()
 ```
 
 <!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 container_view = Choreo.View.zoom(c4_system, level: 1)
-mermaid_c4 = C4.to_mermaid(container_view)
+render_tabs.(C4.to_mermaid(container_view), C4.to_dot(container_view), "950px")
+```
 
-Kino.Layout.tabs(
-  "C4 Container Architecture (Siren)": Siren.new(mermaid_c4, height: "750px", theme: :forest),
-  "Interactive Sketch Canvas": Sketch.new(mermaid_c4, height: "1200px")
+---
+
+## 6. Core Telemetry Dataflow
+
+The hot path optimizes for low-latency latest-position updates while asynchronously preserving full history.
+
+```elixir
+telemetry_flow =
+  (fn ->
+    import Choreo.Lab.DSL.Dataflow
+
+    dataflow do
+      iot = source("IoT NMEA Stream", rate: 120)
+      app = source("Mobile JSON Stream", rate: 47)
+      decode = transform("Decode + Normalize", latency_ms: 5)
+      acl_enrich = transform("Attach Vehicle + Department", latency_ms: 5)
+      vehicle_proc = transform("Vehicle GenServer", latency_ms: 2, capacity: 500)
+      latest_cache = sink("Redis Latest Position")
+      pubsub = buffer("Phoenix PubSub")
+      dashboard = sink("Supervisor Dashboard")
+      warm_db = sink("TimescaleDB Warm Store")
+      archive = sink("S3 / Parquet Cold Archive")
+      dlq = sink("Invalid Telemetry DLQ")
+
+      iot ~> decode |> emits("NMEA sentence")
+      app ~> decode |> emits("JSON payload")
+      decode ~> acl_enrich |> emits("normalized telemetry")
+      acl_enrich ~> vehicle_proc |> emits("authorized vehicle event")
+      vehicle_proc ~> latest_cache |> writes("latest state")
+      vehicle_proc ~> pubsub |> emits("location update")
+      pubsub ~> dashboard |> emits("department-scoped update")
+      vehicle_proc ~> warm_db |> writes("telemetry row")
+      warm_db ~> archive |> writes("daily partition export")
+      dead_letter decode ~> dlq, "malformed payload"
+      dead_letter acl_enrich ~> dlq, "unknown or unauthorized vehicle"
+    end
+  end).()
+```
+
+```elixir
+render_tabs.(
+  Dataflow.to_mermaid(telemetry_flow),
+  Dataflow.to_dot(telemetry_flow),
+  "850px"
 )
 ```
 
 ---
 
-## 🔄 4. Dynamic Telemetry & Command Sequences
+## 7. Dynamic Interaction Sequences
 
-Below are the sequence diagrams depicting two vital operations in the system:
-
-1. **Telemetry Ingestion & Geofence Checks** for an IoT NMEA sentence.
-2. **Direct Downlink Command execution** from a supervisor down to a vehicle's mobile app.
-
-### 4.1 Ingestion & Real-Time Alert Flow (NMEA over UDP)
+### 7.1 Telemetry Ingestion and Live Update
 
 ```elixir
-alias Choreo.Sequence
-
 ingestion_flow =
-  Sequence.new()
-  |> Sequence.add_participant(:iot, label: "IoT GPS Hardware")
-  |> Sequence.add_participant(:gw, label: "Ingestion Gateway")
-  |> Sequence.add_participant(:registry, label: "Horde Registry")
-  |> Sequence.add_participant(:genserver, label: "Vehicle GenServer")
-  |> Sequence.add_participant(:timescale, label: "TimescaleDB")
-  |> Sequence.add_participant(:liveview, label: "Phoenix LiveView")
-  |> Sequence.add_actor(:supervisor, label: "Department Supervisor")
+  (fn ->
+    import Choreo.Lab.DSL.Sequence
 
-  |> Sequence.message(:iot, :gw, label: "Send: $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A")
-  |> Sequence.activate(:gw)
-  |> Sequence.message(:gw, :registry, label: "lookup(\"vehicle_uuid_1\")")
-  |> Sequence.activate(:registry)
-  |> Sequence.return(:registry, :gw, label: "PID: 0.450.0")
-  |> Sequence.deactivate(:registry)
-  
-  # Decode NMEA coordinates
-  |> Sequence.message(:gw, :genserver, label: "cast(PID, telemetry_coordinates: {48.1173, 11.5166, speed: 41.5})")
-  |> Sequence.deactivate(:gw)
-  |> Sequence.activate(:genserver)
-  
-  # GenServer checks internal geofences and schedules DB writes
-  |> Sequence.message(:genserver, :timescale, label: "INSERT INTO telemetry_logs (vehicle_uuid_1, speed, point)")
-  
-  # Alert evaluation
-  |> Sequence.message(:genserver, :liveview, label: "PubSub.broadcast(\"dept:logistics\", location_updated)")
-  |> Sequence.deactivate(:genserver)
-  |> Sequence.activate(:liveview)
-  |> Sequence.message(:liveview, :supervisor, label: "Push web socket: Move vehicle on map UI")
-  |> Sequence.deactivate(:liveview)
+    sequence do
+      iot = participant("IoT GPS Hardware")
+      gateway = participant("Telemetry Gateway")
+      registry = participant("Vehicle Registry")
+      vehicle = participant("Vehicle GenServer")
+      db = participant("TimescaleDB")
+      dashboard = participant("Phoenix LiveView")
+      supervisor = actor("Department Supervisor")
+
+      iot ~> gateway |> call("Send $GPRMC NMEA sentence")
+      activate gateway
+      gateway ~> registry |> call("lookup(vehicle_uuid)")
+      reply registry ~> gateway, "vehicle process pid"
+      gateway ~> vehicle |> call("cast telemetry_coordinates")
+      deactivate gateway
+      activate vehicle
+      vehicle ~> db |> call("INSERT telemetry_logs")
+      vehicle ~> dashboard |> async("PubSub location_updated")
+      deactivate vehicle
+      dashboard ~> supervisor |> async("Push map marker update")
+    end
+  end).()
 ```
 
-### 4.2 Supervisor Command Downlink Flow (JSON WebSockets)
-
-This sequence visualizes sending a downlink command (e.g. engine immobilization) initiated by an authorized Supervisor, matching department ACL validations, and dispatching down the active socket.
+### 7.2 Supervisor Command Downlink
 
 ```elixir
 command_flow =
-  Sequence.new()
-  |> Sequence.add_actor(:supervisor, label: "Supervisor User")
-  |> Sequence.add_participant(:liveview, label: "LiveView Dashboard")
-  |> Sequence.add_participant(:genserver, label: "Vehicle GenServer")
-  |> Sequence.add_participant(:timescale, label: "TimescaleDB")
-  |> Sequence.add_participant(:gw, label: "WebSocket Gateway")
-  |> Sequence.add_participant(:app, label: "Driver Mobile App")
+  (fn ->
+    import Choreo.Lab.DSL.Sequence
 
-  |> Sequence.message(:supervisor, :liveview, label: "Click 'Immobilize Engine'")
-  |> Sequence.activate(:liveview)
-  
-  # Check ACL (ensure user's department_id matches vehicle's department_id)
-  |> Sequence.message(:liveview, :timescale, label: "SELECT 1 FROM users u JOIN vehicles v ON u.dept_id = v.dept_id WHERE ...")
-  |> Sequence.activate(:timescale)
-  |> Sequence.return(:timescale, :liveview, label: "Authorized (Is Supervisor & Same Dept)")
-  |> Sequence.deactivate(:timescale)
-  
-  # Dispatch command to GenServer
-  |> Sequence.message(:liveview, :genserver, label: "GenServer.call(PID, {:send_command, :immobilize})")
-  |> Sequence.activate(:genserver)
-  
-  # Log command record
-  |> Sequence.message(:genserver, :timescale, label: "INSERT INTO device_commands (status: :pending)")
-  
-  # Find connection ref and push to WS
-  |> Sequence.message(:genserver, :gw, label: "WS.push(connection_ref, {\"action\": \"immobilize\"})")
-  |> Sequence.activate(:gw)
-  |> Sequence.message(:gw, :app, label: "JSON Frame: {\"command\": \"immobilize\", \"id\": \"cmd_101\"}")
-  |> Sequence.deactivate(:gw)
-  
-  # App execution response
-  |> Sequence.message(:app, :gw, label: "ACK payload (command successful)")
-  |> Sequence.activate(:gw)
-  |> Sequence.message(:gw, :genserver, label: "ACK payload received")
-  |> Sequence.deactivate(:gw)
-  
-  # Update state
-  |> Sequence.message(:genserver, :timescale, label: "UPDATE device_commands SET status = :acknowledged")
-  |> Sequence.return(:genserver, :liveview, label: "{:ok, :immobilized}")
-  |> Sequence.deactivate(:genserver)
-  
-  |> Sequence.return(:liveview, :supervisor, label: "Update Dashboard UI: 'Engine immobilized successfully'")
-  |> Sequence.deactivate(:liveview)
+    sequence do
+      supervisor = actor("Supervisor User")
+      dashboard = participant("LiveView Dashboard")
+      db = participant("TimescaleDB")
+      vehicle = participant("Vehicle GenServer")
+      gateway = participant("WebSocket Gateway")
+      app = participant("Driver Mobile App")
+
+      supervisor ~> dashboard |> call("Click Immobilize Engine")
+      activate dashboard
+      dashboard ~> db |> call("Verify supervisor role + same department")
+      reply db ~> dashboard, "authorized"
+      dashboard ~> vehicle |> call("GenServer.call send_command")
+      activate vehicle
+      vehicle ~> db |> call("INSERT device_commands pending")
+      vehicle ~> gateway |> call("WS.push command frame")
+      gateway ~> app |> async("command: immobilize")
+      app ~> gateway |> async("ACK command successful")
+      gateway ~> vehicle |> async("ACK received")
+      vehicle ~> db |> call("UPDATE command acknowledged")
+      reply vehicle ~> dashboard, "{:ok, :acknowledged}"
+      deactivate vehicle
+      reply dashboard ~> supervisor, "Show command status"
+      deactivate dashboard
+    end
+  end).()
 ```
 
-<!-- livebook:{"output_size":"wide"} -->
-
 ```elixir
-mermaid_ingest = Sequence.to_mermaid(ingestion_flow)
-mermaid_command = Sequence.to_mermaid(command_flow)
-
 Kino.Layout.tabs(
-  "1. Ingestion Flow": Siren.new(mermaid_ingest, height: "650px", theme: :forest),
-  "2. Command Downlink Flow": Siren.new(mermaid_command, height: "650px", theme: :forest)
+  Ingestion: Choreo.Lab.Siren.new(Sequence.to_mermaid(ingestion_flow)),
+  Command: Choreo.Lab.Siren.new(Sequence.to_mermaid(command_flow)),
+  IngestionSource: mermaid_source.(Sequence.to_mermaid(ingestion_flow))
 )
 ```
 
 ---
 
-## ⚙️ 5. Vehicle Connection & Session Lifecycle (FSM)
-
-Each vehicle's telemetry stream and command delivery path depends heavily on its connection state. We manage this status using a Finite State Machine model inside each Elixir GenServer.
+## 8. Command Dispatch Workflow
 
 ```elixir
-alias Choreo.FSM
+command_workflow =
+  (fn ->
+    import Choreo.Lab.DSL.Workflow
 
-connection_fsm =
-  FSM.new()
-  |> FSM.add_initial_state(:offline, label: "No device session established")
-  |> FSM.add_state(:connecting, label: "Establishing Socket / Handshaking client tokens")
-  |> FSM.add_state(:active_tracking, label: "Sending telemetry every minute, connection healthy")
-  |> FSM.add_state(:idle, label: "Vehicle parked (no movement detected, sending light keep-alives)")
-  |> FSM.add_state(:stale_connection, label: "Telemetry missing for > 3 minutes, awaiting timeout")
-  
-  # Transitions
-  |> FSM.add_transition(:offline, :connecting, label: "device_heartbeat")
-  |> FSM.add_transition(:connecting, :active_tracking, label: "handshake_success")
-  |> FSM.add_transition(:connecting, :offline, label: "handshake_timeout_or_failed")
-  
-  |> FSM.add_transition(:active_tracking, :idle, label: "ignition_off")
-  |> FSM.add_transition(:idle, :active_tracking, label: "ignition_on")
-  
-  |> FSM.add_transition(:active_tracking, :stale_connection, label: "missed_telemetry_interval")
-  |> FSM.add_transition(:idle, :stale_connection, label: "missed_keepalive")
-  
-  |> FSM.add_transition(:stale_connection, :active_tracking, label: "telemetry_received")
-  |> FSM.add_transition(:stale_connection, :offline, label: "session_timeout_disconnect")
+    workflow do
+      start = start("Command Requested")
+      authorize = task("Authorize Supervisor + Department", timeout_ms: 100, retry: 0)
+      allowed = decision("Allowed?")
+      persist = task("Persist Pending Command", timeout_ms: 100, retry: 2)
+      online = decision("Vehicle Online?")
+      send_command = task("Send Downlink Command", timeout_ms: 2_000, retry: 1)
+      wait_ack = task("Wait for ACK", timeout_ms: 5_000)
+      acked = decision("ACK Received?")
+      mark_success = task("Mark Acknowledged", timeout_ms: 100, retry: 2)
+      mark_failed = task("Mark Failed / Expired", timeout_ms: 100, retry: 2)
+      denied = finish("Denied")
+      completed = finish("Completed")
+      failed = finish("Failed")
+
+      start ~> authorize
+      authorize ~> allowed
+      allowed ~> persist |> condition("yes")
+      allowed ~> denied |> failure("no")
+      persist ~> online
+      online ~> send_command |> condition("yes")
+      online ~> mark_failed |> failure("no")
+      send_command ~> wait_ack
+      wait_ack ~> acked
+      acked ~> mark_success |> condition("yes")
+      acked ~> mark_failed |> failure("timeout")
+      mark_success ~> completed
+      mark_failed ~> failed
+    end
+  end).()
 ```
 
-<!-- livebook:{"output_size":"wide"} -->
-
 ```elixir
-mermaid_fsm = FSM.to_mermaid(connection_fsm, syntax: :state_diagram)
-Siren.new(mermaid_fsm, height: "600px", theme: :minimal)
+render_tabs.(
+  Workflow.to_mermaid(command_workflow),
+  Workflow.to_dot(command_workflow),
+  "850px"
+)
 ```
 
 ---
 
-## 🔍 6. System Resiliency & Outage Analysis
-
-We simulate a component failure within this architecture to analyze cascade effects and evaluate single points of failure.
+## 9. Vehicle Connection and Session Lifecycle FSM
 
 ```elixir
-alias Choreo.Analysis
+connection_fsm =
+  (fn ->
+    import Choreo.Lab.DSL.FSM
 
-infra =
-  Choreo.new()
-  |> Choreo.add_user(:supervisor, label: "Department Supervisor")
-  |> Choreo.add_user(:iot, label: "IoT GPS Device")
-  
-  # Load Balancing & Gateway
-  |> Choreo.add_load_balancer(:lb, label: "Ingestion Load Balancer")
-  |> Choreo.add_service(:gateway, label: "Ingestion Gateway")
-  
-  # Elixir Stateful Core
-  |> Choreo.add_service(:genservers, label: "Vehicle GenServers")
-  
-  # Storage
-  |> Choreo.add_cache(:redis, label: "Redis Hot Cache")
-  |> Choreo.add_database(:timescaledb, label: "TimescaleDB")
-  |> Choreo.add_database(:s3, label: "S3 Cold Storage Archive")
-  
-  # Workers
-  |> Choreo.add_service(:oban, label: "Oban Report Workers")
+    fsm do
+      offline = initial("Offline")
+      connecting = state("Connecting")
+      active_tracking = state("Active Tracking")
+      idle = state("Idle / Parked")
+      stale_connection = state("Stale Connection")
+      disconnected = final("Disconnected")
 
-  # Define Edges
-  |> Choreo.connect(:iot, :lb)
-  |> Choreo.connect(:lb, :gateway)
-  |> Choreo.connect(:gateway, :genservers)
-  
-  # GenServer persistence & reads
-  |> Choreo.connect(:genservers, :redis)
-  |> Choreo.connect(:genservers, :timescaledb)
-  
-  # Supervisor read path
-  |> Choreo.connect(:supervisor, :redis)
-  |> Choreo.connect(:supervisor, :timescaledb)
-  
-  # Report Worker dependencies
-  |> Choreo.connect(:oban, :timescaledb)
-  |> Choreo.connect(:oban, :s3)
+      offline ~> connecting |> on("device_heartbeat")
+      connecting ~> active_tracking |> on("handshake_success")
+      connecting ~> offline |> on("handshake_failed")
+      active_tracking ~> idle |> on("ignition_off")
+      idle ~> active_tracking |> on("ignition_on")
+      active_tracking ~> stale_connection |> on("missed_telemetry_interval")
+      idle ~> stale_connection |> on("missed_keepalive")
+      stale_connection ~> active_tracking |> on("telemetry_received")
+      stale_connection ~> disconnected |> on("session_timeout")
+      disconnected ~> connecting |> on("device_reconnect")
+    end
+  end).()
 ```
-
-### Simulation 1: TimescaleDB Database Failure
-
-We evaluate system impact if the main database (`TimescaleDB`) suffers a localized crash:
 
 ```elixir
-affected = Analysis.impact_analysis(infra, :timescaledb)
-IO.inspect(affected, label: "Affected services on TimescaleDB outage")
+Kino.Layout.tabs(
+  StateDiagram: Choreo.Lab.Siren.new(FSM.to_mermaid(connection_fsm, syntax: :state_diagram)),
+  Flowchart: Choreo.Lab.Siren.new(FSM.to_mermaid(connection_fsm)),
+  Graphviz: Kino.VizJS.render(FSM.to_dot(connection_fsm), height: "650px")
+)
 ```
 
-#### Architecture Mitigation Strategy
+---
 
-* **In-Memory Buffer Resiliency:** If `TimescaleDB` crashes, the Elixir Vehicle GenServers can transition to caching incoming coordinates in-process (or in an ETS backup table) up to a configurable size limit (e.g., buffering 60 minutes of messages). Once the database recovers, the GenServers drain their internal buffer back into the database asynchronously.
-* **Supervisors can still track live vehicles:** Because live coordinate data passes directly to the Web Interface via Phoenix LiveView PubSub and the `Redis Hot Cache`, supervisors can view current coordinates even while past reporting databases are offline.
+## 10. Threat Model
 
-### Simulation 2: Single Points of Failure Identification
+The highest-risk areas are department isolation, command authorization, device impersonation, telemetry poisoning, and command replay.
 
 ```elixir
-spof = Analysis.single_points_of_failure(infra)
-IO.inspect(spof.nodes, label: "Critical single points of failure")
+threat_model =
+  (fn ->
+    import Choreo.Lab.DSL.ThreatModel
+
+    threat_model do
+      internet = boundary("Public / Mobile Network", level: 0)
+      app_zone = boundary("Fleet Application Zone", level: 2)
+      storage = boundary("Storage Zone", level: 3)
+
+      device = external_entity("Vehicle Device / Mobile App", boundary: internet, role: :third_party)
+      supervisor = user("Department Supervisor", boundary: internet, role: :user)
+      gateway = process("Telemetry Gateway", boundary: app_zone, privilege: :system)
+      dashboard = process("Supervisor Dashboard", boundary: app_zone, privilege: :user)
+      vehicle_proc = process("Vehicle GenServer", boundary: app_zone, privilege: :system)
+      redis = data_store("Redis Latest State", boundary: storage, sensitivity: :internal)
+      db = data_store("TimescaleDB / Metadata DB", boundary: storage, sensitivity: :confidential)
+      archive = data_store("S3 Cold Archive", boundary: storage, sensitivity: :confidential)
+
+      device ~> gateway |> encrypted("Telemetry / ACK", protocol: :https)
+      gateway ~> vehicle_proc |> flow("Dispatch telemetry", protocol: :grpc, encrypted: true)
+      vehicle_proc ~> redis |> flow("Latest position", protocol: :redis, encrypted: true)
+      vehicle_proc ~> db |> flow("Telemetry + command history", protocol: :sql, encrypted: true)
+      db ~> archive |> flow("Partition export", protocol: :https, encrypted: true)
+      supervisor ~> dashboard |> encrypted("Dashboard + command request", protocol: :https)
+      dashboard ~> db |> flow("ACL and report queries", protocol: :sql, encrypted: true)
+      dashboard ~> vehicle_proc |> flow("Authorized command", protocol: :grpc, encrypted: true)
+      vehicle_proc ~> device |> encrypted("Downlink command", protocol: :https)
+    end
+  end).()
 ```
 
-* **Load Balancer & Gateways:** Because they act as the entry point for all GPS devices, the load balancer is a single point of failure. In production, we deploy redundant DNS geoloop servers routing to multiple ingestion gateways in distinct timezones (US East, EU West, APAC) to ensure high availability.
+```elixir
+render_tabs.(
+  ThreatModel.to_mermaid(threat_model),
+  ThreatModel.to_dot(threat_model),
+  "900px"
+)
+```
+
+---
+
+## 11. Requirements Traceability
+
+```elixir
+requirements =
+  (fn ->
+    import Choreo.Lab.DSL.Requirement
+
+    requirements "Fleet Vehicle Tracking" do
+      operations = stakeholder("Operations Team")
+      security = stakeholder("Security Team")
+      supervisors = stakeholder("Department Supervisors")
+
+      ingest_iot = functional("Ingest NMEA telemetry from IoT devices", id: "FR-1")
+      ingest_app = functional("Ingest JSON telemetry from mobile apps", id: "FR-2")
+      live_tracking = functional("Maintain latest vehicle position", id: "FR-3", risk: :high)
+      retention = functional("Retain historical telemetry for 3 years", id: "FR-4")
+      acl = design_constraint("Enforce department and role-based access control", id: "FR-5", risk: :critical)
+      commands = functional("Dispatch authorized downlink commands", id: "FR-7", risk: :critical)
+      latency = performance("Keep dashboard latest-position latency below a few seconds", id: "NFR-2")
+
+      telemetry_gateway = component("Telemetry Gateway")
+      vehicle_processes = component("Vehicle GenServer Pool")
+      dashboard = component("Supervisor Dashboard")
+      db = component("Warm Telemetry DB")
+      command_tests = test_case("Command authorization and replay tests")
+      acl_tests = test_case("Department isolation tests")
+      load_tests = test_case("Telemetry ingest load tests")
+
+      operations ~> ingest_iot |> traces("owns")
+      operations ~> ingest_app |> traces("owns")
+      supervisors ~> live_tracking |> traces("needs")
+      security ~> acl |> traces("reviews")
+      security ~> commands |> traces("reviews")
+      telemetry_gateway ~> ingest_iot |> satisfies("implements")
+      telemetry_gateway ~> ingest_app |> satisfies("implements")
+      vehicle_processes ~> live_tracking |> satisfies("updates state")
+      vehicle_processes ~> commands |> satisfies("routes commands")
+      dashboard ~> acl |> satisfies("enforces scoped reads and commands")
+      dashboard ~> latency |> satisfies("pushes live updates")
+      db ~> retention |> satisfies("stores warm history")
+      command_tests ~> commands |> verifies("proves")
+      acl_tests ~> acl |> verifies("proves")
+      load_tests ~> ingest_iot |> verifies("proves")
+      load_tests ~> latency |> verifies("proves")
+    end
+  end).()
+```
+
+```elixir
+render_tabs.(
+  Requirement.to_mermaid(requirements),
+  Requirement.to_dot(requirements),
+  "800px"
+)
+```
+
+---
+
+## 12. Analysis and Risks
+
+```elixir
+%{
+  erd_validation: ERDAnalysis.validate(db_schema),
+  c4_validation: C4Analysis.validate(c4_system),
+  dataflow_validation: DataflowAnalysis.validate(telemetry_flow),
+  workflow_validation: WorkflowAnalysis.validate(command_workflow),
+  fsm_validation: FSMAnalysis.validate(connection_fsm),
+  threat_model_validation: ThreatAnalysis.validate(threat_model),
+  requirement_coverage: RequirementAnalysis.coverage(requirements),
+  high_risk_requirement_gaps: RequirementAnalysis.high_risk_gaps(requirements),
+  critical_path: WorkflowAnalysis.critical_path(command_workflow),
+  telemetry_bottlenecks: DataflowAnalysis.bottlenecks(telemetry_flow)
+}
+```
+
+### Key Risks
+
+| Risk                         | Why it matters                                                    | Mitigation                                                                                    |
+| ---------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Department isolation failure | Cross-department tracking is a serious privacy/security incident. | Enforce ACL in query layer and command path; test with tenant/department fixtures.            |
+| Database write outage        | Telemetry can accumulate quickly during outage windows.           | Per-vehicle/process buffers, Redis/ETS spillover, bounded queue depth, replay after recovery. |
+| Command replay or spoofing   | Commands can affect vehicle safety.                               | Signed commands, idempotency keys, short expiry, ACK correlation, audit logging.              |
+| Hot geofence checks          | Spatial checks can become CPU-heavy.                              | Cache active geofences per department and use spatial indexes/bounding boxes.                 |
+| GenServer distribution       | Process ownership must survive node failure.                      | Registry sharding, supervision, handoff/restart strategy, reconnect reconciliation.           |
+
+---
+
+## 13. Tradeoffs
+
+| Decision          | Option A                | Option B                            | Recommendation                                                                                |
+| ----------------- | ----------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| Active state      | One process per vehicle | Stateless ingestion workers         | Use one process per active vehicle for command routing and live state, with careful sharding. |
+| Latest state      | Redis cache             | Query TimescaleDB directly          | Use Redis for latest positions; TimescaleDB for history.                                      |
+| Long-term storage | Keep all rows hot       | Export old partitions to S3/Parquet | Keep 3-6 months warm; archive older partitions.                                               |
+| Command delivery  | Best-effort push only   | Persisted command lifecycle         | Persist commands with state transitions for auditability and retries.                         |
+| Geofence checks   | Inline per event        | Batch/offline only                  | Inline for alerting, batch for reports and reconciliation.                                    |
+
+---
+
+## 14. Open Questions
+
+* What are the safety and legal constraints for immobilization commands?
+* How long should offline commands remain valid?
+* Are geofence definitions global, departmental, or vehicle-specific?
+* What historical query latency is required for 3-year reports?
+* Do devices support mutual TLS, signed payloads, or only bearer tokens?
+* What burst profile should be expected after network outages?
+
+---
+
+## 15. Final Design Summary
+
+The system uses Elixir ingestion gateways and a sharded pool of vehicle GenServers to normalize telemetry, maintain active vehicle state, publish live updates, persist warm history, and route authorized commands to connected devices. Redis serves latest-position reads; TimescaleDB/Postgres stores metadata and warm telemetry; S3/Parquet holds long-term history.
+
+The key design risks are ACL correctness, command safety, database backpressure, and process ownership during node failures. These should be validated with load tests, ACL property tests, command replay tests, and failure-injection exercises.
+
+---
+
+## 16. LLM Review Prompt
+
+Use this Livebook as the source of truth. Review the fleet vehicle tracking design for:
+
+* scalability bottlenecks in telemetry ingest, geofence checks, and database writes;
+* single points of failure in gateways, Redis, TimescaleDB, and process registry;
+* ACL and department-isolation weaknesses;
+* command spoofing, replay, authorization, and safety risks;
+* process migration/recovery gaps for one-GenServer-per-vehicle;
+* unclear retention, reporting, and offline-command requirements;
+* areas where the architecture is over-engineered or under-specified.
+
+When responding, produce prioritized risks, suggested architecture changes, missing tests/diagrams, stakeholder questions, and a concise recommendation.

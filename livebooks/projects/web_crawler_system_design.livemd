@@ -1,20 +1,14 @@
 # System Design: Distributed Web Crawler
 
+## Section
+
 ```elixir
 Mix.install([
+  # {:choreo, "~> 0.13.0"},
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
-
-## 1. Problem Statement
-
-Design a **Distributed Web Crawler** capable of scraping 10,000 websites daily. The system must satisfy the following constraints:
-
-* **URL Ingestion**: Ingests seed URLs daily from a date-named S3 bucket (`s3://crawler-seeds/YYYY-MM-DD.txt`).
-* **Deduplication**: Daily deduplication ensures no URL is crawled more than once per day. If a URL appears the next day, it should be crawled again.
-* **Politeness**: Respects `robots.txt` directives per domain.
-* **Storage**: Crawled page contents and metadata must be stored in a relational PostgreSQL database.
 
 ```elixir
 alias Choreo.C4
@@ -23,25 +17,29 @@ alias Choreo.Dataflow
 alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
 alias Choreo.ERD
 alias Choreo.ERD.Analysis, as: ERDAnalysis
+alias Choreo.Requirement
+alias Choreo.Requirement.Analysis, as: RequirementAnalysis
+alias Choreo.ThreatModel
+alias Choreo.ThreatModel.Analysis, as: ThreatAnalysis
 alias Choreo.Workflow
 alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
 ```
 
 ```elixir
-mermaid_source = fn source ->
-  fence = String.duplicate("`", 3)
-  Kino.Markdown.new(fence <> "mermaid\n" <> source <> "\n" <> fence)
-end
-
 render_tabs = fn mermaid, dot, height ->
   Kino.Layout.tabs(
     Siren: Choreo.Lab.Siren.new(mermaid),
     Graphviz: Kino.VizJS.render(dot, height: height),
-    Sketch: Choreo.Lab.Sketch.new(mermaid),
-    Source: mermaid_source.(mermaid)
+    Sketch: Choreo.Lab.Sketch.new(mermaid)
   )
 end
 ```
+
+## 1. Problem Statement
+
+Design a **distributed web crawler** that scrapes roughly **10,000 websites per day** from a date-named S3 seed file. The crawler must deduplicate URLs within a crawl day, respect `robots.txt`, fetch pages politely, and store page metadata and content in PostgreSQL.
+
+The design should be simple enough for a small team to operate, but resilient enough to tolerate bad hosts, slow DNS, redirects, retries, and poison URLs.
 
 ---
 
@@ -49,96 +47,207 @@ end
 
 ### Functional Requirements
 
-* Ingest new targets daily from date-named S3 buckets.
-* Maintain a deduplication state reset/namespaced daily to avoid recrawling a URL on the same day.
-* Parse and cache `robots.txt` rules per domain.
-* Extract page HTML and save results to Postgres.
+| ID   | Requirement                                                                     |
+| ---- | ------------------------------------------------------------------------------- |
+| FR-1 | Ingest seed URLs daily from `s3://crawler-seeds/YYYY-MM-DD.txt`.                |
+| FR-2 | Normalize and deduplicate URLs so a URL is crawled at most once per day.        |
+| FR-3 | Fetch and cache `robots.txt` rules per domain before crawling pages.            |
+| FR-4 | Enforce per-domain politeness using concurrency and request-rate limits.        |
+| FR-5 | Store fetched page content, status, crawl metadata, and failures in PostgreSQL. |
+| FR-6 | Retry transient failures and quarantine poison URLs in a dead-letter path.      |
 
 ### Non-Functional Requirements
 
-* **Politeness**: Implement rate-limiting per domain to avoid triggering DDoS blocks.
-* **Fault Tolerance**: Recover gracefully from DNS timeouts, connection errors, and bad HTTP statuses.
-* **Scalability**: Distributed pool of crawler workers to handle 10,000 sites efficiently within the daily window.
+| ID    | Requirement                                                                           |
+| ----- | ------------------------------------------------------------------------------------- |
+| NFR-1 | Complete the daily crawl window for 10,000 URLs with horizontal worker scaling.       |
+| NFR-2 | Avoid overwhelming target domains or violating `robots.txt`.                          |
+| NFR-3 | Keep crawl state isolated by `crawl_date` so URLs may be crawled again on later days. |
+| NFR-4 | Bound retry storms and storage growth from malicious or unreliable sites.             |
 
 ---
 
 ## 3. Assumptions and Constraints
 
-* 10,000 URLs to crawl daily. Assuming an average crawl time of 2s, a single crawler would take ~5.5 hours. A small pool of concurrent workers can complete this in minutes.
-* Upstream deduplication is handled at the S3 level (meaning the daily text file has unique entries, but URLs can repeat day-to-day).
-* S3 files are formatted with one URL per line, named `s3://crawler-seeds/YYYY-MM-DD.txt`.
+### Assumptions
+
+* Seed files are UTF-8 text with one URL per line.
+* The S3 input may already be partially deduplicated, but Redis is the authoritative per-day crawl dedupe layer.
+* PostgreSQL stores canonical metadata and recent page content. Very large raw bodies can later move to object storage with DB references.
+* 10,000 URLs/day is modest; the design prioritizes correctness, politeness, and operability over maximum crawl throughput.
+
+### Explicitly Out of Scope
+
+* Browser rendering / JavaScript execution.
+* Full-text indexing and search ranking.
+* Distributed crawl frontier discovery from links found on pages.
+* Circumventing site-level anti-bot protections.
+* Multi-region active-active crawling.
 
 ---
 
-## 4. C4 System Context (L1)
+## 4. C4 System Context and Container View
+
+The C4 model uses the Lab DSL as the source of truth. It keeps external systems separate from in-scope runnable containers.
 
 ```elixir
-c4_context =
-  C4.new()
-  |> C4.add_person(:operator, label: "Platform Operator")
-  |> C4.add_software_system(:crawler_system, label: "Crawler System", scope: :in)
-  |> C4.add_software_system(:s3_seeds, label: "S3 Seed Store", scope: :out)
-  |> C4.add_software_system(:target_sites, label: "External Websites", scope: :out)
-  |> C4.add_relationship(:operator, :crawler_system, label: "Manages and monitors")
-  |> C4.add_relationship(:crawler_system, :s3_seeds, label: "Reads daily URL lists from")
-  |> C4.add_relationship(:crawler_system, :target_sites, label: "Crawls pages respecting robots.txt")
+c4 =
+  (fn ->
+     import Choreo.Lab.DSL.C4
 
-# Render diagrams
-mermaid = C4.to_mermaid(c4_context)
-dot = C4.to_dot(c4_context)
-render_tabs.(mermaid, dot, 300)
+     c4 do
+       operator =
+         person("Platform Operator",
+           description: "Owns schedules, monitoring, and incident response."
+         )
+
+       s3_seeds = system("S3 Seed Store", scope: :out, description: "Date-named seed URL files.")
+
+       target_sites =
+         system("External Websites",
+           scope: :out,
+           description: "Public websites to crawl politely."
+         )
+
+       alerting =
+         system("Observability / Alerting",
+           scope: :out,
+           description: "Metrics, logs, traces, alerts."
+         )
+
+       crawler =
+         system("Crawler System",
+           scope: :in,
+           description: "Daily URL ingestion, crawl scheduling, fetching, and persistence."
+         ) do
+           seed_loader = container("Seed Loader", technology: "Elixir / Oban Cron")
+           dedupe_cache = datastore("Daily Dedupe Cache", technology: "Redis TTL Sets")
+           frontier = container("URL Frontier", technology: "RabbitMQ / Redis Queue")
+           robots_cache = datastore("Robots Cache", technology: "Redis + Postgres")
+           crawler_workers = container("Crawler Workers", technology: "Elixir DynamicSupervisor")
+           postgres = database("Crawler DB", technology: "PostgreSQL")
+         end
+
+       operator ~> crawler |> uses("Configures and monitors")
+       seed_loader ~> s3_seeds |> reads("Downloads daily seed file", technology: "S3 API")
+
+       seed_loader
+       ~> dedupe_cache
+       |> calls("Checks crawl_date + canonical URL", technology: "Redis")
+
+       seed_loader ~> frontier |> publishes("Enqueues fresh URLs", technology: "AMQP / Redis")
+       crawler_workers ~> frontier |> calls("Consumes crawl jobs")
+       crawler_workers ~> robots_cache |> reads("Loads per-domain crawl rules")
+
+       crawler_workers
+       ~> target_sites
+       |> calls("Fetches pages respecting robots.txt", technology: "HTTPS")
+
+       crawler_workers
+       ~> postgres
+       |> writes("Persists pages and crawl attempts", technology: "SQL")
+
+       crawler_workers
+       ~> alerting
+       |> publishes("Emits crawl metrics and failures", technology: "OTLP")
+     end
+   end).()
+```
+
+```elixir
+render_tabs.(
+  C4.to_mermaid(c4),
+  C4.to_dot(c4),
+  "800px"
+)
 ```
 
 ---
 
-## 5. C4 Container View (L2)
+## 5. Core Dataflow
+
+This view focuses on the hot data path from seed file to stored crawl result, including retry and dead-letter paths.
 
 ```elixir
-c4_containers =
-  C4.new()
-  |> C4.add_software_system(:crawler_system, label: "Crawler System", scope: :in)
-  |> C4.add_container(:seed_loader, label: "Seed Loader", technology: "Elixir / Cron Task", parent: :crawler_system)
-  |> C4.add_container(:dedup_cache, label: "Deduplication Cache", technology: "Redis (Daily TTL Sets)", parent: :crawler_system)
-  |> C4.add_container(:url_queue, label: "URL Broker", technology: "RabbitMQ / Redis Queue", parent: :crawler_system)
-  |> C4.add_container(:crawler_workers, label: "Crawler Workers", technology: "Elixir / DynamicSupervisor Pool", parent: :crawler_system)
-  |> C4.add_container(:postgres_db, label: "Postgres DB", technology: "PostgreSQL Database", parent: :crawler_system)
-  |> C4.add_software_system(:s3_seeds, label: "S3 Seed Store", scope: :out)
-  |> C4.add_software_system(:target_sites, label: "External Websites", scope: :out)
-  # Links
-  |> C4.add_relationship(:seed_loader, :s3_seeds, label: "Downloads daily file")
-  |> C4.add_relationship(:seed_loader, :dedup_cache, label: "Checks if URL already crawled today")
-  |> C4.add_relationship(:seed_loader, :url_queue, label: "Pushes new daily URLs to")
-  |> C4.add_relationship(:crawler_workers, :url_queue, label: "Consumes URLs from")
-  |> C4.add_relationship(:crawler_workers, :target_sites, label: "Fetches pages from")
-  |> C4.add_relationship(:crawler_workers, :postgres_db, label: "Saves parsed HTML to")
+crawl_dataflow =
+  (fn ->
+     import Choreo.Lab.DSL.Dataflow
 
-mermaid = C4.to_mermaid(c4_containers)
-dot = C4.to_dot(c4_containers)
-render_tabs.(mermaid, dot, 500)
+     dataflow do
+       seed_file = source("S3 Daily Seed File", rate: "10k/day")
+       normalize = transform("Normalize + Canonicalize URL", latency_ms: 1)
+       dedupe = transform("Daily Redis Dedupe", latency_ms: 2)
+       frontier = buffer("URL Frontier Queue", capacity: 50_000)
+       robots = transform("Robots.txt Lookup", latency_ms: 25)
+       politeness = buffer("Per-Domain Politeness Gate", capacity: "domain buckets")
+       fetch = transform("HTTP Fetch", latency_ms: 2_000, capacity: "worker pool")
+       persist = sink("PostgreSQL Page Store")
+       retry_queue = buffer("Retry Queue", capacity: 10_000)
+       dlq = sink("Dead Letter / Poison URL Store")
+
+       seed_file ~> normalize |> emits("raw URL line")
+       normalize ~> dedupe |> emits("canonical URL")
+       dedupe ~> frontier |> emits("fresh URL for date")
+       frontier ~> robots |> emits("crawl job")
+       robots ~> politeness |> emits("allowed URL")
+       politeness ~> fetch |> emits("rate-limited request")
+       fetch ~> persist |> writes("page result")
+       retry(fetch ~> retry_queue, "DNS/5xx/timeout")
+       retry_queue ~> politeness |> emits("retry job")
+       dead_letter(fetch ~> dlq, "robots denied / repeated failure / poison URL")
+     end
+   end).()
+```
+
+```elixir
+render_tabs.(
+  Dataflow.to_mermaid(crawl_dataflow),
+  Dataflow.to_dot(crawl_dataflow),
+  "800px"
+)
 ```
 
 ---
 
-## 6. Core Dataflow
+## 6. Crawl Workflow
+
+The workflow makes operational behavior explicit: fail closed on robots, cap retries, and always record an outcome.
 
 ```elixir
-dataflow =
-  Dataflow.new()
-  |> Dataflow.add_source(:s3, label: "S3 Daily File")
-  |> Dataflow.add_transform(:filter, label: "Redis Dedup Filter")
-  |> Dataflow.add_transform(:queue, label: "RabbitMQ Broker")
-  |> Dataflow.add_transform(:politeness, label: "Robots.txt Cache Matcher")
-  |> Dataflow.add_transform(:fetcher, label: "HTTP Fetcher (Req)")
-  |> Dataflow.add_sink(:postgres, label: "Postgres Store")
-  |> Dataflow.connect(:s3, :filter, label: "Streams lines")
-  |> Dataflow.connect(:filter, :queue, label: "Enqueues fresh URLs")
-  |> Dataflow.connect(:queue, :politeness, label: "Pulls next URL")
-  |> Dataflow.connect(:politeness, :fetcher, label: "Dispatches rate-limited request")
-  |> Dataflow.connect(:fetcher, :postgres, label: "Saves page HTML")
+crawl_workflow =
+  (fn ->
+     import Choreo.Lab.DSL.Workflow
 
-mermaid = Dataflow.to_mermaid(dataflow)
-dot = Dataflow.to_dot(dataflow)
-render_tabs.(mermaid, dot, 400)
+     workflow do
+       start = start("Daily Crawl Trigger")
+       load_seed = task("Load Seed File", timeout_ms: 60_000, retry: 2)
+       normalize = task("Normalize URLs", timeout_ms: 120_000)
+       enqueue = task("Enqueue Fresh URLs", timeout_ms: 120_000, retry: 2)
+       crawl = task("Crawl URL", timeout_ms: 10_000, retry: 2)
+       allowed = decision("Robots Allowed?")
+       persist = task("Persist Result", timeout_ms: 500, retry: 3)
+       quarantine = task("Quarantine URL", timeout_ms: 500)
+       done = finish("Daily Job Complete")
+
+       start ~> load_seed
+       load_seed ~> normalize
+       normalize ~> enqueue
+       enqueue ~> crawl
+       crawl ~> allowed
+       allowed ~> persist |> condition("yes")
+       allowed ~> quarantine |> failure("no / denied")
+       persist ~> done
+       quarantine ~> done
+     end
+   end).()
+```
+
+```elixir
+render_tabs.(
+  Workflow.to_mermaid(crawl_workflow),
+  Workflow.to_dot(crawl_workflow),
+  "750px"
+)
 ```
 
 ---
@@ -147,62 +256,218 @@ render_tabs.(mermaid, dot, 400)
 
 ```elixir
 erd =
-  ERD.new()
-  |> ERD.add_table(:crawl_jobs,
-    columns: [
-      %{name: :id, type: :uuid, key: :pk},
-      %{name: :date, type: :date, comment: "Daily job identifier (YYYY-MM-DD)"},
-      %{name: :status, type: :varchar, comment: "queued, running, completed"}
-    ]
-  )
-  |> ERD.add_table(:crawled_pages,
-    columns: [
-      %{name: :id, type: :uuid, key: :pk},
-      %{name: :crawl_job_id, type: :uuid, key: :fk},
-      %{name: :url, type: :text},
-      %{name: :raw_html, type: :text},
-      %{name: :status_code, type: :integer},
-      %{name: :crawled_at, type: :timestamp}
-    ]
-  )
-  |> ERD.add_table(:robots_cache,
-    columns: [
-      %{name: :domain, type: :varchar, key: :pk},
-      %{name: :directives, type: :text, comment: "Serialized rules JSON"},
-      %{name: :expires_at, type: :timestamp}
-    ]
-  )
-  |> ERD.add_relationship(:crawl_jobs, :crawled_pages, cardinality: :one_to_many, label: "contains")
+  (fn ->
+     import Choreo.Lab.DSL.ERD
 
-mermaid = ERD.to_mermaid(erd)
-dot = ERD.to_dot(erd)
-render_tabs.(mermaid, dot, 350)
+     erd do
+       crawl_jobs =
+         table("crawl_jobs") do
+           pk(:id, :uuid)
+           field(:crawl_date, :date, comment: "Daily job identifier")
+           field(:status, :varchar, comment: "queued, running, completed, failed")
+           field(:started_at, :utc_datetime)
+           field(:finished_at, :utc_datetime)
+         end
+
+       urls =
+         table("urls") do
+           pk(:id, :uuid)
+           fk(:crawl_job_id, :uuid)
+           field(:canonical_url, :text)
+           field(:domain, :varchar)
+           field(:dedupe_key, :varchar, comment: "crawl_date + normalized URL")
+         end
+
+       crawl_attempts =
+         table("crawl_attempts") do
+           pk(:id, :uuid)
+           fk(:url_id, :uuid)
+           field(:attempt_no, :integer)
+           field(:status_code, :integer)
+           field(:error_reason, :text)
+           field(:started_at, :utc_datetime)
+           field(:finished_at, :utc_datetime)
+         end
+
+       crawled_pages =
+         table("crawled_pages") do
+           pk(:id, :uuid)
+           fk(:url_id, :uuid)
+           field(:raw_html, :text)
+           field(:content_hash, :varchar)
+           field(:crawled_at, :utc_datetime)
+         end
+
+       robots_cache =
+         table("robots_cache") do
+           pk(:domain, :varchar)
+           field(:directives, :text, comment: "Serialized rules")
+           field(:expires_at, :utc_datetime)
+         end
+
+       crawl_jobs ~> urls |> has_many("contains", from: :id, to: :crawl_job_id)
+       urls ~> crawl_attempts |> has_many("attempted as", from: :id, to: :url_id)
+       urls ~> crawled_pages |> has_many("stores", from: :id, to: :url_id)
+     end
+   end).()
 ```
-
----
-
-## 8. Analysis & Verification
 
 ```elixir
-C4.Analysis.validate(c4_containers)
+render_tabs.(
+  ERD.to_mermaid(erd, syntax: :erd),
+  ERD.to_dot(erd),
+  "750px"
+)
 ```
 
 ---
 
-## 9. Tradeoffs
+## 8. Threat Model
 
-| Choice            | Selected               | Tradeoff                                                                                                                                                                 |
-| ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Deduplication** | Redis Set with 24h TTL | Simple, fast, and resets memory automatically daily. However, it requires a Redis instance.                                                                              |
-| **Queuing**       | RabbitMQ / Redis       | Keeps workers decoupled from ingestion. Can buffer spikes if S3 loader pushes thousands of links instantly.                                                              |
-| **Database**      | PostgreSQL             | Postgres is great for storing page metadata. For huge raw HTML storage scale, moving HTML payloads to S3/MinIO and storing only references in PG would be the next step. |
+Crawler inputs and target responses are untrusted. The main security concerns are SSRF-like redirects, storage poisoning, retry amplification, credential exposure, and accidental policy bypass.
+
+```elixir
+threat_model =
+  (fn ->
+     import Choreo.Lab.DSL.ThreatModel
+
+     threat_model do
+       internet = boundary("Internet", level: 0)
+       worker_zone = boundary("Crawler Worker Zone", level: 2)
+       storage = boundary("Storage Zone", level: 3)
+
+       seeds = external_entity("S3 Seed File", boundary: internet)
+       websites = external_entity("Target Websites", boundary: internet)
+       worker = process("Crawler Worker", boundary: worker_zone, privilege: :system)
+       queue = process("URL Frontier", boundary: worker_zone, privilege: :system)
+       db = data_store("PostgreSQL", boundary: storage, sensitivity: :internal)
+
+       redis =
+         data_store("Redis Dedupe / Robots Cache", boundary: storage, sensitivity: :internal)
+
+       seeds ~> queue |> encrypted("Seed URL ingest", protocol: :https)
+       queue ~> worker |> flow("Crawl job", protocol: :amqp)
+       worker ~> websites |> encrypted("HTTP fetch", protocol: :https)
+       worker ~> redis |> flow("Dedupe and robots lookup", protocol: :redis, encrypted: true)
+       worker ~> db |> flow("Persist crawl result", protocol: :sql, encrypted: true)
+     end
+   end).()
+```
+
+```elixir
+render_tabs.(
+  ThreatModel.to_mermaid(threat_model),
+  ThreatModel.to_dot(threat_model),
+  "750px"
+)
+```
 
 ---
 
-## 10. LLM Review Prompt
+## 9. Requirements Traceability
 
-Use this Livebook as the source of truth. Review the design for:
+```elixir
+requirements =
+  (fn ->
+    import Choreo.Lab.DSL.Requirement
 
-* Politeness bottlenecks (e.g. handling a case where 50% of the 10,000 URLs belong to a single domain).
-* Fault tolerance (retries and backoffs on HTTP workers).
-* Scalability limits of concurrent database writes.
+    requirements "Distributed Web Crawler" do
+      platform = stakeholder("Platform Team")
+      security = stakeholder("Security Team")
+
+      ingest = functional("Ingest daily seed URLs from S3", id: "FR-1")
+      dedupe = functional("Deduplicate URLs per crawl day", id: "FR-2", risk: :high)
+      robots = functional("Respect robots.txt and per-domain politeness", id: "FR-3", risk: :critical)
+      persist = functional("Store crawl results and failures", id: "FR-5")
+      window = performance("Complete the daily crawl window", id: "NFR-1")
+      retry_bounds = design_constraint("Bound retries and poison URL handling", id: "NFR-4", risk: :high)
+
+      seed_loader = component("Seed Loader")
+      crawler_workers = component("Crawler Workers")
+      db = component("Crawler DB")
+      tests = test_case("Crawler integration and politeness tests")
+
+      platform ~> ingest |> traces("owns")
+      security ~> robots |> traces("reviews")
+      seed_loader ~> ingest |> satisfies("implements")
+      seed_loader ~> dedupe |> satisfies("implements")
+      crawler_workers ~> robots |> satisfies("implements")
+      crawler_workers ~> window |> satisfies("scales workers")
+      crawler_workers ~> retry_bounds |> satisfies("caps retries")
+      db ~> persist |> satisfies("stores")
+      tests ~> dedupe |> verifies("proves")
+      tests ~> robots |> verifies("proves")
+      tests ~> retry_bounds |> verifies("proves")
+    end
+  end).()
+```
+
+```elixir
+render_tabs.(
+  Requirement.to_mermaid(requirements),
+  Requirement.to_dot(requirements),
+  "750px"
+)
+```
+
+---
+
+## 10. Analysis and Verification
+
+```elixir
+%{
+  c4_validation: C4Analysis.validate(c4),
+  dataflow_validation: DataflowAnalysis.validate(crawl_dataflow),
+  workflow_validation: WorkflowAnalysis.validate(crawl_workflow),
+  erd_validation: ERDAnalysis.validate(erd),
+  threat_model_validation: ThreatAnalysis.validate(threat_model),
+  requirement_coverage: RequirementAnalysis.coverage(requirements),
+  high_risk_requirement_gaps: RequirementAnalysis.high_risk_gaps(requirements)
+}
+```
+
+---
+
+## 11. Tradeoffs
+
+| Choice        | Selected                  | Tradeoff                                                                                                   |
+| ------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Deduplication | Redis daily TTL set       | Fast and naturally expires per day; requires memory sizing and fallback behavior.                          |
+| Queueing      | RabbitMQ / Redis frontier | Decouples ingestion from fetch workers; operationally simpler than a large frontier service at this scale. |
+| Page storage  | PostgreSQL first          | Simple relational queries; raw HTML may later move to object storage if payload volume grows.              |
+| Robots cache  | Redis + DB fallback       | Reduces repeated target fetches; must honor expiry and crawler-specific user-agent rules.                  |
+| Retry policy  | Bounded retries + DLQ     | Avoids retry storms; requires reviewing quarantined URLs.                                                  |
+
+---
+
+## 12. Open Questions
+
+* What user-agent string and contact policy should the crawler publish?
+* Are redirects allowed across domains, and how many redirects should be followed?
+* What is the maximum page size to download and store?
+* Should raw HTML be retained indefinitely or only recent crawl metadata?
+* Are target sites allowed to be crawled concurrently if they share the same registered domain?
+
+---
+
+## 13. Final Design Summary
+
+The design uses a small, horizontally scalable crawler system: a scheduled seed loader reads daily S3 files, normalizes URLs, enforces per-day dedupe in Redis, and pushes crawl jobs into a frontier queue. Worker pools enforce robots and per-domain politeness, fetch pages, persist outcomes to PostgreSQL, and route repeated failures to a dead-letter path.
+
+The important release concerns are polite crawling behavior, bounded retries, database write pressure, and careful handling of untrusted target responses.
+
+---
+
+## 14. LLM Review Prompt
+
+Use this Livebook as the source of truth. Review the distributed crawler design for:
+
+* politeness bottlenecks and robots.txt edge cases;
+* SSRF-like redirect or DNS abuse risks;
+* retry storm and poison URL handling;
+* PostgreSQL write and storage pressure;
+* dedupe correctness across crawl dates;
+* unclear requirements or out-of-scope assumptions;
+* places where the design is over-engineered for 10,000 URLs/day.
+
+When responding, produce a prioritized risk list, suggested design changes, open stakeholder questions, and a concise recommendation.
