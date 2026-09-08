@@ -252,7 +252,7 @@ Analysis.cyclic?(resilient)
 |> IO.inspect(label: "Has cycles?")
 ```
 
-`cyclic?/1` returns `true` here — but that's expected. The retry loop is a designed cycle, not a bug. Use `Analysis.cycles/1` (if available) or inspect the cycle paths to distinguish intentional loops from accidental ones.
+`cyclic?/1` returns `true` here — but that's expected. The retry loop is a designed cycle, not a bug. Use the rendered graph and edge labels to distinguish intentional retry loops from accidental feedback.
 
 ---
 
@@ -379,8 +379,8 @@ Kino.Layout.tabs(
 ### Diagnosis
 
 ```elixir
-IO.inspect(Analysis.orphan_nodes(broken), label: "Orphans (no incoming edges)")
-IO.inspect(Analysis.dead_ends(broken), label: "Dead ends (no outgoing edges)")
+IO.inspect(Analysis.orphan_nodes(broken), label: "Orphans (unreachable from sources)")
+IO.inspect(Analysis.dead_ends(broken), label: "Dead ends (cannot reach sinks)")
 IO.inspect(Analysis.topological_sort(broken), label: "Topological sort")
 ```
 

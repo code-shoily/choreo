@@ -517,7 +517,7 @@ defmodule Choreo.DomainTest do
     assert %Choreo.Theme{} = t
 
     # Deprecated trace_cause alias
-    assert Domain.trace_cause(d, :paid) == Domain.causes(d, :paid)
+    assert :erlang.apply(Domain, :trace_cause, [d, :paid]) == Domain.causes(d, :paid)
 
     # Viewable rebuild with filtered highlights
     focused_d = Domain.focus_path(d, [:buyer, :pay])
