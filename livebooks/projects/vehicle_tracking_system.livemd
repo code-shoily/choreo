@@ -29,16 +29,10 @@ alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
 ```
 
 ```elixir
-mermaid_source = fn source ->
-  fence = String.duplicate("`", 3)
-  Kino.Markdown.new(fence <> "mermaid\n" <> source <> "\n" <> fence)
-end
-
 render_tabs = fn mermaid, dot, height ->
   Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(mermaid),
-    Graphviz: Kino.VizJS.render(dot, height: height),
-    Sketch: Choreo.Lab.Sketch.new(mermaid)
+    Siren: Choreo.Lab.Siren.new(mermaid, height: height),
+    Graphviz: Kino.VizJS.render(dot, height: height)
   )
 end
 ```
@@ -105,91 +99,97 @@ The ERD separates ACL metadata, vehicle metadata, high-volume telemetry, geofenc
 ```elixir
 db_schema =
   (fn ->
-    import Choreo.Lab.DSL.ERD
+     import Choreo.Lab.DSL.ERD
 
-    erd do
-      departments =
-        table("departments") do
-          pk :id, :uuid
-          field :name, :varchar
-          field :timezone, :varchar, comment: "One of the supported operating regions"
-        end
+     erd do
+       departments =
+         table("departments") do
+           pk(:id, :uuid)
+           field(:name, :varchar)
+           field(:timezone, :varchar, comment: "One of the supported operating regions")
+         end
 
-      users =
-        table("users") do
-          pk :id, :uuid
-          fk :department_id, :uuid
-          field :email, :varchar
-          field :password_hash, :varchar
-          field :role, :varchar, comment: "supervisor, driver, admin"
-        end
+       users =
+         table("users") do
+           pk(:id, :uuid)
+           fk(:department_id, :uuid)
+           field(:email, :varchar)
+           field(:password_hash, :varchar)
+           field(:role, :varchar, comment: "supervisor, driver, admin")
+         end
 
-      vehicles =
-        table("vehicles") do
-          pk :id, :uuid
-          fk :department_id, :uuid
-          field :license_plate, :varchar
-          field :vehicle_type, :varchar, comment: "office_vehicle, truck, motorbike"
-          field :device_uid, :varchar, comment: "IMEI or app client token"
-          field :device_type, :varchar, comment: "iot_nmea, app_json"
-          field :status, :varchar
-        end
+       vehicles =
+         table("vehicles") do
+           pk(:id, :uuid)
+           fk(:department_id, :uuid)
+           field(:license_plate, :varchar)
+           field(:vehicle_type, :varchar, comment: "office_vehicle, truck, motorbike")
+           field(:device_uid, :varchar, comment: "IMEI or app client token")
+           field(:device_type, :varchar, comment: "iot_nmea, app_json")
+           field(:status, :varchar)
+         end
 
-      geofences =
-        table("geofences") do
-          pk :id, :uuid
-          fk :department_id, :uuid
-          field :name, :varchar
-          field :polygon_coordinates, :geometry
-        end
+       geofences =
+         table("geofences") do
+           pk(:id, :uuid)
+           fk(:department_id, :uuid)
+           field(:name, :varchar)
+           field(:polygon_coordinates, :geometry)
+         end
 
-      telemetry_logs =
-        table("telemetry_logs") do
-          pk :id, :bigint
-          fk :vehicle_id, :uuid
-          field :recorded_at, :timestamp_tz
-          field :latitude, :double
-          field :longitude, :double
-          field :speed_kmh, :double
-          field :heading, :integer
-          field :raw_payload, :text
-        end
+       telemetry_logs =
+         table("telemetry_logs") do
+           pk(:id, :bigint)
+           fk(:vehicle_id, :uuid)
+           field(:recorded_at, :timestamp_tz)
+           field(:latitude, :double)
+           field(:longitude, :double)
+           field(:speed_kmh, :double)
+           field(:heading, :integer)
+           field(:raw_payload, :text)
+         end
 
-      geofence_violations =
-        table("geofence_violations") do
-          pk :id, :uuid
-          fk :vehicle_id, :uuid
-          fk :geofence_id, :uuid
-          field :violation_type, :varchar, comment: "entry, exit"
-          field :recorded_at, :timestamp_tz
-        end
+       geofence_violations =
+         table("geofence_violations") do
+           pk(:id, :uuid)
+           fk(:vehicle_id, :uuid)
+           fk(:geofence_id, :uuid)
+           field(:violation_type, :varchar, comment: "entry, exit")
+           field(:recorded_at, :timestamp_tz)
+         end
 
-      device_commands =
-        table("device_commands") do
-          pk :id, :uuid
-          fk :vehicle_id, :uuid
-          fk :issued_by_user_id, :uuid
-          field :command_type, :varchar
-          field :payload, :jsonb
-          field :status, :varchar, comment: "pending, sent, acknowledged, failed, expired"
-          field :created_at, :timestamp_tz
-          field :updated_at, :timestamp_tz
-        end
+       device_commands =
+         table("device_commands") do
+           pk(:id, :uuid)
+           fk(:vehicle_id, :uuid)
+           fk(:issued_by_user_id, :uuid)
+           field(:command_type, :varchar)
+           field(:payload, :jsonb)
+           field(:status, :varchar, comment: "pending, sent, acknowledged, failed, expired")
+           field(:created_at, :timestamp_tz)
+           field(:updated_at, :timestamp_tz)
+         end
 
-      departments ~> users |> has_many("employs", from: :id, to: :department_id)
-      departments ~> vehicles |> has_many("allocates", from: :id, to: :department_id)
-      departments ~> geofences |> has_many("owns", from: :id, to: :department_id)
-      vehicles ~> telemetry_logs |> has_many("emits", from: :id, to: :vehicle_id)
-      vehicles ~> geofence_violations |> has_many("triggers", from: :id, to: :vehicle_id)
-      geofences ~> geofence_violations |> has_many("classifies", from: :id, to: :geofence_id)
-      vehicles ~> device_commands |> has_many("receives", from: :id, to: :vehicle_id)
-      users ~> device_commands |> has_many("issues", from: :id, to: :issued_by_user_id)
-    end
-  end).()
+       departments ~> users |> has_many("employs", from: :id, to: :department_id)
+       departments ~> vehicles |> has_many("allocates", from: :id, to: :department_id)
+       departments ~> geofences |> has_many("owns", from: :id, to: :department_id)
+       vehicles ~> telemetry_logs |> has_many("emits", from: :id, to: :vehicle_id)
+       vehicles ~> geofence_violations |> has_many("triggers", from: :id, to: :vehicle_id)
+       geofences ~> geofence_violations |> has_many("classifies", from: :id, to: :geofence_id)
+       vehicles ~> device_commands |> has_many("receives", from: :id, to: :vehicle_id)
+       users ~> device_commands |> has_many("issues", from: :id, to: :issued_by_user_id)
+     end
+   end).()
 ```
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
-render_tabs.(ERD.to_mermaid(db_schema, syntax: :erd), ERD.to_dot(db_schema), "900px")
+render_tabs.(
+  ERD.to_mermaid(db_schema, syntax: :erd),
+  ERD.to_dot(db_schema),
+  "700px"
+)
 ```
 
 ---
@@ -201,53 +201,82 @@ The C4 model uses external devices/apps as out-of-scope systems and keeps server
 ```elixir
 c4_system =
   (fn ->
-    import Choreo.Lab.DSL.C4
+     import Choreo.Lab.DSL.C4
 
-    c4 do
-      supervisor = person("Department Supervisor", description: "Views live fleet state, reports, and sends commands.")
-      driver = person("Driver", description: "Uses vehicle or mobile app during operations.")
-      iot_hardware = system("IoT GPS Device", scope: :out, technology: "Embedded SIM / NMEA 0183")
-      driver_app = system("Driver Mobile App", scope: :out, technology: "iOS / Android JSON client")
-      observability = system("Observability Platform", scope: :out, technology: "Metrics, logs, traces, alerts")
+     c4 do
+       supervisor =
+         person("Department Supervisor",
+           description: "Views live fleet state, reports, and sends commands."
+         )
 
-      fleet =
-        system("Vehicle Fleet System", scope: :in) do
-          dashboard = container("Supervisor Dashboard", technology: "Phoenix LiveView")
-          load_balancer = container("Load Balancer", technology: "HAProxy / AWS ALB")
-          telemetry_gateway = container("Telemetry Gateway", technology: "Elixir / Phoenix / Ranch")
-          vehicle_registry = container("Vehicle Registry", technology: "Horde / Registry / pg")
-          vehicle_processes = container("Vehicle GenServer Pool", technology: "Elixir GenServer per active vehicle")
-          redis = datastore("Latest Location Cache", technology: "Redis Cluster")
-          timescaledb = database("Warm Telemetry DB", technology: "TimescaleDB / PostgreSQL")
-          cold_archive = datastore("Cold Telemetry Archive", technology: "S3 / Parquet")
-          report_workers = container("Report Workers", technology: "Oban / Elixir")
-        end
+       driver = person("Driver", description: "Uses vehicle or mobile app during operations.")
 
-      driver ~> driver_app |> uses("Sends mobile telemetry")
-      driver_app ~> load_balancer |> calls("JSON telemetry + command ACKs", technology: "HTTPS / WebSockets")
-      iot_hardware ~> load_balancer |> calls("NMEA telemetry", technology: "UDP / TCP")
-      load_balancer ~> telemetry_gateway |> calls("Routes telemetry ingress")
-      telemetry_gateway ~> vehicle_registry |> calls("Resolves vehicle process")
-      telemetry_gateway ~> vehicle_processes |> sends("Dispatches telemetry")
-      vehicle_processes ~> redis |> writes("Updates latest position")
-      vehicle_processes ~> timescaledb |> writes("Buffers and persists telemetry")
-      vehicle_processes ~> dashboard |> publishes("Broadcasts live updates", technology: "Phoenix PubSub")
-      dashboard ~> timescaledb |> reads("Queries ACL, reports, command history")
-      dashboard ~> redis |> reads("Reads latest locations")
-      dashboard ~> vehicle_processes |> calls("Sends authorized commands")
-      report_workers ~> timescaledb |> reads("Aggregates warm reports")
-      report_workers ~> cold_archive |> writes("Exports old partitions")
-      telemetry_gateway ~> observability |> publishes("Emits ingress metrics")
-      report_workers ~> observability |> publishes("Emits job metrics")
-    end
-  end).()
+       iot_hardware =
+         system("IoT GPS Device", scope: :out, technology: "Embedded SIM / NMEA 0183")
+
+       driver_app =
+         system("Driver Mobile App", scope: :out, technology: "iOS / Android JSON client")
+
+       observability =
+         system("Observability Platform",
+           scope: :out,
+           technology: "Metrics, logs, traces, alerts"
+         )
+
+       fleet =
+         system("Vehicle Fleet System", scope: :in) do
+           dashboard = container("Supervisor Dashboard", technology: "Phoenix LiveView")
+           load_balancer = container("Load Balancer", technology: "HAProxy / AWS ALB")
+
+           telemetry_gateway =
+             container("Telemetry Gateway", technology: "Elixir / Phoenix / Ranch")
+
+           vehicle_registry = container("Vehicle Registry", technology: "Horde / Registry / pg")
+
+           vehicle_processes =
+             container("Vehicle GenServer Pool",
+               technology: "Elixir GenServer per active vehicle"
+             )
+
+           redis = datastore("Latest Location Cache", technology: "Redis Cluster")
+           timescaledb = database("Warm Telemetry DB", technology: "TimescaleDB / PostgreSQL")
+           cold_archive = datastore("Cold Telemetry Archive", technology: "S3 / Parquet")
+           report_workers = container("Report Workers", technology: "Oban / Elixir")
+         end
+
+       driver ~> driver_app |> uses("Sends mobile telemetry")
+
+       driver_app
+       ~> load_balancer
+       |> calls("JSON telemetry + command ACKs", technology: "HTTPS / WebSockets")
+
+       iot_hardware ~> load_balancer |> calls("NMEA telemetry", technology: "UDP / TCP")
+       load_balancer ~> telemetry_gateway |> calls("Routes telemetry ingress")
+       telemetry_gateway ~> vehicle_registry |> calls("Resolves vehicle process")
+       telemetry_gateway ~> vehicle_processes |> sends("Dispatches telemetry")
+       vehicle_processes ~> redis |> writes("Updates latest position")
+       vehicle_processes ~> timescaledb |> writes("Buffers and persists telemetry")
+
+       vehicle_processes
+       ~> dashboard
+       |> publishes("Broadcasts live updates", technology: "Phoenix PubSub")
+
+       dashboard ~> timescaledb |> reads("Queries ACL, reports, command history")
+       dashboard ~> redis |> reads("Reads latest locations")
+       dashboard ~> vehicle_processes |> calls("Sends authorized commands")
+       report_workers ~> timescaledb |> reads("Aggregates warm reports")
+       report_workers ~> cold_archive |> writes("Exports old partitions")
+       telemetry_gateway ~> observability |> publishes("Emits ingress metrics")
+       report_workers ~> observability |> publishes("Emits job metrics")
+     end
+   end).()
 ```
 
 <!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 container_view = Choreo.View.zoom(c4_system, level: 1)
-render_tabs.(C4.to_mermaid(container_view), C4.to_dot(container_view), "950px")
+render_tabs.(C4.to_mermaid(container_view), C4.to_dot(container_view), "550px")
 ```
 
 ---
@@ -259,41 +288,41 @@ The hot path optimizes for low-latency latest-position updates while asynchronou
 ```elixir
 telemetry_flow =
   (fn ->
-    import Choreo.Lab.DSL.Dataflow
+     import Choreo.Lab.DSL.Dataflow
 
-    dataflow do
-      iot = source("IoT NMEA Stream", rate: 120)
-      app = source("Mobile JSON Stream", rate: 47)
-      decode = transform("Decode + Normalize", latency_ms: 5)
-      acl_enrich = transform("Attach Vehicle + Department", latency_ms: 5)
-      vehicle_proc = transform("Vehicle GenServer", latency_ms: 2, capacity: 500)
-      latest_cache = sink("Redis Latest Position")
-      pubsub = buffer("Phoenix PubSub")
-      dashboard = sink("Supervisor Dashboard")
-      warm_db = sink("TimescaleDB Warm Store")
-      archive = sink("S3 / Parquet Cold Archive")
-      dlq = sink("Invalid Telemetry DLQ")
+     dataflow do
+       iot = source("IoT NMEA Stream", rate: 120)
+       app = source("Mobile JSON Stream", rate: 47)
+       decode = transform("Decode + Normalize", latency_ms: 5)
+       acl_enrich = transform("Attach Vehicle + Department", latency_ms: 5)
+       vehicle_proc = transform("Vehicle GenServer", latency_ms: 2, capacity: 500)
+       latest_cache = sink("Redis Latest Position")
+       pubsub = buffer("Phoenix PubSub")
+       dashboard = sink("Supervisor Dashboard")
+       warm_db = sink("TimescaleDB Warm Store")
+       archive = sink("S3 / Parquet Cold Archive")
+       dlq = sink("Invalid Telemetry DLQ")
 
-      iot ~> decode |> emits("NMEA sentence")
-      app ~> decode |> emits("JSON payload")
-      decode ~> acl_enrich |> emits("normalized telemetry")
-      acl_enrich ~> vehicle_proc |> emits("authorized vehicle event")
-      vehicle_proc ~> latest_cache |> writes("latest state")
-      vehicle_proc ~> pubsub |> emits("location update")
-      pubsub ~> dashboard |> emits("department-scoped update")
-      vehicle_proc ~> warm_db |> writes("telemetry row")
-      warm_db ~> archive |> writes("daily partition export")
-      dead_letter decode ~> dlq, "malformed payload"
-      dead_letter acl_enrich ~> dlq, "unknown or unauthorized vehicle"
-    end
-  end).()
+       iot ~> decode |> emits("NMEA sentence")
+       app ~> decode |> emits("JSON payload")
+       decode ~> acl_enrich |> emits("normalized telemetry")
+       acl_enrich ~> vehicle_proc |> emits("authorized vehicle event")
+       vehicle_proc ~> latest_cache |> writes("latest state")
+       vehicle_proc ~> pubsub |> emits("location update")
+       pubsub ~> dashboard |> emits("department-scoped update")
+       vehicle_proc ~> warm_db |> writes("telemetry row")
+       warm_db ~> archive |> writes("daily partition export")
+       dead_letter(decode ~> dlq, "malformed payload")
+       dead_letter(acl_enrich ~> dlq, "unknown or unauthorized vehicle")
+     end
+   end).()
 ```
 
 ```elixir
 render_tabs.(
   Dataflow.to_mermaid(telemetry_flow),
   Dataflow.to_dot(telemetry_flow),
-  "850px"
+  "650px"
 )
 ```
 
@@ -306,30 +335,30 @@ render_tabs.(
 ```elixir
 ingestion_flow =
   (fn ->
-    import Choreo.Lab.DSL.Sequence
+     import Choreo.Lab.DSL.Sequence
 
-    sequence do
-      iot = participant("IoT GPS Hardware")
-      gateway = participant("Telemetry Gateway")
-      registry = participant("Vehicle Registry")
-      vehicle = participant("Vehicle GenServer")
-      db = participant("TimescaleDB")
-      dashboard = participant("Phoenix LiveView")
-      supervisor = actor("Department Supervisor")
+     sequence do
+       iot = participant("IoT GPS Hardware")
+       gateway = participant("Telemetry Gateway")
+       registry = participant("Vehicle Registry")
+       vehicle = participant("Vehicle GenServer")
+       db = participant("TimescaleDB")
+       dashboard = participant("Phoenix LiveView")
+       supervisor = actor("Department Supervisor")
 
-      iot ~> gateway |> call("Send $GPRMC NMEA sentence")
-      activate gateway
-      gateway ~> registry |> call("lookup(vehicle_uuid)")
-      reply registry ~> gateway, "vehicle process pid"
-      gateway ~> vehicle |> call("cast telemetry_coordinates")
-      deactivate gateway
-      activate vehicle
-      vehicle ~> db |> call("INSERT telemetry_logs")
-      vehicle ~> dashboard |> async("PubSub location_updated")
-      deactivate vehicle
-      dashboard ~> supervisor |> async("Push map marker update")
-    end
-  end).()
+       iot ~> gateway |> call("Send $GPRMC NMEA sentence")
+       activate(gateway)
+       gateway ~> registry |> call("lookup(vehicle_uuid)")
+       reply(registry ~> gateway, "vehicle process pid")
+       gateway ~> vehicle |> call("cast telemetry_coordinates")
+       deactivate(gateway)
+       activate(vehicle)
+       vehicle ~> db |> call("INSERT telemetry_logs")
+       vehicle ~> dashboard |> async("PubSub location_updated")
+       deactivate(vehicle)
+       dashboard ~> supervisor |> async("Push map marker update")
+     end
+   end).()
 ```
 
 ### 7.2 Supervisor Command Downlink
@@ -337,41 +366,40 @@ ingestion_flow =
 ```elixir
 command_flow =
   (fn ->
-    import Choreo.Lab.DSL.Sequence
+     import Choreo.Lab.DSL.Sequence
 
-    sequence do
-      supervisor = actor("Supervisor User")
-      dashboard = participant("LiveView Dashboard")
-      db = participant("TimescaleDB")
-      vehicle = participant("Vehicle GenServer")
-      gateway = participant("WebSocket Gateway")
-      app = participant("Driver Mobile App")
+     sequence do
+       supervisor = actor("Supervisor User")
+       dashboard = participant("LiveView Dashboard")
+       db = participant("TimescaleDB")
+       vehicle = participant("Vehicle GenServer")
+       gateway = participant("WebSocket Gateway")
+       app = participant("Driver Mobile App")
 
-      supervisor ~> dashboard |> call("Click Immobilize Engine")
-      activate dashboard
-      dashboard ~> db |> call("Verify supervisor role + same department")
-      reply db ~> dashboard, "authorized"
-      dashboard ~> vehicle |> call("GenServer.call send_command")
-      activate vehicle
-      vehicle ~> db |> call("INSERT device_commands pending")
-      vehicle ~> gateway |> call("WS.push command frame")
-      gateway ~> app |> async("command: immobilize")
-      app ~> gateway |> async("ACK command successful")
-      gateway ~> vehicle |> async("ACK received")
-      vehicle ~> db |> call("UPDATE command acknowledged")
-      reply vehicle ~> dashboard, "{:ok, :acknowledged}"
-      deactivate vehicle
-      reply dashboard ~> supervisor, "Show command status"
-      deactivate dashboard
-    end
-  end).()
+       supervisor ~> dashboard |> call("Click Immobilize Engine")
+       activate(dashboard)
+       dashboard ~> db |> call("Verify supervisor role + same department")
+       reply(db ~> dashboard, "authorized")
+       dashboard ~> vehicle |> call("GenServer.call send_command")
+       activate(vehicle)
+       vehicle ~> db |> call("INSERT device_commands pending")
+       vehicle ~> gateway |> call("WS.push command frame")
+       gateway ~> app |> async("command: immobilize")
+       app ~> gateway |> async("ACK command successful")
+       gateway ~> vehicle |> async("ACK received")
+       vehicle ~> db |> call("UPDATE command acknowledged")
+       reply(vehicle ~> dashboard, "{:ok, :acknowledged}")
+       deactivate(vehicle)
+       reply(dashboard ~> supervisor, "Show command status")
+       deactivate(dashboard)
+     end
+   end).()
 ```
 
 ```elixir
 Kino.Layout.tabs(
   Ingestion: Choreo.Lab.Siren.new(Sequence.to_mermaid(ingestion_flow)),
-  Command: Choreo.Lab.Siren.new(Sequence.to_mermaid(command_flow)),
-  IngestionSource: mermaid_source.(Sequence.to_mermaid(ingestion_flow))
+  Command: Choreo.Lab.Siren.new(Sequence.to_mermaid(command_flow))
 )
 ```
 
@@ -382,38 +410,38 @@ Kino.Layout.tabs(
 ```elixir
 command_workflow =
   (fn ->
-    import Choreo.Lab.DSL.Workflow
+     import Choreo.Lab.DSL.Workflow
 
-    workflow do
-      start = start("Command Requested")
-      authorize = task("Authorize Supervisor + Department", timeout_ms: 100, retry: 0)
-      allowed = decision("Allowed?")
-      persist = task("Persist Pending Command", timeout_ms: 100, retry: 2)
-      online = decision("Vehicle Online?")
-      send_command = task("Send Downlink Command", timeout_ms: 2_000, retry: 1)
-      wait_ack = task("Wait for ACK", timeout_ms: 5_000)
-      acked = decision("ACK Received?")
-      mark_success = task("Mark Acknowledged", timeout_ms: 100, retry: 2)
-      mark_failed = task("Mark Failed / Expired", timeout_ms: 100, retry: 2)
-      denied = finish("Denied")
-      completed = finish("Completed")
-      failed = finish("Failed")
+     workflow do
+       start = start("Command Requested")
+       authorize = task("Authorize Supervisor + Department", timeout_ms: 100, retry: 0)
+       allowed = decision("Allowed?")
+       persist = task("Persist Pending Command", timeout_ms: 100, retry: 2)
+       online = decision("Vehicle Online?")
+       send_command = task("Send Downlink Command", timeout_ms: 2_000, retry: 1)
+       wait_ack = task("Wait for ACK", timeout_ms: 5_000)
+       acked = decision("ACK Received?")
+       mark_success = task("Mark Acknowledged", timeout_ms: 100, retry: 2)
+       mark_failed = task("Mark Failed / Expired", timeout_ms: 100, retry: 2)
+       denied = finish("Denied")
+       completed = finish("Completed")
+       failed = finish("Failed")
 
-      start ~> authorize
-      authorize ~> allowed
-      allowed ~> persist |> condition("yes")
-      allowed ~> denied |> failure("no")
-      persist ~> online
-      online ~> send_command |> condition("yes")
-      online ~> mark_failed |> failure("no")
-      send_command ~> wait_ack
-      wait_ack ~> acked
-      acked ~> mark_success |> condition("yes")
-      acked ~> mark_failed |> failure("timeout")
-      mark_success ~> completed
-      mark_failed ~> failed
-    end
-  end).()
+       start ~> authorize
+       authorize ~> allowed
+       allowed ~> persist |> condition("yes")
+       allowed ~> denied |> failure("no")
+       persist ~> online
+       online ~> send_command |> condition("yes")
+       online ~> mark_failed |> failure("no")
+       send_command ~> wait_ack
+       wait_ack ~> acked
+       acked ~> mark_success |> condition("yes")
+       acked ~> mark_failed |> failure("timeout")
+       mark_success ~> completed
+       mark_failed ~> failed
+     end
+   end).()
 ```
 
 ```elixir
@@ -431,28 +459,28 @@ render_tabs.(
 ```elixir
 connection_fsm =
   (fn ->
-    import Choreo.Lab.DSL.FSM
+     import Choreo.Lab.DSL.FSM
 
-    fsm do
-      offline = initial("Offline")
-      connecting = state("Connecting")
-      active_tracking = state("Active Tracking")
-      idle = state("Idle / Parked")
-      stale_connection = state("Stale Connection")
-      disconnected = final("Disconnected")
+     fsm do
+       offline = initial("Offline")
+       connecting = state("Connecting")
+       active_tracking = state("Active Tracking")
+       idle = state("Idle / Parked")
+       stale_connection = state("Stale Connection")
+       disconnected = final("Disconnected")
 
-      offline ~> connecting |> on("device_heartbeat")
-      connecting ~> active_tracking |> on("handshake_success")
-      connecting ~> offline |> on("handshake_failed")
-      active_tracking ~> idle |> on("ignition_off")
-      idle ~> active_tracking |> on("ignition_on")
-      active_tracking ~> stale_connection |> on("missed_telemetry_interval")
-      idle ~> stale_connection |> on("missed_keepalive")
-      stale_connection ~> active_tracking |> on("telemetry_received")
-      stale_connection ~> disconnected |> on("session_timeout")
-      disconnected ~> connecting |> on("device_reconnect")
-    end
-  end).()
+       offline ~> connecting |> on("device_heartbeat")
+       connecting ~> active_tracking |> on("handshake_success")
+       connecting ~> offline |> on("handshake_failed")
+       active_tracking ~> idle |> on("ignition_off")
+       idle ~> active_tracking |> on("ignition_on")
+       active_tracking ~> stale_connection |> on("missed_telemetry_interval")
+       idle ~> stale_connection |> on("missed_keepalive")
+       stale_connection ~> active_tracking |> on("telemetry_received")
+       stale_connection ~> disconnected |> on("session_timeout")
+       disconnected ~> connecting |> on("device_reconnect")
+     end
+   end).()
 ```
 
 ```elixir
@@ -472,40 +500,42 @@ The highest-risk areas are department isolation, command authorization, device i
 ```elixir
 threat_model =
   (fn ->
-    import Choreo.Lab.DSL.ThreatModel
+     import Choreo.Lab.DSL.ThreatModel
 
-    threat_model do
-      internet = boundary("Public / Mobile Network", level: 0)
-      app_zone = boundary("Fleet Application Zone", level: 2)
-      storage = boundary("Storage Zone", level: 3)
+     threat_model do
+       internet = boundary("Public / Mobile Network", level: 0)
+       app_zone = boundary("Fleet Application Zone", level: 2)
+       storage = boundary("Storage Zone", level: 3)
 
-      device = external_entity("Vehicle Device / Mobile App", boundary: internet, role: :third_party)
-      supervisor = user("Department Supervisor", boundary: internet, role: :user)
-      gateway = process("Telemetry Gateway", boundary: app_zone, privilege: :system)
-      dashboard = process("Supervisor Dashboard", boundary: app_zone, privilege: :user)
-      vehicle_proc = process("Vehicle GenServer", boundary: app_zone, privilege: :system)
-      redis = data_store("Redis Latest State", boundary: storage, sensitivity: :internal)
-      db = data_store("TimescaleDB / Metadata DB", boundary: storage, sensitivity: :confidential)
-      archive = data_store("S3 Cold Archive", boundary: storage, sensitivity: :confidential)
+       device =
+         external_entity("Vehicle Device / Mobile App", boundary: internet, role: :third_party)
 
-      device ~> gateway |> encrypted("Telemetry / ACK", protocol: :https)
-      gateway ~> vehicle_proc |> flow("Dispatch telemetry", protocol: :grpc, encrypted: true)
-      vehicle_proc ~> redis |> flow("Latest position", protocol: :redis, encrypted: true)
-      vehicle_proc ~> db |> flow("Telemetry + command history", protocol: :sql, encrypted: true)
-      db ~> archive |> flow("Partition export", protocol: :https, encrypted: true)
-      supervisor ~> dashboard |> encrypted("Dashboard + command request", protocol: :https)
-      dashboard ~> db |> flow("ACL and report queries", protocol: :sql, encrypted: true)
-      dashboard ~> vehicle_proc |> flow("Authorized command", protocol: :grpc, encrypted: true)
-      vehicle_proc ~> device |> encrypted("Downlink command", protocol: :https)
-    end
-  end).()
+       supervisor = user("Department Supervisor", boundary: internet, role: :user)
+       gateway = process("Telemetry Gateway", boundary: app_zone, privilege: :system)
+       dashboard = process("Supervisor Dashboard", boundary: app_zone, privilege: :user)
+       vehicle_proc = process("Vehicle GenServer", boundary: app_zone, privilege: :system)
+       redis = data_store("Redis Latest State", boundary: storage, sensitivity: :internal)
+       db = data_store("TimescaleDB / Metadata DB", boundary: storage, sensitivity: :confidential)
+       archive = data_store("S3 Cold Archive", boundary: storage, sensitivity: :confidential)
+
+       device ~> gateway |> encrypted("Telemetry / ACK", protocol: :https)
+       gateway ~> vehicle_proc |> flow("Dispatch telemetry", protocol: :grpc, encrypted: true)
+       vehicle_proc ~> redis |> flow("Latest position", protocol: :redis, encrypted: true)
+       vehicle_proc ~> db |> flow("Telemetry + command history", protocol: :sql, encrypted: true)
+       db ~> archive |> flow("Partition export", protocol: :https, encrypted: true)
+       supervisor ~> dashboard |> encrypted("Dashboard + command request", protocol: :https)
+       dashboard ~> db |> flow("ACL and report queries", protocol: :sql, encrypted: true)
+       dashboard ~> vehicle_proc |> flow("Authorized command", protocol: :grpc, encrypted: true)
+       vehicle_proc ~> device |> encrypted("Downlink command", protocol: :https)
+     end
+   end).()
 ```
 
 ```elixir
 render_tabs.(
   ThreatModel.to_mermaid(threat_model),
   ThreatModel.to_dot(threat_model),
-  "900px"
+  "600px"
 )
 ```
 
@@ -516,54 +546,64 @@ render_tabs.(
 ```elixir
 requirements =
   (fn ->
-    import Choreo.Lab.DSL.Requirement
+     import Choreo.Lab.DSL.Requirement
 
-    requirements "Fleet Vehicle Tracking" do
-      operations = stakeholder("Operations Team")
-      security = stakeholder("Security Team")
-      supervisors = stakeholder("Department Supervisors")
+     requirements "Fleet Vehicle Tracking" do
+       operations = stakeholder("Operations Team")
+       security = stakeholder("Security Team")
+       supervisors = stakeholder("Department Supervisors")
 
-      ingest_iot = functional("Ingest NMEA telemetry from IoT devices", id: "FR-1")
-      ingest_app = functional("Ingest JSON telemetry from mobile apps", id: "FR-2")
-      live_tracking = functional("Maintain latest vehicle position", id: "FR-3", risk: :high)
-      retention = functional("Retain historical telemetry for 3 years", id: "FR-4")
-      acl = design_constraint("Enforce department and role-based access control", id: "FR-5", risk: :critical)
-      commands = functional("Dispatch authorized downlink commands", id: "FR-7", risk: :critical)
-      latency = performance("Keep dashboard latest-position latency below a few seconds", id: "NFR-2")
+       ingest_iot = functional("Ingest NMEA telemetry from IoT devices", id: "FR-1")
+       ingest_app = functional("Ingest JSON telemetry from mobile apps", id: "FR-2")
+       live_tracking = functional("Maintain latest vehicle position", id: "FR-3", risk: :high)
+       retention = functional("Retain historical telemetry for 3 years", id: "FR-4")
 
-      telemetry_gateway = component("Telemetry Gateway")
-      vehicle_processes = component("Vehicle GenServer Pool")
-      dashboard = component("Supervisor Dashboard")
-      db = component("Warm Telemetry DB")
-      command_tests = test_case("Command authorization and replay tests")
-      acl_tests = test_case("Department isolation tests")
-      load_tests = test_case("Telemetry ingest load tests")
+       acl =
+         design_constraint("Enforce department and role-based access control",
+           id: "FR-5",
+           risk: :critical
+         )
 
-      operations ~> ingest_iot |> traces("owns")
-      operations ~> ingest_app |> traces("owns")
-      supervisors ~> live_tracking |> traces("needs")
-      security ~> acl |> traces("reviews")
-      security ~> commands |> traces("reviews")
-      telemetry_gateway ~> ingest_iot |> satisfies("implements")
-      telemetry_gateway ~> ingest_app |> satisfies("implements")
-      vehicle_processes ~> live_tracking |> satisfies("updates state")
-      vehicle_processes ~> commands |> satisfies("routes commands")
-      dashboard ~> acl |> satisfies("enforces scoped reads and commands")
-      dashboard ~> latency |> satisfies("pushes live updates")
-      db ~> retention |> satisfies("stores warm history")
-      command_tests ~> commands |> verifies("proves")
-      acl_tests ~> acl |> verifies("proves")
-      load_tests ~> ingest_iot |> verifies("proves")
-      load_tests ~> latency |> verifies("proves")
-    end
-  end).()
+       commands = functional("Dispatch authorized downlink commands", id: "FR-7", risk: :critical)
+
+       latency =
+         performance("Keep dashboard latest-position latency below a few seconds", id: "NFR-2")
+
+       telemetry_gateway = component("Telemetry Gateway")
+       vehicle_processes = component("Vehicle GenServer Pool")
+       dashboard = component("Supervisor Dashboard")
+       db = component("Warm Telemetry DB")
+       command_tests = test_case("Command authorization and replay tests")
+       acl_tests = test_case("Department isolation tests")
+       load_tests = test_case("Telemetry ingest load tests")
+
+       operations ~> ingest_iot |> traces("owns")
+       operations ~> ingest_app |> traces("owns")
+       supervisors ~> live_tracking |> traces("needs")
+       security ~> acl |> traces("reviews")
+       security ~> commands |> traces("reviews")
+       telemetry_gateway ~> ingest_iot |> satisfies("implements")
+       telemetry_gateway ~> ingest_app |> satisfies("implements")
+       vehicle_processes ~> live_tracking |> satisfies("updates state")
+       vehicle_processes ~> commands |> satisfies("routes commands")
+       dashboard ~> acl |> satisfies("enforces scoped reads and commands")
+       dashboard ~> latency |> satisfies("pushes live updates")
+       db ~> retention |> satisfies("stores warm history")
+       command_tests ~> commands |> verifies("proves")
+       acl_tests ~> acl |> verifies("proves")
+       load_tests ~> ingest_iot |> verifies("proves")
+       load_tests ~> latency |> verifies("proves")
+     end
+   end).()
 ```
+
+<!-- livebook:{"output_size":"full"} -->
 
 ```elixir
 render_tabs.(
   Requirement.to_mermaid(requirements),
   Requirement.to_dot(requirements),
-  "800px"
+  "500px"
 )
 ```
 

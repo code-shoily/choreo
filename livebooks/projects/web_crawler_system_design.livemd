@@ -28,9 +28,8 @@ alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
 ```elixir
 render_tabs = fn mermaid, dot, height ->
   Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(mermaid),
-    Graphviz: Kino.VizJS.render(dot, height: height),
-    Sketch: Choreo.Lab.Sketch.new(mermaid)
+    Siren: Choreo.Lab.Siren.new(mermaid, height: height),
+    Graphviz: Kino.VizJS.render(dot, height: height)
   )
 end
 ```
@@ -358,7 +357,7 @@ threat_model =
 render_tabs.(
   ThreatModel.to_mermaid(threat_model),
   ThreatModel.to_dot(threat_model),
-  "750px"
+  "550px"
 )
 ```
 
@@ -402,11 +401,13 @@ requirements =
   end).()
 ```
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 render_tabs.(
   Requirement.to_mermaid(requirements),
   Requirement.to_dot(requirements),
-  "750px"
+  "550px"
 )
 ```
 
