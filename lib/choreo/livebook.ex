@@ -61,7 +61,10 @@ defmodule Choreo.Livebook do
       |> Map.put(:aliases, [{Kino, Choreo.Livebook.KinoMock} | __ENV__.aliases])
       |> Map.put(:requires, [Choreo.Livebook.KinoMock | __ENV__.requires])
 
-    Code.eval_string(code_to_eval, [], env)
+    Code.with_diagnostics(fn ->
+      Code.eval_string(code_to_eval, [], env)
+    end)
+
     :ok
   rescue
     exception -> {:error, exception, __STACKTRACE__}

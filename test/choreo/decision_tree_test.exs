@@ -346,4 +346,48 @@ defmodule Choreo.DecisionTreeTest do
       assert String.contains?(DecisionTree.to_mermaid(tree, theme: :unknown_theme), "graph TD")
     end
   end
+
+  describe "Choreo.Viewable implementation" do
+    test "zoom and rebuild behavior" do
+      tree =
+        DecisionTree.new()
+        |> DecisionTree.set_root(:root, feature: "root_feat")
+        |> DecisionTree.add_decision(:dec1, feature: "dec1_feat")
+        |> DecisionTree.add_decision(:dec2, feature: "dec2_feat")
+        |> DecisionTree.add_outcome(:out1, label: "Out 1")
+        |> DecisionTree.add_outcome(:out2, label: "Out 2")
+        |> DecisionTree.branch(:root, :dec1, "branch1")
+        |> DecisionTree.branch(:dec1, :out1, "branch2")
+        |> DecisionTree.branch(:root, :dec2, "branch3")
+        |> DecisionTree.branch(:dec2, :out2, "branch4")
+
+      pred0 = Choreo.Viewable.zoom_predicate(tree, 0)
+      assert pred0.(:root, %{node_type: :root})
+      refute pred0.(:dec1, %{node_type: :decision})
+      refute pred0.(:out1, %{node_type: :outcome})
+
+      pred1 = Choreo.Viewable.zoom_predicate(tree, 1)
+      assert pred1.(:root, %{node_type: :root})
+      assert pred1.(:dec1, %{node_type: :decision})
+      refute pred1.(:out1, %{node_type: :outcome})
+
+      pred2 = Choreo.Viewable.zoom_predicate(tree, 2)
+      assert pred2.(:out1, %{node_type: :outcome})
+
+      zoomed = Choreo.View.zoom(tree, level: 1)
+      assert :root in DecisionTree.nodes(zoomed)
+      assert :dec1 in DecisionTree.nodes(zoomed)
+      refute :out1 in DecisionTree.nodes(zoomed)
+
+      sub_graph = Yog.remove_node(tree.graph, :root)
+      rebuilt = Choreo.Viewable.rebuild(tree, sub_graph)
+      assert DecisionTree.root(rebuilt) in [:dec1, :dec2]
+      assert Yog.node(rebuilt.graph, DecisionTree.root(rebuilt)).node_type == :root
+
+      empty_rebuilt = Choreo.Viewable.rebuild(tree, Yog.Graph.new(:directed))
+      assert DecisionTree.root(empty_rebuilt) == nil
+
+      assert %{edge_type: :virtual} = Choreo.Viewable.virtual_edge_meta(tree)
+    end
+  end
 end

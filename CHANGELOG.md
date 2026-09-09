@@ -10,9 +10,12 @@
   - Added infrastructure audit placement queries (`direct_internet_violations/1`, `misplaced_databases/1`, etc.) and brought `Choreo.Infrastructure` to parity with core graph and cluster builders.
 - **ThreatModel Hardening**:
   - Added security metadata (roles, privileges, sensitivity, mitigations), attack path analysis (blast radius, ingress/egress, automated highlighting), and reviewer-layer risk assessments with Markdown export.
+- **Test Coverage Expansion**:
+  - Expanded test coverage across renderers (C4, DecisionTree, FSM, MindMap, Planner, Workflow, Sequence), headless Livebook execution, and Kino mocks.
 
 ### Fixed
 
+- Suppressed compiler warnings during headless Livebook evaluations and captured Logger warnings during test runs.
 - Fixed sequence diagram flow label resolution for empty labels in `Choreo.ThreatModel` and non-constructor expressions in `Choreo.Lab.DSL.Sequence`.
 - Fixed defensive validations for duplicate requirement IDs, duplicate transition labels in FSM, and invalid root pointers in MindMap.
 - Fixed `Choreo.FSM.to_simple_graph/2` to use the current arity-2 Yog multigraph combine callback.
