@@ -47,12 +47,16 @@ This notebook analyzes the internal source file dependencies of an Elixir projec
 
 ```elixir
 project_input = Kino.Input.text("Elixir Project Path", default: Path.expand("../..", __DIR__))
-label_input = Kino.Input.select("Filter dependency type", [
-  {"all", "All (Compile, Export & Runtime)"},
-  {"compile", "Compile-time only"},
-  {"export", "Export only"},
-  {"runtime", "Runtime only"}
-], default: "all")
+
+label_input =
+  Kino.Input.select(
+    "Filter dependency type",
+    [
+      {"all", "All (Compile, Export & Runtime)"},
+      {"compile", "Compile-time only"},
+      {"export", "Export only"},
+      {"runtime", "Runtime only"}
+    ], default: "all")
 
 Kino.Layout.grid([project_input, label_input], columns: 2)
 ```
@@ -80,6 +84,7 @@ defmodule XrefParser do
       case System.cmd("mix", args, cd: project_path, env: [{"MIX_ENV", "dev"}]) do
         {dot_string, 0} ->
           {:ok, parse_dot(dot_string)}
+
         {output, status} ->
           {:error, "mix xref failed with exit status #{status}:\n\n#{output}"}
       end
@@ -122,8 +127,10 @@ defmodule XrefParser do
       cond do
         String.starts_with?(path, "test/") or String.ends_with?(path, "_test.exs") ->
           :test
+
         String.contains?(path, "behaviour") or String.contains?(path, "protocol") ->
           :interface
+
         true ->
           :module
       end
@@ -163,6 +170,7 @@ data =
     {:ok, result} ->
       IO.puts("✅ Analyzed #{length(result.nodes)} files and #{length(result.edges)} dependencies")
       result
+
     {:error, reason} ->
       IO.puts("❌ Error: #{reason}")
       %{nodes: [], edges: []}
@@ -200,8 +208,10 @@ graph =
     case node.type do
       :test ->
         Dependency.add_test(g, node.id, opts)
+
       :interface ->
         Dependency.add_interface(g, node.id, opts)
+
       _ ->
         Dependency.add_module(g, node.id, opts)
     end
@@ -236,14 +246,7 @@ brand_theme =
     graph_bgcolor: "#0f172a"
   )
 
-tabs = [
-  {"Mermaid Class Diagram", Kino.Mermaid.new(Dependency.to_mermaid(graph, syntax: :class_diagram))},
-  {"Graphviz", Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")},
-  {"Graphviz (dark)", Kino.VizJS.render(Dependency.to_dot(graph, theme: brand_theme), height: "700px")}
-]
-|> Kino.Layout.tabs()
-
-
+Choreo.Lab.Siren.new(Dependency.to_mermaid(graph, syntax: :class_diagram), height: "900px")
 ```
 
 ## Structural Analysis
@@ -254,6 +257,7 @@ tabs = [
 case Analysis.validate(graph) do
   [] ->
     IO.puts("✅ No structural validation issues found!")
+
   issues ->
     Enum.each(issues, fn {sev, msg} ->
       icon = if sev == :error, do: "❌", else: "⚠️"
@@ -300,15 +304,22 @@ if Enum.empty?(instability_scores) do
 else
   instability_scores
   |> Enum.sort_by(fn {_id, score} -> score end, :asc)
-  |> Enum.take(20) # Top 20 most stable files
+  # Top 20 most stable files
+  |> Enum.take(20)
   |> IO.inspect(label: "Top 20 Stable Files (Risky to change, low instability)")
 
   IO.puts("\nDetailed Instability Ratings:")
+
   instability_scores
   |> Enum.sort_by(fn {_id, score} -> score end)
   |> Enum.each(fn {id, score} ->
     bar = String.duplicate("█", ceil(score * 20))
-    label = if score >= 0.7, do: "🟢 (unstable/safe)", else: if(score >= 0.3, do: "🟡 (medium)", else: "🔴 (stable/risky)")
+
+    label =
+      if score >= 0.7,
+        do: "🟢 (unstable/safe)",
+        else: if(score >= 0.3, do: "🟡 (medium)", else: "🔴 (stable/risky)")
+
     IO.puts("  #{id}: #{:erlang.float_to_binary(score, decimals: 2)} #{bar} #{label}")
   end)
 end
@@ -349,6 +360,7 @@ if Enum.empty?(affected) do
   IO.puts("✅ Changing #{target_file_id} has no downstream impact.")
 else
   IO.puts("⚠️ Changing #{target_file_id} will affect #{length(affected)} downstream file(s):")
+
   Enum.each(affected, fn aff ->
     IO.puts("  → #{aff}")
   end)

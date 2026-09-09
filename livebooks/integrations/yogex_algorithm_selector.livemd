@@ -17,124 +17,146 @@ Mix.install([
 
 ## The Decision Tree
 
-<!-- livebook:{"output_size":"full"} -->
+<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
+import Choreo.Lab.DSL.DecisionTree
 alias Choreo.DecisionTree
 alias Choreo.DecisionTree.Analysis
 
 selector =
-  DecisionTree.new()
-  # Root
-  |> DecisionTree.set_root(:problem, feature: "What problem are you solving?")
-  # Pathfinding branch
-  |> DecisionTree.add_decision(:path_weights, feature: "Edge weights?")
-  |> DecisionTree.add_decision(:path_pairs, feature: "Single pair or all pairs?")
-  |> DecisionTree.add_decision(:graph_density, feature: "Graph density?")
-  |> DecisionTree.add_outcome(:bfs, label: "BFS / Bidirectional BFS", class: "pathfinding")
-  |> DecisionTree.add_outcome(:dijkstra, label: "Dijkstra", class: "pathfinding")
-  |> DecisionTree.add_outcome(:johnson, label: "Johnson's", class: "pathfinding")
-  |> DecisionTree.add_outcome(:floyd, label: "Floyd-Warshall", class: "pathfinding")
-  |> DecisionTree.add_outcome(:bellman_ford, label: "Bellman-Ford", class: "pathfinding")
-  |> DecisionTree.add_outcome(:astar, label: "A*", class: "pathfinding")
-  # Flow branch
-  |> DecisionTree.add_decision(:flow_problem, feature: "Which flow problem?")
-  |> DecisionTree.add_decision(:mincost_size, feature: "Instance size?")
-  |> DecisionTree.add_outcome(:dinic_ek, label: "Dinic's / Edmonds-Karp", class: "flow")
-  |> DecisionTree.add_outcome(:ssp, label: "Successive Shortest Path", class: "flow")
-  |> DecisionTree.add_outcome(:network_simplex, label: "Network Simplex", class: "flow")
-  |> DecisionTree.add_outcome(:stoer_wagner, label: "Stoer-Wagner", class: "flow")
-  # Spanning tree branch
-  |> DecisionTree.add_decision(:st_type, feature: "What kind of spanning tree?")
-  |> DecisionTree.add_outcome(:prims, label: "Prim's", class: "tree")
-  |> DecisionTree.add_outcome(:kruskals, label: "Kruskal's", class: "tree")
-  |> DecisionTree.add_outcome(:edmonds, label: "Edmonds' (arborescence)", class: "tree")
-  |> DecisionTree.add_outcome(:max_st, label: "Max Spanning Tree", class: "tree")
-  # Matching branch
-  |> DecisionTree.add_decision(:matching_type, feature: "What kind of matching?")
-  |> DecisionTree.add_outcome(:hopcroft_karp, label: "Hopcroft-Karp", class: "matching")
-  |> DecisionTree.add_outcome(:hungarian, label: "Hungarian", class: "matching")
-  |> DecisionTree.add_outcome(:blossom, label: "Blossom", class: "matching")
-  # Community branch
-  |> DecisionTree.add_decision(:community_goal, feature: "Priority?")
-  |> DecisionTree.add_outcome(:label_prop, label: "Label Propagation", class: "community")
-  |> DecisionTree.add_outcome(:leiden, label: "Leiden", class: "community")
-  |> DecisionTree.add_outcome(:louvain, label: "Louvain", class: "community")
-  |> DecisionTree.add_outcome(:clique_perc, label: "Clique Percolation", class: "community")
-  # Centrality branch
-  |> DecisionTree.add_decision(:centrality_goal, feature: "What to measure?")
-  |> DecisionTree.add_outcome(:degree, label: "Degree Centrality", class: "centrality")
-  |> DecisionTree.add_outcome(:closeness, label: "Closeness / Harmonic", class: "centrality")
-  |> DecisionTree.add_outcome(:betweenness, label: "Betweenness", class: "centrality")
-  |> DecisionTree.add_outcome(:pagerank, label: "PageRank", class: "centrality")
-  # Connectivity branch
-  |> DecisionTree.add_decision(:connectivity_type, feature: "What structure?")
-  |> DecisionTree.add_outcome(:scc, label: "Tarjan's / Kosaraju's SCC", class: "connectivity")
-  |> DecisionTree.add_outcome(:components, label: "Connected Components", class: "connectivity")
-  |> DecisionTree.add_outcome(:bridges, label: "Tarjan's Bridges", class: "connectivity")
-  |> DecisionTree.add_outcome(:articulation, label: "Tarjan's Articulation", class: "connectivity")
-  # Traversal branch
-  |> DecisionTree.add_decision(:traversal_type, feature: "Traversal order?")
-  |> DecisionTree.add_outcome(:bfs_trav, label: "BFS", class: "traversal")
-  |> DecisionTree.add_outcome(:dfs_trav, label: "DFS", class: "traversal")
-  |> DecisionTree.add_outcome(:topsort, label: "Topological Sort", class: "traversal")
-  # Branches: problem type
-  |> DecisionTree.branch(:problem, :path_weights, "Shortest path")
-  |> DecisionTree.branch(:problem, :flow_problem, "Flow / cuts")
-  |> DecisionTree.branch(:problem, :st_type, "Spanning tree")
-  |> DecisionTree.branch(:problem, :matching_type, "Matching")
-  |> DecisionTree.branch(:problem, :community_goal, "Community detection")
-  |> DecisionTree.branch(:problem, :centrality_goal, "Centrality")
-  |> DecisionTree.branch(:problem, :connectivity_type, "Connectivity")
-  |> DecisionTree.branch(:problem, :traversal_type, "Traversal")
-  # Branches: pathfinding
-  |> DecisionTree.branch(:path_weights, :bfs, "Unweighted")
-  |> DecisionTree.branch(:path_weights, :astar, "Heuristic available")
-  |> DecisionTree.branch(:path_weights, :path_pairs, "Non-negative weights")
-  |> DecisionTree.branch(:path_weights, :bellman_ford, "Negative weights")
-  |> DecisionTree.branch(:path_pairs, :dijkstra, "Single pair")
-  |> DecisionTree.branch(:path_pairs, :graph_density, "All pairs")
-  |> DecisionTree.branch(:graph_density, :johnson, "Sparse")
-  |> DecisionTree.branch(:graph_density, :floyd, "Dense")
-  # Branches: flow
-  |> DecisionTree.branch(:flow_problem, :dinic_ek, "Max flow")
-  |> DecisionTree.branch(:flow_problem, :mincost_size, "Min-cost flow")
-  |> DecisionTree.branch(:flow_problem, :stoer_wagner, "Global min cut")
-  |> DecisionTree.branch(:mincost_size, :ssp, "Small / medium")
-  |> DecisionTree.branch(:mincost_size, :network_simplex, "Large")
-  # Branches: spanning tree
-  |> DecisionTree.branch(:st_type, :prims, "Dense graph")
-  |> DecisionTree.branch(:st_type, :kruskals, "Sparse graph")
-  |> DecisionTree.branch(:st_type, :edmonds, "Directed")
-  |> DecisionTree.branch(:st_type, :max_st, "Maximum weight")
-  # Branches: matching
-  |> DecisionTree.branch(:matching_type, :hopcroft_karp, "Bipartite unweighted")
-  |> DecisionTree.branch(:matching_type, :hungarian, "Bipartite weighted")
-  |> DecisionTree.branch(:matching_type, :blossom, "General graph")
-  # Branches: community
-  |> DecisionTree.branch(:community_goal, :label_prop, "Speed")
-  |> DecisionTree.branch(:community_goal, :leiden, "Quality guarantee")
-  |> DecisionTree.branch(:community_goal, :louvain, "Modularity")
-  |> DecisionTree.branch(:community_goal, :clique_perc, "Overlapping")
-  # Branches: centrality
-  |> DecisionTree.branch(:centrality_goal, :degree, "Simple importance")
-  |> DecisionTree.branch(:centrality_goal, :closeness, "Distance-based")
-  |> DecisionTree.branch(:centrality_goal, :betweenness, "Bridge detection")
-  |> DecisionTree.branch(:centrality_goal, :pagerank, "Link quality")
-  # Branches: connectivity
-  |> DecisionTree.branch(:connectivity_type, :scc, "Strongly connected components")
-  |> DecisionTree.branch(:connectivity_type, :components, "Connected components")
-  |> DecisionTree.branch(:connectivity_type, :bridges, "Bridge edges")
-  |> DecisionTree.branch(:connectivity_type, :articulation, "Articulation points")
-  # Branches: traversal
-  |> DecisionTree.branch(:traversal_type, :bfs_trav, "Level-order")
-  |> DecisionTree.branch(:traversal_type, :dfs_trav, "Depth-first")
-  |> DecisionTree.branch(:traversal_type, :topsort, "DAG ordering")
+  decision_tree do
+    # Root
+    problem = root("What problem are you solving?")
 
-Kino.Layout.tabs([
-  "Mermaid": Choreo.Lab.Siren.new(DecisionTree.to_mermaid(selector)),
-  "Graphviz": Kino.VizJS.render(DecisionTree.to_dot(selector), height: "600px")
-])
+    # Pathfinding branch
+    path_weights = decision("Edge weights?")
+    path_pairs = decision("Single pair or all pairs?")
+    graph_density = decision("Graph density?")
+    bfs = outcome("BFS / Bidirectional BFS", class: "pathfinding")
+    dijkstra = outcome("Dijkstra", class: "pathfinding")
+    johnson = outcome("Johnson's", class: "pathfinding")
+    floyd = outcome("Floyd-Warshall", class: "pathfinding")
+    bellman_ford = outcome("Bellman-Ford", class: "pathfinding")
+    astar = outcome("A*", class: "pathfinding")
+
+    # Flow branch
+    flow_problem = decision("Which flow problem?")
+    mincost_size = decision("Instance size?")
+    dinic_ek = outcome("Dinic's / Edmonds-Karp", class: "flow")
+    ssp = outcome("Successive Shortest Path", class: "flow")
+    network_simplex = outcome("Network Simplex", class: "flow")
+    stoer_wagner = outcome("Stoer-Wagner", class: "flow")
+
+    # Spanning tree branch
+    st_type = decision("What kind of spanning tree?")
+    prims = outcome("Prim's", class: "tree")
+    kruskals = outcome("Kruskal's", class: "tree")
+    edmonds = outcome("Edmonds' (arborescence)", class: "tree")
+    max_st = outcome("Max Spanning Tree", class: "tree")
+
+    # Matching branch
+    matching_type = decision("What kind of matching?")
+    hopcroft_karp = outcome("Hopcroft-Karp", class: "matching")
+    hungarian = outcome("Hungarian", class: "matching")
+    blossom = outcome("Blossom", class: "matching")
+
+    # Community branch
+    community_goal = decision("Priority?")
+    label_prop = outcome("Label Propagation", class: "community")
+    leiden = outcome("Leiden", class: "community")
+    louvain = outcome("Louvain", class: "community")
+    clique_perc = outcome("Clique Percolation", class: "community")
+
+    # Centrality branch
+    centrality_goal = decision("What to measure?")
+    degree = outcome("Degree Centrality", class: "centrality")
+    closeness = outcome("Closeness / Harmonic", class: "centrality")
+    betweenness = outcome("Betweenness", class: "centrality")
+    pagerank = outcome("PageRank", class: "centrality")
+
+    # Connectivity branch
+    connectivity_type = decision("What structure?")
+    scc = outcome("Tarjan's / Kosaraju's SCC", class: "connectivity")
+    components = outcome("Connected Components", class: "connectivity")
+    bridges = outcome("Tarjan's Bridges", class: "connectivity")
+    articulation = outcome("Tarjan's Articulation", class: "connectivity")
+
+    # Traversal branch
+    traversal_type = decision("Traversal order?")
+    bfs_trav = outcome("BFS", class: "traversal")
+    dfs_trav = outcome("DFS", class: "traversal")
+    topsort = outcome("Topological Sort", class: "traversal")
+
+    # Branches: problem type
+    problem ~> path_weights |> when_("Shortest path")
+    problem ~> flow_problem |> when_("Flow / cuts")
+    problem ~> st_type |> when_("Spanning tree")
+    problem ~> matching_type |> when_("Matching")
+    problem ~> community_goal |> when_("Community detection")
+    problem ~> centrality_goal |> when_("Centrality")
+    problem ~> connectivity_type |> when_("Connectivity")
+    problem ~> traversal_type |> when_("Traversal")
+
+    # Branches: pathfinding
+    path_weights ~> bfs |> when_("Unweighted")
+    path_weights ~> astar |> when_("Heuristic available")
+    path_weights ~> path_pairs |> when_("Non-negative weights")
+    path_weights ~> bellman_ford |> when_("Negative weights")
+    path_pairs ~> dijkstra |> when_("Single pair")
+    path_pairs ~> graph_density |> when_("All pairs")
+    graph_density ~> johnson |> when_("Sparse")
+    graph_density ~> floyd |> when_("Dense")
+
+    # Branches: flow
+    flow_problem ~> dinic_ek |> when_("Max flow")
+    flow_problem ~> mincost_size |> when_("Min-cost flow")
+    flow_problem ~> stoer_wagner |> when_("Global min cut")
+    mincost_size ~> ssp |> when_("Small / medium")
+    mincost_size ~> network_simplex |> when_("Large")
+
+    # Branches: spanning tree
+    st_type ~> prims |> when_("Dense graph")
+    st_type ~> kruskals |> when_("Sparse graph")
+    st_type ~> edmonds |> when_("Directed")
+    st_type ~> max_st |> when_("Maximum weight")
+
+    # Branches: matching
+    matching_type ~> hopcroft_karp |> when_("Bipartite unweighted")
+    matching_type ~> hungarian |> when_("Bipartite weighted")
+    matching_type ~> blossom |> when_("General graph")
+
+    # Branches: community
+    community_goal ~> label_prop |> when_("Speed")
+    community_goal ~> leiden |> when_("Quality guarantee")
+    community_goal ~> louvain |> when_("Modularity")
+    community_goal ~> clique_perc |> when_("Overlapping")
+
+    # Branches: centrality
+    centrality_goal ~> degree |> when_("Simple importance")
+    centrality_goal ~> closeness |> when_("Distance-based")
+    centrality_goal ~> betweenness |> when_("Bridge detection")
+    centrality_goal ~> pagerank |> when_("Link quality")
+
+    # Branches: connectivity
+    connectivity_type ~> scc |> when_("Strongly connected components")
+    connectivity_type ~> components |> when_("Connected components")
+    connectivity_type ~> bridges |> when_("Bridge edges")
+    connectivity_type ~> articulation |> when_("Articulation points")
+
+    # Branches: traversal
+    traversal_type ~> bfs_trav |> when_("Level-order")
+    traversal_type ~> dfs_trav |> when_("Depth-first")
+    traversal_type ~> topsort |> when_("DAG ordering")
+  end
+```
+
+<!-- livebook:{"output_size":"wide"} -->
+
+```elixir
+mermaid = Choreo.DecisionTree.to_mermaid(selector, direction: :lr)
+
+Choreo.Lab.Siren.new(mermaid, height: "1800px")
 ```
 
 ## Extracted Rules

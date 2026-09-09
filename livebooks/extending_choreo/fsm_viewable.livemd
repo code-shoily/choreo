@@ -5,7 +5,6 @@ Mix.install(
   [
     # {:choreo, "~> 0.13.0"},
     {:choreo, path: Path.expand("../..", __DIR__), force: true},
-    {:kino, "~> 0.14"},
     {:kino_vizjs, "~> 0.9.0"}
   ],
   consolidate_protocols: false
@@ -232,10 +231,10 @@ zoom_at_level = fn i ->
       2 -> zoom_2
     end
 
-  mermaid_fsm = 
+  mermaid_fsm =
     zoom
     |> Choreo.FSM.to_mermaid(theme: :default)
-  
+
   Kino.Layout.tabs(
     Siren: Choreo.Lab.Siren.new(mermaid_fsm),
     Graphviz: Kino.VizJS.render(Choreo.to_dot(zoom)),
@@ -243,11 +242,11 @@ zoom_at_level = fn i ->
   )
 end
 
-Kino.Layout.tabs([
+Kino.Layout.tabs(
   "Zoom 0": zoom_at_level.(0),
   "Zoom 1": zoom_at_level.(1),
-  "Zoom 2": zoom_at_level.(2),
-])
+  "Zoom 2": zoom_at_level.(2)
+)
 ```
 
 ```elixir

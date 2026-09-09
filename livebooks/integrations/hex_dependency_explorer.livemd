@@ -5,7 +5,7 @@ Mix.install([
   # {:choreo, github: "code-shoily/choreo", branch: "main"},
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"},
-  {:req, "~> 0.5"}
+  {:req, "~> 0.7"}
 ])
 ```
 
@@ -68,7 +68,7 @@ defmodule HexCrawler do
     }
   end
 
-  defp do_crawl(package_name, depth, max_depth, state) when depth > max_depth, do: state
+  defp do_crawl(_package_name, depth, max_depth, state) when depth > max_depth, do: state
 
   defp do_crawl(package_name, depth, max_depth, state) do
     pkg = String.downcase(to_string(package_name))
@@ -83,27 +83,41 @@ defmodule HexCrawler do
         {:ok, %{version: version, requirements: requirements, description: description}} ->
           label = "#{pkg} #{version}"
 
-          state = %{state | nodes: [%{id: pkg_atom, label: label, depth: depth, description: description} | state.nodes]}
+          state = %{
+            state
+            | nodes: [
+                %{id: pkg_atom, label: label, depth: depth, description: description}
+                | state.nodes
+              ]
+          }
 
           requirements
           |> Enum.reduce(state, fn {dep_name, dep_info}, acc ->
             dep_atom = String.to_atom(dep_name)
 
-            acc = %{acc | edges: [
-              %{
-                from: pkg_atom,
-                to: dep_atom,
-                version: dep_info.requirement,
-                optional: dep_info.optional
-              } | acc.edges
-            ]}
+            acc = %{
+              acc
+              | edges: [
+                  %{
+                    from: pkg_atom,
+                    to: dep_atom,
+                    version: dep_info.requirement,
+                    optional: dep_info.optional
+                  }
+                  | acc.edges
+                ]
+            }
 
             do_crawl(dep_name, depth + 1, max_depth, acc)
           end)
 
-        {:error, reason} ->
+        {:error, _reason} ->
           # If we can't fetch the package, still add it as a node with no edges out
-          state = %{state | nodes: [%{id: pkg_atom, label: pkg, depth: depth, description: nil} | state.nodes]}
+          state = %{
+            state
+            | nodes: [%{id: pkg_atom, label: pkg, depth: depth, description: nil} | state.nodes]
+          }
+
           state
       end
     end
@@ -141,11 +155,12 @@ defmodule HexCrawler do
         requirements =
           (body["requirements"] || %{})
           |> Enum.map(fn {name, info} ->
-            {name, %{
-              requirement: info["requirement"],
-              optional: info["optional"] || false,
-              app: info["app"]
-            }}
+            {name,
+             %{
+               requirement: info["requirement"],
+               optional: info["optional"] || false,
+               app: info["app"]
+             }}
           end)
           |> Map.new()
 
@@ -251,7 +266,9 @@ graph =
     Dependency.depends_on(g, edge.from, edge.to, type: type)
   end)
 
-IO.puts("📊 Graph built: #{length(Dependency.nodes(graph))} nodes, #{length(Dependency.edges(graph))} edges")
+IO.puts(
+  "📊 Graph built: #{length(Dependency.nodes(graph))} nodes, #{length(Dependency.edges(graph))} edges"
+)
 ```
 
 ## Visualisation
@@ -274,9 +291,8 @@ brand_theme =
   )
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(graph)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(graph), height: "700px"),
-  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(graph))
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(graph), height: "900px"),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(graph), height: "700px")
 )
 ```
 
@@ -438,7 +454,9 @@ IO.puts("🏘️  Found #{length(subsystems)} connected component(s):\n")
 subsystems
 |> Enum.with_index(1)
 |> Enum.each(fn {component, idx} ->
-  IO.puts("  Group #{idx} (#{length(component)} packages): #{Enum.join(Enum.sort(component), ", ")}")
+  IO.puts(
+    "  Group #{idx} (#{length(component)} packages): #{Enum.join(Enum.sort(component), ", ")}"
+  )
 end)
 ```
 

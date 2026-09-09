@@ -510,7 +510,10 @@ assert Analysis.longest_call_chain(chain_graph, {A, :a, 0}, {A, :d, 0}) == [
 # internal helpers, not an external leaf.
 hotspots = Analysis.betweenness_hotspots(http_graph, top: 2)
 assert length(hotspots) == 2
-assert Enum.any?(hotspots, fn {node_id, _score} -> node_id in [{Api, :auth, 1}, {Api, :validate, 1}] end)
+
+assert Enum.any?(hotspots, fn {node_id, _score} ->
+         node_id in [{Api, :auth, 1}, {Api, :validate, 1}]
+       end)
 
 "All call graph analysis assertions passed."
 ```

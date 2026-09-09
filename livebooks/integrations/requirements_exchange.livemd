@@ -3,10 +3,9 @@
 ```elixir
 Mix.install([
   {:choreo, path: Path.expand("../../", __DIR__)},
-  {:kino, "~> 0.14"},
-  {:kino_vizjs, "~> 0.9.0"},
-  {:nimble_csv, "~> 1.2"},
-  {:req, "~> 0.5"}
+  {:req, "~> 0.7"},
+  {:kino, "~> 0.19.0"},
+  {:nimble_csv, "~> 1.3"}
 ])
 ```
 
@@ -224,22 +223,20 @@ csv_req =
   |> Requirements.CSV.from_csv(name: "CSV Import")
 ```
 
-```elixir
-Choreo.Lab.Siren.new(Choreo.to_mermaid(csv_req))
-```
+<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
-Kino.VizJS.render(Choreo.to_dot(csv_req))
+Choreo.Lab.Siren.new(Choreo.to_mermaid(csv_req), height: "500px")
 ```
 
 ````elixir
 text = Requirements.CSV.to_csv(csv_req)
 
 Kino.Markdown.new(~s"""
-  ```csv
-  #{text}
-  ```
-  """)
+```csv
+#{text}
+```
+""")
 ````
 
 ## Adapter 2: JIRA import
@@ -398,7 +395,9 @@ jql = Kino.Input.read(jira_jql_input) |> String.trim()
 jira_issues =
   if base_url != "" and token != "" do
     case Requirements.JIRA.fetch(base_url, token, jql) do
-      {:ok, issues} -> issues
+      {:ok, issues} ->
+        issues
+
       {:error, reason} ->
         IO.inspect(reason, label: "JIRA fetch failed, using sample data")
         Requirements.JIRA.sample_issues()
@@ -414,10 +413,6 @@ jira_req = Requirements.JIRA.from_issues(jira_issues, name: "JIRA Import")
 Choreo.Lab.Siren.new(Choreo.to_mermaid(jira_req))
 ```
 
-```elixir
-Kino.VizJS.render(Choreo.to_dot(jira_req), height: "500px")
-```
-
 ## Adapter 3: DOORS import
 
 DOORS modules are often exported as CSV. This adapter expects a minimal export with columns like `Absolute Number`, `Object Heading`, `Object Text`, `Object Short Name`, `Priority`, `Verification Method`, and `Link`.
@@ -425,15 +420,16 @@ DOORS modules are often exported as CSV. This adapter expects a minimal export w
 `Link` should contain the short name of the parent/source object. The adapter creates a `derives` edge from the child to the parent.
 
 ```elixir
-doors_input = Kino.Input.textarea("DOORS module CSV",
-  default: """
-  Absolute Number,Object Heading,Object Text,Object Short Name,Priority,Verification Method,Link
-  1,Authentication,Users must authenticate with MFA,DOORS-AUTH-001,High,Test,
-  2,Multi-Factor,Multi-factor authentication is required,DOORS-AUTH-002,Critical,Analysis,DOORS-AUTH-001
-  3,Password Policy,Passwords must be hashed with a slow KDF,DOORS-AUTH-003,High,Inspection,
-  4,Session Timeout,Session tokens expire after 15 minutes,DOORS-AUTH-004,Medium,Test,DOORS-AUTH-001
-  """
-)
+doors_input =
+  Kino.Input.textarea("DOORS module CSV",
+    default: """
+    Absolute Number,Object Heading,Object Text,Object Short Name,Priority,Verification Method,Link
+    1,Authentication,Users must authenticate with MFA,DOORS-AUTH-001,High,Test,
+    2,Multi-Factor,Multi-factor authentication is required,DOORS-AUTH-002,Critical,Analysis,DOORS-AUTH-001
+    3,Password Policy,Passwords must be hashed with a slow KDF,DOORS-AUTH-003,High,Inspection,
+    4,Session Timeout,Session tokens expire after 15 minutes,DOORS-AUTH-004,Medium,Test,DOORS-AUTH-001
+    """
+  )
 
 Kino.render(doors_input)
 ```
@@ -529,10 +525,6 @@ doors_req =
 
 ```elixir
 Choreo.Lab.Siren.new(Choreo.to_mermaid(doors_req))
-```
-
-```elixir
-Kino.VizJS.render(Choreo.to_dot(doors_req))
 ```
 
 ## Analysis

@@ -5,7 +5,7 @@ Mix.install([
   # {:choreo, github: "code-shoily/choreo", branch: "main"},
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
   {:kino_vizjs, "~> 0.9.0"},
-  {:req, "~> 0.5"}
+  {:req, "~> 0.7"}
 ])
 ```
 
@@ -70,7 +70,9 @@ defmodule GitHubFetcher do
 
   defp build_headers(nil), do: [{"accept", "application/vnd.github+json"}]
   defp build_headers(""), do: build_headers(nil)
-  defp build_headers(token), do: [{"accept", "application/vnd.github+json"}, {"authorization", "Bearer #{token}"}]
+
+  defp build_headers(token),
+    do: [{"accept", "application/vnd.github+json"}, {"authorization", "Bearer #{token}"}]
 
   defp fetch_issues(repo, state, limit, headers) do
     do_paginate("#{@github_api}/repos/#{repo}/issues", [state: state], limit, headers, 1, [])
@@ -139,9 +141,10 @@ defmodule GitHubFetcher do
       number: issue["number"],
       title: issue["title"],
       state: issue["state"],
-      labels: Enum.map(issue["labels"] || [], fn l ->
-        %{name: l["name"], color: l["color"]}
-      end),
+      labels:
+        Enum.map(issue["labels"] || [], fn l ->
+          %{name: l["name"], color: l["color"]}
+        end),
       assignees: Enum.map(issue["assignees"] || [], fn a -> a["login"] end),
       milestone: if(issue["milestone"], do: issue["milestone"]["title"]),
       milestone_number: if(issue["milestone"], do: issue["milestone"]["number"]),
@@ -172,7 +175,10 @@ IO.puts("🔍 Fetching issues from #{repo}...")
 data =
   case GitHubFetcher.fetch(repo, state: state, limit: limit, token: token) do
     {:ok, result} ->
-      IO.puts("✅ Fetched #{length(result.issues)} issues, #{length(result.milestones)} milestones, #{length(result.labels)} labels")
+      IO.puts(
+        "✅ Fetched #{length(result.issues)} issues, #{length(result.milestones)} milestones, #{length(result.labels)} labels"
+      )
+
       result
 
     {:error, reason} ->
@@ -273,7 +279,9 @@ plan =
     p =
       issue.labels
       |> Enum.reduce(p, fn label, acc ->
-        label_id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+        label_id =
+          :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+
         Planner.tag(acc, task_id, label_id)
       end)
 
@@ -295,10 +303,7 @@ IO.puts("📊 Planner built with #{length(Planner.tasks(plan))} tasks")
 Issues grouped by status (backlog / done):
 
 ```elixir
-Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(plan, syntax: :kanban)),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :kanban))
-)
+Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :kanban))
 ```
 
 ### Dependency Flowchart
@@ -310,35 +315,8 @@ The full task graph showing milestones, assignments, and labels:
 ```elixir
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(plan, syntax: :flowchart)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, layout: :circo), height: "1200px"),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :flowchart))
+  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, layout: :circo), height: "1200px")
 )
-```
-
-### Per-Milestone Kanban
-
-View tasks for a specific milestone (pick the first one with issues):
-
-```elixir
-milestones_with_tasks =
-  data.milestones
-  |> Enum.filter(fn ms -> ms.open_issues + ms.closed_issues > 0 end)
-  |> Enum.sort_by(fn ms -> -(ms.open_issues + ms.closed_issues) end)
-
-case milestones_with_tasks do
-  [ms | _] ->
-    ms_id = :"milestone_#{ms.number}"
-    IO.puts("📌 Showing Kanban for milestone: #{ms.title}")
-    Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Planner.to_mermaid(plan, syntax: :kanban_compat, milestone: ms_id)),
-  Graphviz: Kino.VizJS.render(Planner.to_dot(plan, syntax: :kanban_compat, milestone: ms_id)),
-  Sketch: Choreo.Lab.Sketch.new(Planner.to_mermaid(plan, syntax: :kanban_compat, milestone: ms_id))
-)
-
-  [] ->
-    IO.puts("ℹ️  No milestones with issues found")
-    Kino.nothing()
-end
 ```
 
 ### Planner Analysis
@@ -405,7 +383,9 @@ mindmap = MindMap.set_root(mindmap, root_id, label: repo)
 mindmap =
   data.labels
   |> Enum.reduce(mindmap, fn label, mm ->
-    label_id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+    label_id =
+      :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+
     mm
     |> MindMap.add_topic(label_id, label: label.name)
     |> MindMap.branch(root_id, label_id)
@@ -440,13 +420,17 @@ mindmap =
         MindMap.branch(mm, :unlabeled, issue_id)
 
       [primary | rest] ->
-        primary_id = :"label_#{primary.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+        primary_id =
+          :"label_#{primary.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+
         mm = MindMap.branch(mm, primary_id, issue_id)
 
         # Cross-link to additional labels
         rest
         |> Enum.reduce(mm, fn label, acc ->
-          other_id = :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+          other_id =
+            :"label_#{label.name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+
           MindMap.associate(acc, issue_id, other_id, label: "also")
         end)
     end
@@ -496,7 +480,6 @@ Kino.Layout.tabs(
       Sketch: Choreo.Lab.Sketch.new(zoomed_mermaid_2)
     )
 )
-
 ```
 
 ### Focus on a Label
@@ -513,7 +496,9 @@ most_popular_label =
 
 case most_popular_label do
   {label_name, count} ->
-    label_id = :"label_#{label_name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+    label_id =
+      :"label_#{label_name |> String.replace(~r/[^a-zA-Z0-9_]/, "_") |> String.downcase()}"
+
     IO.puts("🔎 Focusing on label '#{label_name}' (#{count} issues)")
 
     focused = View.focus(mindmap, label_id, radius: 1)

@@ -4,7 +4,7 @@
 Mix.install([
   # {:choreo, github: "code-shoily/choreo", branch: "main"},
   {:choreo, path: Path.expand("../..", __DIR__), force: true},
-  {:finitomata, "~> 0.41"},
+  {:finitomata, "~> 0.43"},
   {:kino_vizjs, "~> 0.9.0"}
 ])
 ```
@@ -381,7 +381,9 @@ defmodule OrderProcess do
 
   @impl Finitomata
   def on_transition(current_state, event, _event_payload, state_data) do
-    updated = Map.update(state_data, :history, [{current_state, event}], &[{current_state, event} | &1])
+    updated =
+      Map.update(state_data, :history, [{current_state, event}], &[{current_state, event} | &1])
+
     Finitomata.Transition.guess_next_state(__config__(:fsm), current_state, event, updated)
   end
 end
@@ -563,6 +565,7 @@ buggy = FinitomataAdapter.from_finitomata(BuggyWorkflow)
 IO.puts("═══ Analysis of BuggyWorkflow ═══\n")
 
 IO.puts("── Validation ──")
+
 case Analysis.validate(buggy) do
   [] -> IO.puts("  ✅ No issues")
   issues -> Enum.each(issues, fn {level, msg} -> IO.puts("  #{level}: #{msg}") end)
@@ -570,6 +573,7 @@ end
 
 IO.puts("\n── Dead States ──")
 dead = Analysis.dead_states(buggy)
+
 case dead do
   [] -> IO.puts("  ✅ None")
   _ -> IO.puts("  ⚠️  #{inspect(dead)} — these states can never reach a final state!")
@@ -577,18 +581,28 @@ end
 
 IO.puts("\n── Livelock ──")
 livelocks = Analysis.livelock_states(buggy)
+
 case livelocks do
-  [] -> IO.puts("  ✅ None")
-  _ -> IO.puts("  🔄 #{inspect(livelocks)} — these states can cycle forever without reaching acceptance!")
+  [] ->
+    IO.puts("  ✅ None")
+
+  _ ->
+    IO.puts(
+      "  🔄 #{inspect(livelocks)} — these states can cycle forever without reaching acceptance!"
+    )
 end
 
 IO.puts("\n── Determinism ──")
 IO.puts("  ✅ Enforced by Choreo.FSM at build time")
 
 IO.puts("\n── Completeness ──")
-IO.puts("  #{if Analysis.complete?(buggy), do: "✅ Complete", else: "⚠️  Incomplete — some states don't handle all events"}")
+
+IO.puts(
+  "  #{if Analysis.complete?(buggy), do: "✅ Complete", else: "⚠️  Incomplete — some states don't handle all events"}"
+)
 
 IO.puts("\n── Shortest Accepting Path ──")
+
 case Analysis.shortest_accepting_path(buggy) do
   {:ok, path} -> IO.puts("  #{Enum.join(path, " → ")}")
   :error -> IO.puts("  ❌ None")
@@ -671,7 +685,9 @@ redundant =
     s4 ~> s6 |> on("done")
   end
 
-IO.puts("Before: #{length(FSM.states(redundant))} states, #{length(FSM.transitions(redundant))} transitions")
+IO.puts(
+  "Before: #{length(FSM.states(redundant))} states, #{length(FSM.transitions(redundant))} transitions"
+)
 ```
 
 ```elixir
@@ -812,6 +828,7 @@ Enum.each(order_ids, fn id ->
       if die == 6 do
         Process.sleep(10)
         Finitomata.transition(id, {:ship, nil})
+
         if :rand.uniform(2) == 1 do
           Process.sleep(10)
           Finitomata.transition(id, {:deliver, nil})
@@ -843,6 +860,7 @@ state_counts =
     case Finitomata.state(name) do
       %Finitomata.State{current: state} ->
         Map.update(acc, state, 1, &(&1 + 1))
+
       nil ->
         acc
     end

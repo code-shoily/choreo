@@ -338,6 +338,7 @@ assert String.contains?(mermaid, "merge feature id: \"m1n2o3p\" tag: \"merge fea
 
 # Quoted tags are escaped.
 graph_with_quotes = GitGraph.new() |> GitGraph.commit("x1y2z3w", tag: "fix \"bug\"")
+
 assert String.contains?(
          GitGraph.Render.Mermaid.to_mermaid(graph_with_quotes),
          "tag: \"fix \\\"bug\\\"\""
