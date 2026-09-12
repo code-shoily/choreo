@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-09-12
+
+### Added
+
+- **Siren Livebook Widget**:
+  - Added native SVG diagram download button with `:download` (default `true`) and `:filename` (default `"diagram"`) options.
+
 ## [0.14.0] - 2026-09-12
 
 ### Added

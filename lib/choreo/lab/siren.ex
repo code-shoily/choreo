@@ -18,13 +18,24 @@ if Code.ensure_loaded?(Kino) do
       * `:height` - The height of the widget container (e.g., `"400px"`, `"600px"`, `500`). Defaults to `"400px"`.
       * `:theme` - The Mermaid theme to use (e.g., `"default"`, `"dark"`, `"forest"`, `"neutral"`).
         Defaults to `"default"` to match Livebook's light notebook canvas.
+      * `:download` - Boolean indicating whether to show the download button. Defaults to `true`.
+      * `:filename` - Base filename when downloading the SVG diagram. Defaults to `"diagram"`.
 
     """
     @spec new(String.t(), keyword()) :: t()
     def new(mermaid_code, opts \\ []) do
       height = Keyword.get(opts, :height, "400px")
       theme = Keyword.get(opts, :theme, "default")
-      Kino.JS.new(__MODULE__, %{code: mermaid_code, height: height, theme: theme})
+      download = Keyword.get(opts, :download, true)
+      filename = Keyword.get(opts, :filename, "diagram")
+
+      Kino.JS.new(__MODULE__, %{
+        code: mermaid_code,
+        height: height,
+        theme: theme,
+        download: download,
+        filename: filename
+      })
     end
 
     asset "main.js" do
@@ -90,6 +101,15 @@ if Code.ensure_loaded?(Kino) do
         controls.appendChild(btnZoomOut);
         controls.appendChild(btnFit);
         controls.appendChild(btnReset);
+
+        let btnDownload = null;
+        if (data.download !== false) {
+          btnDownload = document.createElement("button");
+          btnDownload.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+          btnDownload.title = "Download SVG";
+          controls.appendChild(btnDownload);
+        }
+
         container.appendChild(controls);
 
         const theme = data.theme || 'default';
@@ -284,6 +304,33 @@ if Code.ensure_loaded?(Kino) do
           dismissHelper();
           resetView();
         });
+
+        if (btnDownload) {
+          btnDownload.addEventListener('click', () => {
+            dismissHelper();
+            if (!svgElement) return;
+
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svgElement);
+
+            if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+              source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            if (!source.match(/^<svg[^>]+xmlns\:xlink="http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
+              source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+            }
+
+            const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${data.filename || "diagram"}.svg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          });
+        }
       }
       """
     end
@@ -358,6 +405,11 @@ if Code.ensure_loaded?(Kino) do
         cursor: pointer;
         transition: all 0.2s;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      }
+
+      .siren-controls button svg {
+        display: block;
+        stroke: currentColor;
       }
 
       .theme-dark .siren-controls button {
