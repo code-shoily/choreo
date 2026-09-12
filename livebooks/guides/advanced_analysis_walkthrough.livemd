@@ -51,14 +51,17 @@ ecommerce_system =
 
 # Run cut vertex analysis and heat-map the graph
 spof_system = Analysis.heatmap(ecommerce_system, measure: :spof, palette: :heat)
-siren = Kino.Layout.grid([
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(spof_system)),
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-      ],
+
+siren =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(spof_system)),
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
     columns: 2
   )
 
-graphviz = 
+graphviz =
   Kino.Layout.grid(
     [
       Kino.VizJS.render(Choreo.to_dot(spof_system)),
@@ -67,10 +70,12 @@ graphviz =
     columns: 2
   )
 
-sketch = Kino.Layout.grid([
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(spof_system)),
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-      ],
+sketch =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(spof_system)),
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
     columns: 2
   )
 
@@ -114,14 +119,17 @@ consensus_mesh =
 
 # Highlight k-core depth
 core_system = Analysis.heatmap(consensus_mesh, measure: :k_core, palette: :cool)
-siren = Kino.Layout.grid([
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(core_system)),
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
-      ],
+
+siren =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(core_system)),
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
+    ],
     columns: 2
   )
 
-graphviz = 
+graphviz =
   Kino.Layout.grid(
     [
       Kino.VizJS.render(Choreo.to_dot(core_system)),
@@ -130,10 +138,12 @@ graphviz =
     columns: 2
   )
 
-sketch = Kino.Layout.grid([
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(core_system)),
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
-      ],
+sketch =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(core_system)),
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :cool)))
+    ],
     columns: 2
   )
 
@@ -156,7 +166,7 @@ Let's model a **User Registration & KYC Verification Workflow** where automated 
 alias Choreo.Workflow
 alias Choreo.Workflow.Analysis, as: WorkflowAnalysis
 
-kyc_wf = 
+kyc_wf =
   Workflow.new()
   |> Workflow.add_start(:start)
   |> Workflow.add_task(:submit_details, label: "Submit Registration Info", timeout_ms: 100)
@@ -165,7 +175,7 @@ kyc_wf =
   |> Workflow.add_task(:manual_kyc_verification, label: "Manual KYC Approval", timeout_ms: 10000)
   |> Workflow.add_task(:create_user_account, label: "Create Db Records", timeout_ms: 300)
   |> Workflow.add_end(:done)
-  
+
   # Connect sequence
   |> Workflow.connect(:start, :submit_details)
   |> Workflow.connect(:submit_details, :email_validation)
@@ -176,14 +186,17 @@ kyc_wf =
 
 # Heatmap by latency
 heat_wf = WorkflowAnalysis.heatmap(kyc_wf, palette: :spectral)
-siren = Kino.Layout.grid([
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(heat_wf)),
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
-      ],
+
+siren =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(heat_wf)),
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
+    ],
     columns: 2
   )
 
-graphviz = 
+graphviz =
   Kino.Layout.grid(
     [
       Kino.VizJS.render(Choreo.to_dot(heat_wf)),
@@ -192,10 +205,12 @@ graphviz =
     columns: 2
   )
 
-sketch = Kino.Layout.grid([
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(heat_wf)),
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
-      ],
+sketch =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(heat_wf)),
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :spectral)))
+    ],
     columns: 2
   )
 
@@ -218,7 +233,7 @@ Let's model an **IoT Sensor Telemetry Ingestion Pipeline** where high-frequency 
 alias Choreo.Dataflow
 alias Choreo.Dataflow.Analysis, as: DataflowAnalysis
 
-telemetry_pipeline = 
+telemetry_pipeline =
   Dataflow.new()
   # Inbound rates of sources, and capacities of transforms/sinks
   |> Dataflow.add_source(:gps_sensors, label: "50k GPS Devices", rate: 50000)
@@ -227,7 +242,7 @@ telemetry_pipeline =
   # Postgres writer is a transform with capacity, writing to the final database sink
   |> Dataflow.add_transform(:postgres_writer, label: "Postgres Writer Service", capacity: 2000)
   |> Dataflow.add_sink(:postgres_db, label: "Relational Audit DB")
-  
+
   # Connect pipeline
   |> Dataflow.connect(:gps_sensors, :kafka_ingest)
   |> Dataflow.connect(:kafka_ingest, :spark_processor)
@@ -236,14 +251,17 @@ telemetry_pipeline =
 
 # Heatmap showing processing bottlenecks
 heat_df = DataflowAnalysis.heatmap(telemetry_pipeline, palette: :heat)
-siren = Kino.Layout.grid([
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(heat_df)),
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-      ],
+
+siren =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(heat_df)),
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
     columns: 2
   )
 
-graphviz = 
+graphviz =
   Kino.Layout.grid(
     [
       Kino.VizJS.render(Choreo.to_dot(heat_df, rankdir: :tb), height: "600px"),
@@ -252,10 +270,12 @@ graphviz =
     columns: 2
   )
 
-sketch = Kino.Layout.grid([
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(heat_df)),
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-      ],
+sketch =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(heat_df)),
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
     columns: 2
   )
 
@@ -278,19 +298,29 @@ Let's model a **Financial Transaction Threat Model** with three zones: Public Ne
 alias Choreo.ThreatModel
 alias Choreo.ThreatModel.Analysis, as: ThreatAnalysis
 
-security_model = 
+security_model =
   ThreatModel.new()
   # Add boundaries
   |> ThreatModel.add_trust_boundary("public_network", label: "Public Internet", level: 0)
   |> ThreatModel.add_trust_boundary("corporate_dmz", label: "DMZ", level: 1)
   |> ThreatModel.add_trust_boundary("pci_zone", label: "PCI-DSS Compliant Area", level: 2)
-  
+
   # Add entities
-  |> ThreatModel.add_external_entity(:customer_browser, label: "User Browser", boundary: "public_network")
+  |> ThreatModel.add_external_entity(:customer_browser,
+    label: "User Browser",
+    boundary: "public_network"
+  )
   |> ThreatModel.add_process(:web_server, label: "Nginx Gateway", boundary: "corporate_dmz")
-  |> ThreatModel.add_process(:payment_processor, label: "Card Transaction Svc", boundary: "pci_zone")
-  |> ThreatModel.add_data_store(:credit_card_vault, label: "CC Hash Vault", boundary: "pci_zone", sensitivity: :restricted)
-  
+  |> ThreatModel.add_process(:payment_processor,
+    label: "Card Transaction Svc",
+    boundary: "pci_zone"
+  )
+  |> ThreatModel.add_data_store(:credit_card_vault,
+    label: "CC Hash Vault",
+    boundary: "pci_zone",
+    sensitivity: :restricted
+  )
+
   # Connect data flows
   |> ThreatModel.data_flow(:customer_browser, :web_server)
   |> ThreatModel.data_flow(:web_server, :payment_processor)
@@ -298,14 +328,17 @@ security_model =
 
 # Heatmap showing high risk concentration
 heat_tm = ThreatAnalysis.heatmap(security_model, palette: :heat)
-siren = Kino.Layout.grid([
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(heat_tm)),
-        Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-      ],
+
+siren =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(heat_tm)),
+      Choreo.Lab.Siren.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
     columns: 2
   )
 
-graphviz = 
+graphviz =
   Kino.Layout.grid(
     [
       Kino.VizJS.render(Choreo.to_dot(heat_tm)),
@@ -314,10 +347,12 @@ graphviz =
     columns: 2
   )
 
-sketch = Kino.Layout.grid([
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(heat_tm)),
-        Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
-      ],
+sketch =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(heat_tm)),
+      Choreo.Lab.Sketch.new(Choreo.to_mermaid(Analysis.legend(palette: :heat)))
+    ],
     columns: 2
   )
 
@@ -326,7 +361,6 @@ Kino.Layout.tabs(
   Graphviz: graphviz,
   Sketch: sketch
 )
-
 ```
 
 ---
@@ -354,14 +388,17 @@ deploy_deps =
 
 # Run Transitive Reduction
 {:ok, reduced_deps} = Analysis.reduce_transitive(deploy_deps)
-siren = Kino.Layout.grid([
-        Choreo.Lab.Siren.new(Dependency.to_mermaid(deploy_deps)),
-        Choreo.Lab.Siren.new(Dependency.to_mermaid(reduced_deps))
-      ],
+
+siren =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Siren.new(Dependency.to_mermaid(deploy_deps)),
+      Choreo.Lab.Siren.new(Dependency.to_mermaid(reduced_deps))
+    ],
     columns: 2
   )
 
-graphviz = 
+graphviz =
   Kino.Layout.grid(
     [
       Kino.VizJS.render(Dependency.to_dot(deploy_deps)),
@@ -370,10 +407,12 @@ graphviz =
     columns: 2
   )
 
-sketch = Kino.Layout.grid([
-        Choreo.Lab.Sketch.new(Dependency.to_mermaid(deploy_deps)),
-        Choreo.Lab.Sketch.new(Dependency.to_mermaid(reduced_deps))
-      ],
+sketch =
+  Kino.Layout.grid(
+    [
+      Choreo.Lab.Sketch.new(Dependency.to_mermaid(deploy_deps)),
+      Choreo.Lab.Sketch.new(Dependency.to_mermaid(reduced_deps))
+    ],
     columns: 2
   )
 
@@ -418,7 +457,7 @@ order_flow =
 # Find the "Fastest Path" (minimum timeout_ms latency)
 {:ok, fast_path} = Analysis.path(order_flow, :start, :done, measure: :latency)
 siren = Choreo.Lab.Siren.new(Workflow.to_mermaid(order_flow, Analysis.highlight(fast_path)))
-graphviz =  Kino.VizJS.render(Workflow.to_dot(order_flow, Analysis.highlight(fast_path)))
+graphviz = Kino.VizJS.render(Workflow.to_dot(order_flow, Analysis.highlight(fast_path)))
 sketch = Choreo.Lab.Sketch.new(Workflow.to_mermaid(order_flow, Analysis.highlight(fast_path)))
 
 Kino.Layout.tabs(
@@ -435,7 +474,7 @@ Maximize the bottleneck capacity (minimum throughput) along the path.
 ```elixir
 alias Choreo.Dataflow
 
-route_pipeline = 
+route_pipeline =
   Dataflow.new()
   |> Dataflow.add_source(:ingest, rate: 1000)
   # Router A (Gigabit Fiber backup link)
@@ -443,7 +482,7 @@ route_pipeline =
   # Router B (Dial-up backup link)
   |> Dataflow.add_transform(:low_speed_link, label: "Satellite Link", capacity: 10)
   |> Dataflow.add_sink(:backup_store, label: "Backup SAN")
-  
+
   # Connect paths
   |> Dataflow.connect(:ingest, :high_speed_link)
   |> Dataflow.connect(:high_speed_link, :backup_store)
@@ -453,7 +492,7 @@ route_pipeline =
 # Find the "Widest Path" (maximizing bottleneck throughput)
 {:ok, wide_path} = Analysis.path(route_pipeline, :ingest, :backup_store, measure: :throughput)
 siren = Choreo.Lab.Siren.new(Dataflow.to_mermaid(route_pipeline, Analysis.highlight(wide_path)))
-graphviz =  Kino.VizJS.render(Dataflow.to_dot(route_pipeline, Analysis.highlight(wide_path)))
+graphviz = Kino.VizJS.render(Dataflow.to_dot(route_pipeline, Analysis.highlight(wide_path)))
 sketch = Choreo.Lab.Sketch.new(Dataflow.to_mermaid(route_pipeline, Analysis.highlight(wide_path)))
 
 Kino.Layout.tabs(
@@ -468,7 +507,8 @@ Kino.Layout.tabs(
 Minimize arbitrary metrics like monetary costs or hops.
 
 ```elixir
-system = Choreo.new()
+system =
+  Choreo.new()
   |> Choreo.add_service(:a)
   |> Choreo.add_service(:b)
   |> Choreo.add_service(:c)
@@ -479,7 +519,7 @@ system = Choreo.new()
 # Find the cheapest path using the 'cost' variable
 {:ok, cost_path} = Analysis.path(system, :a, :c, measure: :cost)
 siren = Choreo.Lab.Siren.new(Choreo.to_mermaid(system, Analysis.highlight(cost_path)))
-graphviz =  Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(cost_path)))
+graphviz = Kino.VizJS.render(Choreo.to_dot(system, Analysis.highlight(cost_path)))
 sketch = Choreo.Lab.Sketch.new(Choreo.to_mermaid(system, Analysis.highlight(cost_path)))
 
 Kino.Layout.tabs(
@@ -516,14 +556,14 @@ alias Choreo.ERD
 alias Choreo.Analysis.Tracing
 
 # 1. Define C4 Architecture L2
-c4_model = 
+c4_model =
   C4.new()
   |> C4.add_container(:transfer_api, label: "Transfer API Service", technology: "Elixir/Phoenix")
   |> C4.add_container(:audit_db, label: "Transaction Database", technology: "PostgreSQL")
   |> C4.add_relationship(:transfer_api, :audit_db, label: "Writes transactions to")
 
 # 2. Define business runtime Workflow
-business_wf = 
+business_wf =
   Workflow.new()
   |> Workflow.add_start(:start)
   |> Workflow.add_task(:validate_funds, label: "Validate Available Funds")
@@ -534,16 +574,18 @@ business_wf =
   |> Workflow.connect(:log_audit_trail, :stop)
 
 # 3. Define Database ERD
-database_erd = 
+database_erd =
   ERD.new()
-  |> ERD.add_table(:ledger_entries, columns: [
-    %{name: :id, type: :uuid},
-    %{name: :amount, type: :decimal},
-    %{name: :created_at, type: :timestamp}
-  ])
+  |> ERD.add_table(:ledger_entries,
+    columns: [
+      %{name: :id, type: :uuid},
+      %{name: :amount, type: :decimal},
+      %{name: :created_at, type: :timestamp}
+    ]
+  )
 
 # 4. Compose them in a top-level Choreo VPC
-composed_system = 
+composed_system =
   Choreo.new()
   |> Choreo.add_cluster("secure_zone", label: "PCI Network Segment")
   |> Choreo.embed(c4_model, "secure_zone", prefix: "c4_")
@@ -553,7 +595,7 @@ composed_system =
 # 5. Draw semantic traces across domains
 # - The 'log_audit_trail' task executes via the 'transfer_api' C4 component
 # - The 'transfer_api' component writes and stores data inside the 'ledger_entries' database table
-composed_system = 
+composed_system =
   composed_system
   |> Choreo.trace(:wf_log_audit_trail, :c4_transfer_api, type: :executes)
   |> Choreo.trace(:c4_transfer_api, :erd_ledger_entries, type: :stores)
