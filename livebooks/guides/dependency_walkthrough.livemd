@@ -80,8 +80,9 @@ legend =
   |> Dependency.depends_on(:test, :app, type: :dev)
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(legend)),
-  Class_Diagram: Choreo.Lab.Siren.new(Dependency.to_mermaid(legend, syntax: :class_diagram)),
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(legend), height: "600px"),
+  Class_Diagram:
+    Choreo.Lab.Siren.new(Dependency.to_mermaid(legend, syntax: :class_diagram), height: "600px"),
   Graphviz: Kino.VizJS.render(Dependency.to_dot(legend), engine: "twopi", height: "600px"),
   Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(legend))
 )
@@ -129,9 +130,8 @@ microservices =
   end
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices), height: "500px"),
-  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(microservices))
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices), height: "600px"),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices), height: "600px")
 )
 ```
 
@@ -387,6 +387,8 @@ IO.inspect(Analysis.roots(metrics), label: "Components with no dependencies (fou
 
 Long dependency chains slow down builds, tests, and deployments. Let's find the longest one.
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 deep =
   dependency do
@@ -407,9 +409,8 @@ deep =
   end
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(deep)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(deep), height: "800px"),
-  Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(deep))
+  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(deep, direction: :lr)),
+  Graphviz: Kino.VizJS.render(Dependency.to_dot(deep, rankdir: :lr))
 )
 ```
 
@@ -451,7 +452,6 @@ Kino.Layout.tabs(
   Graphviz: Kino.VizJS.render(Dependency.to_dot(broken), engine: "circo"),
   Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(broken))
 )
-
 ```
 
 ### Diagnosis
@@ -515,11 +515,14 @@ brand_theme =
   )
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices, theme: brand_theme)),
-  Graphviz: Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "500px"),
+  Siren:
+    Choreo.Lab.Siren.new(Dependency.to_mermaid(microservices, theme: brand_theme),
+      height: "600px"
+    ),
+  Graphviz:
+    Kino.VizJS.render(Dependency.to_dot(microservices, theme: brand_theme), height: "600px"),
   Sketch: Choreo.Lab.Sketch.new(Dependency.to_mermaid(microservices, theme: brand_theme))
 )
-
 ```
 
 ---
@@ -628,6 +631,7 @@ When you zoom out, intermediate nodes are hidden, but their transitive dependenc
 | `a ~> b |> dev()`                         | Development or test-only dependency (`:dev`)            |
 | `a ~> b |> on("label")`                   | Set edge display label                                  |
 | `a ~> b |> type(:calls, "label")`         | Explicit dependency type modifier with label            |
+
 | `edge a ~> b, "label", type: :calls`      | Explicit edge statement with label and options          |
 
 ### Programmatic Pipe API & Analysis (`Choreo.Dependency`)

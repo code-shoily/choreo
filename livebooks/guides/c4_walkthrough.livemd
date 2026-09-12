@@ -87,79 +87,95 @@ model =
   c4 do
     # 1. Persons
     customer =
-      person "Personal Banking Customer",
+      person("Personal Banking Customer",
         description: "A customer of the bank who wants to view balances and make payments."
+      )
 
     # 2. Software Systems
     banking =
-      system "Internet Banking System",
+      system("Internet Banking System",
         scope: :in,
         description: "Allows customers to view financial info and make payments."
+      )
 
     mainframe =
-      system "Mainframe Banking System",
+      system("Mainframe Banking System",
         scope: :out,
         description: "Stores all core bank account, transaction, and customer details."
+      )
 
     email =
-      system "E-mail System",
+      system("E-mail System",
         scope: :out,
         description: "The internal Microsoft Exchange e-mail system."
+      )
 
     # 3. L2 Containers (parent: banking)
     web_app =
-      container "Single-Page Application",
+      container("Single-Page Application",
         technology: "React & TypeScript",
         description: "Provides internet banking features to customers via their web browser.",
         parent: banking
+      )
 
     api =
-      container "API Application",
+      container("API Application",
         technology: "Elixir & Phoenix",
         description: "Provides internet banking functionality via a JSON API.",
         parent: banking
+      )
 
     db =
-      database "Database",
+      database("Database",
         technology: "PostgreSQL",
         description: "Stores user credentials, hashed passwords, and audit logs.",
         parent: banking
+      )
 
     # 4. L3 Components (parent: api)
     signin_controller =
-      component "Sign In Controller",
+      component("Sign In Controller",
         technology: "Phoenix Controller",
         description: "Authenticates users and generates JWT sessions.",
         parent: api
+      )
 
     accounts_controller =
-      component "Accounts Controller",
+      component("Accounts Controller",
         technology: "Phoenix Controller",
         description: "Fetches summaries and transactions for bank accounts.",
         parent: api
+      )
 
     accounts_context =
-      component "Accounts Context",
+      component("Accounts Context",
         technology: "Elixir Module",
         description: "Coordinates access to account summaries and mainframe calls.",
         parent: api
+      )
 
     auth_service =
-      component "Security Service",
+      component("Security Service",
         technology: "Elixir Module",
         description: "Provides token generation, verification, and credentials checking.",
         parent: api
+      )
 
     mailer =
-      component "Mailer",
+      component("Mailer",
         technology: "Swoosh / SMTP Adapter",
         description: "Formats and sends transactional e-mails.",
         parent: api
+      )
 
     # 5. Relationships (defined at their most detailed/specific levels)
     customer ~> web_app |> uses("Visits banking site using", technology: "HTTPS")
     web_app ~> signin_controller |> calls("Submits credentials to", technology: "JSON / HTTPS")
-    web_app ~> accounts_controller |> calls("Requests account details from", technology: "JSON / HTTPS")
+
+    web_app
+    ~> accounts_controller
+    |> calls("Requests account details from", technology: "JSON / HTTPS")
+
     signin_controller ~> auth_service |> calls("Authenticates via")
     accounts_controller ~> auth_service |> calls("Authorizes requests using")
     accounts_controller ~> accounts_context |> calls("Fetches summaries from")
@@ -230,8 +246,10 @@ component_view =
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Choreo.C4.to_mermaid(component_view)),
-  Graphviz: Kino.VizJS.render(Choreo.C4.to_dot(component_view, rankdir: :bt),
-      height: "800px"),
+  Graphviz:
+    Kino.VizJS.render(Choreo.C4.to_dot(component_view, rankdir: :bt),
+      height: "800px"
+    ),
   Sketch: Choreo.Lab.Sketch.new(Choreo.C4.to_mermaid(component_view))
 )
 ```
@@ -244,37 +262,38 @@ Sometimes you only want to show a specific node and its immediate neighborhood r
 
 ### Neighborhood around DB
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 hops = fn i -> Choreo.View.focus(model, :db, radius: i) end
 
 Kino.Layout.tabs(
-  "1-Hop": Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(1))),
-    Graphviz: Kino.VizJS.render(C4.to_dot(hops.(1))),
-    Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(hops.(1)))
-  ),
-  "2-Hop": Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(2))),
-    Graphviz: Kino.VizJS.render(C4.to_dot(hops.(2))),
-    Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(hops.(2)))
-  ),
-  "3-Hop": Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(3))),
-    Graphviz: Kino.VizJS.render(C4.to_dot(hops.(3))),
-    Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(hops.(3)))
-  )
+  "1-Hop":
+    Kino.Layout.tabs(
+      Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(1))),
+      Graphviz: Kino.VizJS.render(C4.to_dot(hops.(1)), height: "500px")
+    ),
+  "2-Hop":
+    Kino.Layout.tabs(
+      Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(2))),
+      Graphviz: Kino.VizJS.render(C4.to_dot(hops.(2)), height: "500px")
+    ),
+  "3-Hop":
+    Kino.Layout.tabs(
+      Siren: Choreo.Lab.Siren.new(C4.to_mermaid(hops.(3))),
+      Graphviz: Kino.VizJS.render(C4.to_dot(hops.(3)), height: "500px")
+    )
 )
-
 ```
 
 ### Shortest Path from Customer to Database
 
 ```elixir
 path_view = Choreo.View.focus_between(model, :customer, :db)
+
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(C4.to_mermaid(path_view)),
-  Graphviz: Kino.VizJS.render(C4.to_dot(path_view)),
-  Sketch: Choreo.Lab.Sketch.new(C4.to_mermaid(path_view))
+  Graphviz: Kino.VizJS.render(C4.to_dot(path_view, rankdir: :tb), height: "600px")
 )
 ```
 
@@ -286,11 +305,13 @@ Choreo supports standard theme overrides to produce professional and clean layou
 
 ### Themes
 
+<!-- livebook:{"output_size":"wide"} -->
+
 ```elixir
 Kino.Layout.tabs(
-  Warm: Choreo.Lab.Siren.new(C4.to_mermaid(component_view, theme: :warm)),
-  Ocean: Choreo.Lab.Siren.new(C4.to_mermaid(component_view, theme: :ocean)),
-  Forest: Choreo.Lab.Siren.new(C4.to_mermaid(component_view, theme: :forest))
+  Warm: Choreo.Lab.Siren.new(C4.to_mermaid(component_view, theme: :warm), height: "500px"),
+  Ocean: Choreo.Lab.Siren.new(C4.to_mermaid(component_view, theme: :ocean), height: "500px"),
+  Forest: Choreo.Lab.Siren.new(C4.to_mermaid(component_view, theme: :forest), height: "500px")
 )
 ```
 
@@ -357,7 +378,7 @@ login_flow =
 database_erd =
   erd do
     table "users", id: :users do
-      column :id, :integer
+      column(:id, :integer)
     end
   end
 
@@ -382,11 +403,12 @@ Trace edges are hidden from normal visual outputs by default to keep the diagram
 
 In Graphviz (DOT), trace edges are automatically rendered with `constraint=false` so the trace lines do not warp or disrupt the layout of the static C4 or Workflow diagrams.
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(system, show_traces: true)),
-  Graphviz: Kino.VizJS.render(Choreo.to_dot(system, show_traces: true), height: "800px"),
-  Sketch: Choreo.Lab.Sketch.new(Choreo.to_mermaid(system, show_traces: true))
+  Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(system, show_traces: true), height: "800px"),
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(system, show_traces: true), height: "800px")
 )
 ```
 
@@ -418,8 +440,7 @@ trace_view = Choreo.View.focus_trace(system, :wf_verify_credentials, :erd_users)
 
 Kino.Layout.tabs(
   Siren: Choreo.Lab.Siren.new(Choreo.to_mermaid(trace_view, show_traces: true)),
-  Graphviz: Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true)),
-  Sketch: Choreo.Lab.Sketch.new(Choreo.to_mermaid(trace_view, show_traces: true))
+  Graphviz: Kino.VizJS.render(Choreo.to_dot(trace_view, show_traces: true))
 )
 ```
 

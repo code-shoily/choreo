@@ -47,10 +47,8 @@ render_domain = fn domain, opts ->
   dot = Domain.to_dot(domain)
 
   Kino.Layout.tabs(
-    Siren: Choreo.Lab.Siren.new(mermaid),
-    Graphviz: Kino.VizJS.render(dot, height: Keyword.get(opts, :height, "900px")),
-    Sketch: Choreo.Lab.Sketch.new(mermaid),
-    Source: mermaid_markdown.(mermaid)
+    Siren: Choreo.Lab.Siren.new(mermaid, height: Keyword.get(opts, :height, "600px")),
+    Graphviz: Kino.VizJS.render(dot, height: Keyword.get(opts, :height, "600px"))
   )
 end
 ```
@@ -167,96 +165,113 @@ With the Lab DSL, you can state those relationships directly using semantic edge
 storming =
   domain do
     customer =
-      actor "Customer",
+      actor("Customer",
         description: "The buyer requesting an order placement."
+      )
 
     context_boundary "Order Taking Context", id: "order_taking" do
       place_order =
-        command "Place Order",
+        command("Place Order",
           description: "Submit cart contents for validation and pricing."
+        )
 
       order_agg =
-        aggregate "Order Aggregate",
+        aggregate("Order Aggregate",
           description: "Consistency boundary wrapping the accepted order.",
           invariants: [
             "An accepted order must have at least one validated line.",
             "The total amount must equal the sum of priced lines.",
             "A paid order cannot be repriced without compensation."
           ]
+        )
 
       order_placed =
-        event "Order Placed",
+        event("Order Placed",
           description: "Emitted when an order is accepted by the core domain."
+        )
 
       order_status =
-        read_model "Order Status View",
+        read_model("Order Status View",
           description: "Customer-facing projection of the order lifecycle."
+        )
     end
 
     context_boundary "Billing Context", id: "billing" do
       payment_saga =
-        policy "Payment Policy",
+        policy("Payment Policy",
           description: "Requests payment after an order is placed."
+        )
 
       request_payment =
-        command "Request Payment",
+        command("Request Payment",
           description: "Ask Billing to authorize and capture payment."
+        )
 
       billing_agg =
-        aggregate "Billing Aggregate",
+        aggregate("Billing Aggregate",
           description: "Protects invoice and payment state.",
           invariants: [
             "A captured payment must reference an issued invoice.",
             "A payment can be captured only once."
           ]
+        )
 
       payment_received =
-        event "Payment Received",
+        event("Payment Received",
           description: "Emitted after successful payment capture."
+        )
     end
 
     context_boundary "Inventory Context", id: "inventory" do
       allocation_saga =
-        policy "Allocation Policy",
+        policy("Allocation Policy",
           description: "Reserves stock after payment succeeds."
+        )
 
       reserve_inventory =
-        command "Reserve Inventory",
+        command("Reserve Inventory",
           description: "Reserve available stock for this order."
+        )
 
       inventory_agg =
-        aggregate "Inventory Aggregate",
+        aggregate("Inventory Aggregate",
           description: "Protects available and reserved stock counts.",
           invariants: [
             "Reserved quantity cannot exceed available quantity.",
             "Stock reservations are idempotent by order ID."
           ]
+        )
 
       inventory_reserved =
-        event "Inventory Reserved",
+        event("Inventory Reserved",
           description: "Emitted when stock is allocated for fulfillment."
+        )
     end
 
     context_boundary "Shipping Context", id: "shipping" do
       shipment_saga =
-        policy "Shipment Policy",
+        policy("Shipment Policy",
           description: "Initiates dispatch after inventory is reserved."
+        )
 
       ship_goods =
-        command "Ship Goods",
+        command("Ship Goods",
           description: "Ask Shipping to create labels and dispatch goods."
+        )
 
       shipping_agg =
-        aggregate "Shipping Aggregate",
+        aggregate("Shipping Aggregate",
           description: "Protects shipment lifecycle state.",
           invariants: [
             "A shipment cannot be dispatched before inventory is reserved.",
             "A shipment must have a delivery address."
           ]
+        )
 
       goods_shipped =
-        event "Goods Shipped",
+        event("Goods Shipped",
           description: "Emitted when the package leaves the warehouse."
+        )
     end
 
     # Semantic Event Storming edges
@@ -281,9 +296,10 @@ storming =
     goods_shipped ~> order_status |> projects_to()
     goods_shipped ~> customer |> notifies()
 
-    scenario :happy_path,
+    scenario(:happy_path,
       label: "Happy path: order to shipment",
-      description: "The complete successful order placement, payment, inventory, and shipment path.",
+      description:
+        "The complete successful order placement, payment, inventory, and shipment path.",
       path: [
         customer,
         place_order,
@@ -303,8 +319,9 @@ storming =
         goods_shipped,
         customer
       ]
+    )
 
-    scenario :payment_path,
+    scenario(:payment_path,
       label: "Payment path",
       description: "A shorter scenario showing order acceptance through payment capture.",
       path: [
@@ -317,6 +334,7 @@ storming =
         billing_agg,
         payment_received
       ]
+    )
   end
 
 render_domain.(storming, height: "1700px")
@@ -332,7 +350,9 @@ The same model can be checked for basic Event Storming and DDD quality issues.
 audit = Analysis.validate(storming)
 
 if audit == [] do
-  Kino.Markdown.new("✅ **Domain audit passed.** Commands, events, policies, aggregates, scenarios, and metadata look coherent.")
+  Kino.Markdown.new(
+    "✅ **Domain audit passed.** Commands, events, policies, aggregates, scenarios, and metadata look coherent."
+  )
 else
   audit
   |> Enum.map(fn {severity, message} -> "* `#{severity}` — #{message}" end)
@@ -391,14 +411,13 @@ Mermaid's `eventmodeling` syntax is timeline-oriented. It is a great companion v
 | `:policy`, `:workflow`, `:external_system`, `:acl` | `pcr`                                                              |
 | `:aggregate`                                       | skipped — aggregates have no direct Mermaid Event Modeling shape |
 
-<!-- livebook:{"output_size":"full"} -->
+<!-- livebook:{"output_size":"wide"} -->
 
 ```elixir
 event_modeling = Domain.to_mermaid(storming, syntax: :event_modeling, scenario: :happy_path)
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(event_modeling, height: "900px"),
-  Source: mermaid_markdown.(event_modeling)
+  Siren: Choreo.Lab.Siren.new(event_modeling, height: "900px")
 )
 ```
 
@@ -418,62 +437,71 @@ Here is a compact order pipeline:
 algebraic_pipeline =
   domain do
     unvalidated_order =
-      type "Unvalidated Order",
+      type("Unvalidated Order",
         fields: [
           {:customer_id, :string},
           {:lines, "list of UnvalidatedLine"}
         ],
         description: "Raw order submitted by the customer."
+      )
 
     validated_order =
-      type "Validated Order",
+      type("Validated Order",
         fields: [
           {:customer_info, "CustomerInfo"},
           {:lines, "list of ValidatedLine"}
         ],
         description: "Order whose customer and line items have been validated."
+      )
 
     priced_order =
-      type "Priced Order",
+      type("Priced Order",
         fields: [
           {:customer_info, "CustomerInfo"},
           {:lines, "list of PricedLine"},
           {:total_amount, :money}
         ],
         description: "Validated order with final prices and totals."
+      )
 
     order_acknowledgment_sent =
-      type "Order Acknowledgment Sent",
+      type("Order Acknowledgment Sent",
         fields: [
           {:customer_email, :string},
           {:receipt_id, :string}
         ],
         description: "Customer-visible acknowledgment that the order was accepted."
+      )
 
     bill_requested =
-      type "Bill Requested",
+      type("Bill Requested",
         fields: [
           {:invoice_id, :string},
           {:total, :money},
           {:payment_terms, [:due_on_receipt, :net_30, :net_60]}
         ],
         description: "Billing request created from an acknowledged order."
+      )
 
     validate_order =
-      workflow "Validate Order",
+      workflow("Validate Order",
         invariants: ["Invalid customer IDs and empty order lines are rejected."]
+      )
 
     price_order =
-      workflow "Price Order",
+      workflow("Price Order",
         invariants: ["Every accepted line receives a price before totals are calculated."]
+      )
 
     acknowledge_order =
-      workflow "Acknowledge Order",
+      workflow("Acknowledge Order",
         invariants: ["Acknowledgment is sent once per accepted order."]
+      )
 
     bill_customer =
-      workflow "Bill Customer",
+      workflow("Bill Customer",
         invariants: ["Billing receives only priced and acknowledged orders."]
+      )
 
     unvalidated_order ~> validate_order |> on("input")
     validate_order ~> validated_order |> on("ok")
@@ -486,9 +514,10 @@ algebraic_pipeline =
   end
 
 Kino.Layout.tabs(
-  ClassDiagram: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :class_diagram)),
-  ERD: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd)),
-  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1100px")
+  ClassDiagram:
+    Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :class_diagram), height: "1600px"),
+  ERD: Choreo.Lab.Siren.new(Domain.to_mermaid(algebraic_pipeline, syntax: :erd), height: "1600px"),
+  Graphviz: Kino.VizJS.render(Domain.to_dot(algebraic_pipeline), height: "1600px")
 )
 ```
 
@@ -502,7 +531,7 @@ Aggregates matter because they protect business invariants. The diagram below sh
 aggregate_detail =
   domain do
     order_root =
-      aggregate "Order (Aggregate Root)",
+      aggregate("Order (Aggregate Root)",
         id: :order_root,
         fields: [
           {:id, :uuid},
@@ -515,9 +544,10 @@ aggregate_detail =
           "Total price equals the sum of order-line prices.",
           "Customer information must be valid before payment."
         ]
+      )
 
     order_line =
-      type "OrderLine (Entity)",
+      type("OrderLine (Entity)",
         id: :order_line,
         fields: [
           {:id, :uuid},
@@ -525,9 +555,10 @@ aggregate_detail =
           {:quantity, :integer},
           {:price, :money}
         ]
+      )
 
     customer_info =
-      type "CustomerInfo (Value Object)",
+      type("CustomerInfo (Value Object)",
         id: :customer_info,
         fields: [
           {:customer_id, :uuid},
@@ -535,6 +566,7 @@ aggregate_detail =
           {:email, :string},
           {:shipping_address, :string}
         ]
+      )
 
     order_root ~> customer_info |> on("contains")
     order_root ~> order_line |> on("has 1..*")
@@ -558,21 +590,21 @@ import Choreo.Lab.DSL.Sequence, only: [sequence: 1]
 
 seq =
   sequence do
-    customer = actor "Customer"
-    order_service = participant "Order Service"
-    billing_service = participant "Billing Service"
-    stripe = participant "Stripe Gateway"
+    customer = actor("Customer")
+    order_service = participant("Order Service")
+    billing_service = participant("Billing Service")
+    stripe = participant("Stripe Gateway")
 
     customer ~> order_service |> call("Submit Order")
-    activate order_service
+    activate(order_service)
     order_service ~> billing_service |> call("Request Payment")
-    activate billing_service
+    activate(billing_service)
     billing_service ~> stripe |> call("Authorize Charge")
-    reply stripe ~> billing_service, "Token Approved"
-    reply billing_service ~> order_service, "Payment Received"
-    deactivate billing_service
-    reply order_service ~> customer, "Order Accepted"
-    deactivate order_service
+    reply(stripe ~> billing_service, "Token Approved")
+    reply(billing_service ~> order_service, "Payment Received")
+    deactivate(billing_service)
+    reply(order_service ~> customer, "Order Accepted")
+    deactivate(order_service)
   end
 
 Kino.Layout.tabs(

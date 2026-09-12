@@ -230,9 +230,8 @@ resilient =
   end
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(resilient)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(resilient, rankdir: :tb), height: "500px"),
-  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(resilient))
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(resilient), height: "800px"),
+  Graphviz: Kino.VizJS.render(Dataflow.to_dot(resilient, rankdir: :tb), height: "800px")
 )
 ```
 
@@ -259,6 +258,8 @@ Analysis.cyclic?(resilient)
 ## Example 4: Multi-Stage Microservices with Sub-Pipelines
 
 Complex systems have bounded contexts. Sub-pipeline clusters let you group related nodes visually while keeping the full graph connected for analysis.
+
+<!-- livebook:{"output_size":"full"} -->
 
 ```elixir
 microservices =
@@ -308,18 +309,14 @@ microservices =
   end
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default))),
+  Siren:
+    Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default))),
   Graphviz: Kino.VizJS.render(Dataflow.to_dot(microservices, theme: Dataflow.theme(:default))),
-  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)))
+  Sketch:
+    Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices, theme: Dataflow.theme(:default)))
 )
 
-Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(microservices, rankdir: :bt),
-      engine: "twopi",
-      height: "1000px"),
-  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices))
-)
+Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, direction: :lr))
 ```
 
 ### Cluster-Aware Analysis
@@ -415,6 +412,8 @@ Kino.Layout.tabs(
 
 Build a theme that matches your organisation's brand colours.
 
+<!-- livebook:{"output_size":"full"} -->
+
 ```elixir
 brand_theme =
   Choreo.Theme.custom(
@@ -431,11 +430,11 @@ brand_theme =
   )
 
 Kino.Layout.tabs(
-  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: brand_theme)),
-  Graphviz: Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme),
-      height: "800px",
-      engine: "twopi"),
-  Sketch: Choreo.Lab.Sketch.new(Dataflow.to_mermaid(microservices, theme: brand_theme))
+  Siren: Choreo.Lab.Siren.new(Dataflow.to_mermaid(microservices, theme: brand_theme, direction: :lr)),
+  Graphviz:
+    Kino.VizJS.render(Dataflow.to_dot(microservices, theme: brand_theme),
+      engine: "twopi"
+    )
 )
 ```
 
