@@ -65,7 +65,7 @@ These functions operate on the general `Choreo` architecture graph. Many of them
 | `trace_path/3` | Shortest trace path between two nodes | **Dijkstra** on the trace-only graph |
 | `analyze/3` | Nested cross-domain analysis along a trace path | Path reconstruction + domain metadata classification |
 
-### `Choreo.Internal` — shared graph primitives
+### Internal shared graph primitives
 
 | Function | Purpose | Algorithm used |
 |---|---|---|
@@ -298,29 +298,29 @@ A quick lookup of which algorithms appear where.
 
 | Algorithm | Used by |
 |---|---|
-| **BFS** | `Choreo.Analysis.impact_analysis/2`, `Choreo.Dataflow` reachability/lineage, `Choreo.Dependency.affected_by/2`, `Choreo.ERD.affected_by/2`, `Choreo.UML.affected_by/2`, `Choreo.FSM`, `Choreo.Workflow`, `Choreo.MindMap`, `Choreo.ThreatModel.exposed_data_stores/1`, `Choreo.Requirement.impact_of/2`, `Choreo.Internal.bfs_reachable/2` |
-| **DFS** | `Choreo.ERD.cycles/1`, `Choreo.UML.cycles/1`, `Choreo.MindMap.paths/1`, `Choreo.DecisionTree.paths/1`, `Choreo.ThreatModel.attack_paths/1`, `Choreo.Internal.dfs_cycles/1` |
-| **Topological sort** | `Choreo.Analysis.topological_sort/1`, `Choreo.Dataflow`, `Choreo.Dependency.longest_dependency_chain/1`, `Choreo.ERD.longest_dependency_chain/1`, `Choreo.Workflow.critical_path/1`, `Choreo.Planner.critical_path/2`, `Choreo.Dataflow.simulate/1` |
-| **SCC (Tarjan)** | `Choreo.Analysis.strongly_connected_components/1`, `Choreo.Dependency.cyclic_dependencies/1`, `Choreo.Requirement.circular_dependencies/1` |
+| **BFS** | `Choreo.Analysis.impact_analysis/2`, `Choreo.Dataflow` reachability/lineage, `Choreo.Dependency.Analysis.affected_by/2`, `Choreo.ERD.Analysis.affected_by/2`, `Choreo.UML.Analysis.affected_by/2`, `Choreo.FSM`, `Choreo.Workflow`, `Choreo.MindMap`, `Choreo.ThreatModel.Analysis.exposed_data_stores/1`, `Choreo.Requirement.Analysis.impact_of/2`, <code>Choreo.Internal.bfs_reachable/2</code> |
+| **DFS** | `Choreo.ERD.Analysis.cycles/1`, `Choreo.UML.Analysis.cycles/1`, `Choreo.MindMap.Analysis.paths/1`, `Choreo.DecisionTree.Analysis.paths/1`, `Choreo.ThreatModel.Analysis.attack_paths/2`, <code>Choreo.Internal.dfs_cycles/1</code> |
+| **Topological sort** | `Choreo.Analysis.topological_sort/1`, `Choreo.Dataflow`, `Choreo.Dependency.Analysis.longest_dependency_chain/1`, `Choreo.ERD.Analysis.longest_dependency_chain/1`, `Choreo.Workflow.Analysis.critical_path/1`, `Choreo.Planner.Analysis.critical_path/2`, `Choreo.Dataflow.Analysis.simulate/1` |
+| **SCC (Tarjan)** | `Choreo.Analysis.strongly_connected_components/1`, `Choreo.Dependency.Analysis.cyclic_dependencies/1`, `Choreo.Requirement.Analysis.circular_dependencies/1` |
 | **Articulation points / bridges** | `Choreo.Analysis.single_points_of_failure/1`, `Choreo.Analysis.cut_vertices/1` via `Yog.Connectivity.analyze/1` |
 | **Shortest path (Dijkstra)** | `Choreo.Analysis.shortest_path/4`, `Choreo.Analysis.path/4`, `Choreo.Analysis.Tracing.trace_path/3` |
 | **Widest path** | `Choreo.Analysis.path/4` (`:throughput`, `:weighted`) |
 | **MST (Kruskal/Prim/Borůvka)** | `Choreo.Analysis.mst/2` |
-| **Longest path in DAG** | `Choreo.Dataflow.longest_path/1`, `Choreo.Dependency.longest_dependency_chain/1`, `Choreo.ERD.longest_dependency_chain/1`, `Choreo.Workflow.critical_path/1`, `Choreo.Planner.critical_path/2` via `Choreo.Internal.compute_dp/3` |
-| **Transitive reduction** | `Choreo.Analysis.reduce_transitive/1`, `Choreo.Dependency.transitive_reduction/1`, `Choreo.ERD.transitive_reduction/1`, `Choreo.UML.transitive_reduction/1`, `Choreo.Internal.transitive_reduction/1` |
+| **Longest path in DAG** | `Choreo.Dataflow.Analysis.longest_path/1`, `Choreo.Dependency.Analysis.longest_dependency_chain/1`, `Choreo.ERD.Analysis.longest_dependency_chain/1`, `Choreo.Workflow.Analysis.critical_path/1`, `Choreo.Planner.Analysis.critical_path/2` via <code>Choreo.Internal.compute_dp/3</code> |
+| **Transitive reduction** | `Choreo.Analysis.reduce_transitive/1`, `Choreo.Dependency.Analysis.transitive_reduction/1`, `Choreo.ERD.Analysis.transitive_reduction/1`, `Choreo.UML.Analysis.transitive_reduction/1`, <code>Choreo.Internal.transitive_reduction/1</code> |
 | **Centrality** | `Choreo.Analysis.centrality/2` (degree, betweenness, closeness, PageRank) |
 | **K-core decomposition** | `Choreo.Analysis.core_numbers/1` |
-| **Weakly connected components** | `Choreo.Dependency.isolated_subsystems/1` |
+| **Weakly connected components** | `Choreo.Dependency.Analysis.isolated_subsystems/1` |
 | **DFA minimization (Moore's partition refinement)** | `Choreo.FSM.Analysis.minimize/1` |
 | **Product automaton BFS** | `Choreo.FSM.Analysis.equivalent?/2` |
 | **Jaccard similarity** | `Choreo.MindMap.Analysis.suggest_merges/2` |
-| **Instability metric** | `Choreo.Dependency.instability/1`, `Choreo.UML.coupling_metrics/1` |
+| **Instability metric** | `Choreo.Dependency.Analysis.instability/1`, `Choreo.UML.Analysis.coupling_metrics/1` |
 
 ---
 
 ## Implementation notes
 
 * Most path and impact analyses work on a **simple graph** view produced by `to_simple_graph/1` or `Yog.Multi.to_simple_graph/1`, which collapses parallel edges.
-* **Topological-order DP** (`Choreo.Internal.compute_dp/3`) is the shared implementation for longest/critical path calculations across Dataflow, Dependency, ERD, Workflow, and Planner.
-* **Transitive reduction** is implemented centrally in `Choreo.Internal.transitive_reduction/1` and reused by Dependency, ERD, and UML.
-* **BFS reachability** (`Choreo.Internal.bfs_reachable/2`) is the shared primitive for downstream/upstream impact analysis across nearly all diagram types.
+* **Topological-order DP** (<code>Choreo.Internal.compute_dp/3</code>) is the shared implementation for longest/critical path calculations across Dataflow, Dependency, ERD, Workflow, and Planner.
+* **Transitive reduction** is implemented centrally in <code>Choreo.Internal.transitive_reduction/1</code> and reused by Dependency, ERD, and UML.
+* **BFS reachability** (<code>Choreo.Internal.bfs_reachable/2</code>) is the shared primitive for downstream/upstream impact analysis across nearly all diagram types.

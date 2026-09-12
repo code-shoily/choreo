@@ -43,7 +43,7 @@ defmodule Choreo.Livebook do
   Evaluates the extracted Elixir blocks in a headless environment.
 
   * Strips `Mix.install([...])` calls (the host already has dependencies).
-  * Redirects `Kino.*` calls to `Choreo.Livebook.KinoMock`.
+  * Redirects `Kino.*` calls to headless mocks.
   * Replaces visual renderers with `Kernel.inspect` so they return plain values.
 
   Returns `:ok` on success or `{:error, exception, stacktrace}` on failure.

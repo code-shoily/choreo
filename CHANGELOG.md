@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-12
+
 ### Added
 
 - **Analysis & Query Capabilities**:
@@ -137,7 +139,7 @@
 
 ### Changed
 
-- Refactored Livebook validation internals so the MCP server and `mix choreo.test_livebooks` share the same parser, evaluator, and `Kino` mock suite via `Choreo.Livebook` and `Choreo.Livebook.KinoMock`.
+- Refactored Livebook validation internals so the MCP server and `mix choreo.test_livebooks` share the same parser, evaluator, and `Kino` mock suite via `Choreo.Livebook` and <code>Choreo.Livebook.KinoMock</code>.
 - `choreo_verify_design` now evaluates Elixir code blocks (with `Mix.install` stripped and `Kino` redirected to mocks) instead of only checking syntax.
 - Disabled protocol consolidation in `mix.exs` so Livebooks that define protocol implementations at runtime validate headlessly.
 - **Validation Signature Harmonization**:
