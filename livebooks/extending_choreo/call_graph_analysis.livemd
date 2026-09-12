@@ -43,8 +43,8 @@ The custom code we keep is the call-graph semantics: function types (`:public`, 
 
 ```elixir
 Mix.install([
-  # {:choreo, "~> 0.14"},
-  {:choreo, path: Path.expand("../..", __DIR__), force: true},
+  {:choreo, "~> 0.14"},
+  # {:choreo, path: Path.expand("../..", __DIR__), force: true},
 ])
 ```
 
