@@ -313,11 +313,11 @@ if Code.ensure_loaded?(Kino) do
             const serializer = new XMLSerializer();
             let source = serializer.serializeToString(svgElement);
 
-            if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
-              source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            if (!source.includes('xmlns="http://www.w3.org/2000/svg"')) {
+              source = source.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
             }
-            if (!source.match(/^<svg[^>]+xmlns\:xlink="http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
-              source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+            if (!source.includes('xmlns:xlink="http://www.w3.org/1999/xlink"')) {
+              source = source.replace("<svg", '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
             }
 
             const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
